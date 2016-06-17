@@ -1,0 +1,307 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.13. wff_language.regex_trie_dict_lexer module &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="up" title="2. wff_language package" href="wff_language.html" />
+    <link rel="next" title="2.1.14. wff_language.regex_trie_dict_scanner module" href="wff_language.regex_trie_dict_scanner.html" />
+    <link rel="prev" title="2.1.12. wff_language.regex_trie_dict module" href="wff_language.regex_trie_dict.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.regex_trie_dict_scanner.html" title="2.1.14. wff_language.regex_trie_dict_scanner module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.regex_trie_dict.html" title="2.1.12. wff_language.regex_trie_dict module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" accesskey="U">2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-wff_language.regex_trie_dict_lexer">
+<span id="wff-language-regex-trie-dict-lexer-module"></span><h1>2.1.13. wff_language.regex_trie_dict_lexer module<a class="headerlink" href="#module-wff_language.regex_trie_dict_lexer" title="Permalink to this headline">¶</a></h1>
+<p>This module contains a lexer (tokenizer) which uses a RegexTrieDictScanner
+class to identify tokens.  A RegexTrieDictScanner is used to scan for basic
+tokens.  First the TextStream object is defined as a wrapper for a stream of
+text characters from various sources.  Next, a class RegexTrieDictLexer is
+defined as a very simple lexer drawing characters from a TextStream.  Finally,
+a class BufferedRegexTrieDictLexer is defined using the basic
+RegexTrieDictLexer but providing many more features such as buffering,
+pushback, general whitespace ignoring, etc.  Generally the
+BufferedRegexTrieDictLexer should be used in applictions, rather than the
+lower-level lexer.</p>
+<dl class="class">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer">
+<em class="property">class </em><tt class="descclassname">wff_language.regex_trie_dict_lexer.</tt><tt class="descname">BufferedRegexTrieDictLexer</tt><big>(</big><em>textStream</em>, <em>regexTrieDict</em>, <em>whitespace=''</em>, <em>MAX_BUFFERED_TOKENS=1024</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>A buffered lexer built on a TreeLexer to allow for pushback and
+lookahead of tokens.</p>
+<p>The next() method raises a StopIteration when it is out of tokens, so the
+class can be used as an iterator.  The peek() method, however, returns None
+upon trying to peek past the end of the token stream.  End of the token
+stream can also be explicitly tested with end_of_token_stream().</p>
+<p>This class just creates an internal RegexTrieDictLexer instance and adds
+buffering.</p>
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.beginning_of_line">
+<tt class="descname">beginning_of_line</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.beginning_of_line"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.beginning_of_line" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if at the beginning of a line.  When ignore_whitespace=True it
+assumes that the token buffer is large enough to cover any cases where
+backing up with pushback would exhaust the buffer before reaching the
+actual beginning of the token stream.  (Only files with whitespace
+regions on the order of MAX_BUFFERED_TOKENS would violate this.)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_line">
+<tt class="descname">end_of_line</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.end_of_line"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_line" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if at the end of a line, ignoring white space if ignore_whitespace
+is True.  At endOfTokenStream() this also gives True.  Does not consume
+any tokens or alter the token stream.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_token_stream">
+<tt class="descname">end_of_token_stream</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.end_of_token_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_token_stream" title="Permalink to this definition">¶</a></dt>
+<dd><p>True when there are no more tokens in the token stream, ignoring
+whitespace when ignore_whitespace==True.  Does not consume any tokens
+or alter the token stream.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.expect_char">
+<tt class="descname">expect_char</tt><big>(</big><em>charStr</em>, <em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.expect_char"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.expect_char" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function.  Does a peek() and returns True if the string
+for the returned token matches one of the characters in charStr, False
+otherwise.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.get_all_to_delimiter">
+<tt class="descname">get_all_to_delimiter</tt><big>(</big><em>delimiterStr</em>, <em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.get_all_to_delimiter"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.get_all_to_delimiter" title="Permalink to this definition">¶</a></dt>
+<dd><p>This reads in a sequence of tokens from the current place in the token
+stream, up to a delimiter which is a character in the string
+delimiterStr.  The strings for each such token are concatenated together
+and returned as a single uncheckedString token.  Each individual
+delimiter character must be the string for a distinct token type.  The
+delimiter character itself is pushed back.  The empty string is reported
+as the TokenData string value if a delimiter is found immediately.  End
+of token stream is always a delimiter.</p>
+<p>The delimiter can contain whitespace characters even when whitespace is
+ignored.  In that case, if any whitespace delimiters occur before some
+non-whitespace characters then they are ignored and not treated as
+end-delimiters.  After some non-whitespace the whitespace delimiter
+counts as an end-delimiter.  For example, an identifier might begin and
+end with blanks, but only the end ones should be delimiters.</p>
+<p>The results of this method currently cannot be pushed back because
+multiple tokens are possibly combined (with some possibly considered as
+errors in the usual lexing) to create the undefined identifier.  So
+multiple pushbacks would be required (and the number would have to be
+saved).</p>
+<p>This routine can be used when new language elements like variables and
+functions are defined in known places in the grammar, but they haven&#8217;t
+yet been entered into the LanguageData database.  It can also be used
+to read, say, numbers (which are recognized from seeing a leading
+digit).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.next">
+<tt class="descname">next</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get next token.  If ignore_whitespace is False, i.e., the function is
+called as next(False), then whitespace tokens will be reported as regular
+tokens, regardless of any whitespace-character setting.</p>
+<p>Note that for correctness (over efficiency), whitespace tokens are also
+buffered.  This ensures that the results will be the same as for the
+unbuffered RegexTrieDictLexer, even after pushbacks.  For true
+equivalence any next(boolVal) results should only be pushed back with
+pushback(boolVal), for the same boolVal.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.peek">
+<tt class="descname">peek</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.peek"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.peek" title="Permalink to this definition">¶</a></dt>
+<dd><p>Peek ahead and return the next token without incrementing the token
+stream.  Returns None if a peek is attempted when endOfTokenStream()
+is True.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.print_token_buf_strings">
+<tt class="descname">print_token_buf_strings</tt><big>(</big><em>n=0</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.print_token_buf_strings"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.print_token_buf_strings" title="Permalink to this definition">¶</a></dt>
+<dd><p>Debugging routine to print out the strings for the last n tokens in
+tokenDataBuf.  If n=0 all the tokens are printed.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.pushback">
+<tt class="descname">pushback</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.pushback"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.pushback" title="Permalink to this definition">¶</a></dt>
+<dd><p>Effectively pushes back the last token read.  If ignore_whitespace is
+True then the last token and any whitespace token before it is pushed
+back (this is to reverse a previous next() operation with
+ignore_whitespace==True).</p>
+<p>This function returns True if the pushback was successful, and False if
+it failed due to running out of buffered tokens (i.e., if more
+pushbacks than nexts have been called within the current size of the
+token buffer.).  Note that returning False does not necessarily mean it
+is back to the start of the token stream unless MAX_BUFFERED_TOKENS =
+None.  Method beginning_of_line() does assume this, however, for the
+special case of the first line.</p>
+<p>Note also that you cannot pushback any token which caused (as a higher
+level parse action) a definition to be made which changed the keys and
+values in the regexTrieDict of the lexer (or else the results will be
+undefined).  The lexer is dynamic, and changes according to definitions
+of its tokens in the regexTrieDict.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.set_whitespace">
+<tt class="descname">set_whitespace</tt><big>(</big><em>whitespaceChars</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#BufferedRegexTrieDictLexer.set_whitespace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.set_whitespace" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.regex_trie_dict_lexer.DataTuple">
+<em class="property">class </em><tt class="descclassname">wff_language.regex_trie_dict_lexer.</tt><tt class="descname">DataTuple</tt><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.DataTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">tuple</span></tt></p>
+<p>DataTuple(kind, data)</p>
+<dl class="attribute">
+<dt id="wff_language.regex_trie_dict_lexer.DataTuple.data">
+<tt class="descname">data</tt><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.DataTuple.data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.regex_trie_dict_lexer.DataTuple.kind">
+<tt class="descname">kind</tt><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.DataTuple.kind" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.regex_trie_dict_lexer.RegexTrieDictLexer">
+<em class="property">class </em><tt class="descclassname">wff_language.regex_trie_dict_lexer.</tt><tt class="descname">RegexTrieDictLexer</tt><big>(</big><em>textStream</em>, <em>trieDict</em>, <em>whitespace=''</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#RegexTrieDictLexer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>A simple, nonbuffered lexer based on the RegexTrieDict data structure.</p>
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.end_of_token_stream">
+<tt class="descname">end_of_token_stream</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#RegexTrieDictLexer.end_of_token_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.end_of_token_stream" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if no more tokens.  Whitespace tokens are not ignored.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.next">
+<tt class="descname">next</tt><big>(</big><em>ignore_whitespace=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#RegexTrieDictLexer.next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the next token.  The returned token for a string is exactly the
+matchedData element for that string, from the StringDelimitedTrieDict.
+It consists of a tuple of three elements: a boolean for whether there was
+an error, the string itself, and any data item which was stored with the
+string.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.set_whitespace">
+<tt class="descname">set_whitespace</tt><big>(</big><em>whitespaceChars</em><big>)</big><a class="reference internal" href="_modules/wff_language/regex_trie_dict_lexer.html#RegexTrieDictLexer.set_whitespace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.set_whitespace" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="wff_language.regex_trie_dict.html"
+                        title="previous chapter">2.1.12. wff_language.regex_trie_dict module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.regex_trie_dict_scanner.html"
+                        title="next chapter">2.1.14. wff_language.regex_trie_dict_scanner module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/wff_language.regex_trie_dict_lexer.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.regex_trie_dict_scanner.html" title="2.1.14. wff_language.regex_trie_dict_scanner module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.regex_trie_dict.html" title="2.1.12. wff_language.regex_trie_dict module"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" >2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

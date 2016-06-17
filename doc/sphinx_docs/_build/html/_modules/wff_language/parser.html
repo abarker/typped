@@ -1,0 +1,394 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>wff_language.parser &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for wff_language.parser</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">The parser and grammar definition.  Note that we only lexically analyze a few</span>
+<span class="sd">different sorts of tokens and identifiers, since vars, consts, funs, etc., can</span>
+<span class="sd">be defined dynamically in the language (and their namespaces intersect).</span>
+
+<span class="sd">In a left-to-right recursive descent parser with arbitrary lookahead we could</span>
+<span class="sd">try to update the lexer on the fly to recognize the exact collection of symbols</span>
+<span class="sd">which have been defined.  But resolving overloaded operators can require</span>
+<span class="sd">backtracking.  When backtracking is required that could also require setting</span>
+<span class="sd">and unsetting the attributes of the tokens in the LanguageData symbol table,</span>
+<span class="sd">which would be cumbersome to implement and slow.  So we lexically analyze a few</span>
+<span class="sd">sorts of tokens and then later resolve on-the-fly what types of tokens they</span>
+<span class="sd">really are.  But consider, since ambiguity resolution is better.</span>
+
+<span class="sd">Really consider using the TreeRecognizer as the lexer, dynamically updated.</span>
+<span class="sd">with reasonably fast inserts and deletes.  What does the algorithm really</span>
+<span class="sd">require?  We would need to store multiple signatures with functions when</span>
+<span class="sd">overloading is allowed.  This works OK when all vars, funs, etc. *must* be</span>
+<span class="sd">defined before appearing.  But the usual convention allows them to just appear,</span>
+<span class="sd">or to be taken as some default type in a typed system.  This could require a</span>
+<span class="sd">simple DFA in the lexer.  Requiring all the vars, etc. to be defined first</span>
+<span class="sd">would get around this problem *except* in the defining statements themselves.</span>
+<span class="sd">A parallel DFA could perhaps be used, or we could just read up to a delimiter</span>
+<span class="sd">when it is known exactly where an identifier must occur.  We then have the</span>
+<span class="sd">model where the parser updates the symbol table as it goes, and this also</span>
+<span class="sd">updates the TreeRecognizer class (as a part of LanguageData, perhaps) which</span>
+<span class="sd">the lexer then uses to do its business.</span>
+
+<span class="sd">Note that we assume all language elements other than parens and commas and a</span>
+<span class="sd">few other grammatical characters and commands are identifiers in a common</span>
+<span class="sd">namespace, each declared via a declaration and thus known in the languageData</span>
+<span class="sd">symbol table as far as its type, etc.  Only infix and prefix function names are</span>
+<span class="sd">allowed to contain the &quot;usual&quot; operator symbols, and std functions can only</span>
+<span class="sd">contain them after the first character(???ambig).  This is so that common infix</span>
+<span class="sd">and prefix functions can often be written without having to leave whitespace</span>
+<span class="sd">between them and their operands when the the operators both begin and end with</span>
+<span class="sd">an operator character.  An exception is when prefix and infix functions</span>
+<span class="sd">concatenate to form another valid operator, as in x - -y versus x -- y.</span>
+<span class="sd">Otherwise operators cannot be juxtaposed</span>
+
+<span class="sd">x +54* 5  x+54*5  can&#39;t allow non-operator inside or ambiguous again!</span>
+
+<span class="sd">For NOW, we can just restrict all operator characters to infix and prefix</span>
+<span class="sd">operators.  Consider more: it depends on the lexical analyzer that is used,</span>
+<span class="sd">since a more exact lexical analyzer has less ambiguity.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="c">#TODO: consider the above, and implement it below; only partially done now.</span>
+
+<span class="c"># Actual function names, var names, etc., will be strings returned by the</span>
+<span class="c"># LanguageData class, formed by joining all the strings together which have</span>
+<span class="c"># been defined for that sort.</span>
+
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+<span class="kn">import</span> <span class="nn">collections</span> <span class="c"># for named tuples</span>
+<span class="kn">from</span> <span class="nn">regex_trie_dict_lexer</span> <span class="kn">import</span> <span class="n">BufferedRegexTrieDictLexer</span><span class="p">,</span> <span class="n">TextStream</span>
+<span class="kn">from</span> <span class="nn">language_data</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">basic_defs</span> <span class="kn">import</span> <span class="o">*</span>
+
+<span class="n">commandLabels</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;defType&quot;</span><span class="p">,</span> <span class="s">&quot;defTypeConvert&quot;</span><span class="p">,</span> <span class="s">&quot;defTypeAlias&quot;</span><span class="p">,</span> <span class="s">&quot;defQuant&quot;</span><span class="p">,</span>
+                 <span class="s">&quot;defConst&quot;</span><span class="p">,</span> <span class="s">&quot;defVar&quot;</span><span class="p">,</span> <span class="s">&quot;defStdFun&quot;</span><span class="p">,</span> <span class="s">&quot;defPreFun&quot;</span><span class="p">,</span> <span class="s">&quot;defInfFun&quot;</span><span class="p">]</span>
+
+<span class="n">Command</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s">&quot;Command&quot;</span><span class="p">,</span> <span class="n">commandLabels</span><span class="p">)</span>
+
+<span class="n">comm</span> <span class="o">=</span> <span class="n">Command</span><span class="p">(</span>
+    <span class="n">defType</span><span class="o">=</span><span class="s">&quot;DefType&quot;</span><span class="p">,</span>
+    <span class="n">defTypeConvert</span><span class="o">=</span><span class="s">&quot;DefTypeConvert&quot;</span><span class="p">,</span>
+    <span class="n">defTypeAlias</span><span class="o">=</span><span class="s">&quot;DefTypeAlias&quot;</span><span class="p">,</span>
+    <span class="n">defQuant</span><span class="o">=</span><span class="s">&quot;DefQuant&quot;</span><span class="p">,</span>
+    <span class="n">defConst</span><span class="o">=</span><span class="s">&quot;DefConst&quot;</span><span class="p">,</span>
+    <span class="n">defVar</span><span class="o">=</span><span class="s">&quot;DefVar&quot;</span><span class="p">,</span>
+    <span class="n">defStdFun</span><span class="o">=</span><span class="s">&quot;DefStdFun&quot;</span><span class="p">,</span>
+    <span class="n">defPreFun</span><span class="o">=</span><span class="s">&quot;DefPreFun&quot;</span><span class="p">,</span>
+    <span class="n">defInfFun</span><span class="o">=</span><span class="s">&quot;DefInfFun&quot;</span>
+<span class="p">)</span>
+
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd"># An identifier1 is the namespace for a variable, constant, or type but this</span>
+<span class="sd"># intersects with the other spaces so it is not definite.  Pick these off first.</span>
+
+<span class="sd"># An identifier2 is an infix or prefix function name.</span>
+<span class="sd">identUnknownFirstRe = lbrac + escapeSpecial(&quot;a-zA-Z~!@#$%^&amp;*_+=|?&lt;&gt;&quot;) + rbrac</span>
+<span class="sd">identUnknownRestRe  = lbrac + escapeSpecial(&quot;a-zA-Z~!@#$%^&amp;*_+=|?&lt;&gt;0-9&quot;) + rbrac</span>
+<span class="sd">identUnknownRe = identUnknownFirstRe + lpar + identUnknownRestRe + ast + rpar</span>
+
+<span class="sd">operatorRe = lbrac + escapeSpecial(&quot;~!@#$%^&amp;*_+=|?&lt;&gt;&quot;) + rbrac</span>
+<span class="sd">identKnownOpRe = operatorRe+identifierUnknownRe+operatorRe</span>
+<span class="sd">numberRe = r&quot;[0-9]+(\.*)([0-9]+)?&quot; # not currently used</span>
+<span class="sd">commands = [&quot;DefType&quot;,&quot;DefTypeConversion&quot;,&quot;DefTypeAlias&quot;,&quot;DefQuant&quot;,</span>
+<span class="sd">      &quot;DefConst&quot;, &quot;DefVar&quot;,&quot;DefStdFun&quot;,&quot;DefPrefixFun&quot;,&quot;DefInfixFun&quot;]</span>
+<span class="sd">matchAllNonWhitespaceRe = r&quot;[^\s]&quot;</span>
+
+<span class="sd"># do we really want a parser class?  what should it do?  Maybe get used</span>
+<span class="sd"># by a language or theory class to implement a method, without making</span>
+<span class="sd"># into a class proper??  Consider.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="Parser"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser">[docs]</a><span class="k">class</span> <span class="nc">Parser</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This is the parser for the full language.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">echo</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">currNamespace</span> <span class="o">=</span> <span class="s">&quot;.&quot;</span> <span class="c"># curr namespace assumed for relative names (like dirs)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lastUniqueNameNum</span> <span class="o">=</span> <span class="mi">0</span> <span class="c"># for unique gen, last number of unique ID generated</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uniqueNameStr</span> <span class="o">=</span> <span class="s">&quot;__spam__&quot;</span> <span class="c"># for unique gen, no other names can contain this</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MAX_PREC</span> <span class="o">=</span> <span class="mi">100</span> <span class="c"># the highest precedence level allowed</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MIN_PREC</span> <span class="o">=</span> <span class="mi">0</span> <span class="c"># the lowest precedence level allowed</span>
+
+    <span class="c">#</span>
+    <span class="c"># The recursive descent routines defining the grammar.</span>
+    <span class="c">#</span>
+    <span class="c"># NO error checking for now!!!  Process all right in the routines.</span>
+
+<div class="viewcode-block" id="Parser.multiline"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.multiline">[docs]</a>    <span class="k">def</span> <span class="nf">multiline</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">end_of_token_stream</span><span class="p">():</span> <span class="bp">self</span><span class="o">.</span><span class="n">wellFormedLine</span><span class="p">()</span>
+        <span class="k">return</span>
+</div>
+<div class="viewcode-block" id="Parser.wellFormedLine"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.wellFormedLine">[docs]</a>    <span class="k">def</span> <span class="nf">wellFormedLine</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">beginning_of_line</span><span class="p">():</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;Error, not at beginning of a line.&quot;</span><span class="p">)</span> <span class="c"># debug test, not really needed??</span>
+        <span class="n">tokData</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="n">comm</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">command</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">gwff</span><span class="p">()</span>
+        <span class="k">return</span>
+</div>
+<div class="viewcode-block" id="Parser.command"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.command">[docs]</a>    <span class="k">def</span> <span class="nf">command</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c">### get the command name and do an if/elif case-handling on it ###</span>
+        <span class="n">commandName</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;debug commandName fields, token&quot;</span><span class="p">,</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span><span class="p">)</span>
+        <span class="n">echoString</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+        <span class="c">### defType command ###</span>
+        <span class="k">if</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defType</span><span class="p">:</span>
+            <span class="n">echoString</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">defType</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">expect_char</span><span class="p">(</span><span class="n">whitespace</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">&quot;Error: whitespace required after command &#39;&quot;</span><span class="o">+</span><span class="n">echoString</span><span class="o">+</span><span class="s">&quot;&#39;.&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">typeName</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">get_all_to_delimiter</span><span class="p">(</span><span class="n">whitespace</span><span class="p">)</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="n">echoString</span> <span class="o">+=</span> <span class="s">&quot; &quot;</span> <span class="o">+</span> <span class="n">typeName</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">expect_char</span><span class="p">(</span><span class="n">whitespace</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">&quot;Error: whitespace required after type &#39;&quot;</span><span class="o">+</span><span class="n">echoString</span><span class="o">+</span><span class="s">&quot;&#39;.&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">convList</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">while</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">end_of_line</span><span class="p">():</span>
+                <span class="n">convType</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span><span class="o">.</span><span class="n">tokenString</span>
+                <span class="n">echoString</span> <span class="o">+=</span> <span class="s">&quot; &quot;</span> <span class="o">+</span> <span class="n">convType</span>
+                <span class="n">convList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">convType</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">expect_char</span><span class="p">(</span><span class="n">whitespace</span><span class="p">,</span> <span class="bp">False</span><span class="p">):</span>
+                    <span class="k">print</span><span class="p">(</span><span class="s">&quot;Error: whitespace required after type &#39;&quot;</span><span class="o">+</span><span class="n">echoString</span><span class="o">+</span><span class="s">&quot;&#39;.&quot;</span><span class="p">)</span>
+                    <span class="k">return</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">echo</span><span class="p">:</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">echoString</span><span class="p">)</span>
+            <span class="n">langData</span><span class="o">.</span><span class="n">add_type</span><span class="p">(</span><span class="n">typeName</span><span class="p">,</span> <span class="n">convList</span><span class="p">)</span>
+
+        <span class="c">### defTypeConvert command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defTypeConvert</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defTypeAlias command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defTypeAlias</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefTypeAlias not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defQuant command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defQuant</span><span class="p">:</span>
+            <span class="n">quantName</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">get_all_to_delimiter</span><span class="p">(</span><span class="n">whitespace</span><span class="p">)</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="n">retType</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="n">argType</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="n">quantPrec</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">end_of_line</span><span class="p">():</span>
+                <span class="n">restrictionType</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">get_all_to_delimiter</span><span class="p">(</span><span class="n">whitespace</span><span class="p">)</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">restrictionType</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">end_of_line</span><span class="p">():</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">&quot;Error in number of arguments.  Ignoring command.&quot;</span><span class="p">)</span>
+                <span class="k">return</span>
+            <span class="n">langData</span><span class="o">.</span><span class="n">add_quant</span><span class="p">(</span><span class="n">quantName</span><span class="p">,</span> <span class="n">retType</span><span class="p">,</span> <span class="n">argType</span><span class="p">,</span> <span class="n">quantPrec</span><span class="p">,</span> <span class="n">restrictionType</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">echo</span><span class="p">:</span>
+                <span class="n">echoString</span> <span class="o">=</span> <span class="n">comm</span><span class="o">.</span><span class="n">defQuant</span><span class="o">+</span><span class="s">&quot; &quot;</span><span class="o">+</span><span class="n">quantName</span><span class="o">+</span><span class="s">&quot; &quot;</span><span class="o">+</span><span class="n">retType</span><span class="o">+</span><span class="s">&quot; &quot;</span><span class="o">+</span><span class="n">argType</span><span class="o">+</span><span class="s">&quot; &quot;</span>\
+                    <span class="o">+</span> <span class="n">quantPrec</span><span class="o">+</span><span class="s">&quot; &quot;</span><span class="o">+</span><span class="nb">str</span><span class="p">(</span><span class="n">restrictionType</span><span class="p">)</span>
+                <span class="k">print</span><span class="p">(</span><span class="n">echoString</span><span class="p">)</span>
+
+        <span class="c">### defConst command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defConst</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefConst not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defVar command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defVar</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefVar not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defStdFun command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defStdFun</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefStdFun not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defPreFun command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defPreFun</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefPreFun not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="c">### defInfFun command ###</span>
+        <span class="k">elif</span> <span class="n">commandName</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">comm</span><span class="o">.</span><span class="n">defInfFun</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;DefInfFun not yet implemented&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span>
+
+    <span class="c">#def getList(self, endChar, delimiter):</span>
+    <span class="c">#   tokList = []</span>
+    <span class="c">#   while True:</span>
+    <span class="c">#      tok = lex.next()</span>
+    <span class="c">#      if tok.tokenString == delimiter: continue</span>
+    <span class="c">#      if tok.tokenString == endChar: break</span>
+    <span class="c">#      else: tokList.append(tok)</span>
+    <span class="c">#   return tokList</span></div>
+<div class="viewcode-block" id="Parser.gwff"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.gwff">[docs]</a>    <span class="k">def</span> <span class="nf">gwff</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">typedForm</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">,</span> <span class="s">&quot;Bool&quot;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Parser.typedForm"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.typedForm">[docs]</a>    <span class="k">def</span> <span class="nf">typedForm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nSpace</span><span class="p">,</span> <span class="n">rType</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prefixOrInfixFuncall</span><span class="p">(</span><span class="n">nSpace</span><span class="p">,</span> <span class="n">rType</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">MIN_PREC</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="Parser.atomicTypedForm"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.Parser.atomicTypedForm">[docs]</a>    <span class="k">def</span> <span class="nf">atomicTypedForm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">nSpace</span><span class="p">,</span> <span class="n">rType</span><span class="p">):</span>
+        <span class="n">tok</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="n">lpar</span><span class="p">:</span>
+            <span class="n">typedParenFun</span><span class="p">(</span><span class="n">nSpace</span><span class="p">,</span> <span class="n">rType</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tok</span><span class="o">.</span><span class="n">expect</span><span class="p">(</span><span class="n">rpar</span><span class="p">):</span>
+                <span class="k">print</span><span class="p">(</span><span class="s">&quot;error, no closing paren&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">tok</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;stdFuncall&quot;</span><span class="p">:</span>
+            <span class="c"># define convention above for passing info, and look up rType see if match</span>
+            <span class="n">lex</span><span class="o">.</span><span class="n">pushback</span><span class="p">()</span> <span class="c"># let lower-level routing check args, etc.</span>
+            <span class="n">stdFuncall</span><span class="p">(</span><span class="n">nSpace</span><span class="p">,</span> <span class="n">rType</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">tok</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;varName&quot;</span><span class="p">:</span>
+            <span class="c"># look up varType, make sure it matches rType</span>
+            <span class="n">var</span><span class="p">(</span><span class="n">nSpace</span><span class="p">,</span> <span class="n">varType</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">tok</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&quot;constName&quot;</span><span class="p">:</span>
+            <span class="c"># look up constType, make sure it matches rType</span>
+            <span class="n">const</span><span class="p">(</span><span class="n">nSpace</span><span class="p">,</span> <span class="n">constType</span><span class="p">)</span>
+</div>
+    <span class="k">def</span> <span class="nf">__newRandomName</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;An internal utility function to generate unique random names.</span>
+<span class="sd">        Uniqueness is assumed by disallowing the character self.uniqueNameStr in all</span>
+<span class="sd">        other names.  No namescape information is taken into account.  This is used</span>
+<span class="sd">        to give bound variables a unique namespace within, say a quantifier scope.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lastUniqueNameNum</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">uniqueNameStr</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lastUniqueNameNum</span><span class="p">)</span>
+
+<span class="c">#</span>
+<span class="c"># Parse actions.</span>
+<span class="c">#</span>
+
+
+<span class="c">#</span>
+<span class="c"># Exception classes.</span>
+<span class="c">#</span>
+
+</div>
+<div class="viewcode-block" id="ParseError"><a class="viewcode-back" href="../../wff_language.parser.html#wff_language.parser.ParseError">[docs]</a><span class="k">class</span> <span class="nc">ParseError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;Exception raised when a parse error occurs, returning a message.</span>
+<span class="sd">    Later we may want to save line numbers, too, for better error reporting.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="n">message</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">message</span>
+
+
+<span class="c">#</span>
+<span class="c"># Test code.</span>
+<span class="c">#</span>
+
+</div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="c"># some of these may move to initializer of Parser class...</span>
+    <span class="n">textStream</span> <span class="o">=</span> <span class="n">TextStream</span><span class="p">()</span>
+    <span class="n">textStream</span><span class="o">.</span><span class="n">set_raw_in</span><span class="p">()</span>
+
+    <span class="n">langData</span> <span class="o">=</span> <span class="n">LanguageData</span><span class="p">()</span>
+    <span class="n">langData</span><span class="o">.</span><span class="n">set_error_checking_for_interactive</span><span class="p">()</span>
+
+    <span class="n">treeDict</span> <span class="o">=</span> <span class="n">langData</span><span class="o">.</span><span class="n">get_regex_trie_dict</span><span class="p">()</span>
+
+    <span class="n">whitespace</span> <span class="o">=</span> <span class="n">lit</span><span class="o">.</span><span class="n">space</span> <span class="o">+</span> <span class="n">lit</span><span class="o">.</span><span class="n">tab</span> <span class="o">+</span> <span class="n">lit</span><span class="o">.</span><span class="n">newline</span>
+
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">lit</span><span class="p">:</span> <span class="n">treeDict</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="c"># put the literals in the tree with empty data</span>
+    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">comm</span><span class="p">:</span> <span class="n">treeDict</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>  <span class="c"># do we want to do this, or declare reserved??</span>
+
+    <span class="n">lex</span> <span class="o">=</span> <span class="n">BufferedRegexTrieDictLexer</span><span class="p">(</span><span class="n">textStream</span><span class="p">,</span> <span class="n">treeDict</span><span class="p">,</span> <span class="n">whitespace</span><span class="p">)</span>
+
+    <span class="c"># TODO find some way to do below cleaner</span>
+    <span class="n">lex</span><span class="o">.</span><span class="n">lexer</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">setMatchUnsignedIntAfterLeadingDigit</span><span class="p">(</span><span class="bp">True</span><span class="p">,</span> <span class="p">(</span><span class="s">&quot;unsignedInt&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">Parser</span><span class="p">()</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">multiline</span><span class="p">()</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

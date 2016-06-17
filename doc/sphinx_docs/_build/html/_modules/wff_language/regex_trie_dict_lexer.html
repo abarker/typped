@@ -1,0 +1,507 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>wff_language.regex_trie_dict_lexer &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for wff_language.regex_trie_dict_lexer</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">This module contains a lexer (tokenizer) which uses a RegexTrieDictScanner</span>
+<span class="sd">class to identify tokens.  A RegexTrieDictScanner is used to scan for basic</span>
+<span class="sd">tokens.  First the TextStream object is defined as a wrapper for a stream of</span>
+<span class="sd">text characters from various sources.  Next, a class RegexTrieDictLexer is</span>
+<span class="sd">defined as a very simple lexer drawing characters from a TextStream.  Finally,</span>
+<span class="sd">a class BufferedRegexTrieDictLexer is defined using the basic</span>
+<span class="sd">RegexTrieDictLexer but providing many more features such as buffering,</span>
+<span class="sd">pushback, general whitespace ignoring, etc.  Generally the</span>
+<span class="sd">BufferedRegexTrieDictLexer should be used in applictions, rather than the</span>
+<span class="sd">lower-level lexer.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">regex_trie_dict</span> <span class="kn">import</span> <span class="n">RegexTrieDict</span>
+<span class="kn">from</span> <span class="nn">regex_trie_dict_scanner</span> <span class="kn">import</span> <span class="n">RegexTrieDictScanner</span><span class="p">,</span> <span class="n">TokenData</span>
+<span class="kn">from</span> <span class="nn">text_stream</span> <span class="kn">import</span> <span class="n">TextStream</span>
+<span class="kn">import</span> <span class="nn">collections</span> <span class="c"># for named tuple</span>
+<span class="c">#from basic_defs import * # DataTuple namedtuple defined here is needed a few places</span>
+
+<span class="c"># TODO remove DataTuple below and replace with the class instances for the various</span>
+<span class="c"># token types.  DataTuple used to just give the kind and then some extra info.</span>
+<span class="c"># It is apparently only used in this module (maybe old parser.py indexed an</span>
+<span class="c"># instance of it, maybe not).</span>
+<span class="c">#</span>
+<span class="c"># The DataTuple namedtuple.</span>
+<span class="c">#</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">We need a standard convention for passing parse data between modules.  We</span>
+<span class="sd">simply use a tuple, where the first element gives the kind of token (i.e., the</span>
+<span class="sd">type, but the term &quot;type&quot; is already used in a different context) and the</span>
+<span class="sd">second element gives the data itself.  The data itself will by convention be</span>
+<span class="sd">either None or the associated parse-tree node, if there is such a node</span>
+<span class="sd">associated with that token type, perhaps without all of its elements yet</span>
+<span class="sd">filled-in.</span>
+
+<span class="sd">Instead of using a regular tuple a namedtuple called DataTuple is used.  This</span>
+<span class="sd">allows the fields to be indexed by names (in addition to numerical indices),</span>
+<span class="sd">and so produces more readable and maintainable code.  The two fields are &quot;kind&quot;</span>
+<span class="sd">and &quot;data&quot;.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">DataTuple</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s">&quot;DataTuple&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s">&quot;kind&quot;</span><span class="p">,</span><span class="s">&quot;data&quot;</span><span class="p">])</span>
+
+<span class="c">#</span>
+<span class="c"># The RegexTrieDictLexer class</span>
+<span class="c">#</span>
+
+<div class="viewcode-block" id="RegexTrieDictLexer"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer">[docs]</a><span class="k">class</span> <span class="nc">RegexTrieDictLexer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A simple, nonbuffered lexer based on the RegexTrieDict data structure.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">textStream</span><span class="p">,</span> <span class="n">trieDict</span><span class="p">,</span> <span class="n">whitespace</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The trieDict is assumed to define the tokens and have a stored data</span>
+<span class="sd">        element with each token which exactly equals the data which should be</span>
+<span class="sd">        returned when the token is recognized.  Text is taken character by</span>
+<span class="sd">        character from the textStream and insertSeqElem is called on a</span>
+<span class="sd">        RegexTrieDictScanner created from the trieDict.  When a match is found</span>
+<span class="sd">        the (string,data) tuple is returned.</span>
+
+<span class="sd">        Whitespace is a string of characters to ignore in processing tokens,</span>
+<span class="sd">        except that they are assumed to always define an endOfQuery in the</span>
+<span class="sd">        trieTok data structure.  The default whitespace is the empty string</span>
+<span class="sd">        (which doesn&#39;t ignore anything).&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">textStream</span> <span class="o">=</span> <span class="n">textStream</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trieDict</span> <span class="o">=</span> <span class="n">trieDict</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span> <span class="o">=</span> <span class="n">RegexTrieDictScanner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">trieDict</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">resetSeq</span><span class="p">()</span> <span class="c"># always start fresh at the beginning of TextStream</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">clearTokenDataDeque</span><span class="p">()</span> <span class="c"># may not always be wanted...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">getTokenDataDeque</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">whitespace</span><span class="p">)</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="RegexTrieDictLexer.set_whitespace"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.set_whitespace">[docs]</a>    <span class="k">def</span> <span class="nf">set_whitespace</span><span class="p">(</span><span class="n">whitespaceChars</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">whitespaceChars</span><span class="p">)</span>
+        <span class="k">return</span>
+</div>
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;So statements like: for tok in lexObj: ... can be used.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="c"># implies that the next() method will be used for iterations</span>
+
+<div class="viewcode-block" id="RegexTrieDictLexer.next"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.next">[docs]</a>    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the next token.  The returned token for a string is exactly the</span>
+<span class="sd">        matchedData element for that string, from the StringDelimitedTrieDict.</span>
+<span class="sd">        It consists of a tuple of three elements: a boolean for whether there was</span>
+<span class="sd">        an error, the string itself, and any data item which was stored with the</span>
+<span class="sd">        string.&quot;&quot;&quot;</span>
+        <span class="c"># TODO the above documentation is quite outdated.</span>
+        <span class="n">RAISE_ERROR_ON_BAD_TOKEN</span> <span class="o">=</span> <span class="bp">False</span> <span class="c"># maybe make a settable class variable</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">tokData</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span> <span class="c"># process the first token</span>
+                <span class="k">if</span> <span class="n">RAISE_ERROR_ON_BAD_TOKEN</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">tokData</span><span class="o">.</span><span class="n">validToken</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span>
+                            <span class="s">&quot;Bad token &#39;&quot;</span><span class="o">+</span><span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span><span class="o">+</span><span class="s">&quot;&#39; in token stream.&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">ignore_whitespace</span> <span class="ow">and</span> <span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span> <span class="k">continue</span>
+                <span class="k">return</span> <span class="n">tokData</span>
+            <span class="k">else</span><span class="p">:</span> <span class="c"># len(self.tokenDataDeque)==0, so need to insert some chars to gen. matches</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">textStream</span><span class="o">.</span><span class="n">end_of_text_stream</span><span class="p">():</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">assertEndOfSeq</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">StopIteration</span><span class="p">(</span>
+                            <span class="s">&quot;no more tokens in RegexTrieDictLexer for next()&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">queryChar</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">textStream</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+                    <span class="n">queryCharPos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">textStream</span><span class="o">.</span><span class="n">get_pos_of_last_next</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">insertSeqElem</span><span class="p">(</span><span class="n">queryChar</span><span class="p">,</span> <span class="n">queryCharPos</span><span class="p">)</span>
+        <span class="k">return</span>
+</div>
+<div class="viewcode-block" id="RegexTrieDictLexer.end_of_token_stream"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.RegexTrieDictLexer.end_of_token_stream">[docs]</a>    <span class="k">def</span> <span class="nf">end_of_token_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True if no more tokens.  Whitespace tokens are not ignored.&quot;&quot;&quot;</span>
+        <span class="c"># note that order matters in the &quot;and&quot; on the next line</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">textStream</span><span class="o">.</span><span class="n">end_of_text_stream</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trieTok</span><span class="o">.</span><span class="n">assertEndOfSeq</span><span class="p">()</span> <span class="c"># see if any possible matches unflushed</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataDeque</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+
+
+<span class="c">#</span>
+<span class="c"># The BufferedRegexTrieDictLexer class</span>
+<span class="c">#</span>
+
+</div></div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer">[docs]</a><span class="k">class</span> <span class="nc">BufferedRegexTrieDictLexer</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A buffered lexer built on a TreeLexer to allow for pushback and</span>
+<span class="sd">    lookahead of tokens.</span>
+
+<span class="sd">    The next() method raises a StopIteration when it is out of tokens, so the</span>
+<span class="sd">    class can be used as an iterator.  The peek() method, however, returns None</span>
+<span class="sd">    upon trying to peek past the end of the token stream.  End of the token</span>
+<span class="sd">    stream can also be explicitly tested with end_of_token_stream().</span>
+
+<span class="sd">    This class just creates an internal RegexTrieDictLexer instance and adds</span>
+<span class="sd">    buffering.&quot;&quot;&quot;</span>
+    <span class="c"># Implemented with a deque.  An index one greater than len of the deque means</span>
+    <span class="c"># to read from the token stream.  The only other indices are negative,</span>
+    <span class="c"># indexing from the right of the deque.  (This is necessary since the buffer</span>
+    <span class="c"># will start deleting elements at the beginning on appends once</span>
+    <span class="c"># MAX_BUFFERED_TOKENS is reached, messing up the indices from the left).</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">textStream</span><span class="p">,</span> <span class="n">regexTrieDict</span><span class="p">,</span> <span class="n">whitespace</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">,</span>
+                 <span class="n">MAX_BUFFERED_TOKENS</span><span class="o">=</span><span class="mi">1024</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lexer</span> <span class="o">=</span> <span class="n">RegexTrieDictLexer</span><span class="p">(</span><span class="n">textStream</span><span class="p">,</span> <span class="n">regexTrieDict</span><span class="p">,</span> <span class="n">whitespace</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">MAX_BUFFERED_TOKENS</span> <span class="o">=</span> <span class="n">MAX_BUFFERED_TOKENS</span> <span class="c"># set to None for infinite</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">(</span><span class="n">maxlen</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">MAX_BUFFERED_TOKENS</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">whitespace</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="mi">0</span> <span class="c"># a self.pos value of len(tokenDataBuf) means read in and append</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.set_whitespace"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.set_whitespace">[docs]</a>    <span class="k">def</span> <span class="nf">set_whitespace</span><span class="p">(</span><span class="n">whitespaceChars</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">whitespaceChars</span><span class="p">)</span>
+        <span class="k">return</span>
+</div>
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;So statements like: for tok in lexObj: ... can be used.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="c"># implies that the next() method will be used for iterations</span>
+
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.next"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.next">[docs]</a>    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get next token.  If ignore_whitespace is False, i.e., the function is</span>
+<span class="sd">        called as next(False), then whitespace tokens will be reported as regular</span>
+<span class="sd">        tokens, regardless of any whitespace-character setting.</span>
+
+<span class="sd">        Note that for correctness (over efficiency), whitespace tokens are also</span>
+<span class="sd">        buffered.  This ensures that the results will be the same as for the</span>
+<span class="sd">        unbuffered RegexTrieDictLexer, even after pushbacks.  For true</span>
+<span class="sd">        equivalence any next(boolVal) results should only be pushed back with</span>
+<span class="sd">        pushback(boolVal), for the same boolVal.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">):</span> <span class="c"># empty, need to call lower-level lexer</span>
+            <span class="c"># let self.lexer.next raise a StopIteration, if necessary</span>
+            <span class="n">newTok</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lexer</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span> <span class="c"># call low-level lexer, don&#39;t ignore white</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">newTok</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">ignore_whitespace</span><span class="p">:</span>
+                <span class="k">while</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span> <span class="c"># recurse</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c"># at this point we know buffer is not empty, so self.pos is negative</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">+=</span> <span class="mi">1</span> <span class="c"># there won&#39;t be any appends until pos gets back to the end</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">)</span> <span class="c"># at the far right end</span>
+        <span class="k">if</span> <span class="n">ignore_whitespace</span> <span class="ow">and</span> <span class="n">retval</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span> <span class="c"># recurse</span>
+        <span class="k">return</span> <span class="n">retval</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.expect_char"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.expect_char">[docs]</a>    <span class="k">def</span> <span class="nf">expect_char</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">charStr</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="c"># TODO rewrite or eliminate; should look at label.  Used in old parser.py as </span>
+        <span class="c"># if not lex.expectChar(whitespace, False):</span>
+        <span class="c">#       print(&quot;Error: whitespace required after type &#39;&quot;+echoString+&quot;&#39;.&quot;)</span>
+
+        <span class="sd">&quot;&quot;&quot;A convenience function.  Does a peek() and returns True if the string</span>
+<span class="sd">        for the returned token matches one of the characters in charStr, False</span>
+<span class="sd">        otherwise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="n">charStr</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.pushback"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.pushback">[docs]</a>    <span class="k">def</span> <span class="nf">pushback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Effectively pushes back the last token read.  If ignore_whitespace is</span>
+<span class="sd">        True then the last token and any whitespace token before it is pushed</span>
+<span class="sd">        back (this is to reverse a previous next() operation with</span>
+<span class="sd">        ignore_whitespace==True).</span>
+
+<span class="sd">        This function returns True if the pushback was successful, and False if</span>
+<span class="sd">        it failed due to running out of buffered tokens (i.e., if more</span>
+<span class="sd">        pushbacks than nexts have been called within the current size of the</span>
+<span class="sd">        token buffer.).  Note that returning False does not necessarily mean it</span>
+<span class="sd">        is back to the start of the token stream unless MAX_BUFFERED_TOKENS =</span>
+<span class="sd">        None.  Method beginning_of_line() does assume this, however, for the</span>
+<span class="sd">        special case of the first line.</span>
+
+<span class="sd">        Note also that you cannot pushback any token which caused (as a higher</span>
+<span class="sd">        level parse action) a definition to be made which changed the keys and</span>
+<span class="sd">        values in the regexTrieDict of the lexer (or else the results will be</span>
+<span class="sd">        undefined).  The lexer is dynamic, and changes according to definitions</span>
+<span class="sd">        of its tokens in the regexTrieDict.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="c"># if ignoring whitespace, push back the preceeding whitespace</span>
+        <span class="k">if</span> <span class="n">ignore_whitespace</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">):</span> <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span> <span class="c"># recurse</span>
+        <span class="k">return</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.peek"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.peek">[docs]</a>    <span class="k">def</span> <span class="nf">peek</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Peek ahead and return the next token without incrementing the token</span>
+<span class="sd">        stream.  Returns None if a peek is attempted when endOfTokenStream()</span>
+<span class="sd">        is True.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_of_token_stream</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">):</span> <span class="k">return</span> <span class="bp">None</span> <span class="c"># peeking too far</span>
+        <span class="n">tok</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tok</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.end_of_token_stream"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_token_stream">[docs]</a>    <span class="k">def</span> <span class="nf">end_of_token_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True when there are no more tokens in the token stream, ignoring</span>
+<span class="sd">        whitespace when ignore_whitespace==True.  Does not consume any tokens</span>
+<span class="sd">        or alter the token stream.&quot;&quot;&quot;</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="c"># if no tokens in buffer and no tokens left in low-level lexer then True</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pos</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">lexer</span><span class="o">.</span><span class="n">end_of_token_stream</span><span class="p">():</span>
+                <span class="n">retval</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">break</span>
+            <span class="c"># if whitespace isn&#39;t being ignored we&#39;re done: endOfTokenStream is False</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ignore_whitespace</span><span class="p">:</span>
+                <span class="n">retval</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="k">break</span>
+            <span class="c"># look ahead past whitespace (these chars will be pushed back afterward)</span>
+            <span class="c"># if we find any non-whitespace we know we&#39;re not at endOfTokenStream</span>
+            <span class="n">tok</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+                <span class="n">retval</span> <span class="o">=</span> <span class="bp">False</span>
+                <span class="k">break</span>
+
+        <span class="c"># push back the lookahead chars</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">retval</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.end_of_line"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.end_of_line">[docs]</a>    <span class="k">def</span> <span class="nf">end_of_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True if at the end of a line, ignoring white space if ignore_whitespace</span>
+<span class="sd">        is True.  At endOfTokenStream() this also gives True.  Does not consume</span>
+<span class="sd">        any tokens or alter the token stream.&quot;&quot;&quot;</span>
+
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">end_of_token_stream</span><span class="p">(</span><span class="bp">False</span><span class="p">):</span> <span class="k">return</span> <span class="bp">True</span>
+            <span class="n">tok</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+            <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">:</span>
+                <span class="n">retval</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">ignore_whitespace</span> <span class="ow">and</span> <span class="n">tok</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">retval</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">break</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.beginning_of_line"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.beginning_of_line">[docs]</a>    <span class="k">def</span> <span class="nf">beginning_of_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True if at the beginning of a line.  When ignore_whitespace=True it</span>
+<span class="sd">        assumes that the token buffer is large enough to cover any cases where</span>
+<span class="sd">        backing up with pushback would exhaust the buffer before reaching the</span>
+<span class="sd">        actual beginning of the token stream.  (Only files with whitespace</span>
+<span class="sd">        regions on the order of MAX_BUFFERED_TOKENS would violate this.)&quot;&quot;&quot;</span>
+
+        <span class="c"># at beginning, no reads yet</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lexer</span><span class="o">.</span><span class="n">textStream</span><span class="o">.</span><span class="n">beginning_of_text_stream</span><span class="p">()</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+
+        <span class="c"># handle regular cases</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">count</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="p">]</span><span class="o">.</span><span class="n">tokenString</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">:</span>
+                <span class="n">retval</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">ignore_whitespace</span><span class="p">:</span> <span class="k">break</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">pos</span><span class="p">]</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">:</span>
+                <span class="n">pushVal</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">pushVal</span><span class="p">:</span> <span class="n">count</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">pushVal</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span>
+                    <span class="n">retval</span> <span class="o">=</span> <span class="bp">True</span>
+                    <span class="k">break</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">count</span><span class="p">):</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.get_all_to_delimiter"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.get_all_to_delimiter">[docs]</a>    <span class="k">def</span> <span class="nf">get_all_to_delimiter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">delimiterStr</span><span class="p">,</span> <span class="n">ignore_whitespace</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This reads in a sequence of tokens from the current place in the token</span>
+<span class="sd">        stream, up to a delimiter which is a character in the string</span>
+<span class="sd">        delimiterStr.  The strings for each such token are concatenated together</span>
+<span class="sd">        and returned as a single uncheckedString token.  Each individual</span>
+<span class="sd">        delimiter character must be the string for a distinct token type.  The</span>
+<span class="sd">        delimiter character itself is pushed back.  The empty string is reported</span>
+<span class="sd">        as the TokenData string value if a delimiter is found immediately.  End</span>
+<span class="sd">        of token stream is always a delimiter.</span>
+
+<span class="sd">        The delimiter can contain whitespace characters even when whitespace is</span>
+<span class="sd">        ignored.  In that case, if any whitespace delimiters occur before some</span>
+<span class="sd">        non-whitespace characters then they are ignored and not treated as</span>
+<span class="sd">        end-delimiters.  After some non-whitespace the whitespace delimiter</span>
+<span class="sd">        counts as an end-delimiter.  For example, an identifier might begin and</span>
+<span class="sd">        end with blanks, but only the end ones should be delimiters.</span>
+
+<span class="sd">        The results of this method currently cannot be pushed back because</span>
+<span class="sd">        multiple tokens are possibly combined (with some possibly considered as</span>
+<span class="sd">        errors in the usual lexing) to create the undefined identifier.  So</span>
+<span class="sd">        multiple pushbacks would be required (and the number would have to be</span>
+<span class="sd">        saved).</span>
+
+<span class="sd">        This routine can be used when new language elements like variables and</span>
+<span class="sd">        functions are defined in known places in the grammar, but they haven&#39;t</span>
+<span class="sd">        yet been entered into the LanguageData database.  It can also be used</span>
+<span class="sd">        to read, say, numbers (which are recognized from seeing a leading</span>
+<span class="sd">        digit).&quot;&quot;&quot;</span>
+
+        <span class="n">delimiterSet</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">delimiterStr</span><span class="p">)</span>
+        <span class="n">before</span> <span class="o">=</span> <span class="bp">True</span>
+        <span class="n">stringVal</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+        <span class="n">lineInfoList</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="bp">False</span><span class="p">):</span> <span class="k">break</span> <span class="c"># check for end of token stream</span>
+            <span class="n">tokData</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">next</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="n">delimiterSet</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">ignore_whitespace</span> <span class="ow">and</span> <span class="p">(</span><span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">)</span> <span class="ow">and</span> <span class="n">before</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pushback</span><span class="p">(</span><span class="n">ignore_whitespace</span><span class="p">)</span> <span class="c"># if ignore, put white before it back, too</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">ignore_whitespace</span> <span class="ow">and</span> <span class="p">(</span><span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">whitespace</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">before</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">stringVal</span> <span class="o">=</span> <span class="n">stringVal</span> <span class="o">+</span> <span class="n">tokData</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="n">lineInfoList</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tokData</span><span class="o">.</span><span class="n">elemData</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">TokenData</span><span class="p">(</span><span class="bp">True</span><span class="p">,</span> <span class="n">stringVal</span><span class="p">,</span> <span class="n">DataTuple</span><span class="p">(</span><span class="s">&quot;uncheckedString&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span> <span class="n">lineInfoList</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="BufferedRegexTrieDictLexer.print_token_buf_strings"><a class="viewcode-back" href="../../wff_language.regex_trie_dict_lexer.html#wff_language.regex_trie_dict_lexer.BufferedRegexTrieDictLexer.print_token_buf_strings">[docs]</a>    <span class="k">def</span> <span class="nf">print_token_buf_strings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Debugging routine to print out the strings for the last n tokens in</span>
+<span class="sd">        tokenDataBuf.  If n=0 all the tokens are printed.&quot;&quot;&quot;</span>
+        <span class="n">bufSize</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">n</span> <span class="o">=</span> <span class="n">bufSize</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;TokenBuff[&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">bufSize</span><span class="o">-</span><span class="n">n</span><span class="p">),</span> <span class="n">bufSize</span><span class="p">):</span>
+            <span class="n">string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">tokenDataBuf</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tokenString</span>
+            <span class="k">if</span> <span class="n">string</span> <span class="o">==</span> <span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">:</span> <span class="n">string</span> <span class="o">=</span> <span class="s">&quot;</span><span class="se">\\</span><span class="s">n&quot;</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">bufSize</span><span class="o">-</span><span class="mi">1</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="n">string</span><span class="o">+</span><span class="s">&quot;,&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="n">string</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;]&quot;</span><span class="p">)</span>
+        <span class="k">return</span>
+
+
+<span class="c">#</span>
+<span class="c">#  Run test cases.</span>
+<span class="c">#</span>
+</div></div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">(</span><span class="s">&quot;test/test_regex_trie_dict_lexer.py&quot;</span><span class="p">,</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s">&quot;-v&quot;</span><span class="p">)</span>
+    
+    <span class="c"># exit(0) # comment this out to test interactive</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">Test interactive...</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+    <span class="kn">import</span> <span class="nn">readline</span>
+    <span class="n">readline</span><span class="o">.</span><span class="n">parse_and_bind</span><span class="p">(</span><span class="s">&#39;set editing-mode vi&#39;</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">TextStream</span><span class="p">()</span>
+    <span class="n">ts</span><span class="o">.</span><span class="n">set_raw_in</span><span class="p">()</span>  <span class="c"># reads data from raw_input</span>
+    
+    <span class="n">td</span> <span class="o">=</span> <span class="n">RegexTrieDict</span><span class="p">()</span>
+    
+    <span class="n">tdlex</span> <span class="o">=</span> <span class="n">BufferedRegexTrieDictLexer</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">td</span><span class="p">,</span> <span class="s">&quot; </span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span> <span class="c"># ignore space and newline</span>
+
+    <span class="c">#tdlex = BufferedRegexTrieDictLexer(ts, td)</span>
+
+    <span class="c">#for tok in tdlex: print(tok)</span>
+
+    <span class="c"># alternate getting up to delimiter and getting next</span>
+    <span class="k">while</span> <span class="ow">not</span> <span class="n">tdlex</span><span class="o">.</span><span class="n">end_of_token_stream</span><span class="p">():</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">tdlex</span><span class="o">.</span><span class="n">get_all_to_delimiter</span><span class="p">(</span><span class="s">&quot; </span><span class="se">\n</span><span class="s">&quot;</span><span class="p">))</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">tdlex</span><span class="o">.</span><span class="n">next</span><span class="p">())</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

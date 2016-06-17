@@ -1,0 +1,530 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>wff_language.trie_dict &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for wff_language.trie_dict</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">The TrieDict data structure is based on keys which are sequences of elements</span>
+<span class="sd">(i.e., the keys are iterable and can be concatenated with &quot;+&quot;).  It provides an</span>
+<span class="sd">efficient way to recognize or map key-sequences of (hashable) items in time</span>
+<span class="sd">linear with the length of the sequence.  For example, a sequence of characters</span>
+<span class="sd">forming a string can be recognized or mapped to some output in linear time.  A</span>
+<span class="sd">TrieDict can be used either as a dict or as a set (like using only the has_key</span>
+<span class="sd">part of a dict).  Inserting and deleting key-sequences from the tree is also</span>
+<span class="sd">linear in the length of the key-sequence.</span>
+
+<span class="sd">In the usual applications, elements are characters and sequences are strings.</span>
+<span class="sd">This module is written generically, however, so that arbitrary hashable objects</span>
+<span class="sd">can be used as the elements.  Iterable sequences these elements are the items</span>
+<span class="sd">stored in the TrieDict.  Except for pattern-matching, arbitrary sequences of</span>
+<span class="sd">arbitrary hashable elements can be inserted and deleted freely in the TrieDict.</span>
+<span class="sd">(When regexp pattern-matching is to be used the default assumes characters and</span>
+<span class="sd">sequences are strings, but that can be changed.)</span>
+
+<span class="sd">The keys method assumes that the plus operator combines elements, but setting</span>
+<span class="sd">asLists=True returns the list version without attempting the &quot;addition.&quot;</span>
+
+<span class="sd">The usage of a TrieDict is as follows.  First create an empty TrieDict:</span>
+
+<span class="sd">   td = TrieDict()</span>
+
+<span class="sd">Now insert some items.  The insert method inserts a key and an optional second</span>
+<span class="sd">argument (default is None) which is the value associated with the key.</span>
+<span class="sd">Alternately, the dict-style bracket notation can be used.  Any iterable items</span>
+<span class="sd">which iterate over hashable elements can be inserted.  The nodes of the trie</span>
+<span class="sd">will be built up from the pieces obtained by iterating over each inserted item.</span>
+<span class="sd">In the case of strings, iteration gives the individual characters.</span>
+
+<span class="sd">   td.insert(&quot;egg&quot;)</span>
+<span class="sd">   td.insert(&quot;r&quot;, &quot;what_r_maps_to&quot;)</span>
+<span class="sd">   td[&quot;s&quot;] = &quot;what_s_maps_to&quot; # bracket indexing is supported</span>
+<span class="sd">   td.insert(&quot;eggbert&quot;)</span>
+
+<span class="sd">The above creates a tree with some reduncancy on the &quot;egg&quot; prefix.</span>
+<span class="sd">To test if a key is in the trie, use the usual has_key method, as</span>
+<span class="sd">with a dict:</span>
+
+<span class="sd">   if td.has_key(&quot;egg&quot;): print(&#39;Correct, &quot;egg&quot; is stored&#39;)</span>
+<span class="sd">   else: print(&#39;Incorrect, &quot;egg&quot; is stored&#39;)</span>
+
+<span class="sd">Many of the basic dict operations can be applied, but the full interface is not</span>
+<span class="sd">currently supported.</span>
+
+<span class="sd">Note that this data structure is called a &quot;trie.&quot;  For this application the</span>
+<span class="sd">basic implementation here is sufficient and allows for more control over the</span>
+<span class="sd">interface and implementation.  There are, however, several different Python</span>
+<span class="sd">packages available (optimized for efficiency in various ways):</span>
+<span class="sd">   https://en.wikipedia.org/wiki/Trie</span>
+<span class="sd">   http://kmike.ru/python-data-structures/</span>
+
+<span class="sd">For usual dict applications the standard hashed dict would be faster.  The</span>
+<span class="sd">TrieDict data structure is especially good for the case where keys are</span>
+<span class="sd">concatenations of hashable objects, such as in a lexical analyzer to tokenize</span>
+<span class="sd">character strings.</span>
+
+<span class="sd">The data structure in this implementation makes heavy use of Python&#39;s built-in</span>
+<span class="sd">dict.  It is basically just a dict of dicts of dicts, etc., arranged into a</span>
+<span class="sd">tree.  In the case of a string the characters of the string are used as the</span>
+<span class="sd">keys to walk down the tree.  Each tree node holds a value that the input which</span>
+<span class="sd">stops there is mapped to.  In a lexical analyzer application each tree node can</span>
+<span class="sd">holds a boolean accept/reject value according to whether a test-word is a key</span>
+<span class="sd">in the dict (when it terminates at that node it is either recognized or not).</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">collections</span> <span class="c"># to use deque and MutableSequence abstract base class</span>
+
+
+<span class="c">##</span>
+<span class="c">## TrieDict and supporting classes.</span>
+<span class="c">##</span>
+
+
+<div class="viewcode-block" id="TrieDictNode"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDictNode">[docs]</a><span class="k">class</span> <span class="nc">TrieDictNode</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;This class is used internally, as the nodes of the tree.  It is just used as</span>
+<span class="sd">    a record to hold the child data, match information, and arbitrary node data.&quot;&quot;&quot;</span>
+    <span class="n">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s">&quot;children&quot;</span><span class="p">,</span> <span class="s">&quot;isLastElemOfKey&quot;</span><span class="p">,</span> <span class="s">&quot;data&quot;</span><span class="p">]</span> <span class="c"># no __dict__, save space</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">{}</span> <span class="c"># dict of the node&#39;s children</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="o">=</span> <span class="bp">False</span> <span class="c"># whether this node represents the end of a key</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">None</span> <span class="c"># some arbitrary piece of data stored as a key/data pair</span>
+        <span class="k">return</span>
+
+</div>
+<div class="viewcode-block" id="TrieDict"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict">[docs]</a><span class="k">class</span> <span class="nc">TrieDict</span><span class="p">(</span><span class="n">collections</span><span class="o">.</span><span class="n">MutableMapping</span><span class="p">):</span>
+
+    <span class="sd">&quot;&quot;&quot;This is a dict where the keys are made up of sequences of elements.  It</span>
+<span class="sd">    is stored as a tree from the root with each element of a key indexing some</span>
+<span class="sd">    child node.  The sequence of elements is a walk down the tree.  In a lexical</span>
+<span class="sd">    analysis application the tokens are strings and the elements (sequences of</span>
+<span class="sd">    which make up tokens) are characters.</span>
+
+<span class="sd">    The data structure can be queried element by element, finding the shortest</span>
+<span class="sd">    or longest match in a sequence.  These results from insertSeqElem</span>
+<span class="sd">    are stored and returned to the user as a deque, since pops on both ends may</span>
+<span class="sd">    be useful.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize the basic data elements.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">return</span>
+
+<div class="viewcode-block" id="TrieDict.clear"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.clear">[docs]</a>    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Reset the tree to its initial condition, empty of any stored strings.</span>
+<span class="sd">        Any meta-element redefinitions are retained.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root</span> <span class="o">=</span> <span class="n">TrieDictNode</span><span class="p">()</span> <span class="c"># the root of the recognizer tree</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="o">=</span> <span class="bp">False</span> <span class="c"># for consistency only, give root a value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">numKeys</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">return</span>
+</div>
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The number of key:data pairs stored in the dictionary.  Can be called</span>
+<span class="sd">        like the usual len function, as len(d) for a dict d.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">numKeys</span>
+
+<div class="viewcode-block" id="TrieDict.insert"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.insert">[docs]</a>    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keySeq</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Store the data item in the dict with the key keySeq.  Any existing</span>
+<span class="sd">        data at that key is overwritten.  This method is aliased to __setitem__.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keySeq</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;The empty element is not a valid key.&quot;</span><span class="p">)</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">keySeq</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c"># next line is the only place where non-root nodes are added to the tree</span>
+                <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span> <span class="o">=</span> <span class="n">TrieDictNode</span><span class="p">()</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span> <span class="c"># don&#39;t increment if just resetting data</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">numKeys</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="o">=</span> <span class="bp">True</span> <span class="c"># end of keySeq, isLastElemOfKey is True</span>
+        <span class="n">node</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="k">return</span>
+</div>
+<div class="viewcode-block" id="TrieDict.get"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.get">[docs]</a>    <span class="k">def</span> <span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keySeq</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the data element stored with key keySeq, returning the default</span>
+<span class="sd">        if the key is not in the dict.&quot;&quot;&quot;</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getNode</span><span class="p">(</span><span class="n">keySeq</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="bp">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span> <span class="k">return</span> <span class="n">default</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">data</span>
+</div>
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keySeq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Same as get without the default value and using the bracket-indexing</span>
+<span class="sd">        notation.  Raises a KeyError if the key is not stored.&quot;&quot;&quot;</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getNode</span><span class="p">(</span><span class="n">keySeq</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="bp">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;key &quot;</span><span class="o">+</span><span class="n">keySeq</span><span class="o">+</span><span class="s">&quot; is not in the TrieDict&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">data</span>
+
+<div class="viewcode-block" id="TrieDict.has_key"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.has_key">[docs]</a>    <span class="k">def</span> <span class="nf">has_key</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keySeq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A boolean for whether the string is stored; doesn&#39;t handle anything else</span>
+<span class="sd">        such as multiple matches or longest prefix match.  Leaves the tree and all</span>
+<span class="sd">        saved data unaltered.&quot;&quot;&quot;</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getNode</span><span class="p">(</span><span class="n">keySeq</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="bp">None</span> <span class="ow">or</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="o">==</span> <span class="bp">False</span><span class="p">:</span> <span class="k">return</span> <span class="bp">False</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="TrieDict.items"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.items">[docs]</a>    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asLists</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of all the (keys,value) tuples stored in the trie.  Note</span>
+<span class="sd">        that the plus operator is assumed to be overloaded to combine separate</span>
+<span class="sd">        elements into a single key.  Setting asLists=True can be used to return</span>
+<span class="sd">        the keys as lists of elements, without attempting to combine them.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">asLists</span><span class="o">=</span><span class="n">asLists</span><span class="p">)]</span>
+</div>
+<div class="viewcode-block" id="TrieDict.iteritems"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.iteritems">[docs]</a>    <span class="k">def</span> <span class="nf">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asLists</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;An iterator over the items in the trie, see the items method for details.&quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">combineKeyElems</span><span class="p">(</span><span class="n">elemNodeTupleList</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;Combine all the elements in elemNodeTupleList into a single key using</span>
+<span class="sd">            the plus operator, unless asLists=True.&quot;&quot;&quot;</span>
+            <span class="n">elemList</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">elemNodeTupleList</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">asLists</span><span class="p">:</span> <span class="k">return</span> <span class="n">elemList</span>
+            <span class="n">combined</span> <span class="o">=</span> <span class="n">elemList</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c"># we don&#39;t know the empty element in general</span>
+            <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">elemList</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                <span class="n">combined</span> <span class="o">+=</span> <span class="n">e</span> <span class="c"># this is where plus operator on elements is assumed</span>
+            <span class="k">return</span> <span class="n">combined</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">numKeys</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">itemGen</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getDfsGen</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">,</span> <span class="n">yieldOnMatch</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">itemGen</span><span class="p">:</span> <span class="k">yield</span> <span class="p">(</span><span class="n">combineKeyElems</span><span class="p">(</span><span class="n">i</span><span class="p">),</span> <span class="n">i</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TrieDict.keys"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.keys">[docs]</a>    <span class="k">def</span> <span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asLists</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of all the keys stored in the trie.  Note that the plus</span>
+<span class="sd">        operator is assumed to be overloaded to combine separate elements into a</span>
+<span class="sd">        single key.  Setting asLists=True can be used to return the keys as lists</span>
+<span class="sd">        of elements, without attempting to combine them.&quot;&quot;&quot;</span>
+        <span class="c">#return [ item[0] for item in self.iteritems(asLists=asLists) ]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iterkeys</span><span class="p">(</span><span class="n">asLists</span><span class="o">=</span><span class="n">asLists</span><span class="p">)]</span>
+</div>
+<div class="viewcode-block" id="TrieDict.iterkeys"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.iterkeys">[docs]</a>    <span class="k">def</span> <span class="nf">iterkeys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">asLists</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;An iterator over the keys in the trie, see the keys method for details.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">asLists</span><span class="o">=</span><span class="n">asLists</span><span class="p">):</span> <span class="k">yield</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="TrieDict.values"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.values">[docs]</a>    <span class="k">def</span> <span class="nf">values</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of all the values stored in the trie.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">val</span> <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">itervalues</span><span class="p">()]</span>
+</div>
+<div class="viewcode-block" id="TrieDict.itervalues"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.itervalues">[docs]</a>    <span class="k">def</span> <span class="nf">itervalues</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of all the values stored in the trie.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">asLists</span><span class="o">=</span><span class="bp">True</span><span class="p">):</span> <span class="k">yield</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="TrieDict.getNode"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.getNode">[docs]</a>    <span class="k">def</span> <span class="nf">getNode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keySeq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the node indexed by using the sequence keySeq as the key.  Does</span>
+<span class="sd">        not test whether isLastElemOfKey is True, so it also returns a node for any prefix</span>
+<span class="sd">        of a key.  Returns None if there is no corresponding node.  This is</span>
+<span class="sd">        mainly used by other methods to walk down the tree to find a keyed</span>
+<span class="sd">        node.&quot;&quot;&quot;</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">keySeq</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">None</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">node</span>
+</div>
+<div class="viewcode-block" id="TrieDict.isPrefixOfKey"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.isPrefixOfKey">[docs]</a>    <span class="k">def</span> <span class="nf">isPrefixOfKey</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Is the sequence seq a prefix of some key-sequence in the trie?</span>
+<span class="sd">        Equality is considered a prefix.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="bp">True</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">getNode</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TrieDict.someKeyIsPrefix"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.someKeyIsPrefix">[docs]</a>    <span class="k">def</span> <span class="nf">someKeyIsPrefix</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seq</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Very efficient determination of whether some key in the TrieDict</span>
+<span class="sd">        is a prefix of the sequence seq.  Equality is considered a prefix.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">seq</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="bp">False</span>
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">seq</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span> <span class="k">return</span> <span class="bp">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span> <span class="k">return</span> <span class="bp">True</span>
+        <span class="k">return</span> <span class="bp">False</span>
+</div>
+<div class="viewcode-block" id="TrieDict.numChildren"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.numChildren">[docs]</a>    <span class="k">def</span> <span class="nf">numChildren</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The number of children at a node in the tree, i.e., the number of child</span>
+<span class="sd">        nodes which are indexed by keys in its dict.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="TrieDict.delitem"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.delitem">[docs]</a>    <span class="k">def</span> <span class="nf">delitem</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Delete the stored key and its data.  Raises KeyError if the key wasn&#39;t</span>
+<span class="sd">        found in the trie.  If d is a dict, the syntax del d[key] also invokes</span>
+<span class="sd">        this function.&quot;&quot;&quot;</span>
+
+        <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span>
+        <span class="n">nodeList</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">]</span> <span class="c"># Save the nodes down the tree path, to back up later.</span>
+        <span class="n">elemList</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="n">key</span><span class="p">]</span> <span class="c"># the elements corresponding to path nodes</span>
+
+        <span class="c"># Walk down the tree for elems in elemList, saving the nodes in nodeList.</span>
+        <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">elemList</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;Key is not in the TrieDict.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">node</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span>
+                <span class="n">nodeList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+        <span class="c"># We now know that key is &quot;in the tree,&quot; see if isLastElemOfKey is True.</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span>
+            <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="o">=</span> <span class="bp">False</span> <span class="c"># matched, turn off the flag to delete key</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">numKeys</span> <span class="o">-=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># The key is a prefix of something, but is not a match.</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s">&quot;Key is not in the TrieDict.&quot;</span><span class="p">)</span>
+
+        <span class="c">#</span>
+        <span class="c"># Now cut loose any unneeded nodes for the garbage collector.</span>
+        <span class="c">#</span>
+
+        <span class="c"># If not at a leaf node (only at a isLastElemOfKey elem) then key is a prefix</span>
+        <span class="c"># of something and nothing can be deleted.</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span> <span class="k">return</span>
+
+        <span class="c"># On the forward path after the last isLastElemOfKey, all only-child children can be</span>
+        <span class="c"># deleted.  We use the backward path and find the first node that can&#39;t be</span>
+        <span class="c"># deleted.</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">nodeList</span><span class="p">))):</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">nodeList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="c"># The can&#39;t-kill conditions: break when such a node found, otherwide free</span>
+            <span class="c"># node.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">numChildren</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">node</span><span class="o">.</span><span class="n">isLastElemOfKey</span> <span class="ow">or</span> <span class="n">node</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">:</span>
+                <span class="n">killNext</span> <span class="o">=</span> <span class="n">node</span>        <span class="c"># the node to keep but kill one child</span>
+                <span class="n">killElem</span> <span class="o">=</span> <span class="n">elemList</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="c"># the corresponding element to kill</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="bp">None</span> <span class="c"># just to break up the tree for garbage collector</span>
+        <span class="k">del</span> <span class="n">killNext</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">killElem</span><span class="p">]</span>
+
+        <span class="k">return</span>
+</div>
+<div class="viewcode-block" id="TrieDict.getNextNode"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.getNextNode">[docs]</a>    <span class="k">def</span> <span class="nf">getNextNode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queryElem</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span> <span class="c"># TODO really not used, but could be, but overhead</span>
+        <span class="sd">&quot;&quot;&quot;Return the next node in the trie from node when the key-query element</span>
+<span class="sd">        queryElem is received.  This routine treats meta-characters as ordinary</span>
+<span class="sd">        characters.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">queryElem</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">:</span> <span class="k">return</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">queryElem</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span> <span class="k">return</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="TrieDict.getDfsGen"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.getDfsGen">[docs]</a>    <span class="k">def</span> <span class="nf">getDfsGen</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subtreeRootNode</span><span class="p">,</span> <span class="n">funToApply</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">includeRoot</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                  <span class="n">yieldOnLeaves</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span> <span class="n">yieldOnMatch</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">copies</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                  <span class="n">stopAtElems</span><span class="o">=</span><span class="p">[],</span>
+                  <span class="n">stopAtDepth</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">onlyFollowElems</span><span class="o">=</span><span class="p">[],</span>
+                  <span class="n">sortChildren</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                  <span class="n">subtreeRootElem</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">childFun</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns a generator which will do a depth-first traversal of the trie,</span>
+<span class="sd">        starting at node subtreeRootNode.  On each call it returns a list of</span>
+<span class="sd">        (nodeElem, node) pairs for each node on some path from the root to a leaf</span>
+<span class="sd">        of the tree.  It generates such a list for each path from the root to a</span>
+<span class="sd">        leaf (one on each call).  If yieldOnMatch is set True then the current</span>
+<span class="sd">        list being constructed on a path down the tree is returned on the first</span>
+<span class="sd">        time any match-marked node is encountered, even if the node is not a</span>
+<span class="sd">        leaf.  If yieldOnLeaves is set False then yields will only be done on</span>
+<span class="sd">        matches.  (If both are False then the routine returns nothing.)</span>
+
+<span class="sd">        If the list stopAtElems contains any elements then nodes for those</span>
+<span class="sd">        elements are treated as leaves.  If stopAtDepth has a positive integer</span>
+<span class="sd">        value then nodes at that depth are treated as leaves.  The</span>
+<span class="sd">        onlyFollowElems list is like the negation for stopAtElems: it treats</span>
+<span class="sd">        everything not on the list like a leaf node (i.e., it only folows</span>
+<span class="sd">        child-links which are on the list).</span>
+
+<span class="sd">        If funToApply is defined it will be called for each (nodeElem, node) pair</span>
+<span class="sd">        on the returned lists.  The function should take two arguments; the list</span>
+<span class="sd">        will contain the function&#39;s return value.  A copy of the node list is</span>
+<span class="sd">        returned on each generation, but the nodes are always the actual nodes in</span>
+<span class="sd">        the trie.  If includeRoot is True then output from the subtreeRootNode</span>
+<span class="sd">        itself will be included in the output (with None as the corresponding</span>
+<span class="sd">        nodeElem).</span>
+
+<span class="sd">        If copies is set False then a single node list is used; this may be a</span>
+<span class="sd">        little faster, but the returned list will change after each</span>
+<span class="sd">        generation-cycle.  If sortChildren is True then the children of</span>
+<span class="sd">        each node will be sorted in the dfs search ordering.</span>
+
+<span class="sd">        Setting subtreeRootElem to an element will set that as the element on</span>
+<span class="sd">        the returned list corresponding to the subtree root (otherwise it is</span>
+<span class="sd">        None.  Sometimes the value is known when the function call is made,</span>
+<span class="sd">        and it can be convenient to have a uniform list pattern.</span>
+
+<span class="sd">        If childFun is set to a function then the children of a node are obtained</span>
+<span class="sd">        by calling that function with the node as the argument.  This is helpful,</span>
+<span class="sd">        for example, in pattern-matches where the child dict is locally modified</span>
+<span class="sd">        per state.&quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">dfsRecursion</span><span class="p">(</span><span class="n">currNodeElem</span><span class="p">,</span> <span class="n">currNode</span><span class="p">,</span> <span class="n">depth</span><span class="p">):</span>
+            <span class="c"># Put the node on the running list of nodes (down current tree path).</span>
+            <span class="k">if</span> <span class="n">depth</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">includeRoot</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">funToApply</span><span class="p">:</span> <span class="n">nodeList</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">funToApply</span><span class="p">(</span><span class="n">currNodeElem</span><span class="p">,</span> <span class="n">currNode</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span> <span class="n">nodeList</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">currNodeElem</span><span class="p">,</span> <span class="n">currNode</span><span class="p">))</span>
+            <span class="c"># Get the current node&#39;s child list and modify it.</span>
+            <span class="k">if</span> <span class="n">childFun</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span> <span class="n">childDict</span> <span class="o">=</span> <span class="n">childFun</span><span class="p">(</span><span class="n">currNode</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">childDict</span> <span class="o">=</span> <span class="n">currNode</span><span class="o">.</span><span class="n">children</span>
+            <span class="n">children</span> <span class="o">=</span> <span class="n">childDict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">stopAtElems</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">elem</span> <span class="o">==</span> <span class="n">currNodeElem</span><span class="p">:</span> <span class="n">children</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">stopAtDepth</span> <span class="ow">and</span> <span class="n">depth</span> <span class="o">==</span> <span class="n">maxDepth</span><span class="p">:</span> <span class="n">children</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">onlyFollowElems</span><span class="p">:</span>
+                <span class="n">children</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">children</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">onlyFollowElems</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">sortChildren</span><span class="p">:</span> <span class="n">children</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">children</span><span class="p">)</span>
+            <span class="c"># Yield the results, according to the selected criteria.</span>
+            <span class="n">yieldedAlready</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="k">if</span> <span class="n">copies</span><span class="p">:</span> <span class="n">yieldValue</span> <span class="o">=</span> <span class="n">nodeList</span><span class="p">[:]</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">yieldValue</span> <span class="o">=</span> <span class="n">nodeList</span>
+            <span class="k">if</span> <span class="n">yieldOnLeaves</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">children</span><span class="p">:</span> <span class="c"># match only leaves (or pseudo-leaves)</span>
+                <span class="k">yield</span> <span class="n">yieldValue</span>
+                <span class="n">yieldedAlready</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="n">yieldOnMatch</span> <span class="ow">and</span> <span class="n">currNode</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">yieldedAlready</span><span class="p">:</span> <span class="k">yield</span> <span class="n">yieldValue</span>
+            <span class="c"># Recurse for each child.</span>
+            <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">children</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">dfsRecursion</span><span class="p">(</span><span class="n">elem</span><span class="p">,</span> <span class="n">childDict</span><span class="p">[</span><span class="n">elem</span><span class="p">],</span> <span class="n">depth</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="n">value</span>
+                <span class="k">if</span> <span class="n">nodeList</span><span class="p">:</span> <span class="n">nodeList</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span> <span class="c"># each child adds one, so pop one</span>
+
+        <span class="n">nodeList</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">stopAtDepth</span> <span class="o">!=</span> <span class="bp">False</span><span class="p">:</span>
+            <span class="n">maxDepth</span> <span class="o">=</span> <span class="n">stopAtDepth</span>
+            <span class="n">stopAtDepth</span> <span class="o">=</span> <span class="bp">True</span> <span class="c"># because 0 evals to False as a bool</span>
+
+        <span class="k">return</span> <span class="n">dfsRecursion</span><span class="p">(</span><span class="n">subtreeRootElem</span><span class="p">,</span> <span class="n">subtreeRootNode</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="TrieDict.printTree"><a class="viewcode-back" href="../../wff_language.trie_dict.html#wff_language.trie_dict.TrieDict.printTree">[docs]</a>    <span class="k">def</span> <span class="nf">printTree</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">separation</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">childFun</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print out a representation of the stored tree of keys.  Useful for</span>
+<span class="sd">        debugging.  Call with default arguments to get the full tree.</span>
+<span class="sd">        The variable separation can be increased to increase the space</span>
+<span class="sd">        between printed elements on a line.&quot;&quot;&quot;</span>
+        <span class="c"># TODO: for fun, and to test the getDfsGen, re-do this using it (set</span>
+        <span class="c"># the sortChildren flag True).</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">node</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">;</span> <span class="k">print</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">numChildren</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">True</span>
+        <span class="n">doIndent</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="k">if</span> <span class="n">childFun</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span> <span class="n">children</span> <span class="o">=</span> <span class="n">childFun</span><span class="p">(</span><span class="n">node</span><span class="p">)</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span> <span class="n">children</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">children</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">doIndent</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="o">+</span><span class="s">&quot; &quot;</span><span class="o">*</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">depth</span><span class="p">),</span> <span class="n">end</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">);</span> <span class="n">doIndent</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">sepStr</span> <span class="o">=</span> <span class="s">&quot; &quot;</span> <span class="o">*</span> <span class="n">separation</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">]</span><span class="o">.</span><span class="n">isLastElemOfKey</span><span class="p">:</span> <span class="n">sepStr</span> <span class="o">=</span> <span class="s">&quot;+&quot;</span> <span class="o">+</span> <span class="n">sepStr</span>
+            <span class="k">else</span><span class="p">:</span> <span class="n">sepStr</span> <span class="o">+=</span> <span class="s">&quot; &quot;</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">elem</span><span class="o">+</span><span class="n">sepStr</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+            <span class="n">doIndent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">printTree</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">elem</span><span class="p">],</span> <span class="n">depth</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span>
+                                      <span class="n">separation</span><span class="o">=</span><span class="n">separation</span><span class="p">,</span> <span class="n">childFun</span><span class="o">=</span><span class="n">childFun</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">node</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">root</span><span class="p">:</span> <span class="k">print</span><span class="p">(</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">doIndent</span>
+
+    <span class="c">#</span>
+    <span class="c"># Define a few aliases/synonyms for certain methods above.</span>
+    <span class="c">#</span></div>
+    <span class="sd">&quot;&quot;&quot;Synonym for delitem.&quot;&quot;&quot;</span>
+    <span class="n">__delitem__</span> <span class="o">=</span> <span class="n">delitem</span> <span class="c"># Allows the syntax: del d[key] for a dict d.</span>
+
+    <span class="sd">&quot;&quot;&quot;Synonyms for insert.&quot;&quot;&quot;</span>
+    <span class="n">__setitem__</span> <span class="o">=</span> <span class="n">insert</span> <span class="c"># Allows bracket-indexing d[&quot;key&quot;] = 4 on a dict d.</span>
+    <span class="n">setitem</span> <span class="o">=</span> <span class="n">insert</span> <span class="c"># Some people may prefer this name.</span>
+
+    <span class="sd">&quot;&quot;&quot;Synonym for has_key.  Note Python 3 deprecated has_key, still in TrieDict.&quot;&quot;&quot;</span>
+    <span class="n">__contains__</span> <span class="o">=</span> <span class="n">has_key</span>
+
+    <span class="sd">&quot;&quot;&quot;Synonym for iterkeys.&quot;&quot;&quot;</span>
+    <span class="n">__iter__</span> <span class="o">=</span> <span class="n">iterkeys</span>
+
+
+<span class="c">#</span>
+<span class="c"># Run test cases below when invoked as a script.</span>
+<span class="c">#</span>
+
+</div>
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">(</span><span class="s">&quot;test/test_trie_dict.py&quot;</span><span class="p">,</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s">&quot;-v&quot;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

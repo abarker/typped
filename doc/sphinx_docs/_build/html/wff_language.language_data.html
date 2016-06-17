@@ -1,0 +1,492 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.6. wff_language.language_data module &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="up" title="2. wff_language package" href="wff_language.html" />
+    <link rel="next" title="2.1.7. wff_language.lexer module" href="wff_language.lexer.html" />
+    <link rel="prev" title="2.1.5. wff_language.interfaces module" href="wff_language.interfaces.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.lexer.html" title="2.1.7. wff_language.lexer module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.interfaces.html" title="2.1.5. wff_language.interfaces module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" accesskey="U">2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-wff_language.language_data">
+<span id="wff-language-language-data-module"></span><h1>2.1.6. wff_language.language_data module<a class="headerlink" href="#module-wff_language.language_data" title="Permalink to this headline">¶</a></h1>
+<p>Code for the LanguageData class, which is used to store, search, and retrieve
+data about types, variables, etc.  It is essentially the global symbol table
+for the full language.</p>
+<dl class="exception">
+<dt id="wff_language.language_data.AlreadyDefinedError">
+<em class="property">exception </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">AlreadyDefinedError</tt><a class="reference internal" href="_modules/wff_language/language_data.html#AlreadyDefinedError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.AlreadyDefinedError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.language_data.LanguageDataError" title="wff_language.language_data.LanguageDataError"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.language_data.LanguageDataError</span></tt></a></p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.language_data.BadDataValueError">
+<em class="property">exception </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">BadDataValueError</tt><a class="reference internal" href="_modules/wff_language/language_data.html#BadDataValueError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.BadDataValueError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.language_data.LanguageDataError" title="wff_language.language_data.LanguageDataError"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.language_data.LanguageDataError</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.language_data.LangElemsTuple">
+<em class="property">class </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">LangElemsTuple</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">tuple</span></tt></p>
+<p>LangElemsTuple(type, typeAlias, quant, const, var, stdFun, prefixFun, infixFun)</p>
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.const">
+<tt class="descname">const</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.const" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.infixFun">
+<tt class="descname">infixFun</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.infixFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 7</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.prefixFun">
+<tt class="descname">prefixFun</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.prefixFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 6</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.quant">
+<tt class="descname">quant</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.quant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.stdFun">
+<tt class="descname">stdFun</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.stdFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 5</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.type">
+<tt class="descname">type</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.typeAlias">
+<tt class="descname">typeAlias</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.typeAlias" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="wff_language.language_data.LangElemsTuple.var">
+<tt class="descname">var</tt><a class="headerlink" href="#wff_language.language_data.LangElemsTuple.var" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 4</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.language_data.LanguageData">
+<em class="property">class </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">LanguageData</tt><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>Class for storing, searching, and retrieving data for the Language
+class.  The language elements which have data stored for them are defined
+by</p>
+<blockquote>
+<div><dl class="docutils">
+<dt>langElems = (&#8220;type&#8221;, &#8220;typeAlias&#8221;, &#8220;quant&#8221;, &#8220;const&#8221;, &#8220;var&#8221;,</dt>
+<dd>&#8220;stdFun&#8221;, &#8220;prefixFun&#8221;, &#8220;infixFun&#8221;)</dd>
+</dl>
+</div></blockquote>
+<p>The program which uses this class is responsible for making sure that any
+name argument which is passed in is valid in the namespace for the language
+element it is being added as (&#8220;type&#8221;, &#8220;variable&#8221;, etc.)  For example, types
+and variables may or may not share a namespace or have an intersecting
+namespace (that is a language-design choice).  We do assume that no name
+can ever name two different things (over all the language elements), except
+for functions which can have the same names if they have different type
+signatures (provided the function overloading flag is set).  Function name
+overloading is allowed for all the variants of function names.</p>
+<p>Given that the names are always valid in their namespaces we can just add a
+valid name for any sort of language element (types, variables, etc.)
+provided that that name has not been added (stored) for any of the other
+language elements.  That is, we can iterate over langElems and check that
+the name is not defined for any of them.  This is described further in the
+next paragraph.</p>
+<p>If two language elements, say types and variables, have disjoint namespaces
+then a valid type name is assumed never to have been added as a variable
+name in the first place (and vice versa).  So it does not hurt to check if
+the name has been defined for a variable before adding it as a type (and
+vice versa).  If the namespaces intersect, any names in the disjoint
+regions still have this same property.  For names in the intersection of,
+say, the type and variable namespaces we <em>do</em> need to check that the name
+has not been defined either for types or for variables before adding it as
+either a type or a variable.  An iteration over langElems takes care of
+this.</p>
+<p>Precedence values passed in can be strings or ints, but they will be
+converted to ints before being stored.</p>
+<p>In using different block scopes with a dot name convention, such as
+env1.env2.name, the full dotted names should be added or checked, since
+env1.name is different from env1.env2.name.  This module does not keep
+track of any block-scoping environments.</p>
+<p>Note this is an inefficient prototype implementation.  It just stores all
+the data in dictionaries indexed by names.  The function dictionaries have
+lists of function-signature data as values, since function name overloading
+is allowed.</p>
+<p>The types dictionary is the only one which is slightly more complicated,
+but it just contains TypeData class instances to hold various type
+attributes.</p>
+<p>The LanguageData class also contains a RegexTrieDict, which it adds all
+defined types to (and deletes if that is allowed).  An application can
+insert any other string/value pairs that it chooses to into the
+RegexTrieDict (like command-names, whitespace, parens, etc).  This allows
+the data structure to be used for lexical analysis.  It will always know
+the defined names in the language because the LanguageData class updates it
+whenever it is updated.</p>
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_const">
+<tt class="descname">add_const</tt><big>(</big><em>constName</em>, <em>constType</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_const"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_const" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new constant constName of type constType.  The variable
+constType must be a previously defined type or type alias, and constName
+must be undefined in the namespace of constants.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_conversion_type">
+<tt class="descname">add_conversion_type</tt><big>(</big><em>fromType</em>, <em>toType</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_conversion_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_conversion_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a type conversion taking fromType to toType.  Both types must be
+previously defined types or type aliases.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_infixfun">
+<tt class="descname">add_infixfun</tt><big>(</big><em>funName</em>, <em>retType</em>, <em>argType1</em>, <em>argType2</em>, <em>prec</em>, <em>assoc</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_infixfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_infixfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new infix function with name funName returning type retType and
+taking arguments argType1 and argType2.  All types must be previously
+defined types or type aliases, and function signatures must be unique in
+the space of infix functions (according to the definition of overloading
+in force).  Note that the number of arguments is len(argTypes).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_prefixfun">
+<tt class="descname">add_prefixfun</tt><big>(</big><em>funName</em>, <em>retType</em>, <em>argTypes</em>, <em>prec</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_prefixfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_prefixfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new prefix function with name funName returning type retType and
+taking arguments of the types in argTypes.  All types must be previously
+defined types or type aliases, and function signatures must be unique in
+the space of prefix functions (according to the definition of overloading
+in force).  Note that the number of arguments is len(argTypes).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_quant">
+<tt class="descname">add_quant</tt><big>(</big><em>quantName</em>, <em>retType</em>, <em>argType</em>, <em>quantPrec</em>, <em>restrictionType=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_quant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_quant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new quantifier symbol quantName, acting on arguments of type
+quantType (which will almost always be Bool, for a wff argument), of
+precedence level quantPrec, and restricted to hold over type
+restrictionType (as a restricted quantifier).  Note that quantifier
+expressions are essentially treated as prefix functions on one
+argument.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_stdfun">
+<tt class="descname">add_stdfun</tt><big>(</big><em>funName</em>, <em>retType</em>, <em>argTypes</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_stdfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_stdfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new standard function (taking arguments the usual way, e.g.,
+f(x)) with name funName returning type retType and taking arguments of
+the types in argTypes.  All types must be previously defined types or
+type aliases, and function signatures must be unique in the space of
+standard functions (according to the definition of overloading in force).
+Note that the number of arguments is len(argTypes).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_type">
+<tt class="descname">add_type</tt><big>(</big><em>typeName</em>, <em>conversionTypes=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a type and an optional list of types it can be converted
+to.  Conversion types can be either types or type aliases.  The default
+for conversionTypes is the empty list.</p>
+<p>The type typeName cannot have been previously defined in the type
+namespace or an exception will be raised.  If necessary this can be
+checked with the isAlreadyDefinedType method before attempting the add,
+or else the exception can be caught assuming that</p>
+<blockquote>
+<div>raiseExceptionOnLanguageDataError[&#8220;AlreadyDefinedError&#8221;] = False.</div></blockquote>
+<p>The other add methods work similarly.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_type_alias">
+<tt class="descname">add_type_alias</tt><big>(</big><em>typeAlias</em>, <em>typeNameOrAlias</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_type_alias"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_type_alias" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add typeAlias as a new alias for typeNameOrAlias. Variable
+typeNameOrAlias must be a previously defined type or type alias, and
+typeAlias must be undefined in the namespace of type aliases or an
+exception will be raised.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.add_var">
+<tt class="descname">add_var</tt><big>(</big><em>varName</em>, <em>varType</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.add_var"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.add_var" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a new variable varName of type varType.  The variable varType
+must be a previously defined type or type alias, and varName must be
+undefined in the namespace of variables.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.check_already_defined_error">
+<tt class="descname">check_already_defined_error</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.check_already_defined_error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.check_already_defined_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Error check whether name has already been defined for any language
+element.  Return true if it has (and raise an AlreadyDefinedError if that
+flag is set).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.check_undefined_type_error">
+<tt class="descname">check_undefined_type_error</tt><big>(</big><em>type_name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.check_undefined_type_error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.check_undefined_type_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Error check whether type_name has been defined as a type.  Return True
+if it has not (and raise an UndefinedError if that flag is set).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.check_undefined_type_or_typealias_error">
+<tt class="descname">check_undefined_type_or_typealias_error</tt><big>(</big><em>type_or_typealias_name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.check_undefined_type_or_typealias_error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.check_undefined_type_or_typealias_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Error check whether type_or_typealias_name has been defined as a type or
+type alias.  Return True if it has not (and raise an UndefinedError if
+that flag is set).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.check_undefined_typealias_error">
+<tt class="descname">check_undefined_typealias_error</tt><big>(</big><em>typealias_name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.check_undefined_typealias_error"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.check_undefined_typealias_error" title="Permalink to this definition">¶</a></dt>
+<dd><p>Error check whether typealias_name has been defined as a type alias.
+Return True if it has not (and raise an UndefinedError if that flag is
+set).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.get_actual_type">
+<tt class="descname">get_actual_type</tt><big>(</big><em>typeAlias</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.get_actual_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.get_actual_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the actual type of the type or type alias argument typeAlias.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.get_actual_type_list">
+<tt class="descname">get_actual_type_list</tt><big>(</big><em>aliasList</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.get_actual_type_list"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.get_actual_type_list" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the list of actual types of a list of types or type aliases.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.get_regex_trie_dict">
+<tt class="descname">get_regex_trie_dict</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.get_regex_trie_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.get_regex_trie_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the RegexTrieDict holding the defined data.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined">
+<tt class="descname">is_defined</tt><big>(</big><em>langElem</em>, <em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is defined as a language element langElem.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_const">
+<tt class="descname">is_defined_const</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_const"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_const" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined constant.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_infix_fun">
+<tt class="descname">is_defined_infix_fun</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_infix_fun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_infix_fun" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined infix function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_prefixfun">
+<tt class="descname">is_defined_prefixfun</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_prefixfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_prefixfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined prefix function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_quant">
+<tt class="descname">is_defined_quant</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_quant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_quant" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined quantifier.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_stdfun">
+<tt class="descname">is_defined_stdfun</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_stdfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_stdfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined standard function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_type">
+<tt class="descname">is_defined_type</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined type.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_type_alias">
+<tt class="descname">is_defined_type_alias</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_type_alias"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_type_alias" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined type alias.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_type_or_alias">
+<tt class="descname">is_defined_type_or_alias</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_type_or_alias"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_type_or_alias" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined type or type alias.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_defined_var">
+<tt class="descname">is_defined_var</tt><big>(</big><em>name</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_defined_var"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_defined_var" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if name is a defined variable.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.is_valid_lang_elem">
+<tt class="descname">is_valid_lang_elem</tt><big>(</big><em>langElem</em><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.is_valid_lang_elem"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.is_valid_lang_elem" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if langElem is a valid language element.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.set_error_checking_for_batch">
+<tt class="descname">set_error_checking_for_batch</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.set_error_checking_for_batch"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.set_error_checking_for_batch" title="Permalink to this definition">¶</a></dt>
+<dd><p>Raise an exception for all errors.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.language_data.LanguageData.set_error_checking_for_interactive">
+<tt class="descname">set_error_checking_for_interactive</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageData.set_error_checking_for_interactive"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageData.set_error_checking_for_interactive" title="Permalink to this definition">¶</a></dt>
+<dd><p>Don&#8217;t raise an exception for certain errors, just give a warning and
+ignore the bad input.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.language_data.LanguageDataError">
+<em class="property">exception </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">LanguageDataError</tt><a class="reference internal" href="_modules/wff_language/language_data.html#LanguageDataError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.LanguageDataError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">exceptions.Exception</span></tt></p>
+<p>Base class for exceptions in this module.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.language_data.TypeData">
+<em class="property">class </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">TypeData</tt><a class="reference internal" href="_modules/wff_language/language_data.html#TypeData"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.TypeData" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>An internal record for storing data about types in the types dictionary.
+Users never see instances of this type, and it may change in different
+implementations.</p>
+<p>Only names (name strings) are actually stored in the various field lists.
+The various other properties associated with a name can then be looked up by
+using that name as an index into the dict for the corresponding language
+element.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.language_data.UndefinedError">
+<em class="property">exception </em><tt class="descclassname">wff_language.language_data.</tt><tt class="descname">UndefinedError</tt><a class="reference internal" href="_modules/wff_language/language_data.html#UndefinedError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.language_data.UndefinedError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.language_data.LanguageDataError" title="wff_language.language_data.LanguageDataError"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.language_data.LanguageDataError</span></tt></a></p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="wff_language.interfaces.html"
+                        title="previous chapter">2.1.5. wff_language.interfaces module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.lexer.html"
+                        title="next chapter">2.1.7. wff_language.lexer module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/wff_language.language_data.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.lexer.html" title="2.1.7. wff_language.lexer module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.interfaces.html" title="2.1.5. wff_language.interfaces module"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" >2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

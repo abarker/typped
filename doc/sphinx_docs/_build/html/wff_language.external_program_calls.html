@@ -1,0 +1,225 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.4. wff_language.external_program_calls module &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="up" title="2. wff_language package" href="wff_language.html" />
+    <link rel="next" title="2.1.5. wff_language.interfaces module" href="wff_language.interfaces.html" />
+    <link rel="prev" title="2.1.3. wff_language.enum_wrapper module" href="wff_language.enum_wrapper.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.interfaces.html" title="2.1.5. wff_language.interfaces module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.enum_wrapper.html" title="2.1.3. wff_language.enum_wrapper module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" accesskey="U">2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-wff_language.external_program_calls">
+<span id="wff-language-external-program-calls-module"></span><h1>2.1.4. wff_language.external_program_calls module<a class="headerlink" href="#module-wff_language.external_program_calls" title="Permalink to this headline">¶</a></h1>
+<p>This module contains code involving function calls to external programs.  All
+the system-specific information is also localized here.</p>
+<dl class="function">
+<dt id="wff_language.external_program_calls.callExternalSubprocess">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">callExternalSubprocess</tt><big>(</big><em>commandList</em>, <em>stdinFilename=None</em>, <em>stdoutFilename=None</em>, <em>stderrFilename=None</em>, <em>env=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#callExternalSubprocess"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.callExternalSubprocess" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the command and arguments in the commandList.  Will search the system
+PATH for commands to execute, but no shell is started.  Redirects any selected
+outputs to the given filename.  Waits for command completion.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.cleanupAndExit">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">cleanupAndExit</tt><big>(</big><em>exitCode</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#cleanupAndExit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.cleanupAndExit" title="Permalink to this definition">¶</a></dt>
+<dd><p>Exit the program, after cleaning up the temporary directory.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.convertWindowsPathToCygwin">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">convertWindowsPathToCygwin</tt><big>(</big><em>path</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#convertWindowsPathToCygwin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.convertWindowsPathToCygwin" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a Windows path to a Cygwin path.  Just handles the basic case.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getCanonicalAbsolueExpandedDirname">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getCanonicalAbsolueExpandedDirname</tt><big>(</big><em>path</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getCanonicalAbsolueExpandedDirname"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getCanonicalAbsolueExpandedDirname" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the absolute directory name from a possibly relative path.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getCanonicalAbsoluteExpandedPath">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getCanonicalAbsoluteExpandedPath</tt><big>(</big><em>path</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getCanonicalAbsoluteExpandedPath"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getCanonicalAbsoluteExpandedPath" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the canonical form of the absolute path from a possibly relative path
+(which may have symlinks, etc.)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getDirectoryLocation">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getDirectoryLocation</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getDirectoryLocation"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getDirectoryLocation" title="Permalink to this definition">¶</a></dt>
+<dd><p>Find the location of the directory where the module that runs this
+function is located.  An empty directory_locator.py file is assumed to be in
+the same directory as the module.  Note that there are other ways to do
+this, but this way seems reasonably robust and portable.  (As long as
+the directory is a package the import will always look at the current
+directory first.)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getExternalSubprocessOutput">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getExternalSubprocessOutput</tt><big>(</big><em>commandList</em>, <em>printOutput=False</em>, <em>indentString=''</em>, <em>splitLines=True</em>, <em>ignoreCalledProcessErrors=False</em>, <em>env=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getExternalSubprocessOutput"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getExternalSubprocessOutput" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the command and arguments in the commandList.  Will search the system
+PATH.  Returns the output as a list of lines.   If printOutput is True the
+output is echoed to stdout, indented (or otherwise prefixed) by indentString.
+Waits for command completion.  Called process errors can be set to be
+ignored if necessary.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getParentDirectory">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getParentDirectory</tt><big>(</big><em>path</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getParentDirectory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getParentDirectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Like os.path.dirname except it returns the absolute name of the parent
+of the dirname directory.  No symbolic link expansion (os.path.realpath)
+or user expansion (os.path.expanduser) is done.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getTemporaryDirectory">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getTemporaryDirectory</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getTemporaryDirectory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getTemporaryDirectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a temporary directory and return the name.  The caller is responsible
+for deleting it (e.g., with shutil.rmtree) after using it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.getTemporaryFilename">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">getTemporaryFilename</tt><big>(</big><em>extension=''</em>, <em>useProgramTempDir=True</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#getTemporaryFilename"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.getTemporaryFilename" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the string for a temporary file with the given extension or suffix.  For a
+file extension like .pdf the dot should also be in the passed string.  Caller is
+expected to open and close it as necessary and call os.remove on it after
+finishing with it.  (Note the entire programTempDir will be deleted on cleanup.)</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.globIfWindowsOs">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">globIfWindowsOs</tt><big>(</big><em>path</em>, <em>exactNumArgs=False</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#globIfWindowsOs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.globIfWindowsOs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Expands any globbing if systemOs is Windows (DOS doesn&#8217;t do it).  The
+argument exactNumFiles can be set to an integer to check for an exact
+number of matching files.  Returns a list.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.removeProgramTempDirectory">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">removeProgramTempDirectory</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#removeProgramTempDirectory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.removeProgramTempDirectory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove the global temp directory and all its contents.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.runExternalSubprocessInBackground">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">runExternalSubprocessInBackground</tt><big>(</big><em>commandList</em>, <em>env=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#runExternalSubprocessInBackground"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.runExternalSubprocessInBackground" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs the command and arguments in the list as a background process.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.external_program_calls.samefile">
+<tt class="descclassname">wff_language.external_program_calls.</tt><tt class="descname">samefile</tt><big>(</big><em>path1</em>, <em>path2</em><big>)</big><a class="reference internal" href="_modules/wff_language/external_program_calls.html#samefile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.external_program_calls.samefile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if paths refer to the same file or directory.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="wff_language.enum_wrapper.html"
+                        title="previous chapter">2.1.3. wff_language.enum_wrapper module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.interfaces.html"
+                        title="next chapter">2.1.5. wff_language.interfaces module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/wff_language.external_program_calls.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.interfaces.html" title="2.1.5. wff_language.interfaces module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.enum_wrapper.html" title="2.1.3. wff_language.enum_wrapper module"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" >2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,1261 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>1. Dispatching Pratt Parser (DiPP) &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="next" title="2. wff_language package" href="wff_language.html" />
+    <link rel="prev" title="Hello" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.html" title="2. wff_language package"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Hello"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="dispatching-pratt-parser-dipp">
+<h1>1. Dispatching Pratt Parser (DiPP)<a class="headerlink" href="#dispatching-pratt-parser-dipp" title="Permalink to this headline">¶</a></h1>
+<p>NAMES?</p>
+<ul class="simple">
+<li>Typped: A typed Pratt Parser employing dispatching (TyPPeD, Typped) - for typed languages</li>
+<li>Pratt parser with conditioned dispatching (PPCD).</li>
+<li>Dispatching Pratt Parser (DiPP)</li>
+<li>Preconditioned Dispatching Pratt Parser (PDPP)</li>
+<li>Pratt parser with conditioned dispatching of handlers (PPCDH).</li>
+<li>Pratt parser with preconditioned handler dispatching (PP-PHD).</li>
+<li>Pratt parser with conditional dispatching (PPCD).</li>
+<li>Pratt parser with dispatched handlers (PPDH).</li>
+<li>Preconditioned Handler Dispatching Pratt Parser PHDPP</li>
+<li>Typed Pratt Parser TyPP</li>
+</ul>
+<div class="section" id="what-is-a-pratt-parser">
+<h2>1.1. What is a Pratt parser?<a class="headerlink" href="#what-is-a-pratt-parser" title="Permalink to this headline">¶</a></h2>
+<p>Pratt parsing is a type of parsing introduced by Vaughan Pratt in a 1973 paper
+(see <a class="reference internal" href="#references"><em>References</em></a>).  It is also known as &#8220;top-down operator-precedence
+parsing&#8221; because it is a top-down, recursive algorithm which can easily handle
+operator precedences.  Pratt describes it as a modification of the Floyd
+operator-precedence parser to work top-down.</p>
+<p>Recursive descent parsing is another, more commonly known, top-down recursive
+parsing method.  In recursive descent each production in the grammar (BNF,
+EBNF, etc.) of a language is associated with a function which is designed to
+parse that production.  By contrast, in a Pratt parser each type of token has
+one or more <strong>handler functions</strong> associated with it.</p>
+<p>Pratt parsing fell into relative obscurity for some years, but it has
+recently experienced a revival as a parsing technique that is
+well-suited for dynamic languages.</p>
+<p>Some of Pratt&#8217;s original terminology is less-than-intuitive in a modern
+context, yet his original terminology is still commonly used to describe the
+parsing method.  We have used simplified terminology which is hopefully more
+intuitive, at least in the context of a Python implementation.  The
+correspondences of terms to Pratt&#8217;s original terms are noted both where they
+are defined and in a summarizing table below.</p>
+</div>
+<div class="section" id="basic-assumptions">
+<h2>1.2. Basic assumptions<a class="headerlink" href="#basic-assumptions" title="Permalink to this headline">¶</a></h2>
+<p>In this discussion it is assumed that a lexical scanner (lexer) has been
+defined as <tt class="docutils literal"><span class="pre">lex</span></tt> and instantiated with the text to be parsed.  The lexer is
+assumed to provide a <tt class="docutils literal"><span class="pre">lex.next()</span></tt> function which returns the next token, and
+a <tt class="docutils literal"><span class="pre">lex.peek()</span></tt> function which peeks at the next token without consuming it.
+The <strong>current token</strong> is the last one returned by <tt class="docutils literal"><span class="pre">next</span></tt>, and is also assumed
+to be available as <tt class="docutils literal"><span class="pre">lex.token</span></tt> from the lexer.  The parser will consume tokens
+from the lexer.</p>
+<p>Many of the presentations of the Pratt parser essentially fake a lexer with
+one-token <tt class="docutils literal"><span class="pre">peek</span></tt> lookahead from a lexer without built-in lookahead.  First,
+<tt class="docutils literal"><span class="pre">next</span></tt> is called to get a token which acts as a peek.  Then to get a token
+the peek token is saved as the current token and <tt class="docutils literal"><span class="pre">next</span></tt> is called to get the
+next peek token.  When the Pratt parser algorithm is written assuming both a
+<tt class="docutils literal"><span class="pre">next</span></tt> and a <tt class="docutils literal"><span class="pre">peek</span></tt> function it requires slightly less code, and, more
+importantly, is easier to follow.</p>
+<p>A parser parses a <strong>program</strong> or an <strong>expression</strong> from text that is passed to
+the parser&#8217;s <cite>parse</cite> function.  We will use the term expression, but it could
+also be a full program.  Every expression is assumed to be made up of
+<strong>subexpressions</strong>, as defined by the particular handler-function
+implementations and by <strong>operator precedences</strong>.  Subexpressions can
+be made up of sub-subexpressions, and so forth.  The Pratt parser recursively
+parses these expressions top-down.</p>
+<p>We assume that a function called <tt class="docutils literal"><span class="pre">parse</span></tt> is passed both a lexer and the
+expression to be parsed and returns the <strong>parse tree</strong> for the expression.  In
+general, some parsers do not return a parse tree but instead evaluate,
+interpret, or otherwise process the expressions as they go along.  We assume
+that any such evaluation or interpretation is applied at a later stage, based
+on the returned parse tree.</p>
+</div>
+<div class="section" id="operator-precedence">
+<h2>1.3. Operator precedence<a class="headerlink" href="#operator-precedence" title="Permalink to this headline">¶</a></h2>
+<p>Consider this simple expression: <tt class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt> There are five tokens in this
+expression: <tt class="docutils literal"><span class="pre">2</span></tt>, <tt class="docutils literal"><span class="pre">+</span></tt>, <tt class="docutils literal"><span class="pre">5</span></tt>, <tt class="docutils literal"><span class="pre">*</span></tt>, and <tt class="docutils literal"><span class="pre">8</span></tt>.  Parsing this expression
+should produce the <strong>parse tree</strong> represented by:</p>
+<div class="highlight-python"><div class="highlight"><pre>+
+   2
+   *
+      5
+      8
+</pre></div>
+</div>
+<p>where an indented column under a token represent its children/arguments.  Note
+that the leaves of the tree are always <strong>literals</strong> such as <tt class="docutils literal"><span class="pre">2</span></tt> and <tt class="docutils literal"><span class="pre">5</span></tt>.</p>
+<p>In producing the parse tree above it has been assumed that the usual operator
+precedence rules in mathematics hold: <tt class="docutils literal"><span class="pre">*</span></tt> has higher precedence than <tt class="docutils literal"><span class="pre">+</span></tt>.
+In most computer languages this is implemented by assigning a fixed
+<strong>precedence</strong> value to each operator, and the Pratt parser does the same
+thing.</p>
+<p>Every kind of token has a fixed, non-changing precedence value associated with
+it.  This is called its <strong>token precedence</strong>.  The default token precedence
+value is zero, which is also the minimum possible token precedence value.
+Infix operators <em>must</em> have a token precedence &gt; 0, as we will see.  When it is
+clear in the context the token precedence will simply be called <strong>precedence</strong> or
+<strong>prec</strong>.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In Pratt&#8217;s terminology a token&#8217;s precedence is called its <strong>left binding
+power</strong> or <strong>lbp</strong>.</p>
+</div>
+</div>
+<div class="section" id="subexpressions">
+<h2>1.4. Subexpressions<a class="headerlink" href="#subexpressions" title="Permalink to this headline">¶</a></h2>
+<p>By definition, every subtree in a parse tree represents a subexpression.
+In this sense, the token precedence values define the subexpression
+structure of infix operators.  In the simple example above, the top-level
+expression is represented by the full tree, with root at the operator
+<tt class="docutils literal"><span class="pre">+</span></tt>.  Each literal also defines a (trivial) subexpression.  The operator
+<tt class="docutils literal"><span class="pre">*</span></tt> defines a non-trivial subexpression which corresponds to the text
+<tt class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt>.</p>
+<p>In Pratt parsing, recursion is used to parse subexpressions (starting top-down,
+from the full expression).  A crucial distinction in this parsing method is
+whether or not the token is the <em>first</em> token in the current subexpression or
+is a <em>later</em> one (e.g., the infix operator in subexpression <tt class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt>).  Every
+subexpression has a first token, and some have later tokens after the first
+one.</p>
+<p>It was mentioned earler that in Pratt parsing each token can have one or more
+<strong>handler functions</strong> defined for it.  The handler function for when the token
+is the first token in a subexpression is called the <strong>head handler</strong> function.
+The handler function for when the token is not the first token in a
+subexpression is called the <strong>tail handler</strong> function.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In Pratt&#8217;s terminology the head handler function is called the <strong>null
+denotation</strong> or <strong>nud</strong>.  The tail handler function is called the <strong>left
+denotation</strong> or <strong>led</strong>.  Pratt&#8217;s terminology can seem confusing since the
+left denotation is actually called for tokens in the rightmost part of a
+subexpression.  The left denotation is passed the previously-evaluated left
+part as an argument, while the null denotation receives no such argument.</p>
+</div>
+</div>
+<div class="section" id="basic-parsing">
+<h2>1.5. Basic parsing<a class="headerlink" href="#basic-parsing" title="Permalink to this headline">¶</a></h2>
+<p>The parser parses text left-to-right, getting tokens sequentially from the
+lexer.  The top-down recursion used in the main function <tt class="docutils literal"><span class="pre">parse</span></tt> is
+implemented by calling another function, called <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.  Each call
+of the <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> function returns the parse tree for the largest
+subexpression to the right of the current token (which is usually one subtree
+of the full parse tree).  Thus, the <tt class="docutils literal"><span class="pre">parse</span></tt> function itself only needs to do
+some initialization and then call <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> and return the result.
+So this is the basic code for <tt class="docutils literal"><span class="pre">parse</span></tt>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">program</span><span class="p">):</span>
+    <span class="n">lex</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="n">program</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">PrattParser</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">return</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Since the code for <tt class="docutils literal"><span class="pre">parse</span></tt> basically just makes a recursive call to
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt>, we really need to focus on how <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> works.
+Here is the code for <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>, which will be discussed next:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">subexp_prec</span><span class="p">):</span>
+    <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+    <span class="n">processed_left</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">head_denote</span><span class="p">(</span><span class="n">lex</span><span class="p">)</span>
+
+    <span class="k">while</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">prec</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">subexp_prec</span><span class="p">:</span>
+        <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="n">processed_left</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">tail_denote</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">processed_left</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">processed_left</span>
+</pre></div>
+</div>
+<p>The first thing that <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> does is get a token from the lexer as
+the current token.  This token will always be the first token of a
+subexpression (the full expression is a trivial subexpression, and by
+definition it is only called at other times when that condition holds).  So,
+the next thing that <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> does is call the head handler for that
+token (and a head must be defined for it).  Recall that the head handler for a
+token is a function that defines the meaning of the token when it is the first
+token in a subexpression.  The result is stored as <tt class="docutils literal"><span class="pre">processed_left</span></tt>, which is
+the processed leftmost part of the current subexpression, currently just the
+result of the head handler evaluation on the first token.</p>
+<p>The <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> function now needs to evaluate the rest of its
+subexpression, calling the tail handler in a while loop for each token that is
+not the first in its subexpression.  The results each time will be combined
+with the current <tt class="docutils literal"><span class="pre">processed_left</span></tt> to produce the new <tt class="docutils literal"><span class="pre">processed_left</span></tt>
+(which will eventually be returned at the end as the final result).  The only
+tricky part is how <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> determines when it has reached the end
+of its subexpression and should return its result.  This is where precedences
+come into play.</p>
+<p>Each call of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> is passed both a lexer and a numerical value
+called the <strong>subexpression precedence</strong> or <strong>subexp-prec</strong> for short.  The
+subexpression precedence is just a number that gives the precedence of the
+subexpression that this call of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> is processing.  The
+subexpression precedence value passed in is fixed within the function
+evaluation, and is compared to the fixed token precedence for individual
+tokens.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">In Pratt&#8217;s terminology the subexpression precedence is called the <strong>right
+binding power</strong>, or <strong>rbp</strong>.  In the while loop the precedence or left
+binding power of the next token (to the right) is compared to the current
+subexpression on the left&#8217;s precedence or right binding power.</p>
+</div>
+<p>In particular, the while loop continues getting tokens and calling their tail
+handler functions until the subexpression precedence <tt class="docutils literal"><span class="pre">subexp_prec</span></tt> is less
+than the prec of the upcoming token, given by <tt class="docutils literal"><span class="pre">lex.peek().prec()</span></tt>.  You can
+think of the loop ending when the power of the subexpression to bind to the
+right and get another token (the subexpression&#8217;s precedence) is not strong
+enough to overcome the power of the next token to bind to the left (the next
+token&#8217;s prec value).  The subexpression ends when that occurs, and the result
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> is returned.</p>
+<p>The initial call of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> from <tt class="docutils literal"><span class="pre">parse</span></tt> always starts with a
+subexpression precedence of 0.  Literals and the end token always have a token
+precedence of 0, so subexpressions always end when the next token is the end
+token or the next token is a literal.  That makes sense, since all
+subexpressions need to end on the end token, and literals form their own
+subexpressions, i.e., subtrees (leaves) of the parse tree.</p>
+<p>Generally, any token with only a head handler definition must have a prec of 0.
+Only tokens which have a tail handler ever use the token prec value.  The prec
+of a token with a tail <em>must</em> be greater than 0, or else it will always fail the
+test in the while loop of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> and thus never be called (since
+tail handlers are only called inside the while loop).</p>
+<p>This completes the discussion of the higher-level top-down recursion
+routines <tt class="docutils literal"><span class="pre">parse</span></tt> and <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.  You might have noticed, though,
+that there are no explicit recursive calls to <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.  This is
+because the recursion is really a mutual recursion: the head and tail handlers
+can call <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> to evaluate subexpressions, and, in turn, the
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt> function is the only place where head and tail handlers
+are called.</p>
+<p>In the next section we discuss the head and tail handlers, to complete the
+recursion.</p>
+<div class="topic">
+<p class="topic-title first">Some notes on this section.</p>
+<ul class="simple">
+<li>The current implementation of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> in this package is
+actually a generalization which calls <tt class="docutils literal"><span class="pre">head_dispatcher</span></tt> instead of
+<tt class="docutils literal"><span class="pre">head_handler</span></tt>, and <tt class="docutils literal"><span class="pre">tail_dispatcher</span></tt> instead <tt class="docutils literal"><span class="pre">tail_handler</span></tt> (this
+will be discussed later).  The general principle, however, is the same.</li>
+<li>The <tt class="docutils literal"><span class="pre">processed_left</span></tt> structure can generally be the result of a
+numerical evaluation, a partial parse tree, or anything else.  The handler
+functions can build and return any processed form for their tokens.  (The
+current program always builds a token tree, which can be evaluated later
+if desired.) In the current implementation the handler functions always
+build a parse tree from the token nodes.</li>
+<li>Outside of an error condition the algorithm never even looks at the prec of
+a token with only a head (i.e., a token which can only occur in the
+beginning position of an expression).  The prec of a head-only token is
+usually taken to be 0, but it does not need to be defined at all.  So, the
+prec can be treated as a property of the tail handler.  This turns out to
+be useful for a generalization.</li>
+</ul>
+</div>
+<p>This table summarizes the correspondence between Pratt&#8217;s terminology and the
+terminology that is used in this documentation and in the code:</p>
+<blockquote>
+<div><table border="1" class="docutils">
+<colgroup>
+<col width="57%" />
+<col width="43%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">This description</th>
+<th class="head">Pratt&#8217;s terminology</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>token precedence</td>
+<td>left binding power, lbp</td>
+</tr>
+<tr class="row-odd"><td>subexpression precedence</td>
+<td>right binding power, rbp</td>
+</tr>
+<tr class="row-even"><td>head handler function</td>
+<td>null denotation, nud</td>
+</tr>
+<tr class="row-odd"><td>tail handler function</td>
+<td>left denotation, led</td>
+</tr>
+</tbody>
+</table>
+</div></blockquote>
+</div>
+<div class="section" id="the-handler-functions-head-and-tail">
+<h2>1.6. The handler functions head and tail<a class="headerlink" href="#the-handler-functions-head-and-tail" title="Permalink to this headline">¶</a></h2>
+<p>In order a token to be processed in an expression it must have defined for it
+either a head handler, a tail handler, or both.  As mentioned earlier, the head
+function is called in evaluating a subexpression when the token is the first
+token in a subexpression, and the tail handler is called when the token appears
+at any other position in the subexpression.  We have not yet described what
+exactly these functions do.</p>
+<p>In general, there are no restrictions on what a head or tail handler can do.
+They are simply functions which return some kind of value which is set to the
+new <tt class="docutils literal"><span class="pre">left_processed</span></tt> variable in <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> which in our case must
+eventually result in the processed parse tree for the subexpression.  They
+could, for example, call a completely different parser.  Below we describe what
+they usually do, and give an example of processing the simple expression used
+in the <em class="xref std std-ref">Operator precedence</em> section.</p>
+<p>The literals in a grammar always have a head handler, since they are themselves
+atomic subexpressions.  The head handler for literals is trivial: the head
+function simply returns a parse subtree for a leaf node containing that
+literal.  Note that any mutual recursion always ends with literals because all
+the leaves of a parse tree are literals and these head handlers do not make any
+recursive calls.</p>
+<p>Every token is represented by a unique subclass of the <tt class="docutils literal"><span class="pre">TokenNode</span></tt> class.
+The defined precedences for tokens are saved as attributes of the
+corresponding subclass.  Instances of that class represent individual tokens,
+and the lexer returns such an instance for every token it finds.  We will build
+the parse tree using the token representations returned by the lexer as the
+nodes.</p>
+<p>The head for literals basically just needs to return the token instance itself,
+since literals are the leaves of the parse tree:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">head_handler_literal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+    <span class="k">return</span> <span class="bp">self</span>
+</pre></div>
+</div>
+<p>At the time when they are defined these head handlers are &#8220;pasted on&#8221; as new
+methods of the subclass of <tt class="docutils literal"><span class="pre">TokenNode</span></tt> which represents the corresponding
+literal (hence the <tt class="docutils literal"><span class="pre">self</span></tt> argument to the function).  The same holds for
+head and tail handlers for any tokens.</p>
+<p>Beyond just literals, the head and tail handlers do two things while
+constructing the result value to return: they read in more tokens, and they
+call <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> to evaluate sub-subexpressions of their subexpression.
+This is the definition of the tail handler for the <tt class="docutils literal"><span class="pre">+</span></tt> operator:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="k">def</span> <span class="nf">tail_handler_plus</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prec</span><span class="p">))</span>
+    <span class="k">return</span> <span class="bp">self</span>
+</pre></div>
+</div>
+<p>This tail handler (like all tail handlers) is passed the current
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> expression evaluation as <tt class="docutils literal"><span class="pre">left</span></tt>.  It needs to build and
+return its parse subtree, with its own <tt class="docutils literal"><span class="pre">+</span></tt> node as the subtree root.  The
+<tt class="docutils literal"><span class="pre">left</span></tt> argument passed in should contain the previously-evaluated subtree for
+the left operand of <tt class="docutils literal"><span class="pre">+</span></tt>.  So that subtree is set as the left child of the
+current <tt class="docutils literal"><span class="pre">+</span></tt> node.  To get the right operand, the <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> function
+is called.  It returns the subtree for the next subexpression (following the
+current <tt class="docutils literal"><span class="pre">+</span></tt> token), which is set as the right child of the <tt class="docutils literal"><span class="pre">+</span></tt> node.  The
+completed subtree is then returned.</p>
+<p>The tail handler for the <tt class="docutils literal"><span class="pre">*</span></tt> operator is identical to the definition for
+<tt class="docutils literal"><span class="pre">+</span></tt> except it becomes a method of the subclass representing <tt class="docutils literal"><span class="pre">*</span></tt>.  We will
+assume that the prec defined for <tt class="docutils literal"><span class="pre">+</span></tt> is 3, and that the prec for
+<tt class="docutils literal"><span class="pre">*</span></tt> is 4.</p>
+<p>We now have enough to parse the five tokens in the expression <tt class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt>.
+The parse is roughly described in the box below, which interested readers can
+follow in the code above.</p>
+<div class="topic">
+<p class="topic-title first">Parsing the expression <tt class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt></p>
+<p>This is an rough English description of parsing the expression <tt class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></tt>
+with a Pratt parser, as defined above.  Paragraph splits and indents occur on
+recursive calls to <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>, and similarly for returns to the
+higher level.</p>
+<p>First, <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> is called on the full expression, with a
+<tt class="docutils literal"><span class="pre">subexp_prec</span></tt> value of <tt class="docutils literal"><span class="pre">0</span></tt>.  That function first consumes a token from the
+lexer (the token for <tt class="docutils literal"><span class="pre">2</span></tt>) and calls the head handler associated with it.
+The head handler returns the node for <tt class="docutils literal"><span class="pre">2</span></tt>, since, as a literal, it forms
+its own subtree of the final parse tree.  The <tt class="docutils literal"><span class="pre">processed_left</span></tt> variable is
+set to the returned <tt class="docutils literal"><span class="pre">2</span></tt> node.  The while loop in <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> looks
+ahead and sees that the <tt class="docutils literal"><span class="pre">+</span></tt> operator has a higher token prec than
+the current <tt class="docutils literal"><span class="pre">0</span></tt> precedence for the subexpression, so the loop
+executes.  It gets another token from the lexer, the <tt class="docutils literal"><span class="pre">+</span></tt> token.  It then
+calls the tail handler associated with that token, passing it the current
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> (which is <tt class="docutils literal"><span class="pre">2</span></tt>) as the <tt class="docutils literal"><span class="pre">left</span></tt> argument.  The tail
+function for <tt class="docutils literal"><span class="pre">+</span></tt> sets the left child of <tt class="docutils literal"><span class="pre">+</span></tt> to be the passed-in subtree
+<tt class="docutils literal"><span class="pre">left</span></tt>, which sets the node <tt class="docutils literal"><span class="pre">2</span></tt> as the left operand.  To get the right
+operand, <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> is called, passing in the <tt class="docutils literal"><span class="pre">prec</span></tt> value of 3
+(the value which we assumed for the <tt class="docutils literal"><span class="pre">+</span></tt> operator) as the subexp-prec argument
+<tt class="docutils literal"><span class="pre">subexp_prec</span></tt>.</p>
+<blockquote>
+<div><p>This recursive call of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> reads the node <tt class="docutils literal"><span class="pre">5</span></tt> and calls
+its head, which returns the node for <tt class="docutils literal"><span class="pre">5</span></tt> as the subtree.  That
+node/subtree is set as the initial value for <tt class="docutils literal"><span class="pre">processed_left</span></tt>.  The
+while loop then looks ahead and sees that the token prec 4 of the <tt class="docutils literal"><span class="pre">*</span></tt>
+operator is greater than its own subexpression precedence
+<tt class="docutils literal"><span class="pre">subexp_prec</span></tt>, so the loop executes.  The next token, <tt class="docutils literal"><span class="pre">*</span></tt>, is
+consumed from the lexer.  The tail for that token is called, with the
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> value (at this level of recursion, which is <tt class="docutils literal"><span class="pre">5</span></tt>)
+passed in as <tt class="docutils literal"><span class="pre">left</span></tt>.  The tail handler for <tt class="docutils literal"><span class="pre">*</span></tt> sets that passed-in
+<tt class="docutils literal"><span class="pre">left</span></tt> value to be the left child of the <tt class="docutils literal"><span class="pre">*</span></tt> node, and then calls
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt> to get the right operand/child.  The <tt class="docutils literal"><span class="pre">*</span></tt> token&#8217;s
+prec value of <tt class="docutils literal"><span class="pre">4</span></tt> is passed to <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> as the subexpression
+precedence argument <tt class="docutils literal"><span class="pre">subexp_prec</span></tt>.</p>
+<blockquote>
+<div>That call of <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> consumes the token <tt class="docutils literal"><span class="pre">8</span></tt> from the
+lexer and calls the head for it, which sets the initial
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> at that level of recursion to <tt class="docutils literal"><span class="pre">8</span></tt>.  The while
+loop looks ahead and sees the end-token, with a precedence of 0.
+Since that is less than the current subexpression precedence of 4, the
+while loop does not execute.  The token <tt class="docutils literal"><span class="pre">8</span></tt> is returned.</div></blockquote>
+<p>Back at the previous recursion level the token for <tt class="docutils literal"><span class="pre">8</span></tt> is set as the
+right child of the <tt class="docutils literal"><span class="pre">*</span></tt> node.  The while loop again does not execute
+upon seeing end-token, and the subtree for <tt class="docutils literal"><span class="pre">*</span></tt> is returned from this
+level.</p>
+</div></blockquote>
+<p>Back at the next level up the returned subtree is made into the right
+subtree for the <tt class="docutils literal"><span class="pre">+</span></tt> token.  The while loop again does not execute for
+end-token, and the subtree for <tt class="docutils literal"><span class="pre">+</span></tt> is returned as the final result.</p>
+</div>
+<p>Note that when <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> is called recursively in the tail of an infix
+operator it is called with a <tt class="docutils literal"><span class="pre">subexp_prec</span></tt> argument equal to the current node&#8217;s
+prec.  That gives left-to-right precedence evaluation (left associative) for
+infix operators with equal prec values.  To get right-to-left evaluation (right
+associative), <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> should instead be passed the current prec
+<em>minus one</em> as the subexp-prec value for <tt class="docutils literal"><span class="pre">subexp_prec</span></tt>.  Interested readers can consider
+the evaluation of <tt class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">+</span> <span class="pre">8</span></tt> in the case where the tail for <tt class="docutils literal"><span class="pre">+</span></tt> is defined
+as left versus right associative.</p>
+<p>We have defined some terminology and the basics of Pratt parsing.  Some details
+have been omitted, but the general picture of how the top-down parsing works
+should be clear.  In the following sections various generalizations and
+enhancements to the basic algorithm are described.</p>
+</div>
+<div class="section" id="preconditioned-dispatching">
+<h2>1.7. Preconditioned dispatching<a class="headerlink" href="#preconditioned-dispatching" title="Permalink to this headline">¶</a></h2>
+<p>In the usual Pratt parser each token has a fixed head and/or tail handler
+function associated with it.  In this generalization, each token can have
+multiple possible head and/or tail handler functions associated with it.  At
+parse-time the choice of which of the possible handler functions is based on
+the conditions at the time.  This feature is optional and can easily be ignored
+to use traditional Pratt parser techniques.</p>
+<p>Instead of calling the head or tail handlers for a token directly, a function
+<tt class="docutils literal"><span class="pre">dispatch_and_call_handler</span></tt> is called.  That function goes down a list of
+precondition-testing functions for the current token, each of which is
+associated with a particular handler function.  The preconditions associated
+with any head or tail handler function are defined by the user when the handler
+function itself is defined, along with a priority value to be used for break
+ties.  The handler function associated with the highest-priority
+precondition-testing function which returns true in the current conditions is
+executed to handle the token in the given context.</p>
+<p>Preconditioned dispatching is only a slight generalization of the usual Pratt
+parser.  A similar thing could be accomplished with ordinary head and tail
+functions with a case statement inside each one, performing different actions
+based on the conditions at the time and ordered in the case statement by
+priority.  An advantage of using function dispatching is that it allows for
+modularity in defining the head and tail handlers for a particular kind of
+token.  The overall case statement in a handler function can essentially be
+split up and defined where those cases occur syntactically rather than having
+to be placed in one fixed location.  This makes it easier to separate the
+interface into handlers for individual syntactical elements.  This allows for
+convenience functions to easily perform common syntax-related tasks like define
+an infix operator, define a grouping operator, define a standard function, etc.</p>
+<p>As an example of dispatching, the usual way to parse function evaluations
+<tt class="docutils literal"><span class="pre">f(x)</span></tt> in a Pratt parser is to define a tail for the left-paren token.  The
+head for left paren is then called for grouping parentheses, and the tail is
+called for function evaluations after the head for the identifier <tt class="docutils literal"><span class="pre">f</span></tt>.  But
+this can get complicated in more complex grammars where left paren is used in
+various contexts.  Using lookahead a function evaluation can be parsed by
+defining a head for identifiers with a precondition that it be followed by an
+lpar with no space between, and a lower-priority default head for identifiers
+otherwise.  (Other preconditions can also be placed on other heads for
+identifiers).  These two head definitions are essentially independent, and can
+occur in different sections of code.  They are both registered for the
+identifier token, and the rest is handled automatically.</p>
+<p>The typing system which is implemented in this parser is also based on the
+preconditioned dispatching design.  Type-signature information is associated
+with each particular handler function, i.e., with the particular function
+chosen and dispatched as the head or tail handler.  Consider the above example.
+When types are defined for functions the function names should be made into
+individual tokens in the lexer, rather than using a single identifier token for
+all identifiers.  Then, when the token for <tt class="docutils literal"><span class="pre">f</span></tt> is processed, the expected
+signature is also available.  The type system is discussed more below.</p>
+<div class="section" id="implementation">
+<h3>1.7.1. Implementation<a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h3>
+<p>As far as the implementation of dispatching, the methods <tt class="docutils literal"><span class="pre">head_dispatcher</span></tt> and
+<tt class="docutils literal"><span class="pre">tail_dispatcher</span></tt> are fixed in the definition of the subclass of <tt class="docutils literal"><span class="pre">TokenNode</span></tt>
+which represents tokens.  Within the basic parsing routines one should always
+call a token&#8217;s <tt class="docutils literal"><span class="pre">head_dispatcher</span></tt> or <tt class="docutils literal"><span class="pre">tail_dispatcher</span></tt> function.  (Most users
+will have no need to modify the basic parsing routines <tt class="docutils literal"><span class="pre">parse</span></tt> and
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt>).</p>
+<p>When the <tt class="docutils literal"><span class="pre">head_dispatcher</span></tt> or <tt class="docutils literal"><span class="pre">tail_dispatcher</span></tt> method of a token is called
+it performs the appropriate lookup and calls the correct handler function.
+This lookup is performed by getting the list of precondition functions, ordered
+by priority, and calling each one until one returns <tt class="docutils literal"><span class="pre">True</span></tt> based on the
+current conditions.  The associated head or tail handler is then executed.  (The
+handler functions themselves are stored in static dict attributes of the
+<tt class="docutils literal"><span class="pre">TokenNode</span></tt> subclass, after being passed into <tt class="docutils literal"><span class="pre">modify_token_subclass</span></tt> via
+keyword arguments.)</p>
+</div>
+<div class="section" id="using-preconditions-to-do-recursive-descent-parsing">
+<h3>1.7.2. Using preconditions to do recursive descent parsing<a class="headerlink" href="#using-preconditions-to-do-recursive-descent-parsing" title="Permalink to this headline">¶</a></h3>
+<p>It is possible to use preconditions to fake a recursive descent parser for a
+BNF or EBNF grammar.  For each production you need to know all of the tokens
+which can start that production, as well as any required disambiguating
+lookahead.  That is like the case statement or conditionals in the function
+implementing a production in a recursive descent parser.  You maintain a stack
+of states for the production being parsed, pushing and popping as defined
+below.</p>
+<p>To implement the parser for a production you define and register a head for each
+type of token which can begin the production as a literal.  For the &#8220;or&#8221; cases
+where a recursive call is immediately made you can implicitly define a head for
+all tokens by setting a default token with only the production-state as the
+precondition (TODO maybe).  Inside each head you process the relevant &#8220;or&#8221; cases
+of the production.  To immediately do a recursive production evaluation you
+push back the token which was read, change the production-state to the one you
+want to read, and then call <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.  That returns the parse tree
+for the sub-production, and you can then continue to evaluate the production in
+much the same way as for recursive descent.  At the end of each</p>
+<p>Consider this example of a very simple expression grammar (even though the
+expression parts of grammars are better evaluated with Pratt-style parsing).
+The <tt class="docutils literal"><span class="pre">identifier</span></tt> and <tt class="docutils literal"><span class="pre">number</span></tt> productions are assumed to be implemented as
+tokens from the lexer.</p>
+<pre>
+<strong id="grammar-token-expression">expression</strong> ::=  [&quot;+&quot;|&quot;-&quot;] term {(&quot;+&quot;|&quot;-&quot;) term}
+<strong id="grammar-token-term">term      </strong> ::=  factor {(&quot;*&quot;|&quot;/&quot;) factor}
+<strong id="grammar-token-factor">factor    </strong> ::=  <tt class="xref docutils literal"><span class="pre">identifier</span></tt> | <tt class="xref docutils literal"><span class="pre">number</span></tt> | &quot;(&quot; expression &quot;)&quot;
+</pre>
+<p>The production for <tt class="docutils literal"><span class="pre">expression</span></tt> would be a default head, and would always
+execute in the state <tt class="docutils literal"><span class="pre">&quot;expression&quot;</span></tt>.  It would be implemented by a loop.  The
+loop first checks whether the current token is &#8220;+&#8221; or &#8220;-&#8221;.  If not, the first
+token would be pushed back.  Then the state <tt class="docutils literal"><span class="pre">&quot;term&quot;</span></tt> would be pushed on the
+stack and <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> would be called.  That returns a processed
+subtree which is combined with any previous subtree to build the parse tree
+as usual.</p>
+<p>The implemention of the production for <tt class="docutils literal"><span class="pre">term</span></tt> would be similar to
+<tt class="docutils literal"><span class="pre">expression</span></tt>.  Before returning, however, it should pop the state stack.</p>
+<p>The <tt class="docutils literal"><span class="pre">factor</span></tt> production could be implemented either as a default or by
+defining heads for the identifier, number, and left paren token types.  Each
+such head should also pop the state stack before returning.</p>
+<ul class="simple">
+<li>Should you define these default things to not even read a token, maybe?
+Then no pushback and you use peek.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="basic-type-checking">
+<h2>1.8. Basic type-checking<a class="headerlink" href="#basic-type-checking" title="Permalink to this headline">¶</a></h2>
+<p>This parser implements a general type definition and type checking mechanism.
+It is optional, however, and can be ignored for untyped languages.  When they
+are defined the types will be automatically checked at parse-time (according to
+any options which are set).  The type system also allows for operator
+overloading, including optional overloading on return types.</p>
+<p>In this implementation type information is associated with head and tail handler
+functions.  That is because type specifications and type checking are closely
+related to the nodes of the final parse tree of the expression.  Child nodes in
+the tree are function arguments of their parent node, and the type of the
+parent nodes correspond to a function&#8217;s return value.  In the usual usage of
+Pratt parsing each head or tail handler produces one node in the parse tree,
+possibly with children.  Every node in the final parse tree was originally a
+token from the lexer that was made into a subtree via a call to one of its head
+or tail handlers.</p>
+<p>The head and the tail handlers of the same token can correspond to language
+constructs which have different value types and/or which take different types
+as arguments.  For example, a token as a prefix operator would take different
+arguments of possibly different types, and might return a different type than
+the same token as an infix operator.</p>
+<p>Any call to a particular head or tail handler is assumed to produce a parse tree
+node (possibly the root of a subtree) where the possible type specifications
+for the node are saved with the handler functions themselves as a collection of
+type signatures (the multiple possibilities correspond to possible
+overloading).  In a top-down parser the parse tree is essentially constructed
+bottom-up, on the way back up the recursion.  So the leaves are the first nodes
+created and they can have their types checked.  Each node farther up has the
+types of its children/arguments as well as its own type checked at the time
+when its subtree of the parse tree is constructed.</p>
+<p>Based on the above, each constructed tree is guaranteed to be resolved for
+types when it is first constructed, provided that overloading is only on
+function arguments.  Overloading on return types requires another pass down the
+parse tree (not necessarily the full tree, but it can be in a worst case).  As
+soon as a node with a unique signature is created the types in the subtree are
+resolved.</p>
+<p>Note that each possibly-uniquely typed symbol in the language should generally
+be defined as its own token type.  So, for overloaded functions the function
+names should each be registered as corresponding to a unique kind of token.
+This is in contrast to having a single token for all identifiers and then
+resolving which are functions and which signatures apply based on the actual
+value for the token&#8217;s string.</p>
+<div class="section" id="implementation-details">
+<h3>1.8.1. Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h3>
+<p>Type signatures can be declared whenever a head or tail is defined (or redefined
+for overloading).  It is passed in kwargs to the <tt class="docutils literal"><span class="pre">modify_token_subclass</span></tt>
+routine whenever a head or tail is defined.  That routine then looks up the token
+subclass in the symbol table for token subclasses and stored the provided head
+or tail in one of the dictionaries for the token.  It also pastes the type
+information onto the head and/or tail handlers as an attribute (in a set of
+function signature tuples).  If the head or tail already exists it assumes that
+overloading is intended, and the type signature is unioned with any existing
+ones.</p>
+<p>After the tokens are defined the <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> routine runs to do the
+actual parsing.  When any head or tail is run it should call the utility function
+<tt class="docutils literal"><span class="pre">process_and_check_node</span></tt> just before returning a value.  That function
+retrieves the type information which was stored pasted onto the head or tail
+function as attributes.  This is exactly the type information it needs right
+then, and it checks that the types of the children in the token tree (which
+were processed already, since we&#8217;re on the way back up the recursion) exactly
+match one sig in the stored collection of possible sigs (with None as
+wildcard).  If one matches, then it sets the <tt class="docutils literal"><span class="pre">val_type</span></tt> attribute of the
+<tt class="docutils literal"><span class="pre">TokenNodeSubclass</span></tt> instance being returned in order to set the type of the
+return value to the one matching a signature.  Going up the tree, the next node
+can now look at those <tt class="docutils literal"><span class="pre">val_type</span></tt> values (of its children) and match them
+against its signatures, etc.</p>
+</div>
+<div class="section" id="overloading-on-return-values">
+<h3>1.8.2. Overloading on return values<a class="headerlink" href="#overloading-on-return-values" title="Permalink to this headline">¶</a></h3>
+<p>Overloading on return values is more difficult.  Suppose there are two possible
+return values for the same argument signature.  With overloading only on
+argument types that would be an error &#8211; or at least an ambiguity that some
+other rule would need to break.  When return value overloading is allowed then
+either choice is possible, depending on the possibilities higher up in the
+tree.</p>
+<p>Suppose we have these signatures (in C-like notation):</p>
+<div class="highlight-python"><div class="highlight"><pre>int f(real, int)
+int f(bool, real)
+
+bool g(bool)
+real g(int)
+
+bool h(int)
+int h(int)
+</pre></div>
+</div>
+<p>We want to parse this expression:</p>
+<div class="highlight-python"><div class="highlight"><pre>f(g(h(int), int)
+</pre></div>
+</div>
+<p>where the int values are from literals at the leaves of the parse tree.  When
+we reach the bottom of the tree and start going up we cannot immediately choose
+the signature of <tt class="docutils literal"><span class="pre">h</span></tt> to use.  They both match arguments to <tt class="docutils literal"><span class="pre">g</span></tt>.  But only
+one argument to <tt class="docutils literal"><span class="pre">g</span></tt> also matches the argument to <tt class="docutils literal"><span class="pre">f</span></tt> since we can rule out
+the second signature of <tt class="docutils literal"><span class="pre">f</span></tt>.</p>
+<p>We might consider passing the expected argument down the tree, so that when we
+reach <tt class="docutils literal"><span class="pre">h</span></tt> we will know that <tt class="docutils literal"><span class="pre">g</span></tt> needs to return a real so it has to take an
+<tt class="docutils literal"><span class="pre">int</span></tt> argument.  But what about when the second argument to <tt class="docutils literal"><span class="pre">f</span></tt> also has a
+tree? The full signature of <tt class="docutils literal"><span class="pre">f</span></tt> must match like it is an &#8220;and&#8221;, not like an
+&#8220;or&#8221;.  At the bottom of the tree, evaluating <tt class="docutils literal"><span class="pre">h</span></tt>, we do not know how any of
+its siblings or other relatives in other subtrees will resolve.</p>
+<p>Backtracking is one possible solution.  We could choose one, and have the
+parent raise an error to backtrack if it fails to match.  But backtracking can
+be computationally expensive.</p>
+<p>A better approach is to use a two-pass system.  Note that a parent node can
+force any of its children to assume any one of its possible return types.  So
+the type-value of any child can in that case be set independently from the
+type-value of its siblings.  When the parent node knows all the possible types
+for each argument it can match against all its possible signatures and resolve
+to one signature (or raise an error).  Going up on the first-pass recursion
+will propagage up all the possibilities.  Going down on the second pass will
+propagate down the final signature-binding choices.</p>
+<p>Previous explanation, combine best of both:</p>
+<p>Suppose we pass all the possible return values to the parent.  Each sibling
+does that.  Then, it can calculate all its possible return values and pass
+those to its parent.  At some point it reaches the top again, and a function
+knows whether or not some unique return value has matched.  If so, then we can
+go back down the tree again and fix the return values, which fix the argument
+values, and so forth.  All this stuff can be pasted onto the token class
+instances as necessary.  This is more expensive, but it doesn&#8217;t seem
+exponential or anything.  Just another pass or two.</p>
+<p>Update: for the gist see below and section in the code explaining basics.
+Also, move toward full-sig comparison model and explanations.  - On way up the
+tree, collect all the possible signature types, including <em>all possible</em>
+conversions which might give different return values, and save them with each
+node.  Include all possible because going up the tree we don&#8217;t know what might
+possibly be needed.</p>
+<ul class="simple">
+<li>On way back down the tree (or down the subtree if done partially) resolve the
+possible types to a single type.</li>
+<li>Resolution is by removing impossible types, and running a ranking function on
+the remaining ones.  Remaining ties raise an exception.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="parameterized-types-and-signatures">
+<h2>1.9. Parameterized types and signatures<a class="headerlink" href="#parameterized-types-and-signatures" title="Permalink to this headline">¶</a></h2>
+<p>Types are represented in the <tt class="docutils literal"><span class="pre">PrattParser</span></tt> by subclasses of the
+<tt class="docutils literal"><span class="pre">TypeObject</span></tt> class.  The subclasses themselves represent <strong>type templates</strong>,
+and their instantiations represent <strong>type instances</strong> or <strong>actual types</strong>.
+Each type template has a separate subclass created to represent it.  The Pratt
+parser class stores all defined type templates in a table, indexed by a type
+name.  A type template defines a specification that must be satisfied by any
+concrete instance.  As a special case, the Python <tt class="docutils literal"><span class="pre">None</span></tt> value is also a
+valid type template and a valid type instance, representing either a template
+that anything matches or an actual type for items which are considered
+typeless.</p>
+<p>Type templates can be parameterized, but even types without parameters are
+defined by creating a parameterless type template.  The type instances or
+actual types must have bindings for all the parameters.  The types of actual
+constructs in the parsed language are always actual types.  Each node in the
+final parse tree needs to have an actual type as its node type (and a signature
+containing only actual types).</p>
+<p>In the implementation language each actual type (of a construct in the parsed
+language) is represented by an instance of the <tt class="docutils literal"><span class="pre">TypeObject</span></tt> subclass
+representing that type template.  Each such instance must define a value for
+each parameters of the type template (if any).  The actual types may or may not
+match the types required by the template.  Checking for a type match is
+performed at the time of instantiation.  That is, the initializer for a
+subclass of <tt class="docutils literal"><span class="pre">TypeObject</span></tt> takes as arguments the actual values to assign to
+the parameters of the type template represented by the subclass.  If the
+arguments do not match an error is raised, otherwise an instance is created.</p>
+<p>A collection of type templates defining the required argument types and return
+type for a function will be called the function&#8217;s <strong>type specification</strong> or a
+<strong>type spec</strong>.  A collection of actual types for the arguments and return types
+of a function will be called the function&#8217;s <strong>type signature</strong> or a <strong>type
+sig</strong>.  A type sig either matches a type spec or not (either exactly or via the
+use of defined conversions).  These are represented in the program as instances
+of the class <tt class="docutils literal"><span class="pre">TypeSpec</span></tt> and the class <tt class="docutils literal"><span class="pre">TypeSig</span></tt> (both derived from the
+class <tt class="docutils literal"><span class="pre">FunctionTypes</span></tt>).</p>
+<p>Recall that function overloading is implemented with respect to the type spec
+that is passed to the <tt class="docutils literal"><span class="pre">PrattParser</span></tt> routine for parsing the function.  The
+same head handler function or tail handler function is always used when a
+function is overloaded, but a list of all the defined type signatures is
+maintained.  The final nodes in the <tt class="docutils literal"><span class="pre">TokenNode</span></tt> parse tree will each contain
+an actual type signature.</p>
+<div class="section" id="id1">
+<h3>1.9.1. Implementation<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h3>
+<p>In the implementation a head is defined for literal tokens by <tt class="docutils literal"><span class="pre">define_token</span></tt>.
+The method takes an argument <tt class="docutils literal"><span class="pre">val_type</span></tt>.  Note that now whenever the
+<tt class="docutils literal"><span class="pre">val_type</span></tt> is set for the <em>node</em> it should be for an <em>instance</em> of the type
+specifier.  Perhaps it should be called <tt class="docutils literal"><span class="pre">val_type_actual</span></tt>, or else just set
+the full <tt class="docutils literal"><span class="pre">TypeSig</span></tt> and specify that the can only contain instances.  Then,
+all the literals have instances set for them as <tt class="docutils literal"><span class="pre">val_type_actual</span></tt>.  Going up
+the parse tree, the higher nodes look down at the <tt class="docutils literal"><span class="pre">val_type_actual</span></tt> values of
+their children to obtain the actual types of the type specifiers.</p>
+<div class="topic">
+<p class="topic-title first">Example of defining types.</p>
+<p>The following example illustrates the definition of types and parameterized
+types in a very simple implementation of a language for matrix expressions.</p>
+<p>First, define two unparameterized types:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">t_real</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_int</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;Int&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The first argument to <tt class="docutils literal"><span class="pre">define_type</span></tt> is an arbitary string label for the
+type.  For mnemonic purposes the string label can be chosen to correspond to
+the type label in the parsed language, but it need not be.  The returned
+values are subclasses of <tt class="docutils literal"><span class="pre">TypeObject</span></tt>.</p>
+<p>Now an <tt class="docutils literal"><span class="pre">m</span></tt> by <tt class="docutils literal"><span class="pre">n</span></tt> parameterized matrix type holding any type of elements
+can be defined as a templated type:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">t_matrix</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;Mat&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The second argument to <tt class="docutils literal"><span class="pre">define_type</span></tt> is a tuple containing the template
+parameters, which are also type specifiers.  The <tt class="docutils literal"><span class="pre">None</span></tt> type of the first
+parameter matches any type, for matrix elements of arbitrary types.  The
+<tt class="docutils literal"><span class="pre">t_int</span></tt> type parameters are for the shape parameters m and n of the
+matrix.</p>
+<p>Using the above type definition, the type signature for matrix
+multiplication can be parameterized to ensure at parse-time that both matrix
+arguments are conformable for multiplication:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">mmult_sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">t_matrix</span><span class="p">,</span>  <span class="c"># return type</span>
+                   <span class="p">(</span><span class="n">t_matrix</span><span class="p">,</span>  <span class="c"># arg 1</span>
+                    <span class="n">t_matrix</span><span class="p">),</span> <span class="c"># arg 2</span>
+                    <span class="n">test_fun</span><span class="o">=</span><span class="n">conformable_test_fun</span><span class="p">)</span>  <span class="c"># a test to apply</span>
+</pre></div>
+</div>
+<p>Now suppose the infix operator <tt class="docutils literal"><span class="pre">*</span></tt> is defined for matrix multiplication,
+and that the type signature <tt class="docutils literal"><span class="pre">mmult_sig</span></tt> is passed as a keyword argument
+defining the signature.  When a matrix multiplication is parsed in the
+implemented language, whatever syntax is used, the actual arguments to the
+matrix multiplication become known (they are the actual types of the
+children in the parse tree, known in the bottom-up type resolution).</p>
+<p>To test whether the <tt class="docutils literal"><span class="pre">mmult_sig</span></tt> signature matches on the arguments we
+first test whether or not the basic types of each argument match
+(perhaps performing conversions [??? complications due to multiple
+possible ???]).</p>
+<p>Next, the function <tt class="docutils literal"><span class="pre">test_fun</span></tt> is run.  It is passed the current token
+node, the children of which are the operator arguments.  The
+children/operands have already had all their possible final signatures
+assigned (uniquely if overloading on return types is disallowed).  The
+<tt class="docutils literal"><span class="pre">TypeObject</span></tt> for each child should contain the m and n values for the
+matrix operands.  (If a matrix literal was read, for example, or an explicit
+type definition was made in the object language.) So conformability can be
+checked for the multiplication operation.</p>
+<p>TODO: consider whether the variable kind of indexing above, using a
+dict, to pass to the test function or the number indexing kind of thing
+below (for parameterized types) is best.</p>
+<p>TODO: consider defining a list or a tuple of <tt class="docutils literal"><span class="pre">TypeObject</span></tt> instances in
+place of a single <tt class="docutils literal"><span class="pre">TypeObject</span></tt> parameter to represent an &#8220;or&#8221;
+operation, accepting any of the types:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">t_real</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_int</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;Int&quot;</span><span class="p">)</span>
+<span class="n">t_mat_elem</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s">&quot;MatElem&quot;</span><span class="p">,</span> <span class="p">[(</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_real</span><span class="p">,</span> <span class="n">t_complex</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>So the gist would be: - Use Python <tt class="docutils literal"><span class="pre">*args</span></tt> convention for indexing
+when necessary to index.</p>
+<ul class="simple">
+<li>Any type argument to the initializer of a <tt class="docutils literal"><span class="pre">TypeObject</span></tt> can be passed
+either the type&#8217;s string label or the actual <tt class="docutils literal"><span class="pre">TypeObject</span></tt> instance.</li>
+<li>Any type argument to the initializer of a <tt class="docutils literal"><span class="pre">TypeObject</span></tt> can alternately
+be passed a list or a tuple of instances or type labels instead, which
+represent an &#8220;or&#8221; over all the types in the list or tuple.</li>
+<li>Consider: when an &#8220;or&#8221; is needed in type specifications, consider defining
+a class or function <tt class="docutils literal"><span class="pre">Or</span></tt> to take the arguments.  Cleaner and clearer
+interface than just using some implicit mechanism.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="partial-instantiation-of-parameterized-types">
+<h3>1.9.2. Partial instantiation of parameterized types<a class="headerlink" href="#partial-instantiation-of-parameterized-types" title="Permalink to this headline">¶</a></h3>
+<p>Parameterized types which take a <tt class="docutils literal"><span class="pre">None</span></tt> argument as a type parameter
+are defined to match any type in that slot.  A partial instantiation of a
+parameterized type can bind type of some of those <tt class="docutils literal"><span class="pre">None</span></tt> wildcard
+types.</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">t_real</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="s">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_matrix</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="s">&quot;Mat&quot;</span><span class="p">,</span> <span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">))</span>
+<span class="n">t_real_matrix</span> <span class="o">=</span> <span class="n">t_matrix</span><span class="o">.</span><span class="n">set_param_type</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">t_real</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The current syntax above uses indexing of the arguments with integer
+indices for the arguments of the original TypeObject (the first argument
+to <tt class="docutils literal"><span class="pre">set_param_type</span></tt> is a tuple indexing first the parameter position
+and then the index within the parameter value.</p>
+</div>
+<div class="section" id="comparing-type-signatures">
+<h3>1.9.3. Comparing type signatures<a class="headerlink" href="#comparing-type-signatures" title="Permalink to this headline">¶</a></h3>
+<p>We have both actual type signatures, and defined type signatures.  They
+are both represented as a <tt class="docutils literal"><span class="pre">TypeSig</span></tt> object.  We need to be able to
+check that the <tt class="docutils literal"><span class="pre">TypeSig</span></tt> for the actual arguments matches the defined
+<tt class="docutils literal"><span class="pre">TypeSig</span></tt> for the function (perhaps performing conversion).  We also
+need to choose which type signature to use if multiple conversions are
+possible.</p>
+</div>
+</div>
+<div class="section" id="juxtaposition-operators-jop">
+<h2>1.10. Juxtaposition operators (jop)<a class="headerlink" href="#juxtaposition-operators-jop" title="Permalink to this headline">¶</a></h2>
+<p>In mathematics it is common to define implicit operators between two objects.
+The most common example is implicit multiplication between variables when they
+are written next to each other, or juxtaposed.  We call this the
+<strong>juxtaposition operator</strong> or <strong>jop</strong>.  The juxtaposition operator is a special
+type of operator which can be defined.  It is not physically present, but in
+some contexts it is <strong>inferred</strong>.</p>
+<p>A juxtaposition operator (here with whitespace) allows expressions like
+this:</p>
+<div class="highlight-python"><div class="highlight"><pre>x = 2 pi y + 4 f(x)
+</pre></div>
+</div>
+<p>An expression potentially consists of an operator between every pair of tokens.
+The parser must determine when to infer a jop by using things like the kinds of
+tokens and any type information which is available.  It must also implement
+the correct precedence for the operator.</p>
+<p>There are various ways that one might consider implementing a juxtaposition
+operator.  You could build juxtaposition into the grammar itself and then just
+implement that grammar.  That can be inconvenient to express and implement
+(introducing many special cases) and difficult to extend.  In a Pratt parser
+you would need to define special head handlers for any possible left operand of
+a juxtaposition operator, with the logic to determine whether or not to infer
+the operator.  You could attempt to hack the lexer to recognize such situation
+and insert an operator, but the lexer would only have access to lower-level
+information in making the decision.  At the higher, parsing level you can use
+lookahead and inject a special token whenever such a situation is recognized.
+The latter approach is essentially the approach taken here.</p>
+<p>The juxtaposition operator is implemented by modifying the definition of
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.  First, we need to make some assumptions about when a jop
+can possibly be inferred and when it cannot be.  These rules are assumed for
+juxtaposition operators:</p>
+<ol class="arabic">
+<li><p class="first">A jop is always an infix operator, never a prefix operator or postfix
+operator.  Prefix and postfix jops do not really make sense, anyway.</p>
+</li>
+<li><p class="first">A jop must obey precedence rules just as if it were an explicit infix
+operator.</p>
+</li>
+<li><p class="first">By default some ignored character (usually whitespace) must occur at the
+point where the jop is inferred.  This option can be turned off for special
+cases (such as when single-letter variables are always used in expressions
+like <tt class="docutils literal"><span class="pre">2xy</span> <span class="pre">-</span> <span class="pre">4x!</span></tt>).  Some separation is required by default because
+multi-character variable names can easily collide.  For example, if <tt class="docutils literal"><span class="pre">p</span></tt>,
+<tt class="docutils literal"><span class="pre">i</span></tt>, and <tt class="docutils literal"><span class="pre">pi</span></tt> are defined identifiers then <tt class="docutils literal"><span class="pre">pi</span></tt> is unambigouously the
+combined identifier (the lexer determines that), but the user may intend
+<tt class="docutils literal"><span class="pre">p*i</span></tt>.  So, assuming whitespace is ignored, <tt class="docutils literal"><span class="pre">p</span> <span class="pre">i</span></tt> would be required by
+default in order to infer an operator.</p>
+</li>
+<li><p class="first">A jop must behave as an ordinary token when it is inferred, such as allowing
+multiple tail handler functions based on preconditions (heads would never be
+called, see below).  One exception is that if no preconditions match then a
+jop which would otherwise be inferred is simply not inferred.</p>
+</li>
+<li><p class="first">A jop can only occur to the left of a token with a head and no tail.  The head
+is needed since the head of the jop will be called to get its right operand.
+A tail is ruled out since then the token has been defined as an infix or
+postfix operator.  This essentially means that a jop will never be inferred
+to the immediate left of an explicit infix or postfix operator.  This
+matches the common mathematical usage, where <tt class="docutils literal"><span class="pre">2</span> <span class="pre">-</span> <span class="pre">4</span></tt> does never equals <tt class="docutils literal"><span class="pre">2</span>
+<span class="pre">*</span> <span class="pre">(-4)</span></tt>.  Some examples:</p>
+<div class="highlight-python"><div class="highlight"><pre>4! x  # OK if &#39;!&#39; is only postfix and &#39;x&#39; is never infix or prefix.
+4 x!  # OK if &#39;x&#39; is never infix or prefix.
+4 -x  # Not OK (except if &#39;-&#39; is only postfix and whitespace is off).
+(x) y # OK.
+x (y) # OK if &#39;(&#39; is not an infix or postfix operator.
+</pre></div>
+</div>
+<p>Consider when function evaluations <tt class="docutils literal"><span class="pre">f(x)</span></tt> are used in conjunction with a
+jop and when parens also defined as a grouping operation.  The final example
+above shows that in that case function evaluations <em>must</em> be defined by
+lookahead to &#8220;(&#8221; from the function identifier rather than by defining a tail
+for &#8220;(&#8221;.</p>
+</li>
+<li><p class="first">A jop can only be inferred at what would otherwise be the end of a
+subexpression.  This follows from 5 above, since there would be no tail
+handler to call in order to continue evaluating the subexpression.  Unless a
+jop is defined any case where a jop is inferred would always an error
+condition.  That is because the prec of 0 on the next token (by 5) will act
+like an end-token and cause the parsing to hang before the real end-token is
+reached.  So a jop extends the language without invalidating any previously
+valid expressions.</p>
+</li>
+</ol>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Using a jop might complicate some uses of lookbehind.  If using both the
+possible interactions should be considered.</p>
+</div>
+<p>If types are being used then at the point where a jop is inferred you know the
+type information for the left operand (at least a list of possible types, if
+overloading on return is being used).  That information can be incorporated
+into the preconditions for a jop (by 4 above no jop is inferred if its
+preconditions fail).  Like with ordinary overloading, though, you do not know
+the type of the (potential) right operand.  You can only look at the lookahead
+tokens.  On the other hand, the jop will only be inferred in what would
+otherwise be an error condition (by 6).  So you can just check the type of the
+right operand in the tail for the jop and raise an error if necessary.</p>
+</div>
+<div class="section" id="lookbehind">
+<h2>1.11. Lookbehind<a class="headerlink" href="#lookbehind" title="Permalink to this headline">¶</a></h2>
+<p>The parser can use lookahead information from the lexer in defining
+preconditions, etc.  In some cases lookbehind information, at the previous
+<tt class="docutils literal"><span class="pre">processed_left</span></tt> values for the current subexpression, could be useful.  This
+is a simple modification, which has been implemented.  In the
+<tt class="docutils literal"><span class="pre">recursive_parse</span></tt> function, whenever the <tt class="docutils literal"><span class="pre">processed_left</span></tt> variable is
+assigned a new value, the value is also appended to a list called
+<tt class="docutils literal"><span class="pre">lookbehind</span></tt>.  That list is passed to all tail handler functions in addition
+to the <tt class="docutils literal"><span class="pre">processed_left</span></tt> value.</p>
+<p>By looking at the previously processed result you have access to more
+information such as resolved type information (not just token label
+information).  The lookbehind tokens have already been processed.  Of course
+you already can look at the <tt class="docutils literal"><span class="pre">left</span></tt> variable in a tail handler and see the
+type of the subexpression for, say, the type of the left operand of an operator.</p>
+<p>This is not a feature which will be commonly used, but it may have use cases.
+Note, though, that when references are used the previous values will be
+modified versions of what they were when they were first appended.</p>
+</div>
+<div class="section" id="possible-but-unimplemented-generalizations">
+<h2>1.12. Possible but unimplemented generalizations<a class="headerlink" href="#possible-but-unimplemented-generalizations" title="Permalink to this headline">¶</a></h2>
+<p>The following subsections discuss some possible generalizations which are not
+currently implemented.</p>
+<div class="section" id="modifiable-token-precedence-values">
+<h3>1.12.1. Modifiable token precedence values<a class="headerlink" href="#modifiable-token-precedence-values" title="Permalink to this headline">¶</a></h3>
+<p>Is it possible to allow tokens to change their prec according to their
+conditions? What if you just redefined the <tt class="docutils literal"><span class="pre">prec</span></tt> function to return a value
+that could change depending on conditions.  You could even have pass a function
+<tt class="docutils literal"><span class="pre">token_subclass</span></tt> to evaluate the prec, perhaps.  This would modify the prec
+calculation for the token subclass, but not for any other token subclass.</p>
+<p>This might be useful for jop, so you could turn an identifier into a binding
+operator of the right precedence if it were preceeded by another identifier.
+Would need to be done for vars, functions, and numeric literals.  You could
+look at type info for the left one...</p>
+<p>Or you could just look for the conditions in <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>.</p>
+<p>NOTE change below indented paras to a &#8220;not implemented but could be&#8221; type of
+thing.  All tokens with the same label must now have the same prec, the static
+one saved with the class (and the last one set).  Include discussion of how
+things have to look the same from the peek token as they do from current.  The
+modifiable prec stuff was too much effort, and when more than lookahead is
+being use it <em>also</em> has to take that info into account.</p>
+<p>Gist: - The prec values are associated with tail handlers.  - Can be
+implemented with a peek and pushback and a few other rules.  - Not currently
+implemented.</p>
+<p>A limitation of single-token lexer lookahead with lookahead dispatching is that
+all tail handlers for the same token must have the same prec.  This is because
+when the prec can vary with the tail it requires two tokens of lexer lookahead
+to find the tail of the token one peek ahead (and hence also find the prec).
+More specifically, in the main <tt class="docutils literal"><span class="pre">recursive_parse</span></tt> loop we need to find the
+prec of the peek(1) token.  If lookahead dispatching is being done that
+requires a peek(2) in order to get the peek(1) of the first peek token (in
+order to resolve the tail of the peek(1) token and hence find its prec).</p>
+<p>The current program can use lexer lookahead set to one or two tokens (with two
+the default).  If one token lookahead is used then it will always use the same
+prec for every tail of a token (stored statically in the token subclass
+definition).  The last-defined value will be used, overwriting any previous
+ones.  When two-token lexer lookahead is used the prec values are associated
+with individual tail handlers and not with the token itself (and recall that
+several tail handlers can be associated with a token when lookahead dispatching
+is used).  If no tail is found the default 0 prec is returned.</p>
+<p>As far as implementing the prec stuff, as noted the prec is treated as an
+attribute of the tail handlers.  The prec value is simply pasted onto the led
+functions before they are placed in the dictionary where they are stored.  As
+long as we can access the correct lookahead-keyed tail function we can also get
+the prec associated with it (which is hence similarly lookahead-keyed).</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c"># TODO: this function should now be replacable with any function</span>
+<span class="c"># at all which follows the rule.  Continue refactoring in that</span>
+<span class="c"># direction.  Also, move below text to documentation of how to</span>
+<span class="c"># write such a dispatching function.</span>
+
+<span class="c"># In doing the dispatching this function can &quot;look but not touch,&quot;</span>
+<span class="c"># so, for example, it can use peek but not next.</span>
+<span class="c">#</span>
+<span class="c"># To use non-static prec values there is another restriction.  This</span>
+<span class="c"># function must also be relative to pos_in_lex as the current</span>
+<span class="c"># token.  So, for example, it cannot use the default arguments to</span>
+<span class="c"># peek methods.  To use peek() it should modify the numerical</span>
+<span class="c"># argument by replacing peek(k) with peek(pos_in_lex+k), or else</span>
+<span class="c"># very carefully use lex.token_buffer directly.  It also cannot use</span>
+<span class="c"># the most-recent lookbehind since that has not been calculated for</span>
+<span class="c"># the peek token.</span>
+<span class="c">#</span>
+<span class="c"># This function must work position-independently for pos_in_lex=0</span>
+<span class="c"># and pos_in_lex=1.  This is so that in the following step, after</span>
+<span class="c"># next() is called, the tail which is looked up for the peek/next</span>
+<span class="c"># token is the same as was looked up previously (and hence has the</span>
+<span class="c"># same prec pasted onto it).</span>
+<span class="c">#</span>
+<span class="c"># The function returned with pos_in_lex=1 is needed by self.prec</span>
+<span class="c"># to find a tail handler in order to look up the prec saved with it.</span>
+<span class="c"># If this method can possibly fail in that case then it should</span>
+<span class="c"># ALWAYS raise RevertToStaticBp whenever pos_in_lex=1, so that</span>
+<span class="c"># self.prec can instead return a static value.  This has the</span>
+<span class="c"># effect of forcing all tail handlers for the kind of token to have</span>
+<span class="c"># the same value.  For example, when only one token of lookahead is</span>
+<span class="c"># available and dispatching is based on lookahead then peek(2) will</span>
+<span class="c"># fail, and so RevertToStaticBp should be raised.  In that example,</span>
+<span class="c"># it would not be possible for a token to have a prec=5 when the</span>
+<span class="c"># lookahead token is lpar and prec=0 when the lookahead token is</span>
+<span class="c"># rpar.  The same value (the last set) will be used.  Not a severe</span>
+<span class="c"># restriction, but it should be noted.</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="general-multi-token-lookahead">
+<h3>1.12.2. General multi-token lookahead<a class="headerlink" href="#general-multi-token-lookahead" title="Permalink to this headline">¶</a></h3>
+<p>Ordinary multiple-token ordinary lookahead, looking into the token stream of
+the lexer, is already implemented and allowed.  You can use any lookahead in
+defining preconditions as long as the lexer was defined with sufficient
+lookahead.</p>
+<p>The limitation of the above is that you can look ahead and see the tokens but
+you do not know which handler function will be dispatched for that token at the
+time when the token is the current token.  This means that you cannot get the
+prec value for the token, since it is considered to be an attribute of the
+handler functions.  In most cases this is not necessary, but in some cases it
+might be useful.</p>
+<p>If greater lookahead is going to be incorporated into the <tt class="docutils literal"><span class="pre">recursive_parse</span></tt>
+routine&#8217;s while loop you need to know the prec values, because it needs to look
+ahead (currently one level) to get the prec for its while loop.  Other
+precondition calculations may also require the prec values.</p>
+<p>The interactions with the jop feature would need to be considered.</p>
+<p>This is currently not well-defined and is not implemented.  It may be something
+to consider in a future version.</p>
+</div>
+<div class="section" id="general-position-dependent-handling-functions">
+<h3>1.12.3. General position-dependent handling functions<a class="headerlink" href="#general-position-dependent-handling-functions" title="Permalink to this headline">¶</a></h3>
+<p>Instead of head and tail we could just have a collection of generic handler
+functions associated with each function.  These functions would be passed one
+argument giving the position in the current subexpression (e.g., <tt class="docutils literal"><span class="pre">&quot;[0]&quot;</span></tt> for
+the head and <tt class="docutils literal"><span class="pre">&quot;[1:]&quot;</span></tt> for the tail).  We might have something like:</p>
+<div class="highlight-python"><div class="highlight"><pre>denote(pos_selector, &lt;rest_of_args&gt;)
+</pre></div>
+</div>
+<p>which, if <tt class="docutils literal"><span class="pre">HEAD</span></tt> and <tt class="docutils literal"><span class="pre">TAIL</span></tt> are defined constants, can be called as:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">denote</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>or:</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="n">denote</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is not done because head and tail handlers are usually distinct in their
+code and semantics, and because the same effect can be achieved by keeping a
+list of look-behind expressions.  Any head or tail handlers can look at the
+look-behind list and infer the exact position of their subexpression in the
+expression-evaluation recursion level that is calling them.</p>
+</div>
+<div class="section" id="subexpression-lookahead">
+<h3>1.12.4. Subexpression lookahead<a class="headerlink" href="#subexpression-lookahead" title="Permalink to this headline">¶</a></h3>
+<p>Preconditioning on lookahead one subexpression and one token would be one way
+to resolve things like ternary operations where the first operator is also an
+operator by itself: <tt class="docutils literal"><span class="pre">x</span> <span class="pre">?</span>&nbsp; <span class="pre">y</span></tt> versus <tt class="docutils literal"><span class="pre">x</span> <span class="pre">?</span> <span class="pre">y</span> <span class="pre">:</span> <span class="pre">z</span></tt>.  Similarly, an if-then
+with optional else can be resolved that way: <tt class="docutils literal"><span class="pre">if</span> <span class="pre">&lt;test&gt;</span> <span class="pre">then</span> <span class="pre">&lt;action&gt;</span></tt> versus
+<tt class="docutils literal"><span class="pre">if</span> <span class="pre">&lt;test&gt;</span> <span class="pre">then</span> <span class="pre">&lt;action&gt;</span> <span class="pre">else</span> <span class="pre">&lt;other-action&gt;</span></tt>.  The tail handler for
+processing the first operator can be chosen dependent on the token type two
+tokens ahead.</p>
+<p>Perhaps the major advantage of this lookahead is that operator overloading can
+be made dependent on the types (or other properties) of the fully resolved
+operands, not just the left operand and the raw lookahead tokens.</p>
+<p>This would be a useful feature, but it has some downsides.  It might require
+backtracking, and would have to be implemented carefully to avoid as
+much backtracking as possible.  It has the potential to interact with other
+features, such as the jop feature.  So the implementation would need to be
+carefully considered.</p>
+</div>
+<div class="section" id="more-complex-types">
+<h3>1.12.5. More complex types<a class="headerlink" href="#more-complex-types" title="Permalink to this headline">¶</a></h3>
+<p>Generally we might want:</p>
+<blockquote>
+<div><ul class="simple">
+<li>types and subtypes, with equivalence defined</li>
+<li>parameterized types</li>
+<li>maybe multiple types, but some of this is included
+in overloading</li>
+</ul>
+</div></blockquote>
+<p>Suppose we consider more complex type signatures, like, for example,
+<tt class="docutils literal"><span class="pre">Array(int)</span>&nbsp;&nbsp;&nbsp; <span class="pre">Array(Array(int))</span>&nbsp;&nbsp;&nbsp; <span class="pre">VectorSpace(scalar_type,</span> <span class="pre">add_fun,</span>
+<span class="pre">smult_fun)</span></tt> For finite vector spaces we might also want the parameters m and n
+to be specified as parameters so, for example, we can check addition and
+multiplication.</p>
+<p>These declarations have their own grammar.  If they are part of the language
+itself then they will have subtrees associated with them.  The top node of such
+a subtree represents the full type.</p>
+<p>If a declaration like that is in a definition then we can just set the type to
+be the subtree, perhaps (or the corresponding AST).  As a semantic action we
+would remember the declaration.</p>
+<p>Then, on type-checking, something like f(x) would appear.  We would know the
+subtree for the <tt class="docutils literal"><span class="pre">val_type</span></tt> of an argument to f from the function declaration,
+and the subtree for the type itself from the type declaration assigning that
+type to variable x.  We just need to compare the subtrees.</p>
+<p>Why keep them as subtrees? We could perhaps make them back into strings and
+compare those, but that is extra work and there may be some advantage to
+keeping the tree form.</p>
+</div>
+</div>
+<div class="section" id="references">
+<span id="id2"></span><h2>1.13. References<a class="headerlink" href="#references" title="Permalink to this headline">¶</a></h2>
+<p>Vaughan R. Pratt, &#8220;Top down operator precedence,&#8221; 1973.  The original
+article.  Paywalled at the ACM site.
+<a class="reference external" href="http://dl.acm.org/citation.cfm?id=512931">http://dl.acm.org/citation.cfm?id=512931</a></p>
+<p>Fredrik Lundh, July 2008.  Excellent explanation and good code examples
+in Python.  <a class="reference external" href="http://effbot.org/zone/simple-top-down-parsing.htm">http://effbot.org/zone/simple-top-down-parsing.htm</a> Related
+articles by Lundh on Pratt parsing and lexing with regexes:
+<a class="reference external" href="http://effbot.org/zone/tdop-index.htm">http://effbot.org/zone/tdop-index.htm</a></p>
+<p>Eli Bendersky, 1/2/2010.  An article based on Lundh&#8217;s article above.  It
+also uses Python.
+<a class="reference external" href="http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/">http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/</a></p>
+<p>Douglas Crockford 2007-02-21, using JavaScript.
+<a class="reference external" href="http://javascript.crockford.com/tdop/tdop.html">http://javascript.crockford.com/tdop/tdop.html</a></p>
+<p>Bob Nystrom, 3/19/2011, using Java.
+<a class="reference external" href="http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/">http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/</a></p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">1. Dispatching Pratt Parser (DiPP)</a><ul>
+<li><a class="reference internal" href="#what-is-a-pratt-parser">1.1. What is a Pratt parser?</a></li>
+<li><a class="reference internal" href="#basic-assumptions">1.2. Basic assumptions</a></li>
+<li><a class="reference internal" href="#operator-precedence">1.3. Operator precedence</a></li>
+<li><a class="reference internal" href="#subexpressions">1.4. Subexpressions</a></li>
+<li><a class="reference internal" href="#basic-parsing">1.5. Basic parsing</a></li>
+<li><a class="reference internal" href="#the-handler-functions-head-and-tail">1.6. The handler functions head and tail</a></li>
+<li><a class="reference internal" href="#preconditioned-dispatching">1.7. Preconditioned dispatching</a><ul>
+<li><a class="reference internal" href="#implementation">1.7.1. Implementation</a></li>
+<li><a class="reference internal" href="#using-preconditions-to-do-recursive-descent-parsing">1.7.2. Using preconditions to do recursive descent parsing</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#basic-type-checking">1.8. Basic type-checking</a><ul>
+<li><a class="reference internal" href="#implementation-details">1.8.1. Implementation details</a></li>
+<li><a class="reference internal" href="#overloading-on-return-values">1.8.2. Overloading on return values</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#parameterized-types-and-signatures">1.9. Parameterized types and signatures</a><ul>
+<li><a class="reference internal" href="#id1">1.9.1. Implementation</a></li>
+<li><a class="reference internal" href="#partial-instantiation-of-parameterized-types">1.9.2. Partial instantiation of parameterized types</a></li>
+<li><a class="reference internal" href="#comparing-type-signatures">1.9.3. Comparing type signatures</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#juxtaposition-operators-jop">1.10. Juxtaposition operators (jop)</a></li>
+<li><a class="reference internal" href="#lookbehind">1.11. Lookbehind</a></li>
+<li><a class="reference internal" href="#possible-but-unimplemented-generalizations">1.12. Possible but unimplemented generalizations</a><ul>
+<li><a class="reference internal" href="#modifiable-token-precedence-values">1.12.1. Modifiable token precedence values</a></li>
+<li><a class="reference internal" href="#general-multi-token-lookahead">1.12.2. General multi-token lookahead</a></li>
+<li><a class="reference internal" href="#general-position-dependent-handling-functions">1.12.3. General position-dependent handling functions</a></li>
+<li><a class="reference internal" href="#subexpression-lookahead">1.12.4. Subexpression lookahead</a></li>
+<li><a class="reference internal" href="#more-complex-types">1.12.5. More complex types</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#references">1.13. References</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Hello</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.html"
+                        title="next chapter">2. wff_language package</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/README_pratt.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.html" title="2. wff_language package"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Hello"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

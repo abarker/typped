@@ -1,0 +1,239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.8. wff_language.parse_tree module &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="up" title="2. wff_language package" href="wff_language.html" />
+    <link rel="next" title="2.1.9. wff_language.parser module" href="wff_language.parser.html" />
+    <link rel="prev" title="2.1.7. wff_language.lexer module" href="wff_language.lexer.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.parser.html" title="2.1.9. wff_language.parser module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.lexer.html" title="2.1.7. wff_language.lexer module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" accesskey="U">2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-wff_language.parse_tree">
+<span id="wff-language-parse-tree-module"></span><h1>2.1.8. wff_language.parse_tree module<a class="headerlink" href="#module-wff_language.parse_tree" title="Permalink to this headline">¶</a></h1>
+<p>The parse tree for the language.</p>
+<p>Should the nodes of the tree be generic nodes with a type field or
+get/set methods, or should we derive a special node for each type
+of grammar element quantifiers, stdFunctions, variables, etc.?</p>
+<p>The derived class thing is nice because the different language elements
+might need specialized member functions and data stored with them.
+But the simplicity of only having a single type of tree node is also
+appealing, not having to bother with subclasses and superclasses.</p>
+<p>Recall that generally an AST for a parsed language has a node for each distinct
+lhs of a production in the grammar of the language, as well as for each literal
+(a literal is a quoted sequence of actual characters in the language).  A
+depth-first search (DFS) of the tree, printing literals associated with each
+node, should reproduce the original string which was parsed.</p>
+<p>In our case, we are dealing with wffs and meta-wffs of logic as the
+primary object of interest, but these are elements of a larger
+language which includes, for example, commands to define new variable
+names and function names.</p>
+<dl class="class">
+<dt id="wff_language.parse_tree.Command">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">Command</tt><a class="reference internal" href="_modules/wff_language/parse_tree.html#Command"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.Command" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.Const">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">Const</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#Const"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.Const" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.InfixFun">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">InfixFun</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#InfixFun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.InfixFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.Parens">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">Parens</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#Parens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.Parens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.ParseTree">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">ParseTree</tt><big>(</big><em>strVal=''</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree" title="Permalink to this definition">¶</a></dt>
+<dd><p>A node of the parse tree, which also represents a tree itself when
+considered to be a root node.  The top node of a tree should, by
+convention, point to itself as its parent.</p>
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.getChildren">
+<tt class="descname">getChildren</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.getChildren"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.getChildren" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.getLeftmostChild">
+<tt class="descname">getLeftmostChild</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.getLeftmostChild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.getLeftmostChild" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.getParent">
+<tt class="descname">getParent</tt><big>(</big><em>parentNode</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.getParent"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.getParent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.getRightmostChild">
+<tt class="descname">getRightmostChild</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.getRightmostChild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.getRightmostChild" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.insertLeftmostChild">
+<tt class="descname">insertLeftmostChild</tt><big>(</big><em>childTree</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.insertLeftmostChild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.insertLeftmostChild" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.insertRightmostChild">
+<tt class="descname">insertRightmostChild</tt><big>(</big><em>childTree</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.insertRightmostChild"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.insertRightmostChild" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.setParent">
+<tt class="descname">setParent</tt><big>(</big><em>parentNode</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.setParent"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.setParent" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.parse_tree.ParseTree.traverse">
+<tt class="descname">traverse</tt><big>(</big><em>root=0</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#ParseTree.traverse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.ParseTree.traverse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do a preorder, or DFS, traversal of the tree, printing the stored strVal.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.PrefixFun">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">PrefixFun</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#PrefixFun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.PrefixFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.Quant">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">Quant</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#Quant"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.Quant" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.StdFun">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">StdFun</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#StdFun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.StdFun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.TypeSpec">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">TypeSpec</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#TypeSpec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.TypeSpec" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.parse_tree.Var">
+<em class="property">class </em><tt class="descclassname">wff_language.parse_tree.</tt><tt class="descname">Var</tt><big>(</big><em>strVal</em><big>)</big><a class="reference internal" href="_modules/wff_language/parse_tree.html#Var"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.parse_tree.Var" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.parse_tree.ParseTree" title="wff_language.parse_tree.ParseTree"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.parse_tree.ParseTree</span></tt></a></p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="wff_language.lexer.html"
+                        title="previous chapter">2.1.7. wff_language.lexer module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.parser.html"
+                        title="next chapter">2.1.9. wff_language.parser module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/wff_language.parse_tree.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.parser.html" title="2.1.9. wff_language.parser module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.lexer.html" title="2.1.7. wff_language.lexer module"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" >2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

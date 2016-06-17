@@ -1,0 +1,239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>wff_language.parse_tree &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for wff_language.parse_tree</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The parse tree for the language.</span>
+
+
+<span class="sd">Should the nodes of the tree be generic nodes with a type field or</span>
+<span class="sd">get/set methods, or should we derive a special node for each type</span>
+<span class="sd">of grammar element quantifiers, stdFunctions, variables, etc.?</span>
+
+<span class="sd">The derived class thing is nice because the different language elements</span>
+<span class="sd">might need specialized member functions and data stored with them.</span>
+<span class="sd">But the simplicity of only having a single type of tree node is also</span>
+<span class="sd">appealing, not having to bother with subclasses and superclasses.</span>
+
+<span class="sd">Recall that generally an AST for a parsed language has a node for each distinct</span>
+<span class="sd">lhs of a production in the grammar of the language, as well as for each literal</span>
+<span class="sd">(a literal is a quoted sequence of actual characters in the language).  A</span>
+<span class="sd">depth-first search (DFS) of the tree, printing literals associated with each</span>
+<span class="sd">node, should reproduce the original string which was parsed.</span>
+
+<span class="sd">In our case, we are dealing with wffs and meta-wffs of logic as the</span>
+<span class="sd">primary object of interest, but these are elements of a larger</span>
+<span class="sd">language which includes, for example, commands to define new variable</span>
+<span class="sd">names and function names.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+
+<span class="k">class</span> <span class="nc">ParseTree</span><span class="p">:</span>
+<div class="viewcode-block" id="ParseTree"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree">[docs]</a>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A node of the parse tree, which also represents a tree itself when</span>
+<span class="sd">    considered to be a root node.  The top node of a tree should, by</span>
+<span class="sd">    convention, point to itself as its parent.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="o">=</span><span class="s">&quot;&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The initializer creates a singleton tree with string strVal as its string</span>
+<span class="sd">        value.</span>
+<span class="sd">        Avoid accessing any member functions except through the provided methods.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strVal</span> <span class="o">=</span> <span class="n">strVal</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">setParent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parentNode</span><span class="p">):</span>
+<div class="viewcode-block" id="ParseTree.setParent"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.setParent">[docs]</a>        <span class="bp">self</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="n">parentNode</span>
+
+    <span class="k">def</span> <span class="nf">getParent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parentNode</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.getParent"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.getParent">[docs]</a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span>
+
+    <span class="k">def</span> <span class="nf">insertLeftmostChild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">childTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.insertLeftmostChild"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.insertLeftmostChild">[docs]</a>        <span class="n">childTree</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">childTree</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">insertRightmostChild</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">childTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.insertRightmostChild"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.insertRightmostChild">[docs]</a>        <span class="n">childTree</span><span class="o">.</span><span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">childTree</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">getLeftmostChild</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.getLeftmostChild"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.getLeftmostChild">[docs]</a>        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">getRightmostChild</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.getRightmostChild"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.getRightmostChild">[docs]</a>        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="k">return</span> <span class="bp">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">getChildren</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.getChildren"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.getChildren">[docs]</a>        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span>
+
+    <span class="k">def</span> <span class="nf">traverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span></div>
+<div class="viewcode-block" id="ParseTree.traverse"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.ParseTree.traverse">[docs]</a>        <span class="sd">&quot;&quot;&quot;Do a preorder, or DFS, traversal of the tree, printing the stored strVal.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">root</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span> <span class="n">root</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">print</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strVal</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="n">traverse</span><span class="p">(</span><span class="n">child</span><span class="p">)</span>
+
+<span class="c">#</span>
+<span class="c"># Define derived classes, extending the basic ParseTree class.</span>
+<span class="c">#</span>
+
+
+<span class="k">class</span> <span class="nc">Command</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div></div>
+<div class="viewcode-block" id="Command"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.Command">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">commType</span> <span class="o">=</span> <span class="s">&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">TypeSpec</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="TypeSpec"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.TypeSpec">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;preorder&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">writeAsAlias</span> <span class="o">=</span> <span class="bp">False</span>
+
+
+<span class="k">class</span> <span class="nc">Quant</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="Quant"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.Quant">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;preorder&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">Const</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="Const"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.Const">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<span class="k">class</span> <span class="nc">Var</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="Var"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.Var">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<span class="k">class</span> <span class="nc">Parens</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="Parens"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.Parens">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;prepost&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">StdFun</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="StdFun"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.StdFun">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;preorder&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">PrefixFun</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="PrefixFun"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.PrefixFun">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;inorder&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">InfixFun</span><span class="p">(</span><span class="n">ParseTree</span><span class="p">):</span></div>
+<div class="viewcode-block" id="InfixFun"><a class="viewcode-back" href="../../wff_language.parse_tree.html#wff_language.parse_tree.InfixFun">[docs]</a>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">strVal</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;inorder&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">order</span> <span class="o">=</span> <span class="s">&quot;none&quot;</span>
+
+<span class="c">#</span>
+<span class="c"># Some test cases.</span>
+<span class="c">#</span>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s">&quot;__main__&quot;</span><span class="p">:</span></div>
+
+    <span class="n">rootNode</span> <span class="o">=</span> <span class="n">ParseTree</span><span class="p">(</span><span class="s">&quot;&quot;</span><span class="p">)</span>
+    <span class="n">currentNode</span> <span class="o">=</span> <span class="n">rootNode</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>

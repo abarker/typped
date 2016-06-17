@@ -1,0 +1,593 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>2.1.10. wff_language.pratt_parser module &mdash; Skolem  documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="Skolem  documentation" href="index.html" />
+    <link rel="up" title="2. wff_language package" href="wff_language.html" />
+    <link rel="next" title="2.1.11. wff_language.pratt_types module" href="wff_language.pratt_types.html" />
+    <link rel="prev" title="2.1.9. wff_language.parser module" href="wff_language.parser.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.pratt_types.html" title="2.1.11. wff_language.pratt_types module"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.parser.html" title="2.1.9. wff_language.parser module"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" accesskey="U">2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="module-wff_language.pratt_parser">
+<span id="wff-language-pratt-parser-module"></span><h1>2.1.10. wff_language.pratt_parser module<a class="headerlink" href="#module-wff_language.pratt_parser" title="Permalink to this headline">¶</a></h1>
+<p>A general Pratt parser module.</p>
+<p>To use the PrattParser class you need to do these things:</p>
+<blockquote>
+<div><ul>
+<li><p class="first">Create an instance of the PrattParser class.  Example:</p>
+<blockquote>
+<div><p>pp = PrattParser()</p>
+</div></blockquote>
+</li>
+<li><p class="first">Define each token that will appear in the language, including a string
+label and a regex for that kind of token.  If necessary, the appropriate
+<cite>on_ties</cite> values should be set to break ties in case of equal match
+lengths (the lexer will always take the longest, with ties broken by
+any <cite>on_ties</cite> values, defaulting to zero).  Examples:</p>
+<blockquote>
+<div><p>pp.define_token(&#8220;number&#8221;, r&#8221;d+&#8221;)
+pp.define_token(&#8220;lpar&#8221;, r&#8221;(&#8221;)
+pp.define_token(&#8220;ast&#8221;, r&#8221;*&#8221;)
+pp.define_token(&#8220;identifier&#8221;, r&#8221;[<a href="#id1"><span class="problematic" id="id2">a-zA-Z_</span></a>](?:w*)&#8221;, on_ties=-1)</p>
+</div></blockquote>
+</li>
+<li><p class="first">Define the syntactical elements of the language that you are parsing.
+Any necessary token labels must have already been defined in the previous
+step.  The predefined syntax-definition methods of <cite>PrattParser</cite> take as
+arguments token labels, type information, etc.  They also take a string
+as a label for the resulting AST node (but this label can be used in any
+way desired, including in preconditions).  Examples:</p>
+<blockquote>
+<div><p>pp.define_literal(&#8220;number_literal&#8221;, &#8220;number&#8221;, val_type=&#8221;number&#8221;)
+pp.define_infix_operator(&#8220;addition&#8221;, &#8220;plus&#8221;, 10, Assoc.left,</p>
+<blockquote>
+<div><p>val_type=&#8221;number&#8221;, arg_types=[&#8220;number&#8221;,&#8221;number&#8221;])</p>
+</div></blockquote>
+</div></blockquote>
+<p>If the predefined methods are not sufficient you might need to create a
+subclass of <cite>PrattParser</cite> to provide additional methods.  Note that
+literals must be defined as syntax, in addition to being defined as
+tokens.  If typing is to be used then any type information should also be
+set for the syntax elements.</p>
+</li>
+<li><p class="first">Pass the parser a string of text to parse and save the resulting token
+tree.</p>
+<blockquote>
+<div><p>result_tree = pp.parse(&#8220;x + (4 + 3)*5&#8221;)
+print(result_tree.tree_repr())</p>
+</div></blockquote>
+</li>
+<li><p class="first">You can optionally evaluate the resulting tree (if evaluate functions
+were supplied as kwargs for the appropriate methods) or convert it to an
+AST with a different type of nodes.</p>
+<blockquote>
+<div><p>eval_result = result_tree.evaluate_subtree()
+ast = result_tree.convert_to_AST(TokenNode_to_AST_converter_fun)</p>
+</div></blockquote>
+</li>
+</ul>
+</div></blockquote>
+<p>In reading the code, the correspondence between the naming convention used here
+and Pratt&#8217;s original naming conventions is given in this table:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="57%" />
+<col width="43%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">this code</th>
+<th class="head">Pratt&#8217;s terminology</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>token precedence</td>
+<td>left binding power, lbp</td>
+</tr>
+<tr class="row-odd"><td>subexpression precedence</td>
+<td>right binding power, rbp</td>
+</tr>
+<tr class="row-even"><td>head handler function</td>
+<td>null denotation, nud</td>
+</tr>
+<tr class="row-odd"><td>tail handler function</td>
+<td>left denotation, led</td>
+</tr>
+</tbody>
+</table>
+<dl class="class">
+<dt id="wff_language.pratt_parser.AST_Node">
+<em class="property">class </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">AST_Node</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>The base class for nodes in the abstract syntax tree.</p>
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.append_children">
+<tt class="descname">append_children</tt><big>(</big><em>*token_nodes</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.append_children"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.append_children" title="Permalink to this definition">¶</a></dt>
+<dd><p>Append all the arguments as children, also setting their parent to self.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.label_repr">
+<tt class="descname">label_repr</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.label_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.label_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.old_repr">
+<tt class="descname">old_repr</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.old_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.old_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.string_repr">
+<tt class="descname">string_repr</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.string_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.string_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.summary_repr">
+<tt class="descname">summary_repr</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.summary_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.summary_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.tree_repr">
+<tt class="descname">tree_repr</tt><big>(</big><em>indent=''</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.tree_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.tree_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_Node.value_repr">
+<tt class="descname">value_repr</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_Node.value_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_Node.value_repr" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.pratt_parser.AST_NodeTable">
+<em class="property">class </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">AST_NodeTable</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_NodeTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_NodeTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>Currently a dict of generated classes for tokens, indexed by token_label.</p>
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_NodeTable.get_AST_node">
+<tt class="descname">get_AST_node</tt><big>(</big><em>token</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_NodeTable.get_AST_node"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_NodeTable.get_AST_node" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.AST_NodeTable.get_AST_subclass">
+<tt class="descname">get_AST_subclass</tt><big>(</big><em>ast_label</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#AST_NodeTable.get_AST_subclass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.AST_NodeTable.get_AST_subclass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the AST node subtype representing ast_label, defining it if 
+necessary.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.pratt_parser.Assoc">
+<em class="property">class </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">Assoc</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#Assoc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.Assoc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">enum.Enum</span></tt></p>
+<p>An enumeration of the kinds of association for infix operators.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.pratt_parser.NoHandlerFunctionDefined">
+<em class="property">exception </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">NoHandlerFunctionDefined</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#NoHandlerFunctionDefined"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.NoHandlerFunctionDefined" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.pratt_parser.ParserException" title="wff_language.pratt_parser.ParserException"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.pratt_parser.ParserException</span></tt></a></p>
+<p>Raised by dispatcher function if it fails to find a handler function
+(head or tail, whichever it was looking for).</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.pratt_parser.ParserException">
+<em class="property">exception </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">ParserException</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#ParserException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.ParserException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">exceptions.Exception</span></tt></p>
+<p>General parser errors.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="wff_language.pratt_parser.PrattParser">
+<em class="property">class </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">PrattParser</tt><big>(</big><em>num_lookahead_tokens=2</em>, <em>lexer=None</em>, <em>type_table=None</em>, <em>skip_type_checking=False</em>, <em>overload_on_arg_types=True</em>, <em>overload_on_ret_types=False</em>, <em>multi_expression=False</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <tt class="xref py py-class docutils literal"><span class="pre">object</span></tt></p>
+<p>A parser object.  Each parser object contains its own symbol table for tokens
+and its own lexer.</p>
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_begin_and_end_tokens">
+<tt class="descname">define_begin_and_end_tokens</tt><big>(</big><em>begin_token_label</em>, <em>end_token_label</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_begin_and_end_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_begin_and_end_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calls the <cite>Lexer</cite> to define_begin_and_end_tokens.  The subclasses are
+then given initial head and tail functions for use in the Pratt parser.
+To use the <cite>PrattParser</cite> this method must be called, not the method
+of <cite>Lexer</cite> with the same name.  Returns a tuple containing the new begin
+and end <cite>TokenNode</cite> subclasses.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_bracket_pair">
+<tt class="descname">define_bracket_pair</tt><big>(</big><em>ast_label</em>, <em>lbrac_token_label</em>, <em>rbrac_token_label</em>, <em>prec</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_bracket_pair"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_bracket_pair" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a matching bracket grouping operation.  The returned type is
+set to the type of its single child (i.e., the type of the contents of the
+brackets).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_infix_operator">
+<tt class="descname">define_infix_operator</tt><big>(</big><em>ast_label</em>, <em>operator_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>in_tree=True</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_infix_operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_infix_operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>This just calls the more general method <cite>define_multi_infix_operator</cite>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_jop">
+<tt class="descname">define_jop</tt><big>(</big><em>ast_label</em>, <em>prec</em>, <em>assoc</em>, <em>precond_label=None</em>, <em>precond_fun=None</em>, <em>precond_priority=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_jop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_jop" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function <cite>precond_fun</cite> is called to determine whether or not to
+infer a juxtaposition operator between the previously-parsed
+subexpression result and the next token.  This function will be passed
+the lexer as well as the lookbehind list as arguments.  Note that the
+<cite>jop_precond</cite> function has access to the type information for the
+potential left operand but not for the potential right operand.  If
+this function returns <cite>True</cite> then a jop is inferred and the parse
+proceeds assuming there is a jop token in the token stream.</p>
+<p>If <cite>backtrack_on_parse_error</cite> is <cite>True</cite> then any parse error in
+evaluating the tail of the jop will cause the algorithm to backtrack and
+proceed without inferring a jop.  If <cite>backtrack_on_type_error</cite> is
+<cite>True</cite> then any type errors in processing the jop will cause the
+algorithm to backtrack and proceed without inferring a jop.  Note that
+careful definition of <cite>jop_precond</cite> can greatly reduce or eliminate the
+need to backtrack.  Note also that if the juxtaposition operator always
+resolves to a single type signature based on its argument types then,
+even if overloading on return types is in effect, the jop can be
+effectively inferred based on type signature information.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_jop_token">
+<tt class="descname">define_jop_token</tt><big>(</big><em>jop_token_label</em>, <em>ignored_token_label</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_jop_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_jop_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token for the juxtaposition operator.  This token is not
+stored in the lexer&#8217;s symbol table and has no regex pattern.  An
+instance is inserted in <cite>recursive_parse</cite> when it is inferred to be
+present based based on type information in the definition of the
+juxtaposition operator.  This method must be called before a
+juxtaposition operator can be used.  The parameter <cite>jop_token_label</cite> is the
+label for the newly-created token representing the juxtaposition
+operator.  The <cite>ignored_token_label</cite> parameter is the label of an
+ignored token which must be present for a jop to be inferred.  Some
+token is required; usually it will be a token for spaces and tabs.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_literal">
+<tt class="descname">define_literal</tt><big>(</big><em>ast_label</em>, <em>token_label</em>, <em>val_type=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_literal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_literal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the token with label <cite>token_label</cite> to be a literal in the
+syntax of the language being parsed.  This method adds a head handler
+function to the token.  Literals are the leaves of the parse tree; they
+are things like numbers and variable names in a numerical expression.
+They always occur as the first (and only) token in a subexpression
+being evaluated by <cite>recursive_parse</cite>, so they need a head but not a
+tail.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_multi_infix_operator">
+<tt class="descname">define_multi_infix_operator</tt><big>(</big><em>ast_label</em>, <em>operator_token_labels</em>, <em>prec</em>, <em>assoc</em>, <em>repeat=False</em>, <em>in_tree=True</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_multi_infix_operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_multi_infix_operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes a list of operator token labels and defines a multi-infix
+operator.  If <cite>repeat=True</cite> it will accept any number of repetitions of
+the list of operators (but type-checking for that is not implemented
+yet).  For a single operator, repeating just has the effect of putting
+the arguments in a flat argument/child list instead of as nested binary
+operations based on left or right association.  Any argument-checking
+is done after any node removal, which may affect the types that should
+be passed-in in the list arg_types of parent constructs.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_parser_global_precondition">
+<tt class="descname">define_parser_global_precondition</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_parser_global_precondition"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_parser_global_precondition" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_postfix_operator">
+<tt class="descname">define_postfix_operator</tt><big>(</big><em>ast_label</em>, <em>operator_token_label</em>, <em>prec</em>, <em>allow_ignored_before=True</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_postfix_operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_postfix_operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a postfix operator.  If <cite>allow_ignored_before</cite> is false then
+no ignored token (usually whitespace) can appear immediately before the
+operator.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_prefix_operator">
+<tt class="descname">define_prefix_operator</tt><big>(</big><em>ast_label</em>, <em>operator_token_label</em>, <em>prec</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_prefix_operator"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_prefix_operator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a prefix operator.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_stdfun_lookahead">
+<tt class="descname">define_stdfun_lookahead</tt><big>(</big><em>ast_label</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_stdfun_lookahead"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_stdfun_lookahead" title="Permalink to this definition">¶</a></dt>
+<dd><p>This definition of stdfun uses lookahead.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_stdfun_lpar_tail">
+<tt class="descname">define_stdfun_lpar_tail</tt><big>(</big><em>ast_label</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>prec_of_lpar</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_stdfun_lpar_tail"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_stdfun_lpar_tail" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is an alternate version of stdfun that defines lpar as an infix
+operator (with a tail).  This function works in the usual cases but
+current version without preconditions may have problems distinguishing
+&#8220;b (&#8221; from &#8220;b(&#8221; when a multiplication jop is set.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_token">
+<tt class="descname">define_token</tt><big>(</big><em>token_label</em>, <em>regex_string</em>, <em>ignore=False</em>, <em>on_ties=0</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function; calls the Lexer <cite>define_token</cite> method.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.define_type">
+<tt class="descname">define_type</tt><big>(</big><em>type_name</em>, <em>type_params=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.define_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.define_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a type associated with the name <cite>type_name</cite>.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.in_ignored_tokens">
+<em class="property">static </em><tt class="descname">in_ignored_tokens</tt><big>(</big><em>lex</em>, <em>token_label_to_match</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.in_ignored_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.in_ignored_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility function to test if a particular token label is among the
+tokens ignored before the current token.  Returns a boolean value.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.infer_jop_conditions">
+<em class="property">static </em><tt class="descname">infer_jop_conditions</tt><big>(</big><em>lex</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.infer_jop_conditions"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.infer_jop_conditions" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test whether or not a juxtaposition operator should be inferred in
+the <cite>recursive_parse</cite> function.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.match_next">
+<em class="property">static </em><tt class="descname">match_next</tt><big>(</big><em>lex</em>, <em>token_label_to_match</em>, <em>discard_non_matches=False</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.match_next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.match_next" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility function that asserts the value of the next token label
+in <cite>lex</cite> and also consumes the token from the lexer.  If the token
+label does not match an exception is raised.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.modify_token_subclass">
+<tt class="descname">modify_token_subclass</tt><big>(</big><em>token_label</em>, <em>prec=None</em>, <em>head=None</em>, <em>tail=None</em>, <em>precond_label=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>val_type=None</em>, <em>arg_types=None</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.modify_token_subclass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.modify_token_subclass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Look up the subclass of base class <cite>TokenNode</cite> corresponding to the
+label <cite>token_label</cite> (in the symbol table) and modify it.  A token with
+that label must already be in the symbol table, or an exception will be
+raised.  Return the modified class. Sets any given head or tail functions
+as attributes of the class.  If <cite>tail</cite> is set then the prec will also be
+set unless <cite>prec</cite> is <cite>None</cite>.  For a head <cite>prec</cite> is ignored.  If <cite>tail</cite> is
+set and <cite>prec</cite> is <cite>None</cite> then the prec value defaults to zero.  If <cite>head</cite>
+or <cite>tail</cite> is set and <cite>precond_label</cite> is also set then the head or tail
+function will be associated with the preconditions function for that
+label.  If <cite>precond_fun</cite> is also set then it will first be registered
+with the label <cite>precond_label</cite> (which must be present in that case).</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.no_ignored_after">
+<em class="property">static </em><tt class="descname">no_ignored_after</tt><big>(</big><em>lex</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.no_ignored_after"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.no_ignored_after" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if any tokens were ignored between current token and lookahead.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.no_ignored_before">
+<em class="property">static </em><tt class="descname">no_ignored_before</tt><big>(</big><em>lex</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.no_ignored_before"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.no_ignored_before" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if any tokens were ignored between previous token and current.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.parse">
+<tt class="descname">parse</tt><big>(</big><em>program</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.parse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.parse" title="Permalink to this definition">¶</a></dt>
+<dd><p>The main routine for parsing a full program or expression.  Users of
+the class should call this method to perform the parsing operations
+(after defining a grammar, of course).  Returns a token tree or a list
+of token trees if <cite>multi_expression</cite> is set.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="wff_language.pratt_parser.PrattParser.recursive_parse">
+<em class="property">static </em><tt class="descname">recursive_parse</tt><big>(</big><em>lex</em>, <em>subexp_prec</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.recursive_parse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.recursive_parse" title="Permalink to this definition">¶</a></dt>
+<dd><p>Parse a subexpression as defined by token precedences. Return the
+result of the evaluation.  Recursively builds up the final result in
+<cite>processed_left</cite>, which is the tree for the part of the full expression
+to the left.  It is a static method so it can be called from head and
+tail functions.  Note that the functions <cite>head_dispatcher</cite> and
+<cite>tail_dispatcher</cite> which are called in the code often recursively call
+<cite>recursive_parse</cite> again.  Each recursive call inside the function
+processes a sub-subexpression, again as defined by the token precedences.
+The list <cite>lookbehind</cite> saves all the previously evaluated subexpressions
+at this level of recursion (i.e., at the top level in the same
+subexpression) and passes it to the tail_dispatcher method of the
+tokens, in case that routine wants to make use of it.  For example, the
+ordinal position of the token in the top level of the subexpression can
+be calculated from the length of <cite>lookbehind</cite>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.undefine_handler">
+<tt class="descname">undefine_handler</tt><big>(</big><em>token_label</em>, <em>head_or_tail</em>, <em>precond_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>all_handlers=False</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.undefine_handler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.undefine_handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undefine a head or tail function with the given <cite>token_label</cite>,
+<cite>precond_label</cite> and type signature.  The <cite>head_or_tail</cite> value should be
+<cite>HEAD</cite> or <cite>TAIL</cite>.  If <cite>all_precond</cite> is set then all heads and tails for all
+preconditions will be undefined.  If <cite>all_overloads</cite> then all
+overloaded type signatures will be undefined.  The token itself is
+never undefined; use the <cite>undefine_token</cite> method for that.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.undefine_token">
+<tt class="descname">undefine_token</tt><big>(</big><em>token_label</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.undefine_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.undefine_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function; calls the Lexer <cite>undefine_token</cite> method.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="wff_language.pratt_parser.PrattParser.undefine_type">
+<tt class="descname">undefine_type</tt><big>(</big><em>type_name</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#PrattParser.undefine_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.PrattParser.undefine_type" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="wff_language.pratt_parser.TypeError">
+<em class="property">exception </em><tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">TypeError</tt><a class="reference internal" href="_modules/wff_language/pratt_parser.html#TypeError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.TypeError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#wff_language.pratt_parser.ParserException" title="wff_language.pratt_parser.ParserException"><tt class="xref py py-class docutils literal"><span class="pre">wff_language.pratt_parser.ParserException</span></tt></a></p>
+<p>Error in type matching.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.create_token_subclass">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">create_token_subclass</tt><big>(</big><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#create_token_subclass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.create_token_subclass" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function is called from the <cite>create_token_subclass</cite> method of
+<cite>TokenSubclassSymbolTable</cite> when it needs to create a new subclass to begin
+with.  It should not be called directly.</p>
+<p>Create and return a new token subclass which will be modified and used
+to represent a particular kind of token.  Specifically, each scanned token
+matching the regex defined for tokens with a given token label is
+represented as an instance of the subclass created by calling this function
+(with further attributes, such as the token label, added to it).</p>
+<p>Using a separate subclass for each token label allows for attributes
+specific to a kind of token (including head and tail handler methods) to
+later be added to the class itself without conflicts.  This function
+returns a bare-bones subclass without any head or tail functions, etc.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_basic_tokens">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_basic_tokens</tt><big>(</big><em>lex_or_pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_basic_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_basic_tokens" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_comment_to_EOL_token">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_comment_to_EOL_token</tt><big>(</big><em>lex_or_pp</em>, <em>begin_string</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_comment_to_EOL_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_comment_to_EOL_token" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_default_tokens">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_default_tokens</tt><big>(</big><em>lex_or_pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_default_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_default_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines some default tokens for testing either a Lexer or a PrattParser.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_identifier_token">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_identifier_token</tt><big>(</big><em>lex_or_pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_identifier_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_identifier_token" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_syntax">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_syntax</tt><big>(</big><em>pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_syntax"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_syntax" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.define_whitespace_tokens">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">define_whitespace_tokens</tt><big>(</big><em>lex_or_pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#define_whitespace_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.define_whitespace_tokens" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.run_and_print">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">run_and_print</tt><big>(</big><em>prog</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#run_and_print"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.run_and_print" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="wff_language.pratt_parser.run_local_tests">
+<tt class="descclassname">wff_language.pratt_parser.</tt><tt class="descname">run_local_tests</tt><big>(</big><em>pp</em><big>)</big><a class="reference internal" href="_modules/wff_language/pratt_parser.html#run_local_tests"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#wff_language.pratt_parser.run_local_tests" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="wff_language.parser.html"
+                        title="previous chapter">2.1.9. wff_language.parser module</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="wff_language.pratt_types.html"
+                        title="next chapter">2.1.11. wff_language.pratt_types module</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/wff_language.pratt_parser.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="wff_language.pratt_types.html" title="2.1.11. wff_language.pratt_types module"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="wff_language.parser.html" title="2.1.9. wff_language.parser module"
+             >previous</a> |</li>
+        <li><a href="index.html">Skolem  documentation</a> &raquo;</li>
+          <li><a href="wff_language.html" >2. wff_language package</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2015, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
+    </div>
+  </body>
+</html>
