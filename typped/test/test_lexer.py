@@ -8,6 +8,46 @@ pytest_helper.sys_path(add_parent=True)
 
 from lexer import *
 
+# TOKEN DEFINITIONS #################################################################
+
+def define_whitespace_tokens(lex_or_pp):
+    lex_or_pp.define_token("space", r"[ \t]+", ignore=True) # note + NOT *
+    lex_or_pp.define_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
+    #lex_or_pp.define_token("whitespace", r"\s+", ignore=True) # note + NOT *
+
+def define_basic_tokens(lex_or_pp):
+    define_whitespace_tokens(lex_or_pp)
+    #lex_or_pp.define_begin_and_end_tokens("begin", "end")
+    lex_or_pp.define_token("number", r"\d+")
+    lex_or_pp.define_token("imag_number", r"\d+[i]")
+    lex_or_pp.define_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
+    lex_or_pp.define_token("plus", r"\+")
+    lex_or_pp.define_token("minus", r"\-")
+    lex_or_pp.define_token("fslash", r"/")
+    lex_or_pp.define_token("ast", r"\*")
+    lex_or_pp.define_token("lpar", r"\(")
+    lex_or_pp.define_token("rpar", r"\)")
+    lex_or_pp.define_token("comma", r",")
+    lex_or_pp.define_token("bang", r"!")
+    lex_or_pp.define_token("question", r"\?")
+    lex_or_pp.define_token("colon", r"\:")
+    lex_or_pp.define_token("semicolon", r";")
+
+def define_identifier_token(lex_or_pp):
+    # The last part of below only needs \w, but good example of pattern.
+    #lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
+    lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+
+def define_default_tokens(lex_or_pp):
+    """Defines some default tokens for testing either a Lexer or a PrattParser."""
+    define_basic_tokens(lex_or_pp)
+    define_identifier_token(lex_or_pp)
+
+def define_comment_to_EOL_token(lex_or_pp, begin_string):
+    # Note that comment_to_endline is non-greedy due to *? symbol.
+    lex_or_pp.define_token("comment_to_EOL", r"{0}.*?[\n]"
+                           .format(begin_string), ignore=True)
+
 class TestLexer:
     def test_basic_stuff(self):
         lex = Lexer()

@@ -96,12 +96,12 @@ class TokenNode(object):
             string += ")"
         return string
     def old_repr(self):
-        """This old representation is kept because it is used in some tests."""
-        if self.token_label == "number":
+        """This old representation is kept *only* because it is used in some tests."""
+        if self.token_label == "k_number":
             return "[literal {0}]".format(self.value)
-        if self.token_label == "lpar":
-            if self.children: return "[lpar {0} rpar]".format(self.children[0].old_repr())
-            else: return "[literal lpar]"
+        if self.token_label == "k_lpar":
+            if self.children: return "[k_lpar {0} k_rpar]".format(self.children[0].old_repr())
+            else: return "[literal k_lpar]"
         else:
             str_val = "[" + str(self.value)
             for a in self.children: str_val += " " + a.old_repr()
@@ -822,51 +822,10 @@ class BufferIndexError(IndexError):
     pass
 
 #
-# Local testing
+# Run tests when invoked as a script.
 #
 
-
-# TOKEN DEFINITIONS #################################################################
-
-def define_whitespace_tokens(lex_or_pp):
-    lex_or_pp.define_token("space", r"[ \t]+", ignore=True) # note + NOT *
-    lex_or_pp.define_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
-    #lex_or_pp.define_token("whitespace", r"\s+", ignore=True) # note + NOT *
-
-def define_basic_tokens(lex_or_pp):
-    define_whitespace_tokens(lex_or_pp)
-    #lex_or_pp.define_begin_and_end_tokens("begin", "end")
-    lex_or_pp.define_token("number", r"\d+")
-    lex_or_pp.define_token("imag_number", r"\d+[i]")
-    lex_or_pp.define_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
-    lex_or_pp.define_token("plus", r"\+")
-    lex_or_pp.define_token("minus", r"\-")
-    lex_or_pp.define_token("fslash", r"/")
-    lex_or_pp.define_token("ast", r"\*")
-    lex_or_pp.define_token("lpar", r"\(")
-    lex_or_pp.define_token("rpar", r"\)")
-    lex_or_pp.define_token("comma", r",")
-    lex_or_pp.define_token("bang", r"!")
-    lex_or_pp.define_token("question", r"\?")
-    lex_or_pp.define_token("colon", r"\:")
-    lex_or_pp.define_token("semicolon", r";")
-
-def define_identifier_token(lex_or_pp):
-    # The last part of below only needs \w, but good example of pattern.
-    #lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
-    lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
-
-def define_default_tokens(lex_or_pp):
-    """Defines some default tokens for testing either a Lexer or a PrattParser."""
-    define_basic_tokens(lex_or_pp)
-    define_identifier_token(lex_or_pp)
-
-def define_comment_to_EOL_token(lex_or_pp, begin_string):
-    # Note that comment_to_endline is non-greedy due to *? symbol.
-    lex_or_pp.define_token("comment_to_EOL", r"{0}.*?[\n]"
-                           .format(begin_string), ignore=True)
-
-
-import pytest_helper
-pytest_helper.script_run("test/test_lexer.py", pytest_args="-v")
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("test/test_lexer.py", pytest_args="-v")
 

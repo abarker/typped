@@ -109,9 +109,11 @@ class AST_Node(object):
             self.children.append(t)
             t.parent = self
     def old_repr(self):
-        if self.token_label == "number":
+        """This is for backward compatibility in some test cases."""
+        if self.token_label == "k_number":
             return "[literal {0}]".format(self.value)
-        if self.token_label == "lpar": return "[lpar {0} rpar]".format(self.children[0])
+        if self.token_label == "k_lpar":
+            return "[k_lpar {0} k_rpar]".format(self.children[0])
         else:
             str_val = "[" + str(self.value)
             for a in self.children: str_val += " " + str(a)
@@ -1274,6 +1276,7 @@ class NoHandlerFunctionDefined(ParserException):
 # Run tests below when invoked as a script.
 #
 
-import pytest_helper
-pytest_helper.script_run("test/test_pratt_parser.py", pytest_args="-v")
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("test/test_pratt_parser.py", pytest_args="-v")
 
