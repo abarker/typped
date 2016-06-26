@@ -6,7 +6,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>Hello &mdash; Skolem  documentation</title>
+    <title>Typped: A typed Pratt parser employing dispatching &mdash; Typped  documentation</title>
     
     <link rel="stylesheet" href="_static/default.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
@@ -23,8 +23,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
-    <link rel="top" title="Skolem  documentation" href="#" />
-    <link rel="next" title="1. Dispatching Pratt Parser (DiPP)" href="README_pratt.html" /> 
+    <link rel="top" title="Typped  documentation" href="#" />
+    <link rel="next" title="typped package" href="typped.html" /> 
   </head>
   <body>
     <div class="related">
@@ -37,9 +37,9 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="README_pratt.html" title="1. Dispatching Pratt Parser (DiPP)"
+          <a href="typped.html" title="typped package"
              accesskey="N">next</a> |</li>
-        <li><a href="#">Skolem  documentation</a> &raquo;</li> 
+        <li><a href="#">Typped  documentation</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -48,78 +48,35 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="hello">
-<h1>Hello<a class="headerlink" href="#hello" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="typped-a-typed-pratt-parser-employing-dispatching">
+<h1>Typped: A typed Pratt parser employing dispatching<a class="headerlink" href="#typped-a-typed-pratt-parser-employing-dispatching" title="Permalink to this headline">¶</a></h1>
 <p>Contents:</p>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="README_pratt.html">1. Dispatching Pratt Parser (DiPP)</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#what-is-a-pratt-parser">1.1. What is a Pratt parser?</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#basic-assumptions">1.2. Basic assumptions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#operator-precedence">1.3. Operator precedence</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#subexpressions">1.4. Subexpressions</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#basic-parsing">1.5. Basic parsing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#the-handler-functions-head-and-tail">1.6. The handler functions head and tail</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#preconditioned-dispatching">1.7. Preconditioned dispatching</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#implementation">1.7.1. Implementation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#using-preconditions-to-do-recursive-descent-parsing">1.7.2. Using preconditions to do recursive descent parsing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.html">typped package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.html#submodules">Submodules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.basic_defs.html">typped.basic_defs module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.directory_locator.html">typped.directory_locator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.enum_wrapper.html">typped.enum_wrapper module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.external_program_calls.html">typped.external_program_calls module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html">typped.lexer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html">typped.pratt_parser module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_types.html">typped.pratt_types module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict.html">typped.regex_trie_dict module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="typped.regex_trie_dict.html#pattern-matching-in-regextriedict">Pattern Matching in RegexTrieDict</a></li>
+<li class="toctree-l4"><a class="reference internal" href="typped.regex_trie_dict.html#pattern-matching-implementation-details">Pattern-matching Implementation Details</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#basic-type-checking">1.8. Basic type-checking</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#implementation-details">1.8.1. Implementation details</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#overloading-on-return-values">1.8.2. Overloading on return values</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_lexer.html">typped.regex_trie_dict_lexer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_scanner.html">typped.regex_trie_dict_scanner module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="typped.regex_trie_dict_scanner.html#regextriedictscanner">RegexTrieDictScanner</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#parameterized-types-and-signatures">1.9. Parameterized types and signatures</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#id1">1.9.1. Implementation</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#partial-instantiation-of-parameterized-types">1.9.2. Partial instantiation of parameterized types</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#comparing-type-signatures">1.9.3. Comparing type signatures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.text_stream.html">typped.text_stream module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.trie_dict.html">typped.trie_dict module</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#juxtaposition-operators-jop">1.10. Juxtaposition operators (jop)</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#lookbehind">1.11. Lookbehind</a></li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#possible-but-unimplemented-generalizations">1.12. Possible but unimplemented generalizations</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#modifiable-token-precedence-values">1.12.1. Modifiable token precedence values</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#general-multi-token-lookahead">1.12.2. General multi-token lookahead</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#general-position-dependent-handling-functions">1.12.3. General position-dependent handling functions</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#subexpression-lookahead">1.12.4. Subexpression lookahead</a></li>
-<li class="toctree-l3"><a class="reference internal" href="README_pratt.html#more-complex-types">1.12.5. More complex types</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="README_pratt.html#references">1.13. References</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="wff_language.html">2. wff_language package</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="wff_language.html#submodules">2.1. Submodules</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.basic_defs.html">2.1.1. wff_language.basic_defs module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.directory_locator.html">2.1.2. wff_language.directory_locator module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.enum_wrapper.html">2.1.3. wff_language.enum_wrapper module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.external_program_calls.html">2.1.4. wff_language.external_program_calls module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.interfaces.html">2.1.5. wff_language.interfaces module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.language_data.html">2.1.6. wff_language.language_data module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.lexer.html">2.1.7. wff_language.lexer module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.parse_tree.html">2.1.8. wff_language.parse_tree module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.parser.html">2.1.9. wff_language.parser module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.pratt_parser.html">2.1.10. wff_language.pratt_parser module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.pratt_types.html">2.1.11. wff_language.pratt_types module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.regex_trie_dict.html">2.1.12. wff_language.regex_trie_dict module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="wff_language.regex_trie_dict.html#pattern-matching-in-regextriedict">2.1.12.1. Pattern Matching in RegexTrieDict</a></li>
-<li class="toctree-l4"><a class="reference internal" href="wff_language.regex_trie_dict.html#pattern-matching-implementation-details">2.1.12.2. Pattern-matching Implementation Details</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.regex_trie_dict_lexer.html">2.1.13. wff_language.regex_trie_dict_lexer module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.regex_trie_dict_scanner.html">2.1.14. wff_language.regex_trie_dict_scanner module</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="wff_language.regex_trie_dict_scanner.html#regextriedictscanner">2.1.14.1. RegexTrieDictScanner</a></li>
-</ul>
-</li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.set_package_attribute.html">2.1.15. wff_language.set_package_attribute module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.test_interfaces.html">2.1.16. wff_language.test_interfaces module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.text_stream.html">2.1.17. wff_language.text_stream module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.theory_interface.html">2.1.18. wff_language.theory_interface module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="wff_language.trie_dict.html">2.1.19. wff_language.trie_dict module</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="wff_language.html#module-wff_language">2.2. Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.html#module-typped">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -142,13 +99,13 @@
         <div class="sphinxsidebarwrapper">
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Hello</a></li>
+<li><a class="reference internal" href="#">Typped: A typed Pratt parser employing dispatching</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
 </ul>
 
   <h4>Next topic</h4>
-  <p class="topless"><a href="README_pratt.html"
-                        title="next chapter">1. Dispatching Pratt Parser (DiPP)</a></p>
+  <p class="topless"><a href="typped.html"
+                        title="next chapter">typped package</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/index.txt"
@@ -181,13 +138,13 @@
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="README_pratt.html" title="1. Dispatching Pratt Parser (DiPP)"
+          <a href="typped.html" title="typped package"
              >next</a> |</li>
-        <li><a href="#">Skolem  documentation</a> &raquo;</li> 
+        <li><a href="#">Typped  documentation</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
-        &copy; Copyright 2015, Allen Barker.
+        &copy; Copyright 2016, Allen Barker.
       Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.2.
     </div>
   </body>

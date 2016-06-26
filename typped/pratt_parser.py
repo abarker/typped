@@ -144,19 +144,30 @@ class AST_Node(object):
 # in a dict if desired, and return an instance -- but that seems weird.
 
 class AST_NodeTable(object):
-    """Currently a dict of generated classes for tokens, indexed by token_label."""
+    """The purpose of this class is to save the subclasses associated with
+    various AST labels.  These are subclasses of the `AST_Node` class.  A
+    token with an `ast_label` attribute can be passed to the `get_AST_node`
+    method to return the subclass for the attribute.
+
+    Generally, these AST nodes are used to replace the `TokenNode` classes
+    which are initially generated in the parse tree.  The user may want some
+    other format.  The conversion may be trivial or more complex.
+    
+    Currently implemented as a dict of generated classes for tokens, indexed by
+    the token label."""
     def __init__(self):
         """Initialize the symbol table."""
         self.ast_node_dict = {} 
+
     def get_AST_subclass(self, ast_label):
-        """Return the AST node subtype representing ast_label, defining it if 
+        """Return the AST node subtype representing `ast_label`, defining it if 
         necessary."""
         if ast_label in self.ast_node_dict:
             AST_Subclass = self.ast_node_dict[ast_label]
         else: # AST subclass has not been created.
             class AST_Subclass(AST_Node):
                 def __init__(self, string_form=None):
-                    """Argument string_form, if not None, should be a list of
+                    """Argument string_form, if not `None`, should be a list of
                     n+1 strings, where n is the number of children.  These strings
                     will be printed before, between, and after the children nodes
                     when the string form is produced."""
@@ -166,13 +177,13 @@ class AST_NodeTable(object):
             AST_Subclass.label = ast_label
             self.ast_node_dict[ast_label] = AST_Subclass
         return AST_Subclass
+
     def get_AST_node(self, token):
         class_type = self.get_AST_subclass(token.ast_label)
         instance = class_type()
         instance.value = token.value
         instance.token_label = token.token_label
         return instance
-
 
 #
 # TokenNode
@@ -753,10 +764,24 @@ class PrattParser(object):
 
     # TODO these need undefine methods
 
-    def define_token(self, token_label, regex_string, ignore=False, on_ties=0):
+    def define_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """A convenience function; calls the Lexer `define_token` method."""
         self.lex.define_token(
-                token_label, regex_string, ignore=ignore, on_ties=on_ties)
+                token_label, regex_string, on_ties=on_ties, ignore=ignore)
+
+    def define_tokens(self, tuple_list):
+        """A convenience function, to define multiple tokens at once.  Each element
+        of the passed-in list should be a tuple containing the arguments to the
+        ordinary `define_token` method.  Calls the equivalent `Lexer` function."""
+        #TODO define for Lexer and call that instead.
+        self.lex.define_tokens(tuple_list)
+
+    def define_ignored_tokens(self, tuple_list):
+        """A convenience function, to define multiple ignored tokens at once.
+        Each element of the passed-in list should be a tuple containing the arguments
+        to the ordinary `define_token` method with `ignore=True`.  Calls the equivalent
+        `Lexer` function."""
+        self.lex.define_ignored_tokens(tuple_list)
 
     def undefine_token(self, token_label):
         """A convenience function; calls the Lexer `undefine_token` method."""
@@ -770,7 +795,7 @@ class PrattParser(object):
         and end `TokenNode` subclasses."""
         # Call lexer to create and register the begin and end tokens.
         self.lex.define_begin_and_end_tokens(begin_token_label, end_token_label)
-        # begin
+        # define the begin token
         self.begin_token_label = begin_token_label
         def begin_head(self, lex):
             raise ParserException("Called head of begin token.")
@@ -778,7 +803,7 @@ class PrattParser(object):
             raise ParserException("Called tail of begin token.")
         self.begin_token_subclass = self.modify_token_subclass(
                                begin_token_label, head=begin_head, tail=begin_tail)
-        # end
+        # define the end token
         self.end_token_label = end_token_label
         def end_head(self, lex):
             raise ParserException("Called head of end token.")
@@ -1246,131 +1271,8 @@ class NoHandlerFunctionDefined(ParserException):
     pass
 
 #
-# Local testing.
+# Run tests below when invoked as a script.
 #
-
-# TOKEN DEFINITIONS #################################################################
-
-def define_whitespace_tokens(lex_or_pp):
-    lex_or_pp.define_token("space", r"[ \t]+", ignore=True) # note + NOT *
-    lex_or_pp.define_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
-    #lex_or_pp.define_token("whitespace", r"\s+", ignore=True) # note + NOT *
-
-def define_basic_tokens(lex_or_pp):
-    define_whitespace_tokens(lex_or_pp)
-    lex_or_pp.define_begin_and_end_tokens("begin", "end")
-    lex_or_pp.define_token("number", r"\d+")
-    lex_or_pp.define_token("imag_number", r"\d+[i]")
-    lex_or_pp.define_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
-    lex_or_pp.define_token("plus", r"\+")
-    lex_or_pp.define_token("minus", r"\-")
-    lex_or_pp.define_token("fslash", r"/")
-    lex_or_pp.define_token("ast", r"\*")
-    lex_or_pp.define_token("lpar", r"\(")
-    lex_or_pp.define_token("rpar", r"\)")
-    lex_or_pp.define_token("comma", r",")
-    lex_or_pp.define_token("bang", r"!")
-    lex_or_pp.define_token("question", r"\?")
-    lex_or_pp.define_token("colon", r"\:")
-    lex_or_pp.define_token("semicolon", r";")
-    # NOTE that we could define the exponentiation function twice, once for a
-    # ** token and once for a ^ token.  (They can both be given the same AST
-    # label.)  What we do here, instead, is define multiple symbols for a single
-    # token, making ^ an alias for **.
-
-def define_identifier_token(lex_or_pp):
-    # The last part of below only needs \w, but good example of pattern.
-    #lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
-    lex_or_pp.define_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
-
-def define_default_tokens(lex_or_pp):
-    """Defines some default tokens for testing either a Lexer or a PrattParser."""
-    define_basic_tokens(lex_or_pp)
-    define_identifier_token(lex_or_pp)
-
-    #pp.define_infix_operator("divsign", u"÷") 
-    #pp.define_infix_operator("caret", "^") 
-
-def define_comment_to_EOL_token(lex_or_pp, begin_string):
-    # Note that comment_to_endline is non-greedy due to *? symbol.
-    lex_or_pp.define_token("comment_to_EOL", r"{0}.*?[\n]"
-                           .format(begin_string), ignore=True)
-
-
-# SYNTAX DEFINITIONS ################################################################
-
-def define_syntax(pp):
-    pp.define_literal("number_literal", "number")
-    pp.define_literal("imag_number_literal", "imag_number")
-    pp.define_literal("variable_literal", "identifier")
-
-    pp.define_stdfun_lookahead("stdfun", "identifier", "lpar", "rpar", "comma") 
-    #pp.define_stdfun_lpar_tail("stdfun", "identifier", "lpar", "rpar", "comma", 20) # 20 is prec of (
-
-    # TODO failing test below, when it hits unary + operator
-    pp.define_infix_operator("addition", "plus", 10, Assoc.left)
-    #pp.define_infix_operator("addition", "plus", 10, Assoc.left)
-    pp.define_infix_operator("subtraction", "minus", 10, Assoc.left)
-
-    pp.define_infix_operator("multiplication", "ast", 20, Assoc.left)
-    pp.define_infix_operator("division", "fslash", 20, Assoc.left)
-
-    pp.define_prefix_operator("positive", "plus", 100)
-    pp.define_prefix_operator("negative", "minus", 100)
-
-    pp.define_postfix_operator("factorial", "bang", 100, allow_ignored_before=False)
-
-    pp.define_infix_operator("exponentiation", "double_ast", 30, Assoc.right)
-
-    pp.define_multi_infix_operator("test", ["question", "colon"], 90, Assoc.right)
-
-    # Note we have two exp operators, and we might want exp() standard fun too...
-    # They should probably all have the same AST node which saves how they were
-    # originally formatted.
-
-    pp.define_bracket_pair("paren_brackets", "lpar", "rpar", 0)
-
-    #pp.define_comma_list("comma list", "comma", 5, Assoc.right)
-    pp.define_multi_infix_operator("comma list", ["comma"], 5, Assoc.left,
-                                   in_tree=False, repeat=True)
-
-    pp.define_multi_infix_operator("statements", ["semicolon"], 3, Assoc.left,
-                                   repeat=True)
-
-
-# TESTS #############################################################################
-
-def run_and_print(prog):
-    ast_form = True
-    print("---------------\n")
-    print(prog)
-    root = pp.parse(prog)
-    if not ast_form:
-        print(root.tree_repr())
-    else:
-        ast = root.convert_to_AST(ast_table.get_AST_node)
-        print(ast.tree_repr())
-
-def run_local_tests(pp):
-    #run_and_print("3+5 // comment \n-30")
-    run_and_print("22, 44 + 44, 55, 44, 55")
-    run_and_print("4 * (f(x), 3)")
-    #define_comment_to_EOL_token(pp, "//")
-    #run_and_print("4,3,7+f(3 * 2// comment \n * 3 * 4)")
-    run_and_print("3 + 4 ; egg55a; f(y)")
-    run_and_print("+4+5-ccc?4i:5")
-    run_and_print("3!")
-    run_and_print("f(3!)")
-    run_and_print("1+f(x)")
-    run_and_print("f( x,y,z)")
-    run_and_print("+1+ (1+2*3)*3 / 7")
-
-ast_table = AST_NodeTable()
-pp = PrattParser()
-define_default_tokens(pp)
-define_syntax(pp)
-run_local_tests(pp)
-
 
 import pytest_helper
 pytest_helper.script_run("test/test_pratt_parser.py", pytest_args="-v")

@@ -220,17 +220,22 @@ class Lexer(object):
     own empty one."""
 
     ERROR_MSG_TEXT_SNIPPET_SIZE = 40 # Number of characters to show for context.
+    DEFAULT_BEGIN = "begin" # Default label for begin token.
+    DEFAULT_END = "end" # Default label for end token.
 
     #
     # Initialization methods
     #
 
     def __init__(self, symbol_table=None, num_lookahead_tokens=2,
-                 max_go_back_tokens=None):
+                 max_go_back_tokens=None, default_begin_end_tokens=True):
         """Initialize the Lexer.  Optional arguments set the
         `TokenSubclassSymbolTable` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
-        tokens that the `go_back` method can accept (default is unlimited)."""
+        tokens that the `go_back` method can accept (default is unlimited).
+        If `default_begin_end_tokens` is false then no begin and end tokens will
+        be defined; it is up to the user.  Otherwise, they will be defined with
+        the default values."""
         if symbol_table is None: self.symbol_table = TokenSubclassSymbolTable()
         else: self.symbol_table = symbol_table
         self.ignore_tokens = set()
@@ -265,6 +270,10 @@ class Lexer(object):
         self.charnumber = 1
 
         self.token_generator_state = GenTokenState.uninitialized
+
+        if default_begin_end_tokens:
+            self.define_begin_and_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
+
         return
 
     def set_text(self, program):
@@ -511,7 +520,7 @@ class Lexer(object):
     # Methods to define and undefine tokens
     #
 
-    def define_token(self, token_label, regex_string, ignore=False, on_ties=0):
+    def define_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.  The label
         `token_label` is the label for the kind of token.  Setting
         `ignore=True` will cause all such tokens to be ignored (except that
@@ -531,6 +540,24 @@ class Lexer(object):
         new_subclass = self.symbol_table.create_token_subclass(token_label)
         return new_subclass
 
+    def define_tokens(self, tuple_list):
+        """A convenience function, to define multiple tokens at once.  Each element
+        of the passed-in list should be a tuple containing the arguments to the
+        ordinary `define_token` method.  Called in the same order as the list."""
+        for t in tuple_list:
+            self.define_token(*t)
+
+    def define_ignored_tokens(self, tuple_list):
+        """A convenience function, to define multiple tokens at once with
+        `ignore=True` set.  Each element of the passed-in list should be a tuple
+        containing the arguments to the ordinary `define_token` method.  Called in
+        the same order as the list."""
+        for t in tuple_list:
+            t = list(t)
+            if len(t) == 3: t.append("True") # Has a tie breaker, no ignore set.
+            elif len(t) == 2: t.extend([0, "True"]) # Has no on_ties, set to default.
+            self.define_token(*t)
+
     def undefine_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
         # Remove from the list of defined tokens and the symbol table.
@@ -548,11 +575,11 @@ class Lexer(object):
         a tuple of the new begin and end token subclasses.  These tokens do not
         need to be defined with `define_token` because they are never actually
         scanned in the program text (which would require the regex pattern)."""
-        # begin
+        # Define begin token.
         self.begin_token_label = begin_token_label
         self.begin_token_subclass = self.symbol_table.create_token_subclass(
                                                                 begin_token_label)
-        # end
+        # Define end token.
         self.end_token_label = end_token_label
         self.end_token_subclass = self.symbol_table.create_token_subclass(
                                                                 end_token_label)
@@ -808,7 +835,7 @@ def define_whitespace_tokens(lex_or_pp):
 
 def define_basic_tokens(lex_or_pp):
     define_whitespace_tokens(lex_or_pp)
-    lex_or_pp.define_begin_and_end_tokens("begin", "end")
+    #lex_or_pp.define_begin_and_end_tokens("begin", "end")
     lex_or_pp.define_token("number", r"\d+")
     lex_or_pp.define_token("imag_number", r"\d+[i]")
     lex_or_pp.define_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
