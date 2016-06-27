@@ -8,47 +8,31 @@ pytest_helper.sys_path(add_parent=True)
 
 import pratt_parser
 
-# Some conventions.
+# Some naming conventions.
+#
 # Lexer:
 #    tokens:    k_number
-#    types:     t_int
 # Syntax:
 #    literals:  l_number
-#    operators: op_addition
-#    otherwise, no prefix
+#    types:     t_int
+#    operators: op_add
+#    otherwise: no currently defined prefix
+# Semantics:
+#    eval fun:  e_add
 
 # TOKEN DEFINITIONS #################################################################
 
 def define_whitespace_tokens(lexer_or_parser):
-    #lexer_or_parser.define_token("k_space", r"[ \t]+", ignore=True) # note + NOT *
-    #lexer_or_parser.define_token("k_newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
-    #lexer_or_parser.define_token("whitespace", r"\s+", ignore=True) # note + NOT *
+    #lexer_or_parser.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
 
     whitespace_tokens = [
             ("k_space", r"[ \t]+"), # note + symbol, NOT * symbol
             ("k_newline", r"[\n\f\r\v]+") # note + symbol, NOT * symbol
             ]
-    lexer_or_parser.define_ignored_tokens(whitespace_tokens)
+    lexer_or_parser.def_ignored_tokens(whitespace_tokens)
 
 def define_basic_tokens(lexer_or_parser):
     define_whitespace_tokens(lexer_or_parser)
-    #lexer_or_parser.define_begin_and_end_tokens("begin", "end")
-
-    # lexer_or_parser.define_token("k_number", r"\d+")
-    # lexer_or_parser.define_token("k_imag_number", r"\d+[i]")
-    # lexer_or_parser.define_token("k_double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
-    # lexer_or_parser.define_token("k_plus", r"\+")
-    # lexer_or_parser.define_token("k_minus", r"\-")
-    # lexer_or_parser.define_token("k_fslash", r"/")
-    # lexer_or_parser.define_token("k_ast", r"\*")
-    # lexer_or_parser.define_token("k_lpar", r"\(")
-    # lexer_or_parser.define_token("k_rpar", r"\)")
-    # lexer_or_parser.define_token("k_comma", r",")
-    # lexer_or_parser.define_token("k_bang", r"!")
-    # lexer_or_parser.define_token("k_question", r"\?")
-    # lexer_or_parser.define_token("k_colon", r"\:")
-    # lexer_or_parser.define_token("k_semicolon", r";")
-
     token_list = [
             ("k_number", r"\d+"),
             ("k_imag_number", r"\d+[i]"),
@@ -65,29 +49,30 @@ def define_basic_tokens(lexer_or_parser):
             ("k_colon", r"\:"),
             ("k_semicolon", r";")
             ]
-    lexer_or_parser.define_tokens(token_list)
+    lexer_or_parser.def_tokens(token_list)
 
-    # NOTE that we could define the exponentiation function twice, once for a
-    # ** token and once for a ^ token.  (They can both be given the same AST
-    # label.)  What we do here, instead, is define multiple symbols for a single
-    # token, making ^ an alias for **.
+    # NOTE that the exponentiation function could alternately be defined twice,
+    # once for a ** token as the operator and once for a ^ token.  (They can
+    # both be given the same AST label.)  What is done here instead is to
+    # define multiple symbols for a single token (via the regex), making ^ an
+    # alias for **.
 
 def define_identifier_token(lexer_or_parser):
     # The last part of below only needs \w, but good example of pattern.
-    #lexer_or_parser.define_token("k_identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
-    lexer_or_parser.define_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    #lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
+    lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
 def define_default_tokens(lexer_or_parser):
     """Defines some default tokens for testing either a Lexer or a PrattParser."""
     define_basic_tokens(lexer_or_parser)
     define_identifier_token(lexer_or_parser)
 
-    #lexer_or_parser.define_infix_operator("divsign", u"÷") 
-    #lexer_or_parser.define_infix_operator("caret", "^") 
+    #lexer_or_parser.def_infix_op("divsign", u"÷") 
+    #lexer_or_parser.def_infix_op("caret", "^") 
 
 def define_comment_to_EOL_token(lexer_or_parser, begin_string):
     # Note that comment_to_endline is non-greedy due to *? symbol.
-    lexer_or_parser.define_token("k_comment_to_EOL", r"{0}.*?[\n]"
+    lexer_or_parser.def_token("k_comment_to_EOL", r"{0}.*?[\n]"
                            .format(begin_string), ignore=True)
 
 # SYNTAX DEFINITIONS ################################################################
@@ -95,39 +80,39 @@ def define_comment_to_EOL_token(lexer_or_parser, begin_string):
 def define_syntax(parser):
     Assoc = pratt_parser.Assoc # Enum for association.
 
-    parser.define_literal("l_number", "k_number")
-    parser.define_literal("l_imag_number", "k_imag_number")
-    parser.define_literal("l_variable", "k_identifier")
+    parser.def_literal("l_number", "k_number")
+    parser.def_literal("l_imag_number", "k_imag_number")
+    parser.def_literal("l_variable", "k_identifier")
 
-    parser.define_stdfun_lookahead("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma") 
-    #parser.define_stdfun_lpar_tail("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
+    parser.def_stdfun_lookahead("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma") 
+    #parser.def_stdfun_lpar_tail("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
 
-    parser.define_infix_operator("addition", "k_plus", 10, Assoc.left)
-    parser.define_infix_operator("subtraction", "k_minus", 10, Assoc.left)
+    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left)
+    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left)
 
-    parser.define_infix_operator("multiplication", "k_ast", 20, Assoc.left)
-    parser.define_infix_operator("division", "k_fslash", 20, Assoc.left)
+    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left)
+    parser.def_infix_op("op_divide", "k_fslash", 20, Assoc.left)
 
-    parser.define_prefix_operator("positive", "k_plus", 100)
-    parser.define_prefix_operator("negative", "k_minus", 100)
+    parser.def_prefix_op("op_positive", "k_plus", 100)
+    parser.def_prefix_op("op_negative", "k_minus", 100)
 
-    parser.define_postfix_operator("factorial", "k_bang", 100, allow_ignored_before=False)
+    parser.def_postfix_op("op_factorial", "k_bang", 100, allow_ignored_before=False)
 
-    parser.define_infix_operator("exponentiation", "k_double_ast", 30, Assoc.right)
+    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right)
 
-    parser.define_multi_infix_operator("test", ["k_question", "k_colon"], 90, Assoc.right)
+    parser.def_multi_infix_op("test", ["k_question", "k_colon"], 90, Assoc.right)
 
     # Note we have two exp operators, and we might want exp() standard fun too...
     # They should probably all have the same AST node which saves how they were
     # originally formatted.
 
-    parser.define_bracket_pair("paren_brackets", "k_lpar", "k_rpar", 0)
+    parser.def_bracket_pair("paren_brackets", "k_lpar", "k_rpar", 0)
 
     #parser.define_comma_list("comma list", "k_comma", 5, Assoc.right)
-    parser.define_multi_infix_operator("comma list", ["k_comma"], 5, Assoc.left,
+    parser.def_multi_infix_op("comma list", ["k_comma"], 5, Assoc.left,
                                    in_tree=False, repeat=True)
 
-    parser.define_multi_infix_operator("statements", ["k_semicolon"], 3, Assoc.left,
+    parser.def_multi_infix_op("statements", ["k_semicolon"], 3, Assoc.left,
                                    repeat=True)
 
 # OLD PRINT TESTS ####################################################################
@@ -219,27 +204,27 @@ def test_jop(basic_setup):
     Assoc = pratt_parser.Assoc # Enum for association.
 
     print("parser symbol table is", parser.symbol_table.token_subclass_dict.keys())
-    parser.define_jop_token("jop_token", "k_space")
-    parser.define_jop("multiplication", 20, Assoc.left)
+    parser.def_jop_token("k_jop", "k_space")
+    parser.def_jop("op_mult", 20, Assoc.left)
     expr = "5  9"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
-    assert str(parser.parse(expr)) == "<jop_token,None>(<k_number,5>,<k_number,9>)"
+    assert str(parser.parse(expr)) == "<k_jop,None>(<k_number,5>,<k_number,9>)"
     expr = "2 pi - 4 z"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
     assert str(parser.parse(expr)) == ("<k_minus,->"
-                                  "(<jop_token,None>(<k_number,2>,<k_identifier,pi>),"
-                                   "<jop_token,None>(<k_number,4>,<k_identifier,z>))")
+                                  "(<k_jop,None>(<k_number,2>,<k_identifier,pi>),"
+                                   "<k_jop,None>(<k_number,4>,<k_identifier,z>))")
     expr = "2 pi (x+y) - 4^z s"
     #print("\nworking on", expr)
     assert str(parser.parse(expr)) == ("<k_minus,->"
-                                  "(<jop_token,None>("
-                                      "<jop_token,None>("
-                                          "<k_number,2>,<k_identifier,pi>),"
-                                      "<k_lpar,(>(<k_plus,+>(<k_identifier,x>,<k_identifier,y>))),"
-                                  "<jop_token,None>(<k_double_ast,^>("
-                                      "<k_number,4>,<k_identifier,z>),<k_identifier,s>))")
+                          "(<k_jop,None>("
+                              "<k_jop,None>("
+                                  "<k_number,2>,<k_identifier,pi>),"
+                              "<k_lpar,(>(<k_plus,+>(<k_identifier,x>,<k_identifier,y>))),"
+                          "<k_jop,None>(<k_double_ast,^>("
+                              "<k_number,4>,<k_identifier,z>),<k_identifier,s>))")
     #fail()
 
 def test_types_mixed_numerical_bool_expressions(): 
@@ -252,24 +237,24 @@ def test_types_mixed_numerical_bool_expressions():
 
     parser = pratt_parser.PrattParser()
     define_default_tokens(parser)
-    parser.define_token("k_exp", r"exp") # general identifier has lower on_ties
+    parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
     # define the types to be used
-    parser.define_type("t_number")
-    parser.define_type("t_bool")
+    parser.def_type("t_number")
+    parser.def_type("t_bool")
 
     # define initial syntax
-    parser.define_literal("l_number", "k_number", val_type="t_number")
-    parser.define_literal("l_variable", "k_identifier", val_type="t_number")
-    parser.define_stdfun_lookahead("exponentiation", "k_exp",
+    parser.def_literal("l_number", "k_number", val_type="t_number")
+    parser.def_literal("l_variable", "k_identifier", val_type="t_number")
+    parser.def_stdfun_lookahead("op_exp", "k_exp",
                  "k_lpar", "k_rpar", "k_comma", val_type="t_number", arg_types=["t_number"])
-    parser.define_infix_operator("addition", "k_plus", 10, Assoc.left,
+    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("subtraction", "k_minus", 10, Assoc.left,
+    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("multiplication", "k_ast", 20, Assoc.left,
+    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("exponentiation", "k_double_ast", 30, Assoc.right,
+    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right,
                          val_type="t_number", arg_types=["t_number","t_number"])
 
     # run simple tests with just one type
@@ -281,20 +266,20 @@ def test_types_mixed_numerical_bool_expressions():
             "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
 
     # define "True" and "False" as boolean value literals.
-    parser.define_token("k_true", r"True")
-    parser.define_token("k_false", r"False")
-    parser.define_literal("l_true", "k_true", val_type="t_bool")
-    parser.define_literal("l_false", "k_false", val_type="t_bool")
+    parser.def_token("k_true", r"True")
+    parser.def_token("k_false", r"False")
+    parser.def_literal("l_true", "k_true", val_type="t_bool")
+    parser.def_literal("l_false", "k_false", val_type="t_bool")
     # define some new functions, first giving them unique tokens (required for
     # types to work correctly????????????? what are requirements?  where is
     # type info stored exactly, to see what can conflict?)
     # define a function taking t_bool and t_number args returning t_number
-    parser.define_token("f_bn2n", r"f_bn2n")
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    parser.def_token("f_bn2n", r"f_bn2n")
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
-    parser.define_token("f_nb2b", r"f_nb2b")
-    parser.define_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_token("f_nb2b", r"f_nb2b")
+    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_bool", arg_types=["t_number", "t_bool"])
 
@@ -316,13 +301,13 @@ def test_types_mixed_numerical_bool_expressions():
 
     # more functions
 
-    # parser.define_literal("l_true", "k_true", val_type="t_bool") # redefinition
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    # parser.def_literal("l_true", "k_true", val_type="t_bool") # redefinition
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
-    parser.define_token("g_bn2n", r"g_bn2n")
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_token("g_bn2n", r"g_bn2n")
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
@@ -335,7 +320,7 @@ def test_types_mixed_numerical_bool_expressions():
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
@@ -354,7 +339,7 @@ def test_types_mixed_numerical_bool_expressions():
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
     # test multiple matches without fun overloading: give f_nb2b a number return version
-    parser.define_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_bool"])
     with raises(TypeError) as e:
@@ -372,24 +357,24 @@ def test_types_overloaded_return():
 
     parser = pratt_parser.PrattParser(overload_on_ret_types=True)
     define_default_tokens(parser)
-    parser.define_token("k_exp", r"exp") # general identifier has lower on_ties
+    parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
     # define the types to be used
-    parser.define_type("t_number")
-    parser.define_type("t_bool")
+    parser.def_type("t_number")
+    parser.def_type("t_bool")
 
     # define initial syntax
-    parser.define_literal("l_number", "k_number", val_type="t_number")
-    parser.define_literal("l_variable", "k_identifier", val_type="t_number")
-    parser.define_stdfun_lookahead("exponentiation", "k_exp",
+    parser.def_literal("l_number", "k_number", val_type="t_number")
+    parser.def_literal("l_variable", "k_identifier", val_type="t_number")
+    parser.def_stdfun_lookahead("op_exp", "k_exp",
                  "k_lpar", "k_rpar", "k_comma", val_type="t_number", arg_types=["t_number"])
-    parser.define_infix_operator("addition", "k_plus", 10, Assoc.left,
+    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("subtraction", "k_minus", 10, Assoc.left,
+    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("multiplication", "k_ast", 20, Assoc.left,
+    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.define_infix_operator("exponentiation", "k_double_ast", 30, Assoc.right,
+    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right,
                          val_type="t_number", arg_types=["t_number","t_number"])
 
     # run simple tests with just one type
@@ -401,18 +386,18 @@ def test_types_overloaded_return():
             "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
 
     # define "True" and "False" as boolean value literals.
-    parser.define_token("k_true", r"True")
-    parser.define_token("k_false", r"False")
-    parser.define_literal("l_true", "k_true", val_type="t_bool")
-    parser.define_literal("l_false", "k_false", val_type="t_bool")
+    parser.def_token("k_true", r"True")
+    parser.def_token("k_false", r"False")
+    parser.def_literal("l_true", "k_true", val_type="t_bool")
+    parser.def_literal("l_false", "k_false", val_type="t_bool")
     # define some new functions, first giving them unique tokens
     # define a function taking t_bool and t_number args returning t_number
-    parser.define_token("f_bn2n", r"f_bn2n")
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    parser.def_token("f_bn2n", r"f_bn2n")
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
-    parser.define_token("f_nb2b", r"f_nb2b")
-    parser.define_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_token("f_nb2b", r"f_nb2b")
+    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_bool", arg_types=["t_number", "t_bool"])
 
@@ -434,13 +419,13 @@ def test_types_overloaded_return():
 
     # more functions
 
-    # parser.define_literal("l_true", "k_true", val_type="t_bool") # redefinition
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    # parser.def_literal("l_true", "k_true", val_type="t_bool") # redefinition
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
-    parser.define_token("g_bn2n", r"g_bn2n")
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_token("g_bn2n", r"g_bn2n")
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
@@ -453,7 +438,7 @@ def test_types_overloaded_return():
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.define_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
@@ -473,7 +458,7 @@ def test_types_overloaded_return():
 
     # overload f_nb2b with a version that returns a number
     print("========== defining first overload of f_nb2b")
-    parser.define_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_bool"])
     with raises(TypeError) as e:
@@ -485,7 +470,7 @@ def test_types_overloaded_return():
                                  "(<f_nb2b,f_nb2b>(<k_number,1>,<k_false,False>),<k_number,5>)"
 
     # overload f_nb2b again, to also take two number arguments
-    parser.define_stdfun_lookahead("test_fun_number_number_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("test_fun_number_number_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_number"])
     # now args are ambiguous in this order

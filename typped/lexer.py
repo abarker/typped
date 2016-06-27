@@ -182,7 +182,7 @@ class TokenSubclassSymbolTable(object):
         if store_in_dict: self.token_subclass_dict[token_label] = TokenSubclass
         return TokenSubclass
 
-    def undefine_token_subclass(self, token_label):
+    def undef_token_subclass(self, token_label):
         """Un-define the token with label token_label.  The `TokenNode` subclass
         previously associated with that label is removed from the dictionary."""
         try: del self.token_subclass_dict[token_label]
@@ -203,25 +203,25 @@ class Lexer(object):
     `TokenNode` subclass instances. There is one subclass for each kind of
     token, i.e., for each token label.  These subclasses themselves are assumed
     to have been created before any scanning operation which can return an
-    instance, via the `define_token` method. 
+    instance, via the `def_token` method. 
     
     Token strings are assumed to have both a begin and an end token, defined
-    via the `define_begin_and_end_tokens` method.  These token types act as
+    via the `def_begin_and_end_tokens` method.  These token types act as
     sentinels at the beginning and end of the token stream.  Exactly one end
     token will be returned by `next`; any further calls to `next` raise
     `StopIteration`.
     
     The scanning is independent of the order in which tokens are defined.  The
     longest match over all token patterns will always be the one selected.  In
-    case of ties the `on_ties` value (passed to `define_token`) is used to
+    case of ties the `on_ties` value (passed to `def_token`) is used to
     break it.  If that fails a `LexerException` is raised.
     
     If no symbol table is passed into `__init__` the `Lexer` will create its
     own empty one."""
 
     ERROR_MSG_TEXT_SNIPPET_SIZE = 40 # Number of characters to show for context.
-    DEFAULT_BEGIN = "begin" # Default label for begin token.
-    DEFAULT_END = "end" # Default label for end token.
+    DEFAULT_BEGIN = "k_begin" # Default label for begin token.
+    DEFAULT_END = "k_end" # Default label for end token.
 
     #
     # Initialization methods
@@ -272,7 +272,7 @@ class Lexer(object):
         self.token_generator_state = GenTokenState.uninitialized
 
         if default_begin_end_tokens:
-            self.define_begin_and_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
+            self.def_begin_and_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
 
         return
 
@@ -286,7 +286,7 @@ class Lexer(object):
         be a string."""
         if not (self.begin_token_label and self.end_token_label):
             raise LexerException("Begin and end tokens must be defined by calling"
-                    " define_begin_and_end_tokens before set_text can be called.")
+                    " def_begin_and_end_tokens before set_text can be called.")
 
         self.already_returned_end_token = False
         self._curr_token_is_first = False # Is curr token first non-ignored in text?
@@ -520,7 +520,7 @@ class Lexer(object):
     # Methods to define and undefine tokens
     #
 
-    def define_token(self, token_label, regex_string, on_ties=0, ignore=False):
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.  The label
         `token_label` is the label for the kind of token.  Setting
         `ignore=True` will cause all such tokens to be ignored (except that
@@ -540,28 +540,28 @@ class Lexer(object):
         new_subclass = self.symbol_table.create_token_subclass(token_label)
         return new_subclass
 
-    def define_tokens(self, tuple_list):
+    def def_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
-        ordinary `define_token` method.  Called in the same order as the list."""
+        ordinary `def_token` method.  Called in the same order as the list."""
         for t in tuple_list:
-            self.define_token(*t)
+            self.def_token(*t)
 
-    def define_ignored_tokens(self, tuple_list):
+    def def_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once with
         `ignore=True` set.  Each element of the passed-in list should be a tuple
-        containing the arguments to the ordinary `define_token` method.  Called in
+        containing the arguments to the ordinary `def_token` method.  Called in
         the same order as the list."""
         for t in tuple_list:
             t = list(t)
             if len(t) == 3: t.append("True") # Has a tie breaker, no ignore set.
             elif len(t) == 2: t.extend([0, "True"]) # Has no on_ties, set to default.
-            self.define_token(*t)
+            self.def_token(*t)
 
-    def undefine_token(self, token_label):
+    def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
         # Remove from the list of defined tokens and the symbol table.
-        self.symbol_table.undefine_token_subclass(token_label)
+        self.symbol_table.undef_token_subclass(token_label)
         self.ignore_tokens.discard(token_label)
         try: tok_index = self.token_labels.index(token_label)
         except ValueError: return
@@ -569,11 +569,11 @@ class Lexer(object):
         del self.compiled_regexes[tok_index]
         del self.on_ties[tok_index]
 
-    def define_begin_and_end_tokens(self, begin_token_label, end_token_label):
+    def def_begin_and_end_tokens(self, begin_token_label, end_token_label):
         """Define the sentinel tokens at the beginning and end of the token
         stream.  This method must be called before using the Lexer.  Returns
         a tuple of the new begin and end token subclasses.  These tokens do not
-        need to be defined with `define_token` because they are never actually
+        need to be defined with `def_token` because they are never actually
         scanned in the program text (which would require the regex pattern)."""
         # Define begin token.
         self.begin_token_label = begin_token_label

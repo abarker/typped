@@ -15,10 +15,10 @@ To use the PrattParser class you need to do these things:
       lengths (the lexer will always take the longest, with ties broken by
       any `on_ties` values, defaulting to zero).  Examples:
 
-          pp.define_token("number", r"\d+")
-          pp.define_token("lpar", r"\(")
-          pp.define_token("ast", r"\*")
-          pp.define_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+          pp.def_token("number", r"\d+")
+          pp.def_token("lpar", r"\(")
+          pp.def_token("ast", r"\*")
+          pp.def_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
     
     - Define the syntactical elements of the language that you are parsing.
       Any necessary token labels must have already been defined in the previous
@@ -27,8 +27,8 @@ To use the PrattParser class you need to do these things:
       as a label for the resulting AST node (but this label can be used in any
       way desired, including in preconditions).  Examples:
 
-          pp.define_literal("number_literal", "number", val_type="number")
-          pp.define_infix_operator("addition", "plus", 10, Assoc.left,
+          pp.def_literal("number_literal", "number", val_type="number")
+          pp.def_infix_op("addition", "plus", 10, Assoc.left,
                            val_type="number", arg_types=["number","number"])
 
       If the predefined methods are not sufficient you might need to create a
@@ -766,37 +766,37 @@ class PrattParser(object):
 
     # TODO these need undefine methods
 
-    def define_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """A convenience function; calls the Lexer `define_token` method."""
-        self.lex.define_token(
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
+        """A convenience function; calls the Lexer `def_token` method."""
+        self.lex.def_token(
                 token_label, regex_string, on_ties=on_ties, ignore=ignore)
 
-    def define_tokens(self, tuple_list):
+    def def_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
-        ordinary `define_token` method.  Calls the equivalent `Lexer` function."""
+        ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
         #TODO define for Lexer and call that instead.
-        self.lex.define_tokens(tuple_list)
+        self.lex.def_tokens(tuple_list)
 
-    def define_ignored_tokens(self, tuple_list):
+    def def_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple ignored tokens at once.
         Each element of the passed-in list should be a tuple containing the arguments
-        to the ordinary `define_token` method with `ignore=True`.  Calls the equivalent
+        to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
-        self.lex.define_ignored_tokens(tuple_list)
+        self.lex.def_ignored_tokens(tuple_list)
 
-    def undefine_token(self, token_label):
-        """A convenience function; calls the Lexer `undefine_token` method."""
-        self.lex.undefine_token(token_label)
+    def undef_token(self, token_label):
+        """A convenience function; calls the Lexer `undef_token` method."""
+        self.lex.undef_token(token_label)
 
-    def define_begin_and_end_tokens(self, begin_token_label, end_token_label):
-        """Calls the `Lexer` to define_begin_and_end_tokens.  The subclasses are
+    def def_begin_and_end_tokens(self, begin_token_label, end_token_label):
+        """Calls the `Lexer` to def_begin_and_end_tokens.  The subclasses are
         then given initial head and tail functions for use in the Pratt parser.
         To use the `PrattParser` this method must be called, not the method
         of `Lexer` with the same name.  Returns a tuple containing the new begin
         and end `TokenNode` subclasses."""
         # Call lexer to create and register the begin and end tokens.
-        self.lex.define_begin_and_end_tokens(begin_token_label, end_token_label)
+        self.lex.def_begin_and_end_tokens(begin_token_label, end_token_label)
         # define the begin token
         self.begin_token_label = begin_token_label
         def begin_head(self, lex):
@@ -815,7 +815,7 @@ class PrattParser(object):
                                   end_token_label, head=end_head, tail=end_tail)
         return self.begin_token_subclass, self.end_token_subclass
 
-    def define_jop_token(self, jop_token_label, ignored_token_label):
+    def def_jop_token(self, jop_token_label, ignored_token_label):
         """Define a token for the juxtaposition operator.  This token is not
         stored in the lexer's symbol table and has no regex pattern.  An
         instance is inserted in `recursive_parse` when it is inferred to be
@@ -861,7 +861,7 @@ class PrattParser(object):
         else:
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
-                    " calling `define_token` first.".format(token_label))
+                    " calling `def_token` first.".format(token_label))
             # This used to just create a subclass, but that can mask errors.
             #TokenSubclass = self.symbol_table.create_token_subclass(token_label)
 
@@ -885,14 +885,14 @@ class PrattParser(object):
                                precond_priority=precond_priority, type_sig=type_sig)
         return TokenSubclass
 
-    def undefine_handler(self, token_label, head_or_tail, precond_label=None,
+    def undef_handler(self, token_label, head_or_tail, precond_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
         `precond_label` and type signature.  The `head_or_tail` value should be
         `HEAD` or `TAIL`.  If `all_precond` is set then all heads and tails for all
         preconditions will be undefined.  If `all_overloads` then all
         overloaded type signatures will be undefined.  The token itself is
-        never undefined; use the `undefine_token` method for that."""
+        never undefined; use the `undef_token` method for that."""
         TokenSubclass = self.symbol_table.get_token_subclass(token_label)
         TokenSubclass.unregister_handler_fun(head_or_tail,
                                          precond_label=precond_label,
@@ -903,18 +903,18 @@ class PrattParser(object):
     # Methods dealing with types.
     #
 
-    def define_type(self, type_name, type_params=None):
+    def def_type(self, type_name, type_params=None):
         """Define a type associated with the name `type_name`."""
         self.type_table.create_typeobject_subclass(type_name, type_params)
 
-    def undefine_type(self, type_name):
-        self.type_table.undefine_typeobject_subclass(type_name)
+    def undef_type(self, type_name):
+        self.type_table.undef_typeobject_subclass(type_name)
 
     #
     # Methods defining syntax elements.
     #
 
-    def define_parser_global_precondition(self):
+    def def_parser_global_precondition(self):
         pass
         # TODO decide if this is a good idea, implement if so, delete otherwise.
         # Is the right level for this, or should it be module level or only
@@ -926,23 +926,23 @@ class PrattParser(object):
         # on ties then last-set one has priority on ties.
 
     # TODO these can each have a corresponding undefine method; should be easy
-    # with undefine_handler method.
+    # with undef_handler method.
 
-    def define_literal(self, ast_label, token_label, val_type=None, eval_fun=None):
+    def def_literal(self, ast_label, token_label, val_type=None, eval_fun=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
         function to the token.  Literals are the leaves of the parse tree; they
         are things like numbers and variable names in a numerical expression.
         They always occur as the first (and only) token in a subexpression
-        being evaluated by `recursive_parse`, so they need a head but not a
-        tail."""
+        being evaluated by `recursive_parse`, so they need a head handler but not
+        a tail handler."""
         def head_handler_literal(self, lex):
             self.process_and_check_node(head_handler_literal, ast_label, eval_fun)
             return self
         self.modify_token_subclass(token_label, head=head_handler_literal,
                                                             val_type=val_type)
 
-    def define_multi_infix_operator(self, ast_label, operator_token_labels, prec,
+    def def_multi_infix_op(self, ast_label, operator_token_labels, prec,
                                     assoc, repeat=False, in_tree=True,
                                     val_type=None, arg_types=None, eval_fun=None):
         # TODO only this type currently supports "in_tree" kwarg.  General and easy
@@ -977,15 +977,15 @@ class PrattParser(object):
         self.modify_token_subclass(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type, arg_types=arg_types)
 
-    def define_infix_operator(self, ast_label, operator_token_label, prec,
+    def def_infix_op(self, ast_label, operator_token_label, prec,
                               assoc, in_tree=True,
                               val_type=None, arg_types=None, eval_fun=None):
-        """This just calls the more general method `define_multi_infix_operator`."""
-        self.define_multi_infix_operator(ast_label, [operator_token_label], prec,
+        """This just calls the more general method `def_multi_infix_op`."""
+        self.def_multi_infix_op(ast_label, [operator_token_label], prec,
                               assoc, in_tree=in_tree,
                               val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
-    def define_prefix_operator(self, ast_label, operator_token_label, prec,
+    def def_prefix_op(self, ast_label, operator_token_label, prec,
                                val_type=None, arg_types=None, eval_fun=None):
         """Define a prefix operator."""
         def head_handler(self, lex):
@@ -995,7 +995,7 @@ class PrattParser(object):
         self.modify_token_subclass(operator_token_label, head=head_handler,
                                 val_type=val_type, arg_types=arg_types)
 
-    def define_postfix_operator(self, ast_label, operator_token_label, prec,
+    def def_postfix_op(self, ast_label, operator_token_label, prec,
                                 allow_ignored_before=True,
                                 val_type=None, arg_types=None, eval_fun=None):
         """Define a postfix operator.  If `allow_ignored_before` is false then
@@ -1009,7 +1009,7 @@ class PrattParser(object):
         self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
                                 val_type=val_type, arg_types=arg_types)
 
-    def define_bracket_pair(self, ast_label, lbrac_token_label, rbrac_token_label,
+    def def_bracket_pair(self, ast_label, lbrac_token_label, rbrac_token_label,
                                                            prec, eval_fun=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of the
@@ -1023,7 +1023,7 @@ class PrattParser(object):
             return self
         self.modify_token_subclass(lbrac_token_label, head=head_handler)
 
-    def define_stdfun_lookahead(self, ast_label, fname_token_label, lpar_token_label,
+    def def_stdfun_lookahead(self, ast_label, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
                       val_type=None, arg_types=None, eval_fun=None):
         """This definition of stdfun uses lookahead."""
@@ -1054,7 +1054,7 @@ class PrattParser(object):
                          precond_fun=preconditions, precond_priority=1,
                          val_type=val_type, arg_types=arg_types)
 
-    def define_stdfun_lpar_tail(self, ast_label, fname_token_label, lpar_token_label,
+    def def_stdfun_lpar_tail(self, ast_label, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
                       val_type=None, arg_types=None, eval_fun=None):
         """This is an alternate version of stdfun that defines lpar as an infix
@@ -1078,7 +1078,7 @@ class PrattParser(object):
                                          prec=prec_of_lpar, tail=tail_handler,
                                          val_type=val_type, arg_types=arg_types)
 
-    def define_jop(self, ast_label, prec, assoc, precond_label=None,
+    def def_jop(self, ast_label, prec, assoc, precond_label=None,
                                       precond_fun=None, precond_priority=None,
                                       val_type=None, arg_types=None, eval_fun=None):
 
