@@ -206,7 +206,7 @@ class Lexer(object):
     instance, via the `def_token` method. 
     
     Token strings are assumed to have both a begin and an end token, defined
-    via the `def_begin_and_end_tokens` method.  These token types act as
+    via the `def_begin_end_tokens` method.  These token types act as
     sentinels at the beginning and end of the token stream.  Exactly one end
     token will be returned by `next`; any further calls to `next` raise
     `StopIteration`.
@@ -228,14 +228,15 @@ class Lexer(object):
     #
 
     def __init__(self, symbol_table=None, num_lookahead_tokens=2,
-                 max_go_back_tokens=None, default_begin_end_tokens=True):
+                 max_go_back_tokens=None, default_begin_end_tokens=False):
         """Initialize the Lexer.  Optional arguments set the
         `TokenSubclassSymbolTable` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
         tokens that the `go_back` method can accept (default is unlimited).
-        If `default_begin_end_tokens` is false then no begin and end tokens will
-        be defined; it is up to the user.  Otherwise, they will be defined with
-        the default values."""
+        If `default_begin_end_tokens` is true then begin and end tokens will
+        be defined using the default token labels.  By default, though, the user
+        must call the `def_begin_end_tokens` method to define the begin and
+        end tokens (using whatever labels are desired)."""
         if symbol_table is None: self.symbol_table = TokenSubclassSymbolTable()
         else: self.symbol_table = symbol_table
         self.ignore_tokens = set()
@@ -272,7 +273,7 @@ class Lexer(object):
         self.token_generator_state = GenTokenState.uninitialized
 
         if default_begin_end_tokens:
-            self.def_begin_and_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
+            self.def_begin_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
 
         return
 
@@ -286,7 +287,7 @@ class Lexer(object):
         be a string."""
         if not (self.begin_token_label and self.end_token_label):
             raise LexerException("Begin and end tokens must be defined by calling"
-                    " def_begin_and_end_tokens before set_text can be called.")
+                    " def_begin_end_tokens before set_text can be called.")
 
         self.already_returned_end_token = False
         self._curr_token_is_first = False # Is curr token first non-ignored in text?
@@ -569,12 +570,15 @@ class Lexer(object):
         del self.compiled_regexes[tok_index]
         del self.on_ties[tok_index]
 
-    def def_begin_and_end_tokens(self, begin_token_label, end_token_label):
+    def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Define the sentinel tokens at the beginning and end of the token
-        stream.  This method must be called before using the Lexer.  Returns
-        a tuple of the new begin and end token subclasses.  These tokens do not
+        stream.  This method must be called before using the Lexer.  It will
+        automatically be called using default token label values unless
+        `default_begin_end_tokens` was set false on initialization.  Returns a
+        tuple of the new begin and end token subclasses.  These tokens do not
         need to be defined with `def_token` because they are never actually
         scanned in the program text (which would require the regex pattern)."""
+
         # Define begin token.
         self.begin_token_label = begin_token_label
         self.begin_token_subclass = self.symbol_table.create_token_subclass(

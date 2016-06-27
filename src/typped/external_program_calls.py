@@ -101,6 +101,14 @@ def getParentDirectory(path):
     return os.path.abspath(os.path.join(path, os.path.pardir))
 
 
+def getGrandparentDirectory(path):
+    """Like os.path.dirname except it returns the absolute name of the parent
+    of the dirname directory.  No symbolic link expansion (os.path.realpath)
+    or user expansion (os.path.expanduser) is done."""
+    if not os.path.isdir(path): path = os.path.dirname(path)
+    return os.path.abspath(os.path.join(path, os.path.pardir, os.path.pardir))
+
+
 def globIfWindowsOs(path, exactNumArgs=False):
     """Expands any globbing if systemOs is Windows (DOS doesn't do it).  The
     argument exactNumFiles can be set to an integer to check for an exact

@@ -52,7 +52,7 @@ def define_default_tokens(lex_or_pp):
     #pp.define_infix_operator("caret", "^") 
 
 def define_comment_to_EOL_token(lex_or_pp, begin_string):
-    # Note that comment_to_endline is non-greedy due to *? symbol.
+    # Note that comment_to_endline is non-greedy due to *? symbo.
     lex_or_pp.define_token("comment_to_EOL", r"{0}.*?[\n]"
                            .format(begin_string), ignore=True)
 

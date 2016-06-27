@@ -1,20 +1,6 @@
 
-Dispatching Pratt Parser (DiPP)
-===============================
-
-NAMES?
-
-* Typped: A typed Pratt Parser employing dispatching (TyPPeD, Typped) - for typed languages
-* Pratt parser with conditioned dispatching (PPCD).
-
-* Dispatching Pratt Parser (DiPP)
-* Preconditioned Dispatching Pratt Parser (PDPP)
-* Pratt parser with conditioned dispatching of handlers (PPCDH).
-* Pratt parser with preconditioned handler dispatching (PP-PHD).
-* Pratt parser with conditional dispatching (PPCD).
-* Pratt parser with dispatched handlers (PPDH).
-* Preconditioned Handler Dispatching Pratt Parser PHDPP
-* Typed Pratt Parser TyPP
+Pratt parsing
+=============
 
 What is a Pratt parser?
 -----------------------
@@ -729,7 +715,7 @@ type for a function will be called the function's **type specification** or a
 of a function will be called the function's **type signature** or a **type
 sig**.  A type sig either matches a type spec or not (either exactly or via the
 use of defined conversions).  These are represented in the program as instances
-of the class ``TypeSpec`` and the class ``TypeSig`` (both derived from the
+of the class ``TypeSpec`` and the class ``TypeSpec`` (both derived from the
 class ``FunctionTypes``).
 
 Recall that function overloading is implemented with respect to the type spec
@@ -746,7 +732,7 @@ In the implementation a head is defined for literal tokens by ``define_token``.
 The method takes an argument ``val_type``.  Note that now whenever the
 ``val_type`` is set for the *node* it should be for an *instance* of the type
 specifier.  Perhaps it should be called ``val_type_actual``, or else just set
-the full ``TypeSig`` and specify that the can only contain instances.  Then,
+the full ``TypeSpec`` and specify that the can only contain instances.  Then,
 all the literals have instances set for them as ``val_type_actual``.  Going up
 the parse tree, the higher nodes look down at the ``val_type_actual`` values of
 their children to obtain the actual types of the type specifiers.
@@ -781,7 +767,7 @@ their children to obtain the actual types of the type specifiers.
    multiplication can be parameterized to ensure at parse-time that both matrix
    arguments are conformable for multiplication::
 
-      mmult_sig = TypeSig(t_matrix,  # return type
+      mmult_sig = TypeSpec(t_matrix,  # return type
                          (t_matrix,  # arg 1
                           t_matrix), # arg 2
                           test_fun=conformable_test_fun)  # a test to apply
@@ -853,12 +839,11 @@ and then the index within the parameter value.
 Comparing type signatures
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-We have both actual type signatures, and defined type signatures.  They
-are both represented as a ``TypeSig`` object.  We need to be able to
-check that the ``TypeSig`` for the actual arguments matches the defined
-``TypeSig`` for the function (perhaps performing conversion).  We also
-need to choose which type signature to use if multiple conversions are
-possible.
+We have both actual type signatures, and defined type signatures.  They are
+both represented as a ``FunctionType`` object.  We need to be able to check
+that the ``ActualTypes`` for the actual arguments matches the defined
+``TypeSpec`` for the function (perhaps performing conversion).  We also need to
+choose which type signature to use if multiple conversions are possible.
 
 Juxtaposition operators (jop)
 -----------------------------

@@ -17,7 +17,7 @@ def define_whitespace_tokens(lex_or_pp):
 
 def define_basic_tokens(lex_or_pp):
     define_whitespace_tokens(lex_or_pp)
-    #lex_or_pp.define_begin_and_end_tokens("begin", "end")
+    lex_or_pp.def_begin_end_tokens("begin", "end")
     lex_or_pp.def_token("number", r"\d+")
     lex_or_pp.def_token("imag_number", r"\d+[i]")
     lex_or_pp.def_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.

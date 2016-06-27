@@ -58,7 +58,8 @@ def define_basic_tokens(lexer_or_parser):
     # alias for **.
 
 def define_identifier_token(lexer_or_parser):
-    # The last part of below only needs \w, but good example of pattern.
+    # The last part of below only needs \w, but commented-out line is a good
+    # example of using a pattern.
     #lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
     lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
@@ -88,7 +89,7 @@ def define_syntax(parser):
     #parser.def_stdfun_lpar_tail("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
 
     parser.def_infix_op("op_add", "k_plus", 10, Assoc.left)
-    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left)
+    parser.def_infix_op("op_subtract", "k_minus", 10, Assoc.left)
 
     parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left)
     parser.def_infix_op("op_divide", "k_fslash", 20, Assoc.left)
@@ -233,7 +234,7 @@ def test_types_mixed_numerical_bool_expressions():
     # setup
     Assoc = pratt_parser.Assoc # Enum for association.
     TypeError = pratt_parser.TypeError
-    TypeSpec = pratt_parser.TypeSpec
+    TypeSig = pratt_parser.TypeSig
 
     parser = pratt_parser.PrattParser()
     define_default_tokens(parser)
@@ -314,9 +315,9 @@ def test_types_mixed_numerical_bool_expressions():
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
     assert tree.children[0].token_label == "f_bn2n"
-    assert tree.children[0].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[1].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
@@ -325,9 +326,9 @@ def test_types_mixed_numerical_bool_expressions():
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
-    assert tree.children[0].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSpec('t_number', ('t_number', 't_bool'))
+    assert tree.children[1].type_sig == TypeSig("t_number", ("t_number", "t_bool"))
     with raises(TypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
@@ -353,7 +354,7 @@ def test_types_overloaded_return():
     # setup
     Assoc = pratt_parser.Assoc # Enum for association.
     TypeError = pratt_parser.TypeError
-    TypeSpec = pratt_parser.TypeSpec
+    TypeSig = pratt_parser.TypeSig
 
     parser = pratt_parser.PrattParser(overload_on_ret_types=True)
     define_default_tokens(parser)
@@ -432,9 +433,9 @@ def test_types_overloaded_return():
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
     assert tree.children[0].token_label == "f_bn2n"
-    assert tree.children[0].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[1].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
@@ -443,9 +444,9 @@ def test_types_overloaded_return():
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
-    assert tree.children[0].type_sig == TypeSpec('t_number', ('t_bool', 't_number'))
+    assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSpec('t_number', ('t_number', 't_bool'))
+    assert tree.children[1].type_sig == TypeSig("t_number", ("t_number", "t_bool"))
     with raises(TypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
@@ -486,9 +487,4 @@ def test_types_overloaded_return():
         parser.parse("f_nb2b(f_nb2b(2, f_nb2b(1,False)), 3)")
     assert str(e.value).startswith("Token node has multiple signatures with")
 
-#def setup_module(module):
-#    """setup module"""
-#
-#def teardown_module(module):
-#    """teardown module"""
 

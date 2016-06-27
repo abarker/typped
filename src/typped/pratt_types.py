@@ -1,11 +1,24 @@
 # -*- coding: utf-8 -*-
+"""
+
+Terminology:
+
+- Function "parameters" or "formal arguments" are the identifiers which appear
+  in the function definition (and the function signature).  The type
+  specifications for parameters will be called "formal types."
+
+- Function "arguments" or "actual arguments" are the values which are actually
+  passed to the function on a function call.  Their types will be referred to
+  as "actual types."
+
+Note that the formal type of a parameter can possibly match more than one
+actual type.  At least one must match, however.
+
+"""
+
 from __future__ import print_function, division, absolute_import
 import sys
 from enum_wrapper import Enum
-
-# TODO: recall the distinction between formal and actual parameters.  Python
-# calls these parameters and arguments, respectively.  Useful for naming
-# some classes here?
 
 
 class TypeObject(object):
@@ -23,15 +36,17 @@ class TypeObject(object):
 
 
 class FunctionTypes(object):
-    """This is essentially a tuple `(val_type, arg_types)`.  This container is
-    the base class for both the TypeSig and TypeSpec classes.  (The first one
-    holds actual instantiated types in its slots while the second one can have
-    parameterized types in its slots.)
+    """This object is essentially just a tuple `(val_type, arg_types)`, where
+    `val_type` is hashable and `arg_types ` is a list.  This container is the
+    base class for both the `ActualTypes` and `TypeSig` classes.  The first
+    one holds actual types (always instantiated if parameterized) in its slots
+    while the second one represents the formal types and can have parameterized
+    types in its slots.
     
     For the purposes of comparison these objects are equivalent to the tuple
-    form.  Making a separate class allows additional information to be stored
-    with the tuple and produces better error messages.  The class also provides
-    a convenient place to localize some routines that operate on type
+    form.  Making a separate class allows for additional information to be
+    stored with the tuple and produces better error messages.  The class also
+    provides a convenient place to localize some routines which operate on type
     signatures and lists of type signatures.
     
     Note that `None` is a wildcard which matches any type, and `None` for the
@@ -84,7 +99,7 @@ class FunctionTypes(object):
         all_sigs_expanded = []
         for sig in sig_list:
             if sig.arg_types is None:
-                new_sig = TypeSpec(sig.val_type, (None,)*num_args)
+                new_sig = TypeSig(sig.val_type, (None,)*num_args)
             else: new_sig = sig
             all_sigs_expanded.append(new_sig)
         return all_sigs_expanded
@@ -103,7 +118,7 @@ class FunctionTypes(object):
                 if not repeat_args: continue
                 if num_actual_args % sig_args_len != 0: continue
                 num_repeats = num_actual_args // sig_args_len
-                sig = TypeSpec(sig.val_type, sig.arg_types * num_repeats)
+                sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
             sigs_matching_numargs.append(sig)
 
         if raise_err_on_empty and not sigs_matching_numargs:
@@ -158,22 +173,24 @@ class FunctionTypes(object):
     def __ne__(self, sig):
         return not self.__eq__(sig)
     def __repr__(self): 
-        return "TypeSpec('{0}', {1})".format(self.val_type, self.arg_types)
+        return "TypeSig('{0}', {1})".format(self.val_type, self.arg_types)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         return hash((self.val_type, self.arg_types))
 
 
+class ActualTypes(FunctionTypes):
+    """The actual type signature for a function, holding actual types.  Set from
+    the types of the function call arguments."""
+    def __init__(self, val_type=None, arg_types=None, test_fun=None):
+        super(ActualTypes, self).__init__(val_type, arg_types, test_fun)
+
+
 class TypeSig(FunctionTypes):
-    """The actual type signature for a function, holding actual types."""
+    """The formal type specification for a function; may have parameterized types, etc.
+    Set at function definition."""
     def __init__(self, val_type=None, arg_types=None, test_fun=None):
         super(TypeSig, self).__init__(val_type, arg_types, test_fun)
-
-
-class TypeSpec(FunctionTypes):
-    """The type specification for a function; may have parameterized types."""
-    def __init__(self, val_type=None, arg_types=None, test_fun=None):
-        super(TypeSpec, self).__init__(val_type, arg_types, test_fun)
 
 
 def create_type_template():
@@ -182,10 +199,15 @@ def create_type_template():
     called directly.  Use the `create_typeobject_subclass` method of
     `TypeTemplateTable` instead (which creates a subclass, adds some
     attributes, and saves it in a dict).  End users should use the
-    `define_type` method of a `PrattParser` instance, which calls
+    `def_type` method of a `PrattParser` instance, which calls
     `create_typeobject_subclass`.  The `template_subclass_fun` keyword argument
     in the initializer `TypeTemplateTable` can be used to change the function
     which is called."""
+
+    # TODO: Consider.  Should a TypeTemplate be a callable object, which takes
+    # arguments which possibly instantiate some of the parameters?????  Does this
+    # work nicely with using the TypeSig(...) call in the definitions of functions
+    # and arguments in the PrattParser?
 
     class TypeTemplate(TypeObject):
         """Instances of this object are used to represent types in the parsed
@@ -200,7 +222,7 @@ def create_type_template():
             if conversions: self.conversions = conversions
             else: self.conversions = {} # Dict keyed by to_type values.
 
-        def define_conversion(self, to_type, priority=0, tree_data=None):
+        def def_conversion(self, to_type, priority=0, tree_data=None):
             """Define an automatic conversion to be applied to the `TypeObject`
             instance, to convert it to type `to_type`.  The highest-priority
             conversion which matches the type spec will always be the one which is
@@ -208,7 +230,7 @@ def create_type_template():
             negative.  Raises `TypeError` if there is still ambiguity (i.e., a
             tie).  The `tree_data` parameter is an arbitrary object which is
             associated with the conversion and will be accessible from the
-            `TypeSpec` stored in the parse tree.  It might be a Python function to
+            `TypeSig` stored in the parse tree.  It might be a Python function to
             actually do the conversion, for example.  Or it might be a node to add
             to the AST to represent the conversion.  No actual conversions are
             performed; those are considered semantic actions for the user to
@@ -220,7 +242,7 @@ def create_type_template():
             # then you have to rank the full signatures across all types in
             # them.
             self.conversions[to_type] = (priority, tree_data)
-        def undefine_conversion(self, to_type):
+        def undef_conversion(self, to_type):
             try: del self.conversions[to_type]
             except KeyError: return
         def __eq__(self, typeobject):
@@ -242,8 +264,10 @@ def create_type_template():
 
 
 class TypeTemplateTable(object):
-    """A symbol table holding subclasses of the `TypeObject` class for each
-    defined type in the language."""
+    """A symbol table holding subclasses of the `TypeObject` class, one for each
+    defined type in the language.  Each `PrattParser` instance has such a table,
+    which holds the objects which represent each type defined in the language
+    that the particular parser parses."""
     aliases = {} # A static dict mapping defined aliases to TypeObjects. TODO
     def __init__(self, template_subclass_fun=create_type_template):
         """Initialize the symbol table.  The parameter `token_subclassing_fun`
@@ -293,14 +317,11 @@ class TypeTemplateTable(object):
         self.type_template_dict[type_name] = TypeObjectSubclass
         return TypeObjectSubclass
 
-    def undefine_typeobject_subclass(self, type_name):
+    def undef_typeobject_subclass(self, type_name):
         """Un-define the token with label type_name.  The TokenNode subclass
         previously associated with that label is removed from the dictionary."""
         try: del self.type_template_dict[type_name]
         except KeyError: return # Not saved in dict, ignore.
-
-
-
 
 if __name__ == "__main__":
     import pytest_helper
