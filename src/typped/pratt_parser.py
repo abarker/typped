@@ -5,47 +5,48 @@ A general Pratt parser module.
 
 To use the `PrattParser` class you need to do these things:
 
-    - Create an instance of the PrattParser class.  Example::
+    1. Create an instance of the PrattParser class.  Example::
 
           parser = PrattParser()
  
-    - Define each token that will appear in the language, including a string
-      label and a regex for that kind of token.  If necessary, the appropriate
-      `on_ties` values should be set to break ties in case of equal match
-      lengths (the lexer will always take the longest, with ties broken by
-      any `on_ties` values, defaulting to zero).  Examples::
+    2. Define each token that will appear in the language, including a string
+       label and a regex for to recognize that kind of token.  If necessary,
+       the appropriate `on_ties` values can be set to break ties in case of equal
+       match lengths (the lexer will always take the longest match over all the
+       defined tokens, with ties broken by any `on_ties` values, defaulting to zero).
+       Examples::
 
           parser.def_token("k_number", r"\d+")
           parser.def_token("k_lpar", r"\(")
           parser.def_token("k_ast", r"\*")
           parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
     
-    - Define the syntactical elements of the language that you are parsing.
-      Any necessary token labels must have already been defined in the previous
-      step.  The predefined syntax-definition methods of `PrattParser` take as
-      arguments token labels, type information, etc.  They also take a string
-      as a label for the resulting AST node (but this label can be used in any
-      way desired, including in preconditions).  Examples::
+    3. Define the syntactical elements of the language that you are parsing.
+       Any necessary token labels must have already been defined in the previous
+       step.  The predefined syntax-definition methods of `PrattParser` take as
+       arguments token labels, type information, etc.  They also take a string
+       as a label for the resulting AST node (but this label can be used in any
+       way desired, including in preconditions).  Examples::
 
           parser.def_literal("l_number", "k_number", val_type="t_number")
           parser.def_infix_op("k_add", "l_plus", 10, Assoc.left,
                            val_type="number", arg_types=["t_number","t_number"])
 
-      If the predefined methods are not sufficient you might need to create a
-      subclass of `PrattParser` to provide additional methods.  Note that
-      literals must be defined as syntax, in addition to being defined as
-      tokens.  If typing is to be used then any type information should also be
-      set for the syntax elements.
+       If the predefined methods are not sufficient you might need to create a
+       subclass of `PrattParser` to provide additional methods.  Note that
+       literals must be defined as syntax, in addition to being defined as
+       tokens.  If typing is to be used then any type information should also be
+       set for the syntax elements.
 
-    - Pass the parser a string of text to parse and save the resulting token
+    4. Pass the parser a string of text to parse and save the resulting token
       tree. ::
 
           result_tree = parser.parse("x + (4 + 3)*5")
           print(result_tree.tree_repr())
 
-    - You can optionally evaluate the resulting tree (if evaluate functions
-      were supplied as kwargs for the appropriate methods) or convert it to an
-      AST with a different type of nodes. ::
+    5. You can optionally evaluate the resulting tree (if evaluate functions
+       were supplied as kwargs for the appropriate methods) or convert it to an
+       AST with a different type of nodes. ::
 
           eval_result = result_tree.evaluate_subtree()
           ast = result_tree.convert_to_AST(TokenNode_to_AST_converter_fun)
@@ -1227,20 +1228,22 @@ class PrattParser(object):
 
     @staticmethod
     def recursive_parse(lex, subexp_prec):
+
         """Parse a subexpression as defined by token precedences. Return the
         result of the evaluation.  Recursively builds up the final result in
         `processed_left`, which is the tree for the part of the full expression
-        to the left.  It is a static method so it can be called from head and
-        tail functions.  Note that the functions `head_dispatcher` and
-        `tail_dispatcher` which are called in the code often recursively call
-        `recursive_parse` again.  Each recursive call inside the function
-        processes a sub-subexpression, again as defined by the token precedences.
-        The list `lookbehind` saves all the previously evaluated subexpressions
-        at this level of recursion (i.e., at the top level in the same
-        subexpression) and passes it to the tail_dispatcher method of the
-        tokens, in case that routine wants to make use of it.  For example, the
-        ordinal position of the token in the top level of the subexpression can
-        be calculated from the length of `lookbehind`."""
+        to the left of the current token.  This is a static method so that it
+        can be called from head and tail functions.  Note that the functions
+        `head_dispatcher` and `tail_dispatcher` which are called in the code
+        often recursively call `recursive_parse` again.  Each recursive call
+        inside the function processes a subexpression, sub-subexpression, etc.
+        (as implicitly defined by the token precedences).  The list
+        `lookbehind` saves all the previously evaluated subexpressions at this
+        level of recursion (i.e., at the top level in the same subexpression)
+        and passes it to the `tail_dispatcher` method of the tokens, in case
+        that routine wants to make use of it.  For example, the ordinal
+        position of the token in the top level of the subexpression can be
+        calculated from the length of `lookbehind`."""
 
         # NOTE that with a good, efficient pushback function the modifiable
         # prec for different handler functions might be doable: just do a next

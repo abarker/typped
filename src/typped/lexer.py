@@ -16,7 +16,9 @@ import collections
 #
 
 class TokenNode(object):
-    """The base class for token objects."""
+    """The base class for token objects.  Each different kind of token is represented
+    by a subclass of this class.  Instances of the tokens in the program text are
+    represented by instances of the subclass for that kind of token."""
     token_label = None # A label for subclasses representing kinds of tokens.
 
     def __init__(self):
@@ -76,17 +78,24 @@ class TokenNode(object):
     #
 
     def value_repr(self):
+        """Token representation as its value."""
         return str(self.value)
     def label_repr(self):
+        """Token representation as its token label."""
         return str(self.token_label)
     def summary_repr(self):
+        """Token representation as a summarizing string containing both the label and
+        the value."""
         return "<" + str(self.token_label) + "," + str(self.value) + ">"
     def tree_repr(self, indent=""):
+        """Token representation as the root of a parse subtree."""
         string = indent + self.summary_repr() + "\n"
         for c in self.children:
             string += c.tree_repr(indent=indent+" "*4)
         return string
     def string_repr(self, only_vals=False, only_labels=False):
+        """Token representation as the root of a parse subtree, in a string format.
+        This is the default representation, used for `__repr__`."""
         string = self.summary_repr()
         if only_vals: string = self.value_repr()
         if only_labels: string = self.label_repr()
@@ -111,23 +120,24 @@ class TokenNode(object):
 
 
 def create_token_subclass():
-
     """Create and return a new token subclass representing tokens with label
-    `token_label`.  This is called from the `create_token_subclass` method  of
-    `TokenSubclassSymbolTable` when it needs to create a new one to start with.
-    This function should not be called directly, since attributes (like the
-    token label and a new subclass name) need to be added to the generated
-    subclass.
+    `token_label`.  This function is called from the `create_token_subclass`
+    method  of `TokenSubclassSymbolTable` when it needs to create a new one to
+    start with.  This function **should not be called directly**, since
+    additional attributes (such as the token label and a new subclass name)
+    also need to be added to the generated subclass.
     
     This function is the default argument to the `token_subclassing_fun`
     keyword argument of the initializer for `TokenSubclassSymbolTable`.  Users
-    can define their own such function in order to add methods particular to
-    their application (the PrattParser class does this).
+    can define their own such function in order to add methods to token objects
+    which are particular to their own application (the `PrattParser` class does
+    this, for example).
 
-    Using a separate subclass for each token label allows for attributes and
-    methods specific to a kind of token to be pasted onto the class itself
-    without conflicts.  For example, the PrattParser subclass adds nud and led
-    methods which are specific to a given token label."""
+    Note that using a separate subclass for each token label allows for
+    attributes and methods specific to a kind of token to be pasted onto the
+    class itself without conflicts.  For example, the `PrattParser` subclass
+    adds head handler and tail handler methods which are specific to a given
+    token label."""
 
     class TokenSubclass(TokenNode):
         def __init__(self, value):
@@ -141,9 +151,10 @@ def create_token_subclass():
 #
 
 class TokenSubclassSymbolTable(object):
-    """This is mainly used by the `Lexer` class.  A symbol table holding
-    subclasses of the `TokenNode` class for each token label defined in a `Lexer`
-    instance."""
+    """A symbol table holding subclasses of the `TokenNode` class for each token label
+    defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
+    class to save the subclasses for the kinds of tokens which have been defined for
+    it."""
     def __init__(self, token_subclassing_fun=create_token_subclass):
         """Initialize the symbol table.  The parameter `token_subclassing_fun`
         can be passed a function to be used to generate token subclasses,
@@ -577,7 +588,8 @@ class Lexer(object):
         `default_begin_end_tokens` was set false on initialization.  Returns a
         tuple of the new begin and end token subclasses.  These tokens do not
         need to be defined with `def_token` because they are never actually
-        scanned in the program text (which would require the regex pattern)."""
+        scanned and recognized in the program text (which would also require a
+        regex pattern)."""
 
         # Define begin token.
         self.begin_token_label = begin_token_label
