@@ -13,10 +13,11 @@ import pratt_parser
 # Lexer:
 #    tokens:    k_number
 # Syntax:
-#    literals:  l_number
 #    types:     t_int
 #    operators: op_add
 #    otherwise: no currently defined prefix
+# AST nodes:
+#    a_number
 # Semantics:
 #    eval fun:  e_add
 
@@ -82,26 +83,26 @@ def define_syntax(parser):
     Assoc = pratt_parser.Assoc # Enum for association.
 
     # Literals
-    parser.def_literal("l_number", "k_number")
-    parser.def_literal("l_imag_number", "k_imag_number")
-    parser.def_literal("l_variable", "k_identifier")
+    parser.def_literal("a_number", "k_number")
+    parser.def_literal("a_imag_number", "k_imag_number")
+    parser.def_literal("a_variable", "k_identifier")
 
     # Operators
-    parser.def_stdfun_lookahead("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma") 
-    #parser.def_stdfun_lpar_tail("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
+    parser.def_stdfun_lookahead("a_stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma") 
+    #parser.def_stdfun_lpar_tail("a_stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
 
-    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left)
-    parser.def_infix_op("op_subtract", "k_minus", 10, Assoc.left)
+    parser.def_infix_op("a_op_add", "k_plus", 10, Assoc.left)
+    parser.def_infix_op("a_op_subtract", "k_minus", 10, Assoc.left)
 
-    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left)
-    parser.def_infix_op("op_divide", "k_fslash", 20, Assoc.left)
+    parser.def_infix_op("a_op_mult", "k_ast", 20, Assoc.left)
+    parser.def_infix_op("a_op_divide", "k_fslash", 20, Assoc.left)
 
-    parser.def_prefix_op("op_positive", "k_plus", 100)
-    parser.def_prefix_op("op_negative", "k_minus", 100)
+    parser.def_prefix_op("a_op_positive", "k_plus", 100)
+    parser.def_prefix_op("a_op_negative", "k_minus", 100)
 
-    parser.def_postfix_op("op_factorial", "k_bang", 100, allow_ignored_before=False)
+    parser.def_postfix_op("a_op_factorial", "k_bang", 100, allow_ignored_before=False)
 
-    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right)
+    parser.def_infix_op("a_op_exp", "k_double_ast", 30, Assoc.right)
 
     parser.def_multi_infix_op("test", ["k_question", "k_colon"], 90, Assoc.right)
 
@@ -208,7 +209,7 @@ def test_jop(basic_setup):
 
     print("parser symbol table is", parser.symbol_table.token_subclass_dict.keys())
     parser.def_jop_token("k_jop", "k_space")
-    parser.def_jop("op_mult", 20, Assoc.left)
+    parser.def_jop("a_op_mult", 20, Assoc.left)
     expr = "5  9"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
@@ -235,7 +236,7 @@ def test_types_mixed_numerical_bool_expressions():
     only overloading on argument types."""
     # setup
     Assoc = pratt_parser.Assoc # Enum for association.
-    TypeError = pratt_parser.TypeError
+    ParserTypeError = pratt_parser.ParserTypeError
     TypeSig = pratt_parser.TypeSig
 
     parser = pratt_parser.PrattParser()
@@ -247,17 +248,17 @@ def test_types_mixed_numerical_bool_expressions():
     parser.def_type("t_bool")
 
     # define initial syntax
-    parser.def_literal("l_number", "k_number", val_type="t_number")
-    parser.def_literal("l_variable", "k_identifier", val_type="t_number")
-    parser.def_stdfun_lookahead("op_exp", "k_exp",
+    parser.def_literal("a_number", "k_number", val_type="t_number")
+    parser.def_literal("a_variable", "k_identifier", val_type="t_number")
+    parser.def_stdfun_lookahead("a_op_exp", "k_exp",
                  "k_lpar", "k_rpar", "k_comma", val_type="t_number", arg_types=["t_number"])
-    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left,
+    parser.def_infix_op("a_op_add", "k_plus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left,
+    parser.def_infix_op("a_op_subtract", "k_minus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left,
+    parser.def_infix_op("a_op_mult", "k_ast", 20, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right,
+    parser.def_infix_op("a_op_exp", "k_double_ast", 30, Assoc.right,
                          val_type="t_number", arg_types=["t_number","t_number"])
 
     # run simple tests with just one type
@@ -271,46 +272,46 @@ def test_types_mixed_numerical_bool_expressions():
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
     parser.def_token("k_false", r"False")
-    parser.def_literal("l_true", "k_true", val_type="t_bool")
-    parser.def_literal("l_false", "k_false", val_type="t_bool")
+    parser.def_literal("a_true", "k_true", val_type="t_bool")
+    parser.def_literal("a_false", "k_false", val_type="t_bool")
     # define some new functions, first giving them unique tokens (required for
     # types to work correctly????????????? what are requirements?  where is
     # type info stored exactly, to see what can conflict?)
     # define a function taking t_bool and t_number args returning t_number
     parser.def_token("f_bn2n", r"f_bn2n")
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
     parser.def_token("f_nb2b", r"f_nb2b")
-    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("a_test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_bool", arg_types=["t_number", "t_bool"])
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(100,100)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,100)+False")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
     # more functions
 
-    # parser.def_literal("l_true", "k_true", val_type="t_bool") # redefinition
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    # parser.def_literal("a_true", "k_true", val_type="t_bool") # redefinition
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
     parser.def_token("g_bn2n", r"g_bn2n")
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
@@ -323,7 +324,7 @@ def test_types_mixed_numerical_bool_expressions():
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
@@ -331,21 +332,21 @@ def test_types_mixed_numerical_bool_expressions():
     assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].type_sig == TypeSig("t_number", ("t_number", "t_bool"))
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
     # test multiple matches without fun overloading: give f_nb2b a number return version
-    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("a_test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_bool"])
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Actual argument types match multiple signatures.")
 
@@ -355,7 +356,7 @@ def test_types_overloaded_return():
     return types."""
     # setup
     Assoc = pratt_parser.Assoc # Enum for association.
-    TypeError = pratt_parser.TypeError
+    ParserTypeError = pratt_parser.ParserTypeError
     TypeSig = pratt_parser.TypeSig
 
     parser = pratt_parser.PrattParser(overload_on_ret_types=True)
@@ -367,17 +368,17 @@ def test_types_overloaded_return():
     parser.def_type("t_bool")
 
     # define initial syntax
-    parser.def_literal("l_number", "k_number", val_type="t_number")
-    parser.def_literal("l_variable", "k_identifier", val_type="t_number")
-    parser.def_stdfun_lookahead("op_exp", "k_exp",
+    parser.def_literal("a_number", "k_number", val_type="t_number")
+    parser.def_literal("a_variable", "k_identifier", val_type="t_number")
+    parser.def_stdfun_lookahead("a_op_exp", "k_exp",
                  "k_lpar", "k_rpar", "k_comma", val_type="t_number", arg_types=["t_number"])
-    parser.def_infix_op("op_add", "k_plus", 10, Assoc.left,
+    parser.def_infix_op("a_op_add", "k_plus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_subract", "k_minus", 10, Assoc.left,
+    parser.def_infix_op("a_op_subtract", "k_minus", 10, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_mult", "k_ast", 20, Assoc.left,
+    parser.def_infix_op("a_op_mult", "k_ast", 20, Assoc.left,
                          val_type="t_number", arg_types=["t_number","t_number"])
-    parser.def_infix_op("op_exp", "k_double_ast", 30, Assoc.right,
+    parser.def_infix_op("a_op_exp", "k_double_ast", 30, Assoc.right,
                          val_type="t_number", arg_types=["t_number","t_number"])
 
     # run simple tests with just one type
@@ -391,44 +392,44 @@ def test_types_overloaded_return():
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
     parser.def_token("k_false", r"False")
-    parser.def_literal("l_true", "k_true", val_type="t_bool")
-    parser.def_literal("l_false", "k_false", val_type="t_bool")
+    parser.def_literal("a_true", "k_true", val_type="t_bool")
+    parser.def_literal("a_false", "k_false", val_type="t_bool")
     # define some new functions, first giving them unique tokens
     # define a function taking t_bool and t_number args returning t_number
     parser.def_token("f_bn2n", r"f_bn2n")
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
     parser.def_token("f_nb2b", r"f_nb2b")
-    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("a_test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_bool", arg_types=["t_number", "t_bool"])
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(100,100)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,100)+False")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
     # more functions
 
-    # parser.def_literal("l_true", "k_true", val_type="t_bool") # redefinition
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "f_bn2n",
+    # parser.def_literal("a_true", "k_true", val_type="t_bool") # redefinition
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "f_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
     parser.def_token("g_bn2n", r"g_bn2n")
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_bool","t_number"])
 
@@ -441,7 +442,7 @@ def test_types_overloaded_return():
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.def_stdfun_lookahead("test_fun_bool_number_to_number", "g_bn2n",
+    parser.def_stdfun_lookahead("a_test_fun_bool_number_to_number", "g_bn2n",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number","t_bool"])
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
@@ -449,22 +450,22 @@ def test_types_overloaded_return():
     assert tree.children[0].type_sig == TypeSig("t_number", ("t_bool", "t_number"))
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].type_sig == TypeSig("t_number", ("t_number", "t_bool"))
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
     # overload f_nb2b with a version that returns a number
     print("========== defining first overload of f_nb2b")
-    parser.def_stdfun_lookahead("test_fun_number_bool_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("a_test_fun_number_bool_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_bool"])
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_nb2b(1,False)") # fails since two possibilities
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # with return type overloading this should again work if we add to a number,
@@ -473,11 +474,11 @@ def test_types_overloaded_return():
                                  "(<f_nb2b,f_nb2b>(<k_number,1>,<k_false,False>),<k_number,5>)"
 
     # overload f_nb2b again, to also take two number arguments
-    parser.def_stdfun_lookahead("test_fun_number_number_to_bool", "f_nb2b",
+    parser.def_stdfun_lookahead("a_test_fun_number_number_to_bool", "f_nb2b",
                                "k_lpar", "k_rpar", "k_comma",
                                val_type="t_number", arg_types=["t_number", "t_number"])
     # now args are ambiguous in this order
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_nb2b(4, f_nb2b(4,False))")
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # but this order should be OK
@@ -485,7 +486,7 @@ def test_types_overloaded_return():
                               "(<f_nb2b,f_nb2b>(<k_number,4>,<k_false,False>),<k_number,4>)"
     # trigger the same message as before at lower level in tree, get 'parent expects'
     # err msg rather than just 'ambiguous' err msg which haparserens at the root
-    with raises(TypeError) as e:
+    with raises(ParserTypeError) as e:
         parser.parse("f_nb2b(f_nb2b(2, f_nb2b(1,False)), 3)")
     assert str(e.value).startswith("Token node has multiple signatures with")
 

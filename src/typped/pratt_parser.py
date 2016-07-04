@@ -323,7 +323,7 @@ def create_token_subclass():
                 prev_type_sigs = []
 
             if prev_handler_list and not self.parser_instance.overload_on_arg_types:
-                raise TypeError("Value of self.overload_on_arg_types is False but "
+                raise ParserTypeError("Value of self.overload_on_arg_types is False but "
                        "attempt to redefine and possibly set multiple signatures for "
                        "the {0} function for token with label '{1}' with "
                        "preconditions label '{2}'."
@@ -650,7 +650,7 @@ def create_token_subclass():
                          "are {4}.".format(self.value, self.token_label,
                              tuple(c.summary_repr() for c in self.children),
                              tuple(c.val_type for c in self.children), matching_sigs))
-            raise TypeError(basic_msg + diagnostic)
+            raise ParserTypeError(basic_msg + diagnostic)
 
         #
         # Evaluations and semantic actions.
@@ -1289,7 +1289,7 @@ class ParserException(Exception):
     """General parser errors."""
     pass
 
-class TypeError(ParserException):
+class ParserTypeError(ParserException):
     """Error in type matching."""
     pass
 
