@@ -4,7 +4,7 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path(add_parent=True)
+pytest_helper.sys_path("../src/typped")
 
 import pratt_parser
 
@@ -81,10 +81,12 @@ def define_comment_to_EOL_token(lexer_or_parser, begin_string):
 def define_syntax(parser):
     Assoc = pratt_parser.Assoc # Enum for association.
 
+    # Literals
     parser.def_literal("l_number", "k_number")
     parser.def_literal("l_imag_number", "k_imag_number")
     parser.def_literal("l_variable", "k_identifier")
 
+    # Operators
     parser.def_stdfun_lookahead("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma") 
     #parser.def_stdfun_lpar_tail("stdfun", "k_identifier", "k_lpar", "k_rpar", "k_comma", 20) # 20 is prec of (
 
@@ -130,7 +132,7 @@ def run_and_print(ast_table, parser, prog):
         print(ast.tree_repr())
 
 def run_local_tests():
-    ast_table = pratt_parser.AST_NodeTable()
+    ast_table = pratt_parser.AST_NodeDict()
     parser = pratt_parser.PrattParser()
     define_default_tokens(parser)
     define_syntax(parser)

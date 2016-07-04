@@ -53,7 +53,7 @@ def genRandomRegex(maxLength, maxNumParts, seedPattern=None, seedExample=None):
 
     def genChars():
         strlen = rndPattern.randint(1, 3)
-        chars = string.letters + string.digits
+        chars = string.ascii_letters + string.digits
         charList = [rndPattern.choice(chars) for i in range(strlen)]
         s = "".join(charList)
         return (s, s, s)
@@ -61,7 +61,7 @@ def genRandomRegex(maxLength, maxNumParts, seedPattern=None, seedExample=None):
     def genWild():
         # TODO no ranges generated
         numChoices = rndPattern.randint(1, 5)
-        chars = string.letters + string.digits
+        chars = string.ascii_letters + string.digits
         charList = [rndPattern.choice(chars) for i in range(numChoices)]
         s = "".join(charList)
         ex = rndExample.choice(charList)

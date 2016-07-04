@@ -391,7 +391,7 @@ class BufferedRegexTrieDictLexer(object):
 if __name__ == "__main__":
 
     import pytest_helper
-    pytest_helper.script_run("test/test_regex_trie_dict_lexer.py", pytest_args="-v")
+    pytest_helper.script_run("../../test/test_regex_trie_dict_lexer.py", pytest_args="-v")
     
     # exit(0) # comment this out to test interactive
     print("\nTest interactive...\n")

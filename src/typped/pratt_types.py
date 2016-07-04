@@ -197,11 +197,11 @@ def create_type_template():
     """Return a subclass of `TypeObject` to represent a type template.  This
     routine can be redefined for particular applications, but should not be
     called directly.  Use the `create_typeobject_subclass` method of
-    `TypeTemplateTable` instead (which creates a subclass, adds some
+    `TypeTemplateDict` instead (which creates a subclass, adds some
     attributes, and saves it in a dict).  End users should use the
     `def_type` method of a `PrattParser` instance, which calls
     `create_typeobject_subclass`.  The `template_subclass_fun` keyword argument
-    in the initializer `TypeTemplateTable` can be used to change the function
+    in the initializer `TypeTemplateDict` can be used to change the function
     which is called."""
 
     # TODO: Consider.  Should a TypeTemplate be a callable object, which takes
@@ -263,7 +263,7 @@ def create_type_template():
     return TypeTemplate
 
 
-class TypeTemplateTable(object):
+class TypeTemplateDict(object):
     """A symbol table holding subclasses of the `TypeObject` class, one for each
     defined type in the language.  Each `PrattParser` instance has such a table,
     which holds the objects which represent each type defined in the language
@@ -325,5 +325,5 @@ class TypeTemplateTable(object):
 
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("test/test_pratt_types.py") # TODO no test file
+    pytest_helper.script_run("../../test/test_pratt_types.py") # TODO no test file
 

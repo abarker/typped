@@ -4,7 +4,7 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path(add_parent=True)
+pytest_helper.sys_path("../src/typped")
 
 from lexer import *
 
@@ -193,9 +193,9 @@ class TestLexer:
         with raises(StopIteration):
             lex.next()
 
-def setup_module(module):
-    """setup module"""
+#def setup_module(module):
+#    """setup module"""
 
-def teardown_module(module):
-    """teardown module"""
+#def teardown_module(module):
+#    """teardown module"""
 

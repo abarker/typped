@@ -435,5 +435,5 @@ class TrieDict(collections.MutableMapping):
 if __name__ == "__main__":
 
     import pytest_helper
-    pytest_helper.script_run("test/test_trie_dict.py", pytest_args="-v")
+    pytest_helper.script_run("../../test/test_trie_dict.py", pytest_args="-v")
 

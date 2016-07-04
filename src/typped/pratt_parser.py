@@ -75,10 +75,10 @@ import types
 import collections
 import inspect
 from enum_wrapper import Enum
-from lexer import (Lexer, TokenNode, TokenSubclassSymbolTable,
+from lexer import (Lexer, TokenNode, TokenSubclassDict,
                    BufferIndexError, LexerException)
 
-from pratt_types import TypeTemplateTable, TypeSig, ActualTypes
+from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
 
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
@@ -146,7 +146,7 @@ class AST_Node(object):
 # The init function itself could make subclasses of itself, store them
 # in a dict if desired, and return an instance -- but that seems weird.
 
-class AST_NodeTable(object):
+class AST_NodeDict(object):
     """The purpose of this class is to save the subclasses associated with
     various AST labels.  These are subclasses of the `AST_Node` class.  A
     token with an `ast_label` attribute can be passed to the `get_AST_node`
@@ -197,13 +197,13 @@ the basic, general methods that apply to tokens and nodes in token trees.
 Methods particular to an application need to be defined in a subclass.  The
 function `create_token_subclass` returns a subclass of `TokenNode` which
 represents tokens with a given token label.  The `PrattParser` class sets this
-function to be used by its `TokenSubclassSymbolTable` instance in order to
+function to be used by its `TokenSubclassDict` instance in order to
 create a token subclass for each kind of token.  Many methods particular to the
 `PrattParser` application are added to the subclass."""
 
 def create_token_subclass():
     """This function is called from the `create_token_subclass` method of
-    `TokenSubclassSymbolTable` when it needs to create a new subclass to begin
+    `TokenSubclassDict` when it needs to create a new subclass to begin
     with.  It should not be called directly.
     
     Create and return a new token subclass which will be modified and used
@@ -751,7 +751,7 @@ class PrattParser(object):
             self.lex = lexer
             self.symbol_table = lexer.symbol_table
         else: # No Lexer passed in.
-            self.symbol_table = TokenSubclassSymbolTable(
+            self.symbol_table = TokenSubclassDict(
                                    token_subclassing_fun=create_token_subclass)
             self.lex = Lexer(self.symbol_table,
                                          num_lookahead_tokens=num_lookahead_tokens,
@@ -763,7 +763,7 @@ class PrattParser(object):
         if type_table:
             self.type_table = type_table
         else:
-            self.type_table = TypeTemplateTable()
+            self.type_table = TypeTemplateDict()
         self.num_lookahead_tokens = num_lookahead_tokens
         self.lex.parser_instance = self # To access parser from a lex argument alone.
         preconditions_dict = {} # Registered parser-global preconditions functions.
@@ -930,7 +930,7 @@ class PrattParser(object):
 
     def def_type(self, type_name, type_params=None):
         """Define a type associated with the name `type_name`."""
-        self.type_table.create_typeobject_subclass(type_name, type_params)
+        return self.type_table.create_typeobject_subclass(type_name, type_params)
 
     def undef_type(self, type_name):
         self.type_table.undef_typeobject_subclass(type_name)
@@ -1304,5 +1304,5 @@ class NoHandlerFunctionDefined(ParserException):
 
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("test/test_pratt_parser.py", pytest_args="-v")
+    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
 

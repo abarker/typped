@@ -122,13 +122,13 @@ class TokenNode(object):
 def create_token_subclass():
     """Create and return a new token subclass representing tokens with label
     `token_label`.  This function is called from the `create_token_subclass`
-    method  of `TokenSubclassSymbolTable` when it needs to create a new one to
+    method  of `TokenSubclassDict` when it needs to create a new one to
     start with.  This function **should not be called directly**, since
     additional attributes (such as the token label and a new subclass name)
     also need to be added to the generated subclass.
     
     This function is the default argument to the `token_subclassing_fun`
-    keyword argument of the initializer for `TokenSubclassSymbolTable`.  Users
+    keyword argument of the initializer for `TokenSubclassDict`.  Users
     can define their own such function in order to add methods to token objects
     which are particular to their own application (the `PrattParser` class does
     this, for example).
@@ -150,7 +150,7 @@ def create_token_subclass():
 # Token subclass symbol table
 #
 
-class TokenSubclassSymbolTable(object):
+class TokenSubclassDict(object):
     """A symbol table holding subclasses of the `TokenNode` class for each token label
     defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
     class to save the subclasses for the kinds of tokens which have been defined for
@@ -241,14 +241,14 @@ class Lexer(object):
     def __init__(self, symbol_table=None, num_lookahead_tokens=2,
                  max_go_back_tokens=None, default_begin_end_tokens=False):
         """Initialize the Lexer.  Optional arguments set the
-        `TokenSubclassSymbolTable` to be used (default creates a new one), the
+        `TokenSubclassDict` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
         tokens that the `go_back` method can accept (default is unlimited).
         If `default_begin_end_tokens` is true then begin and end tokens will
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
-        if symbol_table is None: self.symbol_table = TokenSubclassSymbolTable()
+        if symbol_table is None: self.symbol_table = TokenSubclassDict()
         else: self.symbol_table = symbol_table
         self.ignore_tokens = set()
 
@@ -717,12 +717,12 @@ class Lexer(object):
         
         This is a lower-level function used by `next` to do the real work.  All
         the token subclasses should have been defined and stored in the the
-        `TokenSubclassSymbolTable`.  Regexes defined for tokens are repeatedly
+        `TokenSubclassDict`.  Regexes defined for tokens are repeatedly
         matched at the beinning of the string `program`.  When a winning_index
         is found it is stripped off the beginning of the unprocessed slice of
         `program` and the generator waits for the next call.  For each
         winning_index the token subclass is looked up in the
-        `TokenSubclassSymbolTable` object and an instance of that subclass is
+        `TokenSubclassDict` object and an instance of that subclass is
         yielded to represent the token.  Every token processed is represented
         by a unique new instance of the appropriate subclass of `TokenNode`.
         
@@ -843,5 +843,5 @@ class BufferIndexError(IndexError):
 
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("test/test_lexer.py", pytest_args="-v")
+    pytest_helper.script_run("../../test/test_lexer.py", pytest_args="-v")
 
