@@ -28,9 +28,10 @@ To use the `PrattParser` class you need to do these things:
        as a label for the resulting AST node (but this label can be used in any
        way desired, including in preconditions).  Examples::
 
-          parser.def_literal("l_number", "k_number", val_type="t_number")
-          parser.def_infix_op("k_add", "l_plus", 10, Assoc.left,
-                           val_type="number", arg_types=["t_number","t_number"])
+          parser.def_literal("k_number", val_type="t_number", ast_label="a_number")
+          parser.def_infix_op("k_plus", 10, Assoc.left,
+                           val_type="number", arg_types=["t_number","t_number"],
+                           ast_label="a_add")
 
        If the predefined methods are not sufficient you might need to create a
        subclass of `PrattParser` to provide additional methods.  Note that
@@ -69,16 +70,26 @@ and Pratt's original naming conventions is given in this table:
 """
 
 from __future__ import print_function, division, absolute_import
-import re
-import sys
 import types
-import collections
-import inspect
 from enum_wrapper import Enum
-from lexer import (Lexer, TokenNode, TokenSubclassDict,
-                   BufferIndexError, LexerException)
+from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
 
 from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
+
+# TODO: Should the ast stuff be completely independent of this module?  That
+# would considerably simplify this module (which is too complex already, but of
+# necessity mostly).  Then you would have to take the final parse tree and pass
+# it to a different module to convert it to an AST.  What you would lose would
+# be the association between individual parsing constructs (such as the prefix
+# '-' operator versus the infix one) and the particular AST node that could be
+# defined for it.  I.e., since they're defined at the same time as those syntax
+# constructs they can be associated with them.  But what if you just added more
+# info to the tokens, so they know, for example, what handler function parsed
+# them and what tokens made them up, etc?  Then you could use that data.  Also,
+# does the current way of handling the parse tree to AST conversion even do
+# that correctly?
+#
+# NOTE that you could use the eval stuff to also do the conversion to AST.
 
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
@@ -86,107 +97,6 @@ from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
 # be separated out, and reduce complexity.  Is equality testing of
 # preconditions ever truly required?  If not, why not just use the function
 # objects and leave the user to manage their functions however they want.
-
-#
-# AST stuff
-#
-
-# This AST stuff should all be independent of the rest of the module, so it
-# can later be moved out.  Different applications will define it differently.
-# For implementing the AST nodes, use a shallow inheritance tree:
-# a base node with basic, default operations and specialized nodes for the
-# different possible types of AST nodes (maybe even an extra level for
-# functions???).
-
-class AST_Node(object):
-    """The base class for nodes in the abstract syntax tree."""
-    def __init__(self):
-        self.children_types = []
-        self.children = []
-        self.parent = None
-    def append_children(self, *token_nodes):
-        """Append all the arguments as children, also setting their parent to self."""
-        for t in token_nodes:
-            self.children.append(t)
-            t.parent = self
-    def old_repr(self):
-        """This is for backward compatibility in some test cases."""
-        if self.token_label == "k_number":
-            return "[literal {0}]".format(self.value)
-        if self.token_label == "k_lpar":
-            return "[k_lpar {0} k_rpar]".format(self.children[0])
-        else:
-            str_val = "[" + str(self.value)
-            for a in self.children: str_val += " " + str(a)
-            str_val += "]"
-            return str_val
-    def value_repr(self):
-        return str(self.value)
-    def label_repr(self):
-        return str(self.token_label)
-    def summary_repr(self):
-        return "<" + str(self.token_label) + "," + str(self.value) + ">"
-    def tree_repr(self, indent=""):
-        string = indent + self.summary_repr() + "\n"
-        for c in self.children:
-            string += c.tree_repr(indent=indent+" "*4)
-        return string
-    def string_repr(self):
-        string = self.value_repr()
-        if self.children:
-            string += "["
-            string += ", ".join(c.string_repr() for c in self.children)
-            string += "]"
-        return string
-    __repr__ = old_repr
-
-# TODO will AST nodes really need to be subclasses defined in a table, or
-# can the AST_node constructor (or some predefined method) just take a
-# TokenNode as an argument and spit out the corresponding AST node?
-# The init function itself could make subclasses of itself, store them
-# in a dict if desired, and return an instance -- but that seems weird.
-
-class AST_NodeDict(object):
-    """The purpose of this class is to save the subclasses associated with
-    various AST labels.  These are subclasses of the `AST_Node` class.  A
-    token with an `ast_label` attribute can be passed to the `get_AST_node`
-    method to return the subclass for the attribute.
-
-    Generally, these AST nodes are used to replace the `TokenNode` classes
-    which are initially generated in the parse tree.  The user may want some
-    other format.  The conversion may be trivial or more complex.
-    
-    Currently implemented as a dict of generated classes for tokens, indexed by
-    the token label."""
-    def __init__(self):
-        """Initialize the symbol table."""
-        self.ast_node_dict = {} 
-
-    def get_AST_subclass(self, ast_label):
-        """Return the AST node subtype representing `ast_label`, defining it if 
-        necessary."""
-        if ast_label in self.ast_node_dict:
-            AST_Subclass = self.ast_node_dict[ast_label]
-        else: # AST subclass has not been created.
-            class AST_Subclass(AST_Node):
-                def __init__(self, string_form=None):
-                    """Argument string_form, if not `None`, should be a list of
-                    n+1 strings, where n is the number of children.  These strings
-                    will be printed before, between, and after the children nodes
-                    when the string form is produced."""
-                    super(AST_Subclass, self).__init__() # Call base class __init__.
-                    self.string_form = string_form
-            AST_Subclass.__name__ = ast_label
-            AST_Subclass.label = ast_label
-            self.ast_node_dict[ast_label] = AST_Subclass
-        return AST_Subclass
-
-    def get_AST_node(self, token):
-        class_type = self.get_AST_subclass(token.ast_label)
-        instance = class_type()
-        instance.value = token.value
-        instance.token_label = token.token_label
-        return instance
 
 #
 # TokenNode
@@ -459,20 +369,20 @@ def create_token_subclass():
                 raise ParserException("Bad first argument to dispatch_and_call_handler"
                         " function: must be HEAD or TAIL or equivalent.")
 
-        def process_and_check_node(self, fun_object, ast_label, eval_fun,
+        def process_and_check_node(self, fun_object, eval_fun,
                                    typesig_override=None, in_tree=True,
-                                   repeat_args=False):
+                                   repeat_args=False, ast_label=None):
             """This routine should always be called from inside the individual
-            head and tail functions just before they return a value.  It sets
-            some attributes and checks that the actual types match a defined
-            type signature for the function.
+            head and tail handler functions, just before they return a value.
+            It sets some attributes and checks that the actual types match some
+            defined type signature for the function.
             
             The `fun_object` argument should be a reference to the function
             that called this routine.  This is needed to access signature data
             which is pasted onto the function object as attributes.  Inside a
             handler function this function object is referenced simply by the
             name of the function.
-            
+           
             The `typesig_override` argument is a `ActualTypes` other than `None`
             then it will be *assigned* to the node as its signature after all
             checking, overriding any other settings.  This is useful for
@@ -491,7 +401,15 @@ def create_token_subclass():
             If `repeat_args` is true then the argument types for defined type
             signatures will be expanded to match the actual number of
             arguments, if possible, by repeating them an arbitary number of
-            times."""
+            times.
+            
+            The `ast_label` argument an optional string label of an AST node
+            type (subclass of `AST_Node`) which is simply set as an attribute
+            of the corresponding `TokenNode` in the parse tree.  It can
+            optionally be set and used when converting a parse tree to a
+            (preliminary) AST.  For example, the infix asterisk, the function
+            `mult`, and the juxtaposition operator might all be assigned the
+            same AST node (for the general multiplication operation)."""
 
             self.ast_label = ast_label
             self.in_tree = in_tree
@@ -766,7 +684,7 @@ class PrattParser(object):
             self.type_table = TypeTemplateDict()
         self.num_lookahead_tokens = num_lookahead_tokens
         self.lex.parser_instance = self # To access parser from a lex argument alone.
-        preconditions_dict = {} # Registered parser-global preconditions functions.
+        self.preconditions_dict = {} # Registered parser-global preconditions functions.
         # If exceptions are not raised on ties below, the last-set one has precedence.
         self.raise_exception_on_precondition_ties = True
         self.jop_token_subclass = None
@@ -953,7 +871,7 @@ class PrattParser(object):
     # TODO these can each have a corresponding undefine method; should be easy
     # with undef_handler method.
 
-    def def_literal(self, ast_label, token_label, val_type=None, eval_fun=None):
+    def def_literal(self, token_label, val_type=None, eval_fun=None, ast_label=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
         function to the token.  Literals are the leaves of the parse tree; they
@@ -962,19 +880,22 @@ class PrattParser(object):
         being evaluated by `recursive_parse`, so they need a head handler but not
         a tail handler."""
         def head_handler_literal(self, lex):
-            self.process_and_check_node(head_handler_literal, ast_label, eval_fun)
+            self.process_and_check_node(head_handler_literal, eval_fun,
+                                        ast_label=ast_label)
             return self
         self.modify_token_subclass(token_label, head=head_handler_literal,
                                                             val_type=val_type)
 
-    def def_multi_infix_op(self, ast_label, operator_token_labels, prec,
+    def def_multi_infix_op(self, operator_token_labels, prec,
                                     assoc, repeat=False, in_tree=True,
-                                    val_type=None, arg_types=None, eval_fun=None):
+                                    val_type=None, arg_types=None, eval_fun=None,
+                                    ast_label=None):
         # TODO only this type currently supports "in_tree" kwarg.  General and easy
         # mechanism, though.  Test more and add to other methods.
         # Does in-tree keep the first one? how is it defined for this thing?
         # Comma operator is example of in_tree=False, but how does it handle
         # the root??
+        # TODO: How about in-tree that works at root iff the node only has one child?
         """Takes a list of operator token labels and defines a multi-infix
         operator.  If `repeat=True` it will accept any number of repetitions of
         the list of operators (but type-checking for that is not implemented
@@ -996,46 +917,46 @@ class PrattParser(object):
                 if lex.peek().token_label != operator_token_labels[0]: break
                 PrattParser.match_next(lex, operator_token_labels[0])
                 self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
-            self.process_and_check_node(tail_handler,
-                         ast_label, eval_fun, in_tree=in_tree, repeat_args=repeat)
+            self.process_and_check_node(tail_handler, eval_fun, in_tree=in_tree,
+                                        repeat_args=repeat, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type, arg_types=arg_types)
 
-    def def_infix_op(self, ast_label, operator_token_label, prec,
-                              assoc, in_tree=True,
-                              val_type=None, arg_types=None, eval_fun=None):
+    def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
+                     val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This just calls the more general method `def_multi_infix_op`."""
-        self.def_multi_infix_op(ast_label, [operator_token_label], prec,
+        self.def_multi_infix_op([operator_token_label], prec,
                               assoc, in_tree=in_tree,
-                              val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
+                              val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                              ast_label=ast_label)
 
-    def def_prefix_op(self, ast_label, operator_token_label, prec,
-                               val_type=None, arg_types=None, eval_fun=None):
+    def def_prefix_op(self, operator_token_label, prec, val_type=None, arg_types=None,
+                      eval_fun=None, ast_label=None):
         """Define a prefix operator."""
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, prec))
-            self.process_and_check_node(head_handler, ast_label, eval_fun)
+            self.process_and_check_node(head_handler, eval_fun, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_label, head=head_handler,
                                 val_type=val_type, arg_types=arg_types)
 
-    def def_postfix_op(self, ast_label, operator_token_label, prec,
-                                allow_ignored_before=True,
-                                val_type=None, arg_types=None, eval_fun=None):
+    def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
+                       val_type=None, arg_types=None, eval_fun=None,
+                       ast_label=None):
         """Define a postfix operator.  If `allow_ignored_before` is false then
         no ignored token (usually whitespace) can appear immediately before the
         operator."""
         def tail_handler(self, lex, left):
             if not allow_ignored_before: PrattParser.no_ignored_before(lex)
             self.append_children(left)
-            self.process_and_check_node(tail_handler, ast_label, eval_fun)
+            self.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
                                 val_type=val_type, arg_types=arg_types)
 
-    def def_bracket_pair(self, ast_label, lbrac_token_label, rbrac_token_label,
-                                                           prec, eval_fun=None):
+    def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
+                                               prec, eval_fun=None, ast_label=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of the
         brackets)."""
@@ -1043,14 +964,15 @@ class PrattParser(object):
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, prec))
             PrattParser.match_next(lex, rbrac_token_label)
-            self.process_and_check_node(head_handler, ast_label, eval_fun,
-                        typesig_override=ActualTypes(self.children[0].val_type, None))
+            self.process_and_check_node(head_handler, eval_fun,
+                        typesig_override=ActualTypes(self.children[0].val_type, None),
+                        ast_label=ast_label)
             return self
         self.modify_token_subclass(lbrac_token_label, head=head_handler)
 
-    def def_stdfun_lookahead(self, ast_label, fname_token_label, lpar_token_label,
+    def def_stdfun_lookahead(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
-                      val_type=None, arg_types=None, eval_fun=None):
+                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This definition of stdfun uses lookahead."""
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
@@ -1072,16 +994,16 @@ class PrattParser(object):
                     PrattParser.match_next(lex, comma_token_label)
                 else: break
             PrattParser.match_next(lex, rpar_token_label)
-            self.process_and_check_node(head_handler, ast_label, eval_fun)
+            self.process_and_check_node(head_handler, eval_fun, ast_label=ast_label)
             return self
-        subclass = self.modify_token_subclass(fname_token_label, prec=0,
+        self.modify_token_subclass(fname_token_label, prec=0,
                          head=head_handler, precond_label=precond_label,
                          precond_fun=preconditions, precond_priority=1,
                          val_type=val_type, arg_types=arg_types)
 
-    def def_stdfun_lpar_tail(self, ast_label, fname_token_label, lpar_token_label,
+    def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
-                      val_type=None, arg_types=None, eval_fun=None):
+                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This is an alternate version of stdfun that defines lpar as an infix
         operator (with a tail).  This function works in the usual cases but
         current version without preconditions may have problems distinguishing
@@ -1097,15 +1019,16 @@ class PrattParser(object):
                     PrattParser.match_next(lex, comma_token_label)
                 else: break
             PrattParser.match_next(lex, rpar_token_label)
-            left.process_and_check_node(tail_handler, ast_label, eval_fun)
+            left.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
             return left
         self.modify_token_subclass(lpar_token_label,
                                          prec=prec_of_lpar, tail=tail_handler,
                                          val_type=val_type, arg_types=arg_types)
 
-    def def_jop(self, ast_label, prec, assoc, precond_label=None,
+    def def_jop(self, prec, assoc, precond_label=None,
                                       precond_fun=None, precond_priority=None,
-                                      val_type=None, arg_types=None, eval_fun=None):
+                                      val_type=None, arg_types=None, eval_fun=None,
+                                      ast_label=None):
         """The function `precond_fun` is called to determine whether or not to
         infer a juxtaposition operator between the previously-parsed
         subexpression result and the next token.  This function will be passed
@@ -1130,7 +1053,7 @@ class PrattParser(object):
         if assoc == Assoc.right: recurse_bp = prec - 1
         def tail_handler(self, lex, left):
             self.append_children(left, PrattParser.recursive_parse(lex, recurse_bp))
-            self.process_and_check_node(tail_handler, ast_label, eval_fun)
+            self.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
             return self
         self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
