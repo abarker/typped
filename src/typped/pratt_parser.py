@@ -611,7 +611,7 @@ def create_token_subclass():
             node would return the results of adding the evaluations from the
             children.  If this is defined for all the nodes in a tree it can be
             called from the root to evaluate the full tree."""
-            self.eval_subtree = types.MethodType(self, eval_fun)
+            self.eval_subtree = types.MethodType(eval_fun, self)
 
         def semantic_action(self):
             # TODO decide how to implement and when to call.  Should probably

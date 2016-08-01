@@ -16,18 +16,34 @@ import collections
 class TokenNode(object):
     """The base class for token objects.  Each different kind of token is represented
     by a subclass of this class.  Instances of the tokens in the program text are
-    represented by instances of the subclass for that kind of token."""
+    represented by instances of the subclass for that kind of token.
+    
+    The attribute `token_label` is the string token label for the kind of token
+    represented by an instance.  The attribute `value` is set to the actual
+    string value in the lexed text which matched the regex of the token.  The
+    attribute `ignored_before_tokens` is a list of all tokens ignored just
+    before the lexer got this token.
+    
+    The attribute `children` is a list of the child nodes, and `parent` is the
+    parent.  Indexing a `TokenNode` class also returns the corresponding child 
+    node, i.e. `t_node[0]` would be the leftmost child."""
+    
     token_label = None # A label for subclasses representing kinds of tokens.
 
     def __init__(self):
         """Initialize the TokenNode."""
+        self.ignored_before_tokens = [] # Values ignored by lexer just before.
+        self.value = None # The actual parsed text string for the token.
+        # TODO: consider defining children in parser code, BUT is general
+        # enough that including it here is probably helpful........
         self.children = [] # Args to functions are their children in parse tree.
         self.parent = None # The parent in a tree of nodes.
-        self.ignored_before_tokens = [] # Values ignored by lexer just before.
-        self.evaluate = None # A method to evaluate some nodes, added dynamically.
-        self.val_type = None # The type of the node's value, after processing.
-        self.allowed_types = None # Set in recursion to ensure return type matches.
-        self.value = None # The actual parsed text string for the token.
+
+        # TODO: shouldn't type stuff and eval stuff only be in parser?  Appparently
+        # not even used in this module, so comment out and see.....
+        #self.evaluate = None # A method to evaluate some nodes, added dynamically.
+        #self.val_type = None # The type of the node's value, after processing.
+        #self.allowed_types = None # Set in recursion to ensure return type matches.
 
     def original_text(self):
         """Return the original text that was read in lexing the token, including
@@ -54,6 +70,11 @@ class TokenNode(object):
         for t in token_nodes:
             self.children.append(t)
             t.parent = self
+
+    def __getitem__(self, index):
+        """Use indexing to access the children.  No check is made, however, to see
+        if the correct number of children exist."""
+        return self.children[index]
 
     def convert_to_AST(self, convert_TokenNode_to_AST_node_fun):
         """Call this on the root node.  Converts the token tree to an abstract

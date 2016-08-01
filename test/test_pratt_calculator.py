@@ -71,9 +71,7 @@ def define_basic_calculator_syntax(parser):
     # Literals.
     #
 
-    parser.def_literal("k_float", 
-            # eval_fun=lambda t: float(t.value)
-            )
+    parser.def_literal("k_float", eval_fun=lambda t: float(t.value))
     #parser.def_literal("k_imag_number", ast_label="a_imag_number")
     #parser.def_literal("k_identifier", ast_label="a_variable")
 
@@ -83,42 +81,60 @@ def define_basic_calculator_syntax(parser):
 
     parser.def_token("k_sin", r"sin")
     parser.def_stdfun("k_sin", "k_lpar", "k_rpar", "k_comma",
-                      #eval_fun=lambda t: math.sin(t[0].value)
-                      )
+                      eval_fun=lambda t: math.sin(t[0].eval_subtree()))
 
     #
     # Operators.
     #
 
-    prefix_operators = [
+    # TODO: consider defining a shortcut in pp which applies some fun to all
+    # the evals of children.  Just do a comprehension evaluating them all,
+    # and then pass the *eval_value_list to the function!!!!!  (And return
+    # the function which does that, so it can be set here.)  May make it
+    # more appealing to use the group-apply methods on these things.
+
+    prefix_operators = [ # TODO consider using or removing
             ("k_plus", 10, Assoc.left),
             ("k_minus", 10, Assoc.left),
             ]
+    parser.def_prefix_op("k_plus", 100, ast_label="a_positive",
+            eval_fun=lambda t: operator.pos(t[0].eval_subtree()))
+    parser.def_prefix_op("k_minus", 100, ast_label="a_negative",
+            eval_fun=lambda t: operator.neg(t[0].eval_subtree()))
 
     parser.def_infix_op("k_plus", 10, Assoc.left,
-            #eval_fun=lambda t: operator.pos(t.children[0].eval_subtree())
-            )
+            eval_fun=lambda t: operator.add(t[0].eval_subtree(), t[1].eval_subtree()))
     # NOTE that the float def already defines prefix negative when 
-    parser.def_infix_op("k_minus", 10, Assoc.left, ast_label="a_subtract")
+    parser.def_infix_op("k_minus", 10, Assoc.left, ast_label="a_subtract",
+            eval_fun=lambda t: operator.sub(t[0].eval_subtree(), t[1].eval_subtree()))
 
-    parser.def_infix_op("k_ast", 20, Assoc.left, ast_label="a_mult")
-    parser.def_infix_op("k_fslash", 20, Assoc.left, ast_label="a_divide")
+    parser.def_infix_op("k_ast", 20, Assoc.left, ast_label="a_mult",
+            eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
+    parser.def_infix_op("k_fslash", 20, Assoc.left, ast_label="a_divide",
+            eval_fun=lambda t: operator.truediv(t[0].eval_subtree(), t[1].eval_subtree()))
 
-    parser.def_prefix_op("k_plus", 100, ast_label="a_positive")
-    parser.def_prefix_op("k_minus", 100, ast_label="a_negative")
+    parser.def_postfix_op("k_bang", 100, allow_ignored_before=False, ast_label="factorial",
+            eval_fun=lambda t: math.factorial(t[0].eval_subtree()))
 
-    parser.def_postfix_op("k_bang", 100, allow_ignored_before=False, ast_label="factorial")
+    parser.def_infix_op("k_double_ast", 30, Assoc.right, ast_label="a_exp",
+            eval_fun=lambda t: operator.pow(t[0].eval_subtree(), t[1].eval_subtree()))
 
-    parser.def_infix_op("k_double_ast", 30, Assoc.right, ast_label="a_exp")
+    #parser.def_infix_multi_op(["k_question", "k_colon"], 90, Assoc.right,
+    #                          ast_label="a_ternary_conditional")
 
-    parser.def_infix_multi_op(["k_question", "k_colon"], 90, Assoc.right,
-                              ast_label="a_ternary_conditional")
+    #
+    # Jop as synonym for multiplication.
+    #
+    parser.def_jop_token("k_jop", "k_space")
+    parser.def_jop(20, Assoc.left,
+            eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
 
     #
     # Parens and brackets.
     #
 
-    parser.def_bracket_pair("k_lpar", "k_rpar", 0, ast_label="paren_brackets")
+    parser.def_bracket_pair("k_lpar", "k_rpar", 0, ast_label="paren_brackets",
+            eval_fun=lambda t: t[0].eval_subtree())
 
     #parser.define_comma_list("k_comma", 5, Assoc.right, ast_label="comma_list")
     parser.def_infix_multi_op(["k_comma"], 5, Assoc.left,
@@ -143,14 +159,18 @@ def read_eval_print_loop(parser):
 
     while True:
         line = read_input("> ")
+        if not line: continue
         try:
            parse_tree = parser.parse(line)
+           eval_value = parse_tree.eval_subtree()
+           # TODO: this still doesn't catch ValueError in evaluating 3.3!
         except pp.ParserException as e:
             print(e)
         except pp.LexerException as e:
             print(e)
         else:
-            print(parse_tree)
+            print(parse_tree.tree_repr())
+            print(eval_value)
         
 
 def define_identifier_token(lexer_or_parser):
