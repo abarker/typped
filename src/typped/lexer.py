@@ -550,14 +550,19 @@ class Lexer(object):
         new_subclass = self.symbol_table.create_token_subclass(token_label)
         return new_subclass
 
-    def def_tokens(self, tuple_list):
+    def def_ignored_token(self, token_label, regex_string, on_ties=0):
+        """A convenience function to define an ignored token without setting
+        `ignore=True`.  This just calls `def_token` with the value set."""
+        self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True)
+
+    def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Called in the same order as the list."""
         for t in tuple_list:
             self.def_token(*t)
 
-    def def_ignored_tokens(self, tuple_list):
+    def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once with
         `ignore=True` set.  Each element of the passed-in list should be a tuple
         containing the arguments to the ordinary `def_token` method.  Called in

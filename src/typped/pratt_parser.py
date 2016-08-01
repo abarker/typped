@@ -49,7 +49,7 @@ To use the `PrattParser` class you need to do these things:
        were supplied as kwargs for the appropriate methods) or convert it to an
        AST with a different type of nodes. ::
 
-          eval_result = result_tree.evaluate_subtree()
+          eval_result = result_tree.eval_subtree()
           ast = result_tree.convert_to_AST(TokenNode_to_AST_converter_fun)
 
 In reading the code, the correspondence between the naming convention used here
@@ -68,6 +68,13 @@ and Pratt's original naming conventions is given in this table:
 +----------------------------------+--------------------------+
 
 """
+
+# TODO:  make a real package, importing stuff into the __init__.py, etc. and maybe
+# using setup.py and pip -e, but first can just add to AUTOENV.
+#
+# TODO: have eval function just be a function that is stored with the tokens and
+# which takes a "self" first variable.  Is there really any need to make it into
+# a method of the token????
 
 from __future__ import print_function, division, absolute_import
 import types
@@ -97,6 +104,20 @@ from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
 # be separated out, and reduce complexity.  Is equality testing of
 # preconditions ever truly required?  If not, why not just use the function
 # objects and leave the user to manage their functions however they want.
+
+def multi_funcall(function, tuple_list):
+   """A convenience function that takes a list of tuples and a method name and
+   calls `function` with the values in the tuple as arguments.  The parameter
+   `num_args` is the number of arguments, and `defaults` is a list of all the
+   default values assigned to parameters.  The parameter `tuple_list` is the
+   list of tuples of arguments."""
+   for t in tuple_list:
+       try:
+          function(*t)
+       except TypeError:
+           raise ParserException(
+                   "Bad multi-definition of {0}: Omitted required arguments."
+                   "\nError on this tuple: {1}".format(function.__name__, t))
 
 #
 # TokenNode
@@ -413,7 +434,8 @@ def create_token_subclass():
 
             self.ast_label = ast_label
             self.in_tree = in_tree
-            if eval_fun: self.add_evaluate_subtree_method(eval_fun)
+            if eval_fun:
+                self.add_eval_subtree_method(eval_fun)
            
             # Process the children to implement in_tree, if set.
             modified_children = []
@@ -579,17 +601,17 @@ def create_token_subclass():
         # stored with that handler function which is set (like the type info
         # itself).  This evaluate interface needs to be re-worked slightly to
         # accomodate that, and the code below that uses the
-        # add_evaluate_subtree_method needs to be modified.
-        def add_evaluate_subtree_method(self, eval_fun):
-            """Add a method called `evaluate_subtree` to the instance of the class.
+        # add_eval_subtree_method needs to be modified.
+        def add_eval_subtree_method(self, eval_fun):
+            """Add a method called `eval_subtree` to the instance of the class.
             The function `eval_fun` passed in should take self as its first
             argument.  It should return the result of evaluating the node,
             calculated from its own attributes and from the results of calling
-            `c.evaluate_subtree()` for each child `c`.  For example, an addition
+            `c.eval_subtree()` for each child `c`.  For example, an addition
             node would return the results of adding the evaluations from the
             children.  If this is defined for all the nodes in a tree it can be
             called from the root to evaluate the full tree."""
-            self.evaluate_subtree = types.MethodType(self, eval_fun)
+            self.eval_subtree = types.MethodType(self, eval_fun)
 
         def semantic_action(self):
             # TODO decide how to implement and when to call.  Should probably
@@ -705,21 +727,24 @@ class PrattParser(object):
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """A convenience function; calls the Lexer `def_token` method."""
-        self.lex.def_token(
-                token_label, regex_string, on_ties=on_ties, ignore=ignore)
+        self.lex.def_token(token_label, regex_string, on_ties=on_ties, ignore=ignore)
 
-    def def_tokens(self, tuple_list):
+    def def_ignored_token(self, token_label, regex_string, on_ties=0):
+        """A convenience function to define a token with `ignored=True`."""
+        self.lex.def_ignored_token(token_label, regex_string, on_ties=on_ties)
+
+    def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        self.lex.def_tokens(tuple_list)
+        self.lex.def_multi_tokens(tuple_list)
 
-    def def_ignored_tokens(self, tuple_list):
+    def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple ignored tokens at once.
         Each element of the passed-in list should be a tuple containing the arguments
         to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
-        self.lex.def_ignored_tokens(tuple_list)
+        self.lex.def_multi_ignored_tokens(tuple_list)
 
     def undef_token(self, token_label):
         """A convenience function; calls the Lexer `undef_token` method.  Should
@@ -727,17 +752,17 @@ class PrattParser(object):
         self.lex.undef_token(token_label)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
-        """Calls the `Lexer` to def_begin_end_tokens.  The subclasses are
-        then given initial head and tail functions for use in the Pratt parser.
-        To use the `PrattParser` this method must be called, not the method of
+        """Calls the `Lexer` to def_begin_end_tokens.  The subclasses are then
+        given initial head and tail functions for use in the Pratt parser.  To
+        use the `PrattParser` this method must be called, not the method of
         `Lexer` with the same name (since it also creates head and tail handler
         functions that raise exceptions for better error messages).  The
         default is to call this method automatically on initialization, with
-        the default token labels for the begin and end tokens.  If
-        `default_begin_end_tokens` is set false on initalization then the user
-        must call this function (setting whatever token labels are desired).
-        Returns a tuple containing the new begin and end `TokenNode`
-        subclasses."""
+        the default token labels for the begin and end tokens.  If the flag
+        `default_begin_end_tokens` is set false on `PrattParser` initalization
+        then the user must call this function (setting whatever token labels
+        are desired).  Returns a tuple containing the new begin and end
+        `TokenNode` subclasses."""
         # Call lexer to create and register the begin and end tokens.
         self.lex.def_begin_end_tokens(begin_token_label, end_token_label)
         # define the begin token
@@ -885,8 +910,14 @@ class PrattParser(object):
             return self
         self.modify_token_subclass(token_label, head=head_handler_literal,
                                                             val_type=val_type)
+    def def_multi_literals(self, tuple_list):
+        """An interface to the `def_literal` method which takes a list of
+        tuples.  The `def_literal` method will be called for each tuple, unpacked
+        in the order in the tuple.  Unspecified optional arguments get their default
+        values."""
+        multi_funcall(self.def_literal, tuple_list)
 
-    def def_multi_infix_op(self, operator_token_labels, prec,
+    def def_infix_multi_op(self, operator_token_labels, prec,
                                     assoc, repeat=False, in_tree=True,
                                     val_type=None, arg_types=None, eval_fun=None,
                                     ast_label=None):
@@ -926,7 +957,7 @@ class PrattParser(object):
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This just calls the more general method `def_multi_infix_op`."""
-        self.def_multi_infix_op([operator_token_label], prec,
+        self.def_infix_multi_op([operator_token_label], prec,
                               assoc, in_tree=in_tree,
                               val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                               ast_label=ast_label)
@@ -970,7 +1001,7 @@ class PrattParser(object):
             return self
         self.modify_token_subclass(lbrac_token_label, head=head_handler)
 
-    def def_stdfun_lookahead(self, fname_token_label, lpar_token_label,
+    def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
                       val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This definition of stdfun uses lookahead."""
@@ -1025,10 +1056,10 @@ class PrattParser(object):
                                          prec=prec_of_lpar, tail=tail_handler,
                                          val_type=val_type, arg_types=arg_types)
 
-    def def_jop(self, prec, assoc, precond_label=None,
-                                      precond_fun=None, precond_priority=None,
-                                      val_type=None, arg_types=None, eval_fun=None,
-                                      ast_label=None):
+    def def_jop(self, prec, assoc,
+                      precond_label=None, precond_fun=None, precond_priority=None,
+                      val_type=None, arg_types=None, eval_fun=None,
+                      ast_label=None):
         """The function `precond_fun` is called to determine whether or not to
         infer a juxtaposition operator between the previously-parsed
         subexpression result and the next token.  This function will be passed
@@ -1038,16 +1069,10 @@ class PrattParser(object):
         this function returns `True` then a jop is inferred and the parse
         proceeds assuming there is a jop token in the token stream.
         
-        If `backtrack_on_parse_error` is `True` then any parse error in
-        evaluating the tail of the jop will cause the algorithm to backtrack and
-        proceed without inferring a jop.  If `backtrack_on_type_error` is
-        `True` then any type errors in processing the jop will cause the
-        algorithm to backtrack and proceed without inferring a jop.  Note that
-        careful definition of `jop_precond` can greatly reduce or eliminate the
-        need to backtrack.  Note also that if the juxtaposition operator always
-        resolves to a single type signature based on its argument types then,
-        even if overloading on return types is in effect, the jop can be
-        effectively inferred based on type signature information.""" 
+        Note that if the juxtaposition operator always resolves to a single
+        type signature based on its argument types then, even if overloading on
+        return types is in effect, the jop can be effectively inferred based on
+        type signature information.""" 
 
         recurse_bp = prec
         if assoc == Assoc.right: recurse_bp = prec - 1
@@ -1070,7 +1095,7 @@ class PrattParser(object):
         in `lex` and also consumes the token from the lexer.  If the token
         label does not match an exception is raised."""
         if token_label_to_match != lex.peek().token_label:
-            raise ParserException("Match function expected {0} but found {1}."
+            raise ParserException("Function match_next expected token {0} but found {1}."
                              .format(token_label_to_match, lex.peek().token_label))
         lex.next() # Eat the token that was matched.
         return
@@ -1135,7 +1160,7 @@ class PrattParser(object):
     @staticmethod
     def infer_jop_conditions(lex):
         """Test whether or not a juxtaposition operator should be inferred in
-        the `recursive_parse` function."""
+        the `recursive_parse` function.  Returns a boolean."""
 
         # Fail if jop undefined.
         if not lex.parser_instance.jop_token_subclass: return False
