@@ -966,13 +966,14 @@ class PrattParser(object):
                                 val_type=val_type, arg_types=arg_types)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
-                                               prec, eval_fun=None, ast_label=None):
+                                               eval_fun=None, ast_label=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of the
-        brackets)."""
+        brackets).  Defines a head handler for the left bracket token, so effectively
+        gets the highest precedence."""
         # Define a head for the left bracket of the pair.
         def head_handler(self, lex):
-            self.append_children(PrattParser.recursive_parse(lex, prec))
+            self.append_children(PrattParser.recursive_parse(lex, 0))
             PrattParser.match_next(lex, rbrac_token_label)
             self.process_and_check_node(head_handler, eval_fun,
                         typesig_override=ActualTypes(self.children[0].val_type, None),

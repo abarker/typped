@@ -119,7 +119,7 @@ def define_syntax(parser):
     # They should probably all have the same AST node which saves how they were
     # originally formatted.
 
-    parser.def_bracket_pair("k_lpar", "k_rpar", 0, ast_label="paren_brackets")
+    parser.def_bracket_pair("k_lpar", "k_rpar", ast_label="paren_brackets")
 
     #parser.define_comma_list("k_comma", 5, Assoc.right, ast_label="comma_list")
     parser.def_infix_multi_op(["k_comma"], 5, Assoc.left,

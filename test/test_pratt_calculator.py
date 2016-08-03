@@ -23,10 +23,11 @@ import pratt_parser as pp
 # Semantics:
 #    eval fun:  e_add
 
-# TOKEN DEFINITIONS #################################################################
+def define_basic_calculator(parser):
 
-
-def define_basic_calculator_tokens(parser):
+    #
+    # Some general tokens.
+    #
 
     whitespace_tokens = [
             ("k_space", r"[ \t]+"),       # Note + symbol, one or more, NOT * symbol.
@@ -60,7 +61,6 @@ def define_basic_calculator_tokens(parser):
     # operator.  What is done here instead is to define multiple symbols for a
     # single token (via the regex), making ^ an alias for **.
 
-def define_basic_calculator_syntax(parser):
     Assoc = pp.Assoc # Enum for association.
 
     #
@@ -68,8 +68,6 @@ def define_basic_calculator_syntax(parser):
     #
 
     parser.def_literal("k_float", eval_fun=lambda t: float(t.value))
-    #parser.def_literal("k_imag_number", ast_label="a_imag_number")
-    #parser.def_literal("k_identifier", ast_label="a_variable")
 
     #
     # Standard functions.
@@ -81,17 +79,22 @@ def define_basic_calculator_syntax(parser):
                       eval_fun=lambda t: math.sin(t[0].eval_subtree()))
     parser.def_token("k_cos", r"cos")
     parser.def_stdfun("k_cos", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
-                      eval_fun=lambda t: math.sin(t[0].eval_subtree()))
+                      eval_fun=lambda t: math.cos(t[0].eval_subtree()))
+    parser.def_token("k_ln", r"ln")
+    parser.def_stdfun("k_ln", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
+                      eval_fun=lambda t: math.log(t[0].eval_subtree()))
+    parser.def_token("k_sqrt", r"sqrt")
+    parser.def_stdfun("k_sqrt", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
+                      eval_fun=lambda t: math.sqrt(t[0].eval_subtree()))
 
     #
-    # Parens and brackets, highest precedence.
+    # Parens and brackets, highest precedence (since they have a head function).
     #
 
-    parser.def_bracket_pair("k_lpar", "k_rpar", 0,
+    parser.def_bracket_pair("k_lpar", "k_rpar",
                             eval_fun=lambda t: t[0].eval_subtree())
-    parser.def_bracket_pair("k_lbrac", "k_rbrac", 0,
+    parser.def_bracket_pair("k_lbrac", "k_rbrac",
                             eval_fun=lambda t: t[0].eval_subtree())
-
 
     #
     # Basic operators, from highest to lowest precedence.
@@ -196,8 +199,7 @@ def read_eval_print_loop(parser):
 def define_and_run_basic_calculator():
     import readline
     parser = pp.PrattParser()
-    define_basic_calculator_tokens(parser)
-    define_basic_calculator_syntax(parser)
+    define_basic_calculator(parser)
     read_eval_print_loop(parser)
 
 define_and_run_basic_calculator()
