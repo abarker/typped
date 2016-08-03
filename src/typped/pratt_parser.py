@@ -351,16 +351,18 @@ def create_token_subclass():
             method evaluates each preconditions function in the sorted list for
             the kind of handler and this kind of token, returning the handler
             function associated with the first one which evaluates to `True`.
-            Raises `NoHandlerFunctionDefined` if no handler function is found.
+            Raises `NoHandlerFunctionDefined` if no handler function can be found.
             
-            If the parameter `precond_label` is set this method returns the
+            If the parameter `precond_label` is set then this method returns the
             handler function which *would be* returned, assuming that that were
             the label of the "winning" precondition function."""
+
             try:
                 sorted_handler_list = self.handler_funs[head_or_tail]
             except KeyError:
-                raise ParserException("No {0} handler functions at all are defined"
-                        " for tokens with token label '{1}'.  Current and token"
+                raise NoHandlerFunctionDefined(
+                        "No {0} handler functions at all are defined"
+                        " for tokens with token label '{1}'.  The token's"
                         " value is '{2}'."
                         .format(head_or_tail, self.token_label, self.value))
 
@@ -378,14 +380,18 @@ def create_token_subclass():
                     .format(head_or_tail, self.token_label, self.value))
 
         def dispatch_and_call_handler(self, head_or_tail, lex, 
-                                      left=None, lookbehind=None):
-            """Look up and call the handler function, passing along the arguments."""
+                                      left=None, lookbehind=None, call=True):
+            """Look up and call the handler function, passing along the arguments.
+            
+            If `call` is set false then the handler will not be called.  This
+            is used to test if there is a handler of the specified type, by
+            catching the `NoHandlerFunctionDefined` exception)."""
             if head_or_tail == HEAD:
                 fun = self.lookup_handler_fun(HEAD, lex)
-                return fun(self, lex)
+                if call: return fun(self, lex)
             elif head_or_tail == TAIL:
                 fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
-                return fun(self, lex, left)
+                if call: return fun(self, lex, left)
             else: 
                 raise ParserException("Bad first argument to dispatch_and_call_handler"
                         " function: must be HEAD or TAIL or equivalent.")
@@ -794,6 +800,9 @@ class PrattParser(object):
         operator.  The `ignored_token_label` parameter is the label of an
         ignored token which must be present for a jop to be inferred.  Some
         token is required; usually it will be a token for spaces and tabs."""
+        # TODO: basic jop is BROKEN when parsing `sin(0 )` with space
+        # after zero!  It wants to infer a jop between 0 and ) when reading
+        # in the subexpression 0 recursively.  What rule is needed?  Typing?
 
         if self.jop_token_subclass:
             raise ParserException("A jop token is already defined.  It must be "
@@ -1009,21 +1018,24 @@ class PrattParser(object):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""
             peek_tok = lex.peek()
-            if peek_tok.ignored_before():
-                return False
-            if lex.peek().token_label != lpar_token_label:
-                return False
+            if peek_tok.ignored_before(): return False
+            if peek_tok.token_label != lpar_token_label: return False
             return True
         precond_label = "lpar after, no whitespace between" # Should be a unique label.
 
         def head_handler(self, lex):
-            PrattParser.match_next(lex, lpar_token_label) # We know this will match.
+            PrattParser.match_next(lex, lpar_token_label) # Is precond, so will match.
+            # Read comma-separated subexpressions until the peek is rpar_token_label.
             while lex.peek().token_label != rpar_token_label:
                 self.append_children(PrattParser.recursive_parse(lex, 0))
                 if lex.peek().token_label == comma_token_label: 
-                    # TODO single utility fun or flag for this if?
+                    # TODO single utility fun or flag for this style of if block?
+                    # Raise error in match_next or return boolean and fail higher?
+                    # Or let match_next fail before consuming token and use try here?
+                    # Or have a flag raise_on_fail or similar to match_next?
                     PrattParser.match_next(lex, comma_token_label)
-                else: break
+                else:
+                    break
             PrattParser.match_next(lex, rpar_token_label)
             self.process_and_check_node(head_handler, eval_fun, ast_label=ast_label)
             return self
@@ -1077,7 +1089,8 @@ class PrattParser(object):
         recurse_bp = prec
         if assoc == Assoc.right: recurse_bp = prec - 1
         def tail_handler(self, lex, left):
-            self.append_children(left, PrattParser.recursive_parse(lex, recurse_bp))
+            right_operand = PrattParser.recursive_parse(lex, recurse_bp)
+            self.append_children(left, right_operand)
             self.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
             return self
         self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
@@ -1093,7 +1106,7 @@ class PrattParser(object):
     def match_next(lex, token_label_to_match, discard_non_matches=False):
         """A utility function that asserts the value of the next token label
         in `lex` and also consumes the token from the lexer.  If the token
-        label does not match an exception is raised."""
+        label does not match then an exception is raised."""
         if token_label_to_match != lex.peek().token_label:
             raise ParserException("Function match_next expected token {0} but found {1}."
                              .format(token_label_to_match, lex.peek().token_label))
@@ -1160,15 +1173,17 @@ class PrattParser(object):
     @staticmethod
     def infer_jop_conditions(lex):
         """Test whether or not a juxtaposition operator should be inferred in
-        the `recursive_parse` function.  Returns a boolean."""
+        the `recursive_parse` function.  Returns a boolean.  Consumes no tokens."""
 
         # Fail if jop undefined.
         if not lex.parser_instance.jop_token_subclass: return False
         # Fail if at end of expression.
         if lex.is_end_token(lex.peek()): return False
         # Fail if the ignored token for jop is not present (TODO optional but default.)
-        if (lex.parser_instance.jop_ignored_token_label 
-                not in lex.peek().ignored_before_labels()): return False
+        if lex.parser_instance.jop_ignored_token_label and ( # still doesn't work...
+                               lex.parser_instance.jop_ignored_token_label 
+                               not in lex.peek().ignored_before_labels()): 
+            return False
         # Fail if peek has a tail, since that may be lower-prec operator.
         if lex.peek().prec() > 0: return False
 
@@ -1198,6 +1213,7 @@ class PrattParser(object):
         # then evaluate the prec, then pushback.
 
         curr_token = lex.next()
+        print("curr token to run head handler is", curr_token)
         processed_left = curr_token.dispatch_and_call_handler(HEAD, lex)
         lookbehind = [processed_left]
 
@@ -1206,6 +1222,7 @@ class PrattParser(object):
             # The main loop, except for the special case when a jop is defined.
             while lex.peek().prec() > subexp_prec:
                 curr_token = lex.next()
+                print("curr token to run tail handler is", curr_token)
                 processed_left = curr_token.dispatch_and_call_handler(
                                        TAIL, lex, processed_left, lookbehind)
                 lookbehind.append(processed_left)
@@ -1214,15 +1231,40 @@ class PrattParser(object):
             if not PrattParser.infer_jop_conditions(lex): break
 
             # Infer a jop, but only if 1) its prec would satisfy the while loop
-            # above as an ordinary token and 2) it has a head handler defined
-            # in the current conditions.
+            # above as an ordinary token, 2) the next token has a head
+            # handler defined in the conditions when the jop will run its head
+            # handler, and 3) the next token similarly has no tail handler.
             if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
-                # Infer a jop: create a subclass instance for the jop token.
+                # Provisionally infer a jop; create a subclass instance for its token.
                 jop_instance = lex.parser_instance.jop_token_subclass(None)
-                try: processed_left = jop_instance.dispatch_and_call_handler(
-                                       TAIL, lex, processed_left, lookbehind)
+
+                # This is a little inefficient, but we need to be sure that
+                # when the head of the jop is called and it reads a token that
+                # that token has a head handler defined for it *in that
+                # precondition context*.  Otherwise, no jop is inferred.  We
+                # also make sure that is has no tail handler in the context
+                # (since it could be an infix operator, and no jop is inferred
+                # before another infix operator).
+                curr_token = lex.next()
+                try: # See if it has a head handler.
+                    # Dispatch without calling here, since calling will consume
+                    # another token; also, deeper-level recursions could cause false
+                    # results to come up the recursion chain.
+                    curr_token.dispatch_and_call_handler(
+                            HEAD, lex, processed_left, lookbehind, call=False)
+                    try: # See if it has a tail handler.
+                        curr_token.dispatch_and_call_handler(
+                                TAIL, lex, processed_left, lookbehind, call=False)
+                    except NoHandlerFunctionDefined: pass
+                    else: break
                 except NoHandlerFunctionDefined:
                     break # No precondition matches, assume no jop.
+                finally:
+                    lex.go_back(1)
+
+                # Finally, we can infer a jop.
+                processed_left = jop_instance.dispatch_and_call_handler(
+                                       TAIL, lex, processed_left, lookbehind)
                 lookbehind.append(processed_left)
             else:
                 break

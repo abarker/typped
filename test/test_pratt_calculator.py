@@ -125,7 +125,9 @@ def define_basic_calculator_syntax(parser):
     #
     # Jop as synonym for multiplication.
     #
-    parser.def_jop_token("k_jop", "k_space")
+
+    #parser.def_jop_token("k_jop", "k_space") # Space token required to infer a jop.
+    parser.def_jop_token("k_jop", None) # Space token NOT required to infer a jop. TODO
     parser.def_jop(20, Assoc.left,
             eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
 
@@ -153,12 +155,18 @@ def define_basic_calculator_syntax(parser):
 
 def read_eval_print_loop(parser):
     try:
-        read_input = raw_input
+        read_input = raw_inp
     except NameError:
         read_input = input
 
+    print("Enter ^C to exit.")
     while True:
-        line = read_input("> ")
+        try:
+           line = read_input("> ")
+        except KeyboardInterrupt:
+            print("\nBye.")
+            break
+
         if not line: continue
         try:
            parse_tree = parser.parse(line)
@@ -166,8 +174,12 @@ def read_eval_print_loop(parser):
            # TODO: this still doesn't catch ValueError in evaluating 3.3!
         except pp.ParserException as e:
             print(e)
+            raise
         except pp.LexerException as e:
             print(e)
+        except KeyboardInterrupt:
+            print("Bye.")
+            break
         else:
             print(parse_tree.tree_repr())
             print(eval_value)
