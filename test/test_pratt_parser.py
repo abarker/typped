@@ -239,6 +239,11 @@ def test_jop(basic_setup):
                           "<k_jop,None>(<k_double_ast,^>("
                               "<k_number,4>,<k_identifier,z>),<k_identifier,s>))")
     #fail()
+    parser.def_token("k_sin", r"sin")
+    parser.def_stdfun("k_sin", "k_lpar", "k_rpar", "k_comma")
+    assert str(parser.parse("4 sin( 0 )")) == (
+                          "<k_jop,None>(<k_number,4>,<k_sin,sin>(<k_number,0>))")
+
 
 def test_types_mixed_numerical_bool_expressions(): 
     """Test type-checking on number-valued and bool-valued expressions, using

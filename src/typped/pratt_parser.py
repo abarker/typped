@@ -71,10 +71,6 @@ and Pratt's original naming conventions is given in this table:
 
 # TODO:  make a real package, importing stuff into the __init__.py, etc. and maybe
 # using setup.py and pip -e, but first can just add to AUTOENV.
-#
-# TODO: have eval function just be a function that is stored with the tokens and
-# which takes a "self" first variable.  Is there really any need to make it into
-# a method of the token????
 
 from __future__ import print_function, division, absolute_import
 import types
@@ -83,20 +79,7 @@ from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferInd
 
 from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
 
-# TODO: Should the ast stuff be completely independent of this module?  That
-# would considerably simplify this module (which is too complex already, but of
-# necessity mostly).  Then you would have to take the final parse tree and pass
-# it to a different module to convert it to an AST.  What you would lose would
-# be the association between individual parsing constructs (such as the prefix
-# '-' operator versus the infix one) and the particular AST node that could be
-# defined for it.  I.e., since they're defined at the same time as those syntax
-# constructs they can be associated with them.  But what if you just added more
-# info to the tokens, so they know, for example, what handler function parsed
-# them and what tokens made them up, etc?  Then you could use that data.  Also,
-# does the current way of handling the parse tree to AST conversion even do
-# that correctly?
-#
-# NOTE that you could use the eval stuff to also do the conversion to AST.
+# NOTE that you could use the evaluate function stuff to also do the conversion to AST.
 
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
@@ -104,20 +87,6 @@ from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
 # be separated out, and reduce complexity.  Is equality testing of
 # preconditions ever truly required?  If not, why not just use the function
 # objects and leave the user to manage their functions however they want.
-
-def multi_funcall(function, tuple_list):
-   """A convenience function that takes a list of tuples and a method name and
-   calls `function` with the values in the tuple as arguments.  The parameter
-   `num_args` is the number of arguments, and `defaults` is a list of all the
-   default values assigned to parameters.  The parameter `tuple_list` is the
-   list of tuples of arguments."""
-   for t in tuple_list:
-       try:
-          function(*t)
-       except TypeError:
-           raise ParserException(
-                   "Bad multi-definition of {0}: Omitted required arguments."
-                   "\nError on this tuple: {1}".format(function.__name__, t))
 
 #
 # TokenNode
@@ -376,7 +345,8 @@ def create_token_subclass():
                     return handler
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
-                    "preconditions for token with token label '{1}' and value '{2}'."
+                    "token with token label '{1}' and value '{2}' in the current "
+                    "preconditions."
                     .format(head_or_tail, self.token_label, self.value))
 
         def dispatch_and_call_handler(self, head_or_tail, lex, 
@@ -1013,7 +983,10 @@ class PrattParser(object):
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
                       val_type=None, arg_types=None, eval_fun=None, ast_label=None):
-        """This definition of stdfun uses lookahead."""
+        """This definition of stdfun uses lookahead.  This will take
+        arbitrarily many arguments if `arg_types` is `None`.  To check the
+        number of arguments when types are not used, set `arg_types` to, for
+        example, `[None]*3` for three arguments."""
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""
@@ -1050,7 +1023,8 @@ class PrattParser(object):
         """This is an alternate version of stdfun that defines lpar as an infix
         operator (with a tail).  This function works in the usual cases but
         current version without preconditions may have problems distinguishing
-        "b (" from "b(" when a multiplication jop is set."""
+        "b (" from "b(" when a multiplication jop is set.  Does not currently
+        allow setting the number of arguments."""
         # Could also recognize alternate symbols to divide args (like
         # using "|" in probability and ";" in some cases).
         def tail_handler(self, lex, left):
@@ -1171,27 +1145,7 @@ class PrattParser(object):
         else: return output
 
     @staticmethod
-    def infer_jop_conditions(lex):
-        """Test whether or not a juxtaposition operator should be inferred in
-        the `recursive_parse` function.  Returns a boolean.  Consumes no tokens."""
-
-        # Fail if jop undefined.
-        if not lex.parser_instance.jop_token_subclass: return False
-        # Fail if at end of expression.
-        if lex.is_end_token(lex.peek()): return False
-        # Fail if the ignored token for jop is not present (TODO optional but default.)
-        if lex.parser_instance.jop_ignored_token_label and ( # still doesn't work...
-                               lex.parser_instance.jop_ignored_token_label 
-                               not in lex.peek().ignored_before_labels()): 
-            return False
-        # Fail if peek has a tail, since that may be lower-prec operator.
-        if lex.peek().prec() > 0: return False
-
-        return True
-
-    @staticmethod
     def recursive_parse(lex, subexp_prec):
-
         """Parse a subexpression as defined by token precedences. Return the
         result of the evaluation.  Recursively builds up the final result in
         `processed_left`, which is the tree for the part of the full expression
@@ -1207,52 +1161,68 @@ class PrattParser(object):
         that routine wants to make use of it.  For example, the ordinal
         position of the token in the top level of the subexpression can be
         calculated from the length of `lookbehind`."""
-
         # NOTE that with a good, efficient pushback function the modifiable
         # prec for different handler functions might be doable: just do a next
         # then evaluate the prec, then pushback.
 
         curr_token = lex.next()
-        print("curr token to run head handler is", curr_token)
         processed_left = curr_token.dispatch_and_call_handler(HEAD, lex)
         lookbehind = [processed_left]
 
         while True:
 
+            #
             # The main loop, except for the special case when a jop is defined.
+            #
+
             while lex.peek().prec() > subexp_prec:
                 curr_token = lex.next()
-                print("curr token to run tail handler is", curr_token)
                 processed_left = curr_token.dispatch_and_call_handler(
                                        TAIL, lex, processed_left, lookbehind)
                 lookbehind.append(processed_left)
 
+            #
             # Broke out of main loop, determine whether or not to infer a jop.
-            if not PrattParser.infer_jop_conditions(lex): break
+            #
+
+            # Not if jop undefined.
+            if not lex.parser_instance.jop_token_subclass: break
+            # Not if at end of expression.
+            if lex.is_end_token(lex.peek()): break
+            # Not if the ignored token for jop is set but not present.
+            if lex.parser_instance.jop_ignored_token_label and (
+                                   lex.parser_instance.jop_ignored_token_label 
+                                   not in lex.peek().ignored_before_labels()): 
+                break
+            # Not if peek has a tail, since that may be lower-prec operator.
+            # --> Now tested in context below, after getting token.
+            #if lex.peek().prec() > 0: break
 
             # Infer a jop, but only if 1) its prec would satisfy the while loop
             # above as an ordinary token, 2) the next token has a head
             # handler defined in the conditions when the jop will run its head
             # handler, and 3) the next token similarly has no tail handler.
             if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
+
                 # Provisionally infer a jop; create a subclass instance for its token.
                 jop_instance = lex.parser_instance.jop_token_subclass(None)
 
                 # This is a little inefficient, but we need to be sure that
-                # when the head of the jop is called and it reads a token that
-                # that token has a head handler defined for it *in that
-                # precondition context*.  Otherwise, no jop is inferred.  We
-                # also make sure that is has no tail handler in the context
-                # (since it could be an infix operator, and no jop is inferred
-                # before another infix operator).
+                # when the tail handler of the jop is called and it reads a
+                # token that that token has a head handler defined for it *in
+                # that precondition context*.  Otherwise, no jop will be
+                # inferred.  We also make sure that it has no tail handler in
+                # the context, since then it would be a lower-precedence (lower
+                # precedence because we broke out of the loop above) infix or
+                # postfix operator, and no jop is inferred before another operator).
                 curr_token = lex.next()
-                try: # See if it has a head handler.
+                try:
                     # Dispatch without calling here, since calling will consume
                     # another token; also, deeper-level recursions could cause false
                     # results to come up the recursion chain.
                     curr_token.dispatch_and_call_handler(
                             HEAD, lex, processed_left, lookbehind, call=False)
-                    try: # See if it has a tail handler.
+                    try: # Found head handler, now make sure it has no tail handler.
                         curr_token.dispatch_and_call_handler(
                                 TAIL, lex, processed_left, lookbehind, call=False)
                     except NoHandlerFunctionDefined: pass
@@ -1270,6 +1240,22 @@ class PrattParser(object):
                 break
 
         return processed_left
+
+
+def multi_funcall(function, tuple_list):
+   """A convenience function that takes a list of tuples and a method name and
+   calls `function` with the values in the tuple as arguments.  The parameter
+   `num_args` is the number of arguments, and `defaults` is a list of all the
+   default values assigned to parameters.  The parameter `tuple_list` is the
+   list of tuples of arguments."""
+   for t in tuple_list:
+       try:
+          function(*t)
+       except TypeError:
+           raise ParserException(
+                   "Bad multi-definition of {0}: Omitted required arguments."
+                   "\nError on this tuple: {1}".format(function.__name__, t))
+
 
 #
 # Exceptions
