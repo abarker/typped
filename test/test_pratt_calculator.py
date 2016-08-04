@@ -80,12 +80,18 @@ def define_basic_calculator(parser):
     parser.def_token("k_cos", r"cos")
     parser.def_stdfun("k_cos", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
                       eval_fun=lambda t: math.cos(t[0].eval_subtree()))
-    parser.def_token("k_ln", r"ln")
-    parser.def_stdfun("k_ln", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
-                      eval_fun=lambda t: math.log(t[0].eval_subtree()))
     parser.def_token("k_sqrt", r"sqrt")
     parser.def_stdfun("k_sqrt", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
                       eval_fun=lambda t: math.sqrt(t[0].eval_subtree()))
+
+    # Note that log is overloaded, taking one argument or two, different eval funs.
+    # TODO: This currently doesn't work, need to store with the handler, not the
+    # token, and then retrieve the correct one from the handler, too.
+    parser.def_token("k_log", r"log")
+    parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", arg_types=[None],
+                      eval_fun=lambda t: math.log(t[0].eval_subtree()))
+    parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", arg_types=[None,None],
+               eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()))
 
     #
     # Parens and brackets, highest precedence (since they have a head function).

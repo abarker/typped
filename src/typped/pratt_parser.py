@@ -211,8 +211,8 @@ def create_token_subclass():
             # retained, nothing else (with the precondition only the first
             # would get called, anyway).
             try:
-                prev_handler_list = [ s[3] for s in self.handler_funs[head_or_tail]
-                                                 if s[0] == precond_label ]
+                prev_handler_list = [s[3] for s in self.handler_funs[head_or_tail]
+                                                 if s[0] == precond_label]
                 assert len(prev_handler_list) <= 1 # Multiple defs shouldn't happen.
             except KeyError:
                 prev_handler_list = None
@@ -411,7 +411,9 @@ def create_token_subclass():
             self.ast_label = ast_label
             self.in_tree = in_tree
             if eval_fun:
-                self.add_eval_subtree_method(eval_fun)
+                # This sets for the CLASS, not the instance, we need for instance...
+                #self.add_eval_subtree_method(eval_fun)
+                self.eval_fun = eval_fun # DEBUG, testing....
            
             # Process the children to implement in_tree, if set.
             modified_children = []
@@ -578,6 +580,9 @@ def create_token_subclass():
         # itself).  This evaluate interface needs to be re-worked slightly to
         # accomodate that, and the code below that uses the
         # add_eval_subtree_method needs to be modified.
+        def eval_subtree(self): # DEBUG, testing.
+            return self.eval_fun(self) # Run the function saved with the instance.
+
         def add_eval_subtree_method(self, eval_fun):
             """Add a method called `eval_subtree` to the instance of the class.
             The function `eval_fun` passed in should take self as its first
@@ -889,6 +894,7 @@ class PrattParser(object):
             return self
         self.modify_token_subclass(token_label, head=head_handler_literal,
                                                             val_type=val_type)
+
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
         tuples.  The `def_literal` method will be called for each tuple, unpacked
@@ -970,7 +976,7 @@ class PrattParser(object):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of the
         brackets).  Defines a head handler for the left bracket token, so effectively
-        gets the highest precedence."""
+        gets the highest evaluation precedence."""
         # Define a head for the left bracket of the pair.
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, 0))
