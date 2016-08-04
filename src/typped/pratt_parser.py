@@ -945,12 +945,12 @@ class PrattParser(object):
             self.append_children(left, PrattParser.recursive_parse(lex, recurse_bp))
             while True:
                 for op in operator_token_labels[1:]:
-                    PrattParser.match_next(lex, op)
+                    PrattParser.match_next(lex, op, raise_on_fail=True)
                     self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
                 if not repeat: break
                 # Peek ahead and see if we need to loop another time.
                 if lex.peek().token_label != operator_token_labels[0]: break
-                PrattParser.match_next(lex, operator_token_labels[0])
+                PrattParser.match_next(lex, operator_token_labels[0], raise_on_fail=True)
                 self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
             self.process_and_check_node(tail_handler, in_tree=in_tree,
                                         repeat_args=repeat, ast_label=ast_label)
@@ -984,7 +984,8 @@ class PrattParser(object):
         no ignored token (usually whitespace) can appear immediately before the
         operator."""
         def tail_handler(self, lex, left):
-            if not allow_ignored_before: PrattParser.no_ignored_before(lex)
+            if not allow_ignored_before:
+                PrattParser.no_ignored_before(lex, raise_on_fail=True)
             self.append_children(left)
             self.process_and_check_node(tail_handler, ast_label=ast_label)
             return self
@@ -1000,7 +1001,7 @@ class PrattParser(object):
         # Define a head for the left bracket of the pair.
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, 0))
-            PrattParser.match_next(lex, rbrac_token_label)
+            PrattParser.match_next(lex, rbrac_token_label, raise_on_fail=True)
             self.process_and_check_node(head_handler,
                         typesig_override=ActualTypes(self.children[0].val_type, None),
                         ast_label=ast_label)
@@ -1025,19 +1026,16 @@ class PrattParser(object):
         precond_label = "lpar after, no whitespace between" # Should be a unique label.
 
         def head_handler(self, lex):
-            PrattParser.match_next(lex, lpar_token_label) # Is precond, so will match.
+            # Below match is for a precondition, so it will match and consume.
+            PrattParser.match_next(lex, lpar_token_label, raise_on_fail=True)
             # Read comma-separated subexpressions until the peek is rpar_token_label.
+            # TODO below loop and following match_next should be easy refactor
+            # into new match_next without raise_on_fail flag, but causes errors!!!!
             while lex.peek().token_label != rpar_token_label:
                 self.append_children(PrattParser.recursive_parse(lex, 0))
-                if lex.peek().token_label == comma_token_label: 
-                    # TODO single utility fun or flag for this style of if block?
-                    # Raise error in match_next or return boolean and fail higher?
-                    # Or let match_next fail before consuming token and use try here?
-                    # Or have a flag raise_on_fail or similar to match_next?
-                    PrattParser.match_next(lex, comma_token_label)
-                else:
+                if not PrattParser.match_next(lex, comma_token_label):
                     break
-            PrattParser.match_next(lex, rpar_token_label)
+            PrattParser.match_next(lex, rpar_token_label, raise_on_fail=True)
             self.process_and_check_node(head_handler, ast_label=ast_label)
             return self
         self.modify_token_subclass(fname_token_label, prec=0,
@@ -1056,14 +1054,15 @@ class PrattParser(object):
         # Could also recognize alternate symbols to divide args (like
         # using "|" in probability and ";" in some cases).
         def tail_handler(self, lex, left):
-            PrattParser.no_ignored_before(lex) # Nothing between fun name and lpar_token.
+            # Nothing between fun name and lpar_token.
+            PrattParser.no_ignored_before(lex, raise_on_fail=True)
             while lex.peek().token_label != rpar_token_label:
                 left.append_children(PrattParser.recursive_parse(lex, prec_of_lpar))
                 if lex.peek().token_label == comma_token_label: 
                     # TODO single utility fun or flag for this if?
-                    PrattParser.match_next(lex, comma_token_label)
+                    PrattParser.match_next(lex, comma_token_label, raise_on_fail=True)
                 else: break
-            PrattParser.match_next(lex, rpar_token_label)
+            PrattParser.match_next(lex, rpar_token_label, raise_on_fail=True)
             left.process_and_check_node(tail_handler, ast_label=ast_label)
             return left
         self.modify_token_subclass(lpar_token_label,
@@ -1106,15 +1105,20 @@ class PrattParser(object):
     #
 
     @staticmethod
-    def match_next(lex, token_label_to_match, discard_non_matches=False):
-        """A utility function that asserts the value of the next token label
-        in `lex` and also consumes the token from the lexer.  If the token
-        label does not match then an exception is raised."""
+    def match_next(lex, token_label_to_match, raise_on_fail=False):
+        """A utility function that tests whether the value of the next token label
+        in `lex` equals a given token label, and consumes the token from the lexer
+        if there is a match.  Returns a boolean.  If `raise_on_fail` set true then
+        a `ParserException` will be raised if the match fails."""
         if token_label_to_match != lex.peek().token_label:
-            raise ParserException("Function match_next expected token {0} but found {1}."
-                             .format(token_label_to_match, lex.peek().token_label))
+            if raise_on_fail:
+                raise ParserException(
+                        "Function match_next expected token {0} but found {1}."
+                        .format(token_label_to_match, lex.peek().token_label))
+            else:
+                return False
         lex.next() # Eat the token that was matched.
-        return
+        return True
 
     @staticmethod
     def in_ignored_tokens(lex, token_label_to_match):
@@ -1126,20 +1130,31 @@ class PrattParser(object):
         return False
 
     @staticmethod
-    def no_ignored_after(lex):
-        # TODO maybe make just a boolean fun, for localized error handling.
-        """Test if any tokens were ignored between current token and lookahead."""
-        if lex.peek().ignored_before(): raise ParserException(
-                "Expected nothing between {0} and previous symbol."
-                .format(lex.peek().value))
+    def no_ignored_after(lex, raise_on_fail=False):
+        """Boolean function to test if any tokens were ignored between current token
+        and lookahead."""
+        if lex.peek().ignored_before(): 
+            if raise_on_fail:
+                raise ParserException(
+                        "Expected nothing between {0} and previous symbol."
+                        .format(lex.peek().value))
+            else:
+                return False
+        return True
 
     @staticmethod
-    def no_ignored_before(lex):
-        # TODO maybe make just a boolean fun, for localized error handling.
-        """Test if any tokens were ignored between previous token and current."""
-        if lex.token.ignored_before(): raise ParserException(
-                "Expected nothing between {0} and previous symbol."
-                .format(lex.token))
+    def no_ignored_before(lex, raise_on_fail=False):
+        """Boolean function to test if any tokens were ignored between previous token
+        and current token."""
+        if lex.token.ignored_before():
+            if raise_on_fail:
+                raise ParserException(
+                        "Expected nothing between {0} and previous symbol."
+                        .format(lex.token))
+            else:
+                return False
+        else:
+            return True
 
     #
     # The main parse routines.
@@ -1179,8 +1194,8 @@ class PrattParser(object):
         result of the evaluation.  Recursively builds up the final result in
         `processed_left`, which is the tree for the part of the full expression
         to the left of the current token.  This is a static method so that it
-        can be called from head and tail functions.  Note that the functions
-        `head_dispatcher` and `tail_dispatcher` which are called in the code
+        can be called from head and tail functions.  Note that the function
+        `dispatch_and_call_handler` which is called in the code
         often recursively call `recursive_parse` again.  Each recursive call
         inside the function processes a subexpression, sub-subexpression, etc.
         (as implicitly defined by the token precedences).  The list
@@ -1220,12 +1235,9 @@ class PrattParser(object):
             if lex.is_end_token(lex.peek()): break
             # Not if the ignored token for jop is set but not present.
             if lex.parser_instance.jop_ignored_token_label and (
-                                   lex.parser_instance.jop_ignored_token_label 
-                                   not in lex.peek().ignored_before_labels()): 
+                          lex.parser_instance.jop_ignored_token_label 
+                          not in lex.peek().ignored_before_labels()): 
                 break
-            # Not if peek has a tail, since that may be lower-prec operator.
-            # --> Now tested in context below, after getting token.
-            #if lex.peek().prec() > 0: break
 
             # Infer a jop, but only if 1) its prec would satisfy the while loop
             # above as an ordinary token, 2) the next token has a head
