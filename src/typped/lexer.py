@@ -192,7 +192,7 @@ class TokenSubclassDict(object):
         `LexerException` if no subclass is found for the token label."""
         if token_label in self.token_subclass_dict:
             TokenSubclass = self.token_subclass_dict[token_label]
-        else: raise LexerException("No token with label {0} is in the symbol table."
+        else: raise LexerException("No token with label '{0}' is in the symbol table."
                                    .format(token_label))
         return TokenSubclass
 
@@ -202,7 +202,7 @@ class TokenSubclassDict(object):
         if a subclass for `token_label` has already been created.  If
         `store_in_dict` is `False` then the token is not stored."""
         if token_label in self.token_subclass_dict:
-            raise LexerException("In create_token_subclass, already created the"
+            raise LexerException("In `create_token_subclass`, already created the"
                     " token subclass for token_label '{0}'.".format(token_label))
         # Create a new token subclass for token_label and add some attributes.
         TokenSubclass = self.token_subclassing_fun()
@@ -319,7 +319,7 @@ class Lexer(object):
         be a string."""
         if not (self.begin_token_label and self.end_token_label):
             raise LexerException("Begin and end tokens must be defined by calling"
-                    " def_begin_end_tokens before set_text can be called.")
+                    " `def_begin_end_tokens` before set_text can be called.")
 
         self.already_returned_end_token = False
         self._curr_token_is_first = False # Is curr token first non-ignored in text?
@@ -449,9 +449,9 @@ class Lexer(object):
         #            "\n   linenumber, charnumber:", self.linenumber, self.charnumber)
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
-                  "or has reached StopIteration by reading past the end token.")
+                  "or has reached `StopIteration` by reading past the end token.")
         if self.MAX_GO_BACK_TOKENS and num_toks > self.MAX_GO_BACK_TOKENS:
-            raise LexerException("Attempt to go back {0} tokens when MAX_GO_BACK_LEVELS"
+            raise LexerException("Attempt to go back {0} tokens when `MAX_GO_BACK_LEVELS`"
                     " is set to {1}.".format(num_toks, self.MAX_GO_BACK_TOKENS))
 
         num_non_ends_in_buf = len([True for t in self.token_buffer
@@ -564,8 +564,8 @@ class Lexer(object):
         any two are still equal an exception will be raised.  Returns the new
         token subclass."""
         if self.is_defined_token_label(token_label):
-            raise LexerException("Token {0} is already defined.  It must be undefined"
-                                 " before it can be redefined.".format(token_label))
+            raise LexerException("A token with label '{0}' is already defined.  It "
+            "must be undefined before it can be redefined.".format(token_label))
         self._insert_pattern(regex_string)
         self.token_labels.append(token_label)
         self.on_ties.append(on_ties)
@@ -802,7 +802,7 @@ class Lexer(object):
                     token_subclass_for_label = self.symbol_table.get_token_subclass(label)
                 except LexerException:
                     raise LexerException("Undefined key in symbol table for "
-                                         "this label: {0}.".format(label))
+                                         "label '{0}'.".format(label))
 
                 # Make an instance of the class to return (or at least to save
                 # in the token's ignored_before if ignored).

@@ -239,7 +239,7 @@ def test_stdfun_functions(basic_setup):
     # General error conditions
     with raises(ParserException) as e:
         parser.parse("add(30 30)") # Left out comma.
-    assert str(e.value).startswith("Function match_next expected token k_rpar")
+    assert str(e.value).startswith("Function match_next with peeklevel=1 expected token")
     with raises(ParserException) as e:
         parser.parse("add(30,30,)") # Extra comma.
     assert str(e.value).startswith("No head handler functions at all are defined")
@@ -281,13 +281,13 @@ def test_stdfun_lpar_tail_functions(basic_setup):
 
     with raises(ParserException) as e:
         parser.parse("add(30 30)") # Left out comma.
-    assert str(e.value).startswith("Function match_next expected token k_rpar")
+    assert str(e.value).startswith("Function match_next with peeklevel=1 expected token")
     with raises(ParserException) as e:
         parser.parse("add(30,30,)") # Extra comma.
-    assert str(e.value).startswith("Function match_next found unexpected token k_rpar.")
+    assert str(e.value).startswith("Function match_next with peeklevel=1 found unexpected")
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
-    assert str(e.value).startswith("Expected nothing between <k_lpar,(> and previous")
+    assert str(e.value).startswith("Function no_ignored_before expected no ignored tokens")
     
 def test_jop(basic_setup): 
     # TODO basic setup will not work, maybe individual defs of identifiers and vars

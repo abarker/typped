@@ -614,63 +614,100 @@ def create_token_subclass():
         # Some helper functions for use in handler functions.
         #
 
-        def match_next(self, token_label_to_match,
+        def match_next(self, token_label_to_match, peeklevel=1,
                        raise_on_fail=False, raise_on_true=False, consume=True):
             """A utility function that tests whether the value of the next token label
             in `lex` equals a given token label, and consumes the token from the lexer
-            if there is a match.  Returns a boolean.  If `raise_on_fail` set true then
-            a `ParserException` will be raised if the match fails.  If `consume` is
-            false then no tokens will be consumed."""
+            if there is a match.  Returns a boolean.  The parameter `peeklevel` is
+            passed to the peek function for how far to look; the default is one.
+            
+            If `raise_on_fail` set true then a `ParserException` will be raised
+            if the match fails.  If `consume` is false then no tokens will be
+            consumed."""
             lex = self.lex
-            if token_label_to_match != lex.peek().token_label:
-                if raise_on_fail:
-                    raise ParserException(
-                            "Function match_next expected token {0} but found {1}."
-                            .format(token_label_to_match, lex.peek().token_label))
-                else:
-                    return False
-            if raise_on_true:
-                    raise ParserException(
-                            "Function match_next found unexpected token {0}."
-                            .format(token_label_to_match, lex.peek().token_label))
-            if consume: lex.next() # Eat the token that was matched.
-            return True
+            retval = False
+            if token_label_to_match == lex.peek(peeklevel).token_label:
+                retval = True
+            if consume and retval:
+                lex.next() # Eat the token that was matched.
 
-        def in_ignored_tokens(self, token_label_to_match):
+            if retval and raise_on_true:
+                    raise ParserException(
+                        "Function match_next with peeklevel={0} found unexpected "
+                        "token {1}."
+                        .format(peeklevel, str(lex.peek(peeklevel))))
+            if not retval and raise_on_fail:
+                    raise ParserException(
+                        "Function match_next with peeklevel={0} expected token "
+                        " with label '{1}' but found token {2}."
+                        .format(peeklevel, token_label_to_match,
+                                str(lex.peek(peeklevel))))
+            return retval
+
+        def in_ignored_tokens(self, token_label_to_match,
+                              raise_on_fail=False, raise_on_true=False):
             """A utility function to test if a particular token label is among the
             tokens ignored before the current token.  Returns a boolean value."""
             lex = self.lex
+            retval = False
             ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
             if token_label_to_match in ignored_token_labels:
-                return True
-            return False
+                retval = True
 
-        def no_ignored_after(self, raise_on_fail=False):
+            if retval and raise_on_true:
+                    raise ParserException(
+                        "Function in_ignored_tokens found unexpected token with "
+                        "label '{0}' before the current token {1}."
+                        .format(token_label_to_match, str(lex.token)))
+            if not retval and raise_on_fail:
+                    raise ParserException(
+                        "Function in_ignored_tokens expected token with label "
+                        "'{0}' before the current token {1}, but it was not found."
+                        .format(token_label_to_match, str(lex.token)))
+            return retval
+
+        def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
             """Boolean function to test if any tokens were ignored between current token
             and lookahead."""
             lex = self.lex
-            if lex.peek().ignored_before(): 
-                if raise_on_fail:
-                    raise ParserException(
-                            "Expected nothing between {0} and previous symbol."
-                            .format(lex.peek().value))
-                else:
-                    return False
-            return True
+            retval = True
+            if lex.peek().ignored_before():
+                retval = False
 
-        def no_ignored_before(self, raise_on_fail=False):
+            if retval and raise_on_true:
+                    raise ParserException(
+                        "Function no_ignored_after expected tokens between the current "
+                        "token {0} and the following token {1}, but there were none."
+                        .format(str(lex.token), str(lex.peek())))
+            if not retval and raise_on_fail:
+                raise ParserException(
+                        "Function no_ignored_after expected nothing between the "
+                        "current token {0} and the following token {1}, but there "
+                        "were ignored tokens."
+                        .format(str(lex.token), str(lex.peek())))
+            else:
+                return False
+            return retval
+
+        def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
             """Boolean function to test if any tokens were ignored between previous token
             and current token."""
             lex = self.lex
+            retval = True
             if lex.token.ignored_before():
-                if raise_on_fail:
+                retval = False
+
+            if retval and raise_on_true:
                     raise ParserException(
-                            "Expected nothing between {0} and previous symbol."
-                            .format(lex.token))
-                else:
-                    return False
-            else:
-                return True
+                        "Function no_ignored_before expected ignored tokens before "
+                        " the current token {0}, but none were found."
+                        .format(str(lex.token)))
+            if not retval and raise_on_fail:
+                raise ParserException(
+                        "Function no_ignored_before expected no ignored tokens "
+                        "before the current token {0}, but at least one was found."
+                        .format(str(lex.token)))
+            return retval
 
         #
         # The main recursive_parse function.

@@ -1,13 +1,29 @@
+# See 'man gitignore'.
 
-*.pyc
-*.pyo
+# Rope
 .ropeproject
 
-# sphinx build folder
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Sphinx documentation build directory.
 _build
 
-# py.test cashe
+# Setuptools stuff.
+*.egg-info
+
+# Cache for py.test.
 .cache
 
-# vim swap
+# Vim swap.
 *.swp
+
+# Installer logs.
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribution directory from setup.py sdist.
+/dist
+!*/dist # Needed for older versions of git (don't ignore dist deeper than root level).
+
