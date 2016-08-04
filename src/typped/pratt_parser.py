@@ -187,7 +187,15 @@ def create_token_subclass():
         @classmethod
         def register_handler_fun(self, head_or_tail, handler_fun,
                              precond_label=None, precond_fun=None, precond_priority=0,
-                             type_sig=None):
+                             type_sig=None, eval_fun=None):
+
+            #
+            # TODO: save the eval_fun with the signature, in a way that
+            # process_and_check_node can recover and set for instance (after
+            # finding matching one).  Make sure that unregister_handler_fun
+            # still works, too.
+            #
+
             """Register a handler function (either head or tail) with the given
             properties.
             
@@ -205,6 +213,9 @@ def create_token_subclass():
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
+
+            handler_fun.eval_fun = eval_fun # TODO change this to work for overloaded
+
             # See if there is already a handler for the case, in which case the
             # type sig is assumed to be overloaded.  There should only ever be
             # one previous handler, at most, since only overloaded type info is
@@ -230,7 +241,7 @@ def create_token_subclass():
                        .format(head_or_tail, self.token_label, precond_label))
 
             # Type info is stored as an attribute of handler funs.
-            # For overloading, append the type_sig to pref_type_sigs, saving them all.
+            # For overloading, append the type_sig to prev_type_sigs, saving them all.
             prev_type_sigs.append(type_sig)
             handler_fun.type_sigs = prev_type_sigs
 
@@ -366,7 +377,7 @@ def create_token_subclass():
                 raise ParserException("Bad first argument to dispatch_and_call_handler"
                         " function: must be HEAD or TAIL or equivalent.")
 
-        def process_and_check_node(self, fun_object, eval_fun,
+        def process_and_check_node(self, fun_object,
                                    typesig_override=None, in_tree=True,
                                    repeat_args=False, ast_label=None):
             """This routine should always be called from inside the individual
@@ -410,10 +421,11 @@ def create_token_subclass():
 
             self.ast_label = ast_label
             self.in_tree = in_tree
-            if eval_fun:
-                # This sets for the CLASS, not the instance, we need for instance...
-                #self.add_eval_subtree_method(eval_fun)
-                self.eval_fun = eval_fun # DEBUG, testing....
+            #if eval_fun:
+            #    # This sets for the CLASS, not the instance, we need for instance...
+            #    #self.add_eval_subtree_method(eval_fun)
+            #    self.eval_fun = eval_fun # DEBUG, testing....
+            self.eval_fun = fun_object.eval_fun
            
             # Process the children to implement in_tree, if set.
             modified_children = []
@@ -581,6 +593,7 @@ def create_token_subclass():
         # accomodate that, and the code below that uses the
         # add_eval_subtree_method needs to be modified.
         def eval_subtree(self): # DEBUG, testing.
+            print("id of eval fun", id(self.eval_fun))
             return self.eval_fun(self) # Run the function saved with the instance.
 
         def add_eval_subtree_method(self, eval_fun):
@@ -790,7 +803,8 @@ class PrattParser(object):
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
                        precond_label=None, precond_fun=None,
-                       precond_priority=0, val_type=None, arg_types=None):
+                       precond_priority=0, val_type=None, arg_types=None,
+                       eval_fun=None):
         """Look up the subclass of base class `TokenNode` corresponding to the
         label `token_label` (in the symbol table) and modify it.  A token with
         that label must already be in the symbol table, or an exception will be
@@ -828,13 +842,18 @@ class PrattParser(object):
             type_sig = TypeSig(val_type, arg_types) 
 
         if head:
+            print("DEBUG registered head handler eval_fun with id", id(eval_fun))
             TokenSubclass.register_handler_fun(HEAD, head,
                                precond_label=precond_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig)
+                               precond_priority=precond_priority, type_sig=type_sig,
+                               eval_fun=eval_fun)
         if tail:
+            tail.eval_fun = eval_fun
+            print("DEBUG registered tail handler eval_fun with id", id(eval_fun))
             TokenSubclass.register_handler_fun(TAIL, tail,
                                precond_label=precond_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig)
+                               precond_priority=precond_priority, type_sig=type_sig,
+                               eval_fun=eval_fun)
         return TokenSubclass
 
     def undef_handler(self, token_label, head_or_tail, precond_label=None,
@@ -889,11 +908,11 @@ class PrattParser(object):
         being evaluated by `recursive_parse`, so they need a head handler but not
         a tail handler."""
         def head_handler_literal(self, lex):
-            self.process_and_check_node(head_handler_literal, eval_fun,
+            self.process_and_check_node(head_handler_literal,
                                         ast_label=ast_label)
             return self
         self.modify_token_subclass(token_label, head=head_handler_literal,
-                                                            val_type=val_type)
+                                                val_type=val_type, eval_fun=eval_fun)
 
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
@@ -933,11 +952,12 @@ class PrattParser(object):
                 if lex.peek().token_label != operator_token_labels[0]: break
                 PrattParser.match_next(lex, operator_token_labels[0])
                 self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
-            self.process_and_check_node(tail_handler, eval_fun, in_tree=in_tree,
+            self.process_and_check_node(tail_handler, in_tree=in_tree,
                                         repeat_args=repeat, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_labels[0], prec=prec,
-                                tail=tail_handler, val_type=val_type, arg_types=arg_types)
+                                tail=tail_handler, val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun)
 
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
@@ -952,10 +972,10 @@ class PrattParser(object):
         """Define a prefix operator."""
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, prec))
-            self.process_and_check_node(head_handler, eval_fun, ast_label=ast_label)
+            self.process_and_check_node(head_handler, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_label, head=head_handler,
-                                val_type=val_type, arg_types=arg_types)
+                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
                        val_type=None, arg_types=None, eval_fun=None,
@@ -966,10 +986,10 @@ class PrattParser(object):
         def tail_handler(self, lex, left):
             if not allow_ignored_before: PrattParser.no_ignored_before(lex)
             self.append_children(left)
-            self.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
+            self.process_and_check_node(tail_handler, ast_label=ast_label)
             return self
         self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
-                                val_type=val_type, arg_types=arg_types)
+                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
                                                eval_fun=None, ast_label=None):
@@ -981,11 +1001,12 @@ class PrattParser(object):
         def head_handler(self, lex):
             self.append_children(PrattParser.recursive_parse(lex, 0))
             PrattParser.match_next(lex, rbrac_token_label)
-            self.process_and_check_node(head_handler, eval_fun,
+            self.process_and_check_node(head_handler,
                         typesig_override=ActualTypes(self.children[0].val_type, None),
                         ast_label=ast_label)
             return self
-        self.modify_token_subclass(lbrac_token_label, head=head_handler)
+        self.modify_token_subclass(lbrac_token_label, head=head_handler,
+                                   eval_fun=eval_fun)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
@@ -1017,12 +1038,12 @@ class PrattParser(object):
                 else:
                     break
             PrattParser.match_next(lex, rpar_token_label)
-            self.process_and_check_node(head_handler, eval_fun, ast_label=ast_label)
+            self.process_and_check_node(head_handler, ast_label=ast_label)
             return self
         self.modify_token_subclass(fname_token_label, prec=0,
                          head=head_handler, precond_label=precond_label,
                          precond_fun=preconditions, precond_priority=1,
-                         val_type=val_type, arg_types=arg_types)
+                         val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
@@ -1043,11 +1064,12 @@ class PrattParser(object):
                     PrattParser.match_next(lex, comma_token_label)
                 else: break
             PrattParser.match_next(lex, rpar_token_label)
-            left.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
+            left.process_and_check_node(tail_handler, ast_label=ast_label)
             return left
         self.modify_token_subclass(lpar_token_label,
                                          prec=prec_of_lpar, tail=tail_handler,
-                                         val_type=val_type, arg_types=arg_types)
+                                         val_type=val_type, arg_types=arg_types,
+                                         eval_fun=eval_fun)
 
     def def_jop(self, prec, assoc,
                       precond_label=None, precond_fun=None, precond_priority=None,
@@ -1072,12 +1094,12 @@ class PrattParser(object):
         def tail_handler(self, lex, left):
             right_operand = PrattParser.recursive_parse(lex, recurse_bp)
             self.append_children(left, right_operand)
-            self.process_and_check_node(tail_handler, eval_fun, ast_label=ast_label)
+            self.process_and_check_node(tail_handler, ast_label=ast_label)
             return self
         self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
                             precond_priority=precond_priority,
-                            val_type=val_type, arg_types=arg_types)
+                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
         
     #
     # Static methods for use inside head and tail functions.

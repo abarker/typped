@@ -162,7 +162,7 @@ def define_basic_calculator(parser):
         symbol_dict[t[0].value] = rhs
         return rhs
 
-    parser.def_infix_op("k_equals", 100, Assoc.right, ast_label="a_assign",
+    parser.def_infix_op("k_equals", 5, Assoc.right, ast_label="a_assign",
             eval_fun=eval_assign)
 
     #
@@ -191,6 +191,9 @@ def read_eval_print_loop(parser):
         try:
            parse_tree = parser.parse(line)
            eval_value = parse_tree.eval_subtree()
+        except (ValueError, ZeroDivisionError) as e:
+            print(e)
+            continue
         except pp.ParserException as e:
             print(e)
             continue
