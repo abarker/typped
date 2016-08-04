@@ -188,8 +188,6 @@ def create_token_subclass():
         def register_handler_fun(self, head_or_tail, handler_fun,
                              precond_label=None, precond_fun=None, precond_priority=0,
                              type_sig=None, eval_fun=None):
-
-            #
             # TODO: save the eval_fun with the signature, in a way that
             # process_and_check_node can recover and set for instance (after
             # finding matching one).  Make sure that unregister_handler_fun
@@ -613,6 +611,173 @@ def create_token_subclass():
             pass
 
         #
+        # Some helper functions for use in handler functions.
+        #
+
+        def match_next(self, token_label_to_match,
+                       raise_on_fail=False, raise_on_true=False, consume=True):
+            """A utility function that tests whether the value of the next token label
+            in `lex` equals a given token label, and consumes the token from the lexer
+            if there is a match.  Returns a boolean.  If `raise_on_fail` set true then
+            a `ParserException` will be raised if the match fails.  If `consume` is
+            false then no tokens will be consumed."""
+            lex = self.lex
+            if token_label_to_match != lex.peek().token_label:
+                if raise_on_fail:
+                    raise ParserException(
+                            "Function match_next expected token {0} but found {1}."
+                            .format(token_label_to_match, lex.peek().token_label))
+                else:
+                    return False
+            if raise_on_true:
+                    raise ParserException(
+                            "Function match_next found unexpected token {0}."
+                            .format(token_label_to_match, lex.peek().token_label))
+            if consume: lex.next() # Eat the token that was matched.
+            return True
+
+        def in_ignored_tokens(self, token_label_to_match):
+            """A utility function to test if a particular token label is among the
+            tokens ignored before the current token.  Returns a boolean value."""
+            lex = self.lex
+            ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
+            if token_label_to_match in ignored_token_labels:
+                return True
+            return False
+
+        def no_ignored_after(self, raise_on_fail=False):
+            """Boolean function to test if any tokens were ignored between current token
+            and lookahead."""
+            lex = self.lex
+            if lex.peek().ignored_before(): 
+                if raise_on_fail:
+                    raise ParserException(
+                            "Expected nothing between {0} and previous symbol."
+                            .format(lex.peek().value))
+                else:
+                    return False
+            return True
+
+        def no_ignored_before(self, raise_on_fail=False):
+            """Boolean function to test if any tokens were ignored between previous token
+            and current token."""
+            lex = self.lex
+            if lex.token.ignored_before():
+                if raise_on_fail:
+                    raise ParserException(
+                            "Expected nothing between {0} and previous symbol."
+                            .format(lex.token))
+                else:
+                    return False
+            else:
+                return True
+
+        #
+        # The main recursive_parse function.
+        #
+
+        def recursive_parse(self, subexp_prec):
+            """Parse a subexpression as defined by token precedences. Return
+            the result of the evaluation.  Recursively builds up the final
+            result in `processed_left`, which is the tree for the part of the
+            full expression to the left of the current token.  This is a static
+            method so that it can be called from head and tail functions.  Note
+            that the function `dispatch_and_call_handler` which is called in
+            the code often recursively call `recursive_parse` again.  Each
+            recursive call inside the function processes a subexpression,
+            sub-subexpression, etc.  (as implicitly defined by the token
+            precedences).  The list `lookbehind` saves all the previously
+            evaluated subexpressions at this level of recursion (i.e., at the
+            top level in the same subexpression) and passes it to the
+            `tail_dispatcher` method of the tokens, in case that routine wants
+            to make use of it.  For example, the ordinal position of the token
+            in the top level of the subexpression can be calculated from the
+            length of `lookbehind`.
+            
+            This function is made a method of `TokenSubclass` so that handler
+            functions can easily call it by using `tok.recursive_parse`, and
+            also so that it can access the lexer without it needing to be
+            passed as an argument."""
+            # NOTE that with a good, efficient pushback function the modifiable
+            # prec for different handler functions might be doable: just do a
+            # next then evaluate the prec, then pushback.
+
+            lex = self.lex
+            curr_token = lex.next()
+            processed_left = curr_token.dispatch_and_call_handler(HEAD, lex)
+            lookbehind = [processed_left]
+
+            while True:
+
+                #
+                # The main loop, except for the special case when a jop is defined.
+                #
+
+                while lex.peek().prec() > subexp_prec:
+                    curr_token = lex.next()
+                    processed_left = curr_token.dispatch_and_call_handler(
+                                           TAIL, lex, processed_left, lookbehind)
+                    lookbehind.append(processed_left)
+
+                #
+                # Broke out of main loop, determine whether or not to infer a jop.
+                #
+
+                # Not if jop undefined.
+                if not lex.parser_instance.jop_token_subclass: break
+                # Not if at end of expression.
+                if lex.is_end_token(lex.peek()): break
+                # Not if the ignored token for jop is set but not present.
+                if lex.parser_instance.jop_ignored_token_label and (
+                              lex.parser_instance.jop_ignored_token_label 
+                              not in lex.peek().ignored_before_labels()): 
+                    break
+
+                # Infer a jop, but only if 1) its prec would satisfy the while loop
+                # above as an ordinary token, 2) the next token has a head
+                # handler defined in the conditions when the jop will run its head
+                # handler, and 3) the next token similarly has no tail handler.
+                if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
+
+                    # Provisionally infer a jop; create a subclass instance for its token.
+                    jop_instance = lex.parser_instance.jop_token_subclass(None)
+
+                    # This is a little inefficient, but we need to be sure that
+                    # when the tail handler of the jop is called and it reads a
+                    # token that that token has a head handler defined for it *in
+                    # that precondition context*.  Otherwise, no jop will be
+                    # inferred.  We also make sure that it has no tail handler in
+                    # the context, since then it would be a lower-precedence (lower
+                    # precedence because we broke out of the loop above) infix or
+                    # postfix operator, and no jop is inferred before another operator).
+                    curr_token = lex.next()
+                    try:
+                        # Dispatch without calling here, since calling will consume
+                        # another token; also, deeper-level recursions could cause false
+                        # results to come up the recursion chain.
+                        curr_token.dispatch_and_call_handler(
+                                HEAD, lex, processed_left, lookbehind, call=False)
+                        try: # Found head handler, now make sure it has no tail handler.
+                            curr_token.dispatch_and_call_handler(
+                                    TAIL, lex, processed_left, lookbehind, call=False)
+                        except NoHandlerFunctionDefined: pass
+                        else: break
+                    except NoHandlerFunctionDefined:
+                        break # No precondition matches, assume no jop.
+                    finally:
+                        lex.go_back(1)
+
+                    # Finally, we can infer a jop.
+                    processed_left = jop_instance.dispatch_and_call_handler(
+                                           TAIL, lex, processed_left, lookbehind)
+                    lookbehind.append(processed_left)
+                else:
+                    break
+
+            return processed_left
+
+
+        #
         # Some representations that apply to the subclasses.
         #
 
@@ -788,10 +953,6 @@ class PrattParser(object):
         operator.  The `ignored_token_label` parameter is the label of an
         ignored token which must be present for a jop to be inferred.  Some
         token is required; usually it will be a token for spaces and tabs."""
-        # TODO: basic jop is BROKEN when parsing `sin(0 )` with space
-        # after zero!  It wants to infer a jop between 0 and ) when reading
-        # in the subexpression 0 recursively.  What rule is needed?  Typing?
-
         if self.jop_token_subclass:
             raise ParserException("A jop token is already defined.  It must be "
                                   "undefined before defining an new one.")
@@ -799,6 +960,7 @@ class PrattParser(object):
         self.jop_ignored_token_label = ignored_token_label
         self.jop_token_subclass = self.symbol_table.create_token_subclass(
                                                            jop_token_label)
+        self.jop_token_subclass.lex = self.lex
         return self.jop_token_subclass
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
@@ -907,10 +1069,9 @@ class PrattParser(object):
         They always occur as the first (and only) token in a subexpression
         being evaluated by `recursive_parse`, so they need a head handler but not
         a tail handler."""
-        def head_handler_literal(self, lex):
-            self.process_and_check_node(head_handler_literal,
-                                        ast_label=ast_label)
-            return self
+        def head_handler_literal(tok, lex):
+            tok.process_and_check_node(head_handler_literal, ast_label=ast_label)
+            return tok
         self.modify_token_subclass(token_label, head=head_handler_literal,
                                                 val_type=val_type, eval_fun=eval_fun)
 
@@ -941,20 +1102,20 @@ class PrattParser(object):
         be passed-in in the list arg_types of parent constructs."""
         recurse_bp = prec
         if assoc == Assoc.right: recurse_bp = prec - 1
-        def tail_handler(self, lex, left):
-            self.append_children(left, PrattParser.recursive_parse(lex, recurse_bp))
+        def tail_handler(tok, lex, left):
+            tok.append_children(left, tok.recursive_parse(recurse_bp))
             while True:
                 for op in operator_token_labels[1:]:
-                    PrattParser.match_next(lex, op, raise_on_fail=True)
-                    self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
+                    tok.match_next(op, raise_on_fail=True)
+                    tok.append_children(tok.recursive_parse(recurse_bp))
                 if not repeat: break
                 # Peek ahead and see if we need to loop another time.
                 if lex.peek().token_label != operator_token_labels[0]: break
-                PrattParser.match_next(lex, operator_token_labels[0], raise_on_fail=True)
-                self.append_children(PrattParser.recursive_parse(lex, recurse_bp))
-            self.process_and_check_node(tail_handler, in_tree=in_tree,
+                tok.match_next(operator_token_labels[0], raise_on_fail=True)
+                tok.append_children(tok.recursive_parse(recurse_bp))
+            tok.process_and_check_node(tail_handler, in_tree=in_tree,
                                         repeat_args=repeat, ast_label=ast_label)
-            return self
+            return tok
         self.modify_token_subclass(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun)
@@ -970,10 +1131,10 @@ class PrattParser(object):
     def def_prefix_op(self, operator_token_label, prec, val_type=None, arg_types=None,
                       eval_fun=None, ast_label=None):
         """Define a prefix operator."""
-        def head_handler(self, lex):
-            self.append_children(PrattParser.recursive_parse(lex, prec))
-            self.process_and_check_node(head_handler, ast_label=ast_label)
-            return self
+        def head_handler(tok, lex):
+            tok.append_children(tok.recursive_parse(prec))
+            tok.process_and_check_node(head_handler, ast_label=ast_label)
+            return tok
         self.modify_token_subclass(operator_token_label, head=head_handler,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
@@ -983,12 +1144,12 @@ class PrattParser(object):
         """Define a postfix operator.  If `allow_ignored_before` is false then
         no ignored token (usually whitespace) can appear immediately before the
         operator."""
-        def tail_handler(self, lex, left):
+        def tail_handler(tok, lex, left):
             if not allow_ignored_before:
-                PrattParser.no_ignored_before(lex, raise_on_fail=True)
-            self.append_children(left)
-            self.process_and_check_node(tail_handler, ast_label=ast_label)
-            return self
+                tok.no_ignored_before(raise_on_fail=True)
+            tok.append_children(left)
+            tok.process_and_check_node(tail_handler, ast_label=ast_label)
+            return tok
         self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
@@ -999,23 +1160,31 @@ class PrattParser(object):
         brackets).  Defines a head handler for the left bracket token, so effectively
         gets the highest evaluation precedence."""
         # Define a head for the left bracket of the pair.
-        def head_handler(self, lex):
-            self.append_children(PrattParser.recursive_parse(lex, 0))
-            PrattParser.match_next(lex, rbrac_token_label, raise_on_fail=True)
-            self.process_and_check_node(head_handler,
-                        typesig_override=ActualTypes(self.children[0].val_type, None),
+        def head_handler(tok, lex):
+            tok.append_children(tok.recursive_parse(0))
+            tok.match_next(rbrac_token_label, raise_on_fail=True)
+            tok.process_and_check_node(head_handler,
+                        typesig_override=ActualTypes(tok.children[0].val_type, None),
                         ast_label=ast_label)
-            return self
+            return tok
         self.modify_token_subclass(lbrac_token_label, head=head_handler,
                                    eval_fun=eval_fun)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
-                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
+                      val_type=None, arg_types=None, eval_fun=None, ast_label=None,
+                      num_args=None):
         """This definition of stdfun uses lookahead.  This will take
         arbitrarily many arguments if `arg_types` is `None`.  To check the
         number of arguments when types are not used, set `arg_types` to, for
-        example, `[None]*3` for three arguments."""
+        example, `[None]*3` for three arguments.
+        
+        The `num_args` parameter is optional for specifying the number of
+        arguments when typing is not being used.  If it is set to a nonnegative
+        number then it will automatically set `arg_types` to the corresponding
+        list of `None` values; if `arg_types` is set then it is ignored."""
+        if num_args is not None and arg_types is None: arg_types = [None]*num_args
+
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""
@@ -1025,19 +1194,19 @@ class PrattParser(object):
             return True
         precond_label = "lpar after, no whitespace between" # Should be a unique label.
 
-        def head_handler(self, lex):
+        def head_handler(tok, lex):
             # Below match is for a precondition, so it will match and consume.
-            PrattParser.match_next(lex, lpar_token_label, raise_on_fail=True)
+            tok.match_next(lpar_token_label, raise_on_fail=True)
             # Read comma-separated subexpressions until the peek is rpar_token_label.
-            # TODO below loop and following match_next should be easy refactor
-            # into new match_next without raise_on_fail flag, but causes errors!!!!
-            while lex.peek().token_label != rpar_token_label:
-                self.append_children(PrattParser.recursive_parse(lex, 0))
-                if not PrattParser.match_next(lex, comma_token_label):
+            while not tok.match_next(rpar_token_label, consume=False):
+                tok.append_children(tok.recursive_parse(0))
+                if not tok.match_next(comma_token_label):
                     break
-            PrattParser.match_next(lex, rpar_token_label, raise_on_fail=True)
-            self.process_and_check_node(head_handler, ast_label=ast_label)
-            return self
+                else:
+                    tok.match_next(rpar_token_label, raise_on_true=True)
+            tok.match_next(rpar_token_label, raise_on_fail=True)
+            tok.process_and_check_node(head_handler, ast_label=ast_label)
+            return tok
         self.modify_token_subclass(fname_token_label, prec=0,
                          head=head_handler, precond_label=precond_label,
                          precond_fun=preconditions, precond_priority=1,
@@ -1045,24 +1214,25 @@ class PrattParser(object):
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
-                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
+                      val_type=None, arg_types=None, eval_fun=None, ast_label=None,
+                      num_args=None):
         """This is an alternate version of stdfun that defines lpar as an infix
         operator (with a tail).  This function works in the usual cases but
-        current version without preconditions may have problems distinguishing
-        "b (" from "b(" when a multiplication jop is set.  Does not currently
-        allow setting the number of arguments."""
-        # Could also recognize alternate symbols to divide args (like
-        # using "|" in probability and ";" in some cases).
-        def tail_handler(self, lex, left):
+        the current version without preconditions may have problems distinguishing
+        "b (" from "b(" when a multiplication jop is set.  The lookahead version
+        `def_stdfun` is usually preferred."""
+        if num_args is not None and arg_types is None: arg_types = [None]*num_args
+
+        def tail_handler(tok, lex, left):
             # Nothing between fun name and lpar_token.
-            PrattParser.no_ignored_before(lex, raise_on_fail=True)
-            while lex.peek().token_label != rpar_token_label:
-                left.append_children(PrattParser.recursive_parse(lex, prec_of_lpar))
-                if lex.peek().token_label == comma_token_label: 
-                    # TODO single utility fun or flag for this if?
-                    PrattParser.match_next(lex, comma_token_label, raise_on_fail=True)
-                else: break
-            PrattParser.match_next(lex, rpar_token_label, raise_on_fail=True)
+            tok.no_ignored_before(raise_on_fail=True)
+            while not tok.match_next(rpar_token_label, consume=False):
+                left.append_children(tok.recursive_parse(prec_of_lpar))
+                if not tok.match_next(comma_token_label):
+                    break
+                else:
+                    tok.match_next(rpar_token_label, raise_on_true=True)
+            tok.match_next(rpar_token_label, raise_on_fail=True)
             left.process_and_check_node(tail_handler, ast_label=ast_label)
             return left
         self.modify_token_subclass(lpar_token_label,
@@ -1090,71 +1260,15 @@ class PrattParser(object):
 
         recurse_bp = prec
         if assoc == Assoc.right: recurse_bp = prec - 1
-        def tail_handler(self, lex, left):
-            right_operand = PrattParser.recursive_parse(lex, recurse_bp)
-            self.append_children(left, right_operand)
-            self.process_and_check_node(tail_handler, ast_label=ast_label)
-            return self
+        def tail_handler(tok, lex, left):
+            right_operand = tok.recursive_parse(recurse_bp)
+            tok.append_children(left, right_operand)
+            tok.process_and_check_node(tail_handler, ast_label=ast_label)
+            return tok
         self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
                             precond_priority=precond_priority,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
-        
-    #
-    # Static methods for use inside head and tail functions.
-    #
-
-    @staticmethod
-    def match_next(lex, token_label_to_match, raise_on_fail=False):
-        """A utility function that tests whether the value of the next token label
-        in `lex` equals a given token label, and consumes the token from the lexer
-        if there is a match.  Returns a boolean.  If `raise_on_fail` set true then
-        a `ParserException` will be raised if the match fails."""
-        if token_label_to_match != lex.peek().token_label:
-            if raise_on_fail:
-                raise ParserException(
-                        "Function match_next expected token {0} but found {1}."
-                        .format(token_label_to_match, lex.peek().token_label))
-            else:
-                return False
-        lex.next() # Eat the token that was matched.
-        return True
-
-    @staticmethod
-    def in_ignored_tokens(lex, token_label_to_match):
-        """A utility function to test if a particular token label is among the
-        tokens ignored before the current token.  Returns a boolean value."""
-        ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
-        if token_label_to_match in ignored_token_labels:
-            return True
-        return False
-
-    @staticmethod
-    def no_ignored_after(lex, raise_on_fail=False):
-        """Boolean function to test if any tokens were ignored between current token
-        and lookahead."""
-        if lex.peek().ignored_before(): 
-            if raise_on_fail:
-                raise ParserException(
-                        "Expected nothing between {0} and previous symbol."
-                        .format(lex.peek().value))
-            else:
-                return False
-        return True
-
-    @staticmethod
-    def no_ignored_before(lex, raise_on_fail=False):
-        """Boolean function to test if any tokens were ignored between previous token
-        and current token."""
-        if lex.token.ignored_before():
-            if raise_on_fail:
-                raise ParserException(
-                        "Expected nothing between {0} and previous symbol."
-                        .format(lex.token))
-            else:
-                return False
-        else:
-            return True
 
     #
     # The main parse routines.
@@ -1169,7 +1283,8 @@ class PrattParser(object):
         parse_tree_list = []
         while True:
             self.lex.set_text(program)
-            output = PrattParser.recursive_parse(self.lex, 0)
+            begin_token = self.lex.peek() # Get first token to access recursive_parse.
+            output = begin_token.recursive_parse(0)
             parse_tree_list.append(output)
 
             # Finalize type-checking for root when overloading on return types.
@@ -1187,100 +1302,6 @@ class PrattParser(object):
 
         if self.multi_expression: return parse_tree_list
         else: return output
-
-    @staticmethod
-    def recursive_parse(lex, subexp_prec):
-        """Parse a subexpression as defined by token precedences. Return the
-        result of the evaluation.  Recursively builds up the final result in
-        `processed_left`, which is the tree for the part of the full expression
-        to the left of the current token.  This is a static method so that it
-        can be called from head and tail functions.  Note that the function
-        `dispatch_and_call_handler` which is called in the code
-        often recursively call `recursive_parse` again.  Each recursive call
-        inside the function processes a subexpression, sub-subexpression, etc.
-        (as implicitly defined by the token precedences).  The list
-        `lookbehind` saves all the previously evaluated subexpressions at this
-        level of recursion (i.e., at the top level in the same subexpression)
-        and passes it to the `tail_dispatcher` method of the tokens, in case
-        that routine wants to make use of it.  For example, the ordinal
-        position of the token in the top level of the subexpression can be
-        calculated from the length of `lookbehind`."""
-        # NOTE that with a good, efficient pushback function the modifiable
-        # prec for different handler functions might be doable: just do a next
-        # then evaluate the prec, then pushback.
-
-        curr_token = lex.next()
-        processed_left = curr_token.dispatch_and_call_handler(HEAD, lex)
-        lookbehind = [processed_left]
-
-        while True:
-
-            #
-            # The main loop, except for the special case when a jop is defined.
-            #
-
-            while lex.peek().prec() > subexp_prec:
-                curr_token = lex.next()
-                processed_left = curr_token.dispatch_and_call_handler(
-                                       TAIL, lex, processed_left, lookbehind)
-                lookbehind.append(processed_left)
-
-            #
-            # Broke out of main loop, determine whether or not to infer a jop.
-            #
-
-            # Not if jop undefined.
-            if not lex.parser_instance.jop_token_subclass: break
-            # Not if at end of expression.
-            if lex.is_end_token(lex.peek()): break
-            # Not if the ignored token for jop is set but not present.
-            if lex.parser_instance.jop_ignored_token_label and (
-                          lex.parser_instance.jop_ignored_token_label 
-                          not in lex.peek().ignored_before_labels()): 
-                break
-
-            # Infer a jop, but only if 1) its prec would satisfy the while loop
-            # above as an ordinary token, 2) the next token has a head
-            # handler defined in the conditions when the jop will run its head
-            # handler, and 3) the next token similarly has no tail handler.
-            if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
-
-                # Provisionally infer a jop; create a subclass instance for its token.
-                jop_instance = lex.parser_instance.jop_token_subclass(None)
-
-                # This is a little inefficient, but we need to be sure that
-                # when the tail handler of the jop is called and it reads a
-                # token that that token has a head handler defined for it *in
-                # that precondition context*.  Otherwise, no jop will be
-                # inferred.  We also make sure that it has no tail handler in
-                # the context, since then it would be a lower-precedence (lower
-                # precedence because we broke out of the loop above) infix or
-                # postfix operator, and no jop is inferred before another operator).
-                curr_token = lex.next()
-                try:
-                    # Dispatch without calling here, since calling will consume
-                    # another token; also, deeper-level recursions could cause false
-                    # results to come up the recursion chain.
-                    curr_token.dispatch_and_call_handler(
-                            HEAD, lex, processed_left, lookbehind, call=False)
-                    try: # Found head handler, now make sure it has no tail handler.
-                        curr_token.dispatch_and_call_handler(
-                                TAIL, lex, processed_left, lookbehind, call=False)
-                    except NoHandlerFunctionDefined: pass
-                    else: break
-                except NoHandlerFunctionDefined:
-                    break # No precondition matches, assume no jop.
-                finally:
-                    lex.go_back(1)
-
-                # Finally, we can infer a jop.
-                processed_left = jop_instance.dispatch_and_call_handler(
-                                       TAIL, lex, processed_left, lookbehind)
-                lookbehind.append(processed_left)
-            else:
-                break
-
-        return processed_left
 
 
 def multi_funcall(function, tuple_list):

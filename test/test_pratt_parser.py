@@ -209,6 +209,86 @@ def test_error_conditions(basic_setup):
     with raises(ParserException): parser.parse("3 !")
     #fail("Just to see output.")
 
+def test_stdfun_functions(basic_setup):
+    ParserTypeError = pratt_parser.ParserTypeError
+    ParserException = pratt_parser.ParserException
+
+    parser.def_token("k_exp", r"exp")
+    parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma", num_args=1)
+
+    # Number of arguments
+    assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
+    with raises(ParserTypeError) as e:
+        parser.parse("exp(33, 33)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    with raises(ParserTypeError) as e:
+        parser.parse("exp()")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+
+    parser.def_token("k_add", r"add")
+    parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", num_args=2)
+    assert str(parser.parse(
+               "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
+    with raises(ParserTypeError) as e:
+        parser.parse("add(33, 33, 33)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    with raises(ParserTypeError) as e:
+        parser.parse("add(44)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+
+    # General error conditions
+    with raises(ParserException) as e:
+        parser.parse("add(30 30)") # Left out comma.
+    assert str(e.value).startswith("Function match_next expected token k_rpar")
+    with raises(ParserException) as e:
+        parser.parse("add(30,30,)") # Extra comma.
+    assert str(e.value).startswith("No head handler functions at all are defined")
+    with raises(ParserException) as e:
+        parser.parse("add (30,30)") # Whitespace between.
+    assert str(e.value).startswith("No head handler function matched")
+    
+def test_stdfun_lpar_tail_functions(basic_setup):
+    ParserTypeError = pratt_parser.ParserTypeError
+    ParserException = pratt_parser.ParserException
+
+    parser.def_token("k_exp", r"exp")
+    parser.def_literal("k_exp")
+
+    parser.def_stdfun_lpar_tail("k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
+            num_args=1)
+    assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
+    with raises(ParserTypeError) as e:
+        parser.parse("exp(33, 33)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    with raises(ParserTypeError) as e:
+        parser.parse("exp()")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+
+    parser.def_token("k_add", r"add")
+    parser.def_literal("k_add")
+
+    parser.def_stdfun_lpar_tail("k_add", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
+            num_args=2)
+    assert str(parser.parse(
+               "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
+
+    with raises(ParserTypeError) as e:
+        parser.parse("add(33, 33, 33)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    with raises(ParserTypeError) as e:
+        parser.parse("add(33)")
+    assert str(e.value).startswith("Number of arguments does not match any signature.")
+
+    with raises(ParserException) as e:
+        parser.parse("add(30 30)") # Left out comma.
+    assert str(e.value).startswith("Function match_next expected token k_rpar")
+    with raises(ParserException) as e:
+        parser.parse("add(30,30,)") # Extra comma.
+    assert str(e.value).startswith("Function match_next found unexpected token k_rpar.")
+    with raises(ParserException) as e:
+        parser.parse("add (30,30)") # Whitespace between.
+    assert str(e.value).startswith("Expected nothing between <k_lpar,(> and previous")
+    
 def test_jop(basic_setup): 
     # TODO basic setup will not work, maybe individual defs of identifiers and vars
     # or else better dispatching.  (Later: what does this mean??? Tests below work.

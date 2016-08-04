@@ -267,8 +267,10 @@ class Lexer(object):
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
-        if symbol_table is None: self.symbol_table = TokenSubclassDict()
-        else: self.symbol_table = symbol_table
+        if symbol_table is None:
+            self.symbol_table = TokenSubclassDict()
+        else:
+            self.symbol_table = symbol_table
         self.ignore_tokens = set()
 
         # These three lists below are kept in the same order so the same index
@@ -549,6 +551,7 @@ class Lexer(object):
 
     #
     # Methods to define and undefine tokens
+    # Note that after defining a token you need to add the lexer as an attribute.
     #
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
@@ -569,6 +572,7 @@ class Lexer(object):
         if ignore: self.ignore_tokens.add(token_label)
         # Initialize with a bare-bones, default token_subclass.
         new_subclass = self.symbol_table.create_token_subclass(token_label)
+        new_subclass.lex = self
         return new_subclass
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
@@ -623,6 +627,8 @@ class Lexer(object):
         self.end_token_label = end_token_label
         self.end_token_subclass = self.symbol_table.create_token_subclass(
                                                                 end_token_label)
+        self.begin_token_subclass.lex = self
+        self.end_token_subclass.lex = self
         return self.begin_token_subclass, self.end_token_subclass
 
     def define_unstored_token(self, token_label):
@@ -630,6 +636,7 @@ class Lexer(object):
         has no regex pattern."""
         new_subclass = self.symbol_table.create_token_subclass(
                                                 token_label, store_in_dict=False)
+        new_subclass.lex = self
         return new_subclass
 
     #
