@@ -74,6 +74,7 @@ and Pratt's original naming conventions is given in this table:
 
 from __future__ import print_function, division, absolute_import
 import types
+from collections import OrderedDict, namedtuple
 from enum_wrapper import Enum
 from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
 
@@ -214,34 +215,84 @@ def create_token_subclass():
 
             handler_fun.eval_fun = eval_fun # TODO change this to work for overloaded
 
-            # See if there is already a handler for the case, in which case the
-            # type sig is assumed to be overloaded.  There should only ever be
-            # one previous handler, at most, since only overloaded type info is
-            # retained, nothing else (with the precondition only the first
-            # would get called, anyway).
+            # See if there is already a preconditions function with this
+            # precond_label associated with the token (in which case the type
+            # sig is assumed to be overloaded).  There should only ever be one
+            # previous preconditions function with the label, at most, since
+            # only overloaded type info is retained, nothing else (the way the
+            # preconditions are evaluated only the first would ever get called,
+            # anyway).
+            #
+
+            # Remember that you can only sort based on precondition priorities.
+            # You do not get to choose the particular signature that will
+            # appear in the program text stream.  BUT, we DO want the chosen
+            # eval_fun to depend on that.  The actual parsing method will NOT
+            # depend on the different signatures, since we need to parse it
+            # first before we learn its signature (could be done on the fly,
+            # but strange and hard to see how useful it would be).  So as it is
+            # it WORKS, but needs cleaning up (especially preconditions stuff,
+            # maybe also go to OrderedDict.  NOTE the difference between the
+            # parsing function and the evaluation function (if there is one)!
+            #
+            # For a simpler possible implementation, consider hashing the
+            # precond label with the type_sig.  Then you would only have one
+            # sig saved with each key in the dict and could store eval_fun
+            # there, too.  BUT it is uncertain what kind of interplay that will
+            # have with fancier type signatures.  For now, store eval_fun with
+            # the type sigs -- need to extract it right at the moment when a
+            # unique type sig has been narrowed down to.  Advantage is you
+            # could delete things in finer detail, a precond_label and type_sig
+            # combo; but either alone might be harder (though you can just search
+            # the keys).  Disadvantage is that type equality of fancy types
+            # might or might not work out nicely.  Maybe do first part, then
+            # wait to see how that turns out?
+
+            # Ideas for above refactoring.  First refactor below to OrderedDict
+            # better in both cases, full thing is unsure. 
+            # function?  Seems like we should have a dict keyed by both the
+            # precond_label AND the type_sig (using return values if that is
+            # allowed, otherwise not).  I.e., types unique if that tuple is
+            # unique.  I think type_sig is hashable, so should probably work...
+            # THEN the eval function will work just by storing it with the
+            # handler itself.
+            #
+            # To transistion, first turn the prev_handlers_for_precond_list
+            # into a sorted OrderedDict, still using *only* the precond_label.
+            # See recipe here (just re-sort after adding things, fix later if
+            # needed):
+            # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
+
+            # TODO: update to use below line or similar, or delete.
+            #type_sig_and_eval_tuple = (type_sig, eval_fun)
+
             try:
-                prev_handler_list = [s[3] for s in self.handler_funs[head_or_tail]
-                                                 if s[0] == precond_label]
-                assert len(prev_handler_list) <= 1 # Multiple defs shouldn't happen.
+                prev_handlers_for_precond_list = [s.handler_fun
+                            for s in self.handler_funs[head_or_tail]
+                            if s.precond_label == precond_label]
+                # Multiple defs shouldn't happen; list is used just to check.
+                assert len(prev_handlers_for_precond_list) <= 1
             except KeyError:
-                prev_handler_list = None
+                prev_handlers_for_precond_list = None
 
-            if prev_handler_list:
-                prev_type_sigs = prev_handler_list[0].type_sigs
+            if prev_handlers_for_precond_list:
+                prev_type_sigs_for_precond = prev_handlers_for_precond_list[0].type_sigs
             else:
-                prev_type_sigs = []
+                prev_type_sigs_for_precond = []
 
-            if prev_handler_list and not self.parser_instance.overload_on_arg_types:
-                raise ParserTypeError("Value of self.overload_on_arg_types is False but "
-                       "attempt to redefine and possibly set multiple signatures for "
-                       "the {0} function for token with label '{1}' with "
+            if (prev_handlers_for_precond_list
+                              and not self.parser_instance.overload_on_arg_types):
+                raise ParserTypeError("Value of self.overload_on_arg_types is False "
+                       "but attempt to redefine and possibly set multiple signatures "
+                       "for the {0} function for token with label '{1}' with "
                        "preconditions label '{2}'."
                        .format(head_or_tail, self.token_label, precond_label))
 
-            # Type info is stored as an attribute of handler funs.
-            # For overloading, append the type_sig to prev_type_sigs, saving them all.
-            prev_type_sigs.append(type_sig)
-            handler_fun.type_sigs = prev_type_sigs
+            # Type info is stored as an attribute of handler funs.  For
+            # overloading, append the type_sig to prev_type_sigs_for_precond,
+            # saving them all.
+            prev_type_sigs_for_precond.append(type_sig)
+            handler_fun.type_sigs = prev_type_sigs_for_precond
 
             if precond_fun:
                 self.register_precond_fun(precond_label, precond_fun)
@@ -262,19 +313,22 @@ def create_token_subclass():
             sorted_handler_list = self.handler_funs.get(head_or_tail, [])
 
             # Remove any existing handler with the same precondition label.
+            # Assume this is a redefinition.
             for index in reversed(range(len(sorted_handler_list))):
-                if sorted_handler_list[index][0] == precond_label:
+                if sorted_handler_list[index].precond_label == precond_label:
                     del sorted_handler_list[index]
 
             # Insert the data in the selected head or tail list, in priority-sorted order.
-            data_list = [precond_label, precond_fun, precond_priority, handler_fun]
+            # The namedtuple HandlerData is used to hold it.
+            data_list = HandlerData(precond_label, precond_fun, precond_priority,
+                                    handler_fun)
             if not sorted_handler_list:
                 sorted_handler_list.append(data_list)
                 self.handler_funs[head_or_tail] = sorted_handler_list
             else:
                 for index in range(len(sorted_handler_list)):
-                    if (precond_priority == sorted_handler_list[index][2] and
-                            self.parser_instance.raise_exception_on_precondition_ties):
+                    if (precond_priority == sorted_handler_list[index].precond_priority
+                        and self.parser_instance.raise_exception_on_precondition_ties):
                         raise ParserException("Two preconditions for the token"
                                 " subclass named '{0}' for token with label '{1}' have"
                                 " the same priority, {2}.  Their precondition labels"
@@ -283,8 +337,8 @@ def create_token_subclass():
                                 " False if you actually want to allow precondition"
                                 " ties." .format(self.__name__, self.token_label,
                                     precond_priority, precond_label,
-                                    sorted_handler_list[index][0]))
-                    if precond_priority >= sorted_handler_list[index][2]:
+                                    sorted_handler_list[index].precond_label))
+                    if precond_priority >= sorted_handler_list[index].precond_priority:
                         sorted_handler_list.insert(index, data_list)
                         break
             return
@@ -310,8 +364,8 @@ def create_token_subclass():
 
             for i in reversed(range(len(sorted_handler_list))):
                 item = sorted_handler_list[i]
-                if item[0] != precond_label: continue
-                handler_fun = item[3]
+                if item.precond_label != precond_label: continue
+                handler_fun = item.handler_fun
                 new_handler_sigs = [s for s in handler_fun.type_sigs if s != type_sig]
                 if not new_handler_sigs:
                     del sorted_handler_list[i] # No type sigs at all, remove item.
@@ -364,7 +418,7 @@ def create_token_subclass():
             
             If `call` is set false then the handler will not be called.  This
             is used to test if there is a handler of the specified type, by
-            catching the `NoHandlerFunctionDefined` exception)."""
+            catching the `NoHandlerFunctionDefined` exception."""
             if head_or_tail == HEAD:
                 fun = self.lookup_handler_fun(HEAD, lex)
                 if call: return fun(self, lex)
@@ -463,10 +517,10 @@ def create_token_subclass():
             
             if not first_pass_of_two:
                 # Ordinary case, each child c has a unique c.type_sig already set.
-                list_of_child_sig_lists = [ [c.type_sig] for c in self.children ]
+                list_of_child_sig_lists = [[c.type_sig] for c in self.children]
             else:
                 # First pass case, multiple sigs in child's self.matching_sigs list.
-                list_of_child_sig_lists = [ c.matching_sigs for c in self.children ]
+                list_of_child_sig_lists = [c.matching_sigs for c in self.children]
 
             # Reduce to only the signatures that the types of the children match.
             self.matching_sigs = TypeSig.get_all_matching_sigs(
@@ -491,7 +545,7 @@ def create_token_subclass():
             method `parse`, as well as from the checking routines here to do
             partial checks on subtrees which are resolvable."""
             unresolved_children = [ 
-                    c for c in self.children if hasattr(c, "matching_sigs") ]
+                    c for c in self.children if hasattr(c, "matching_sigs")]
             self._check_types_pass_two() # Call first on self to do top-down.
             for child in unresolved_children: # Recurse on unprocessed children.
                 child.check_types_in_tree_second_pass()
@@ -759,6 +813,11 @@ def create_token_subclass():
                 #
                 # Broke out of main loop, determine whether or not to infer a jop.
                 #
+
+                # TODO: Looking at the parser instance works for now, but as it
+                # is will break when different parsers share a common lexer.
+                # At least some of the jop stuff could move to the Lexer.  The
+                # parsers could also write their jop stuff to the lexer... consider.
 
                 # Not if jop undefined.
                 if not lex.parser_instance.jop_token_subclass: break
@@ -1355,6 +1414,15 @@ def multi_funcall(function, tuple_list):
                    "Bad multi-definition of {0}: Omitted required arguments."
                    "\nError on this tuple: {1}".format(function.__name__, t))
 
+
+def sort_handler_dict(d):
+    """Return the sorted `OrderedDict` version of the dict `d` passed in,
+    sorted by the precondition priority.  Not currently used."""
+    # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
+    return OrderedDict(sorted(d.items(), key=lambda t: t[2])) 
+
+HandlerData = namedtuple("HandlerData",
+              ["precond_label", "precond_fun", "precond_priority", "handler_fun"])
 
 #
 # Exceptions
