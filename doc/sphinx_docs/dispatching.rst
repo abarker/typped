@@ -58,7 +58,7 @@ chosen and dispatched as the head or tail handler.  Consider the above example.
 When types are defined for functions the function names should be made into
 individual tokens in the lexer, rather than using a single identifier token for
 all identifiers.  Then, when the token for ``f`` is processed, the expected
-signature is also available.  The type system is discussed more below.
+signature is also available.  The type system is discussed more in later sections.
 
 Uniqueness of preconditions functions
 -------------------------------------
@@ -73,10 +73,69 @@ preconditions functions.  Handler functions registered using the same
 preconditions function are treated as being overloaded if their type
 signatures differ; otherwise it is taken as a redefinition.
 
-Using preconditioning to define syntactic constructs
-----------------------------------------------------
+Example: Defining standard functions with lookahead
+---------------------------------------------------
 
-TODO, maybe stdfun using lookahead.
+TODO: note that the builtins are pretty powerful, so many user will not
+need to subclass PrattParser.
+
+A common way to define standard function syntax in a Pratt parser is to
+define a tail handler for the left parenthesis.  Then that symbol acts like
+an infix operator with the function name as its first argument and the function
+arguments and closing paren as its second argument.  With preconditioned
+dispatching it is possible to define a standard function by using lookahead
+in the lexer, looking for the left parenthesis.
+
+This example works, but is simplified from the actual `def_stdfun` method of
+the Pratt parser class.  It assumes a fixed number of arguments and does not
+make use of type data.  Note that this function does not allow whitespace
+(ignored tokens) to occur between the function name and the left parenthesis.
+The preconditions function is defined as a nested function, but it could also
+be passed in as another argument. ::
+
+     class MyParser(PrattParser):
+        def __init__(self, *args):
+            super(MyParser, self).__init__()
+
+        def def_stdfun(self, fname_token_label, lpar_token_label,
+                       rpar_token_label, comma_token_label, num_args,
+                       precond_priority=1):
+              
+         def preconditions(lex, lookbehind):
+             peek_tok = lex.peek()
+             if peek_tok.ignored_before(): return False
+             if peek_tok.token_label != lpar_token_label: return False
+             return True
+        precond_label = "lpar after, no whitespace between" # Some unique label.
+
+        def head_handler(tok, lex):
+            # Below match is for a precondition, so it will match and consume.
+            tok.match_next(lpar_token_label, raise_on_fail=True)
+
+            # Read comma-separated subexpressions as arguments.
+            for i in range(num_args-1):
+                tok.append_children(tok.recursive_parse(0))
+                tok.match_next(comma_token_label, raise_on_fail=True)
+            if num_args != 0:
+                tok.append_children(tok.recursive_parse(0))
+            tok.match_next(rpar_token_label, raise_on_fail=True)
+            
+            # Always call this function at the end of a handler function.
+            tok.process_and_check_node(head_handler)
+            return tok
+
+        # Always call this function to register a handler function with the token.
+        self.modify_token_subclass(fname_token_label, prec=0,
+                                   head=head_handler,
+                                   precond_label=precond_label,
+                                   precond_fun=preconditions,
+                                   precond_priority=precond_priority)
+
+The function defined above would be called as::
+
+    parser = MyParser()
+    ... # define tokens here
+    parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", 2)
 
 Implementation
 --------------
@@ -111,33 +170,36 @@ The lookup is performed by getting the list of precondition functions, ordered
 by priority, and calling each one until one returns ``True`` based on the
 current conditions.  The associated handler function is then executed.
 
-All the preconditions functions for a token label are stored in a static dict
-attribute of the corresponding ``TokenNode`` subclass.  The dict is called
-``preconditions_dict``.  There are functions to register functions and
-unregister them, as well as use a parser-global dict.  This dict is keyed by
-the unique labels required for unique preconditions functions.
-
 The stored items in the dict are tuples containing the handler functions
 themselves as well as other information, such as the precondition priority and
 the associated handler function.
 
-All the registered handler functions for a token label are also stored in a
-static dict attribute of the corresponding ``TokenNode`` subclass (after being
-passed into ``modify_token_subclass`` via keyword arguments).  The dict is
-called ``handler_funs`` and is keyed by `HEAD` or `TAIL`.  For each type
-of handler function, head or tail, there is a sorted list of items having
-the following format::
+All the registered handler functions for a token label are stored in a static
+dict attribute of the corresponding ``TokenNode`` subclass (after being passed
+into ``modify_token_subclass`` via keyword arguments).  The dict is called
+``handler_funs`` and is keyed by `HEAD` or `TAIL`.  For each type of handler
+function, head or tail, there is an `OrderedDict` named tuples keyed by
+precondition labels and having the following format::
 
-     (precond_label, precond_fun, precond_priority, handler_fun)
+     (precond_fun, precond_priority, handler_fun)
 
-Defined type signatures (possibly overloaded as a list) are stored as
-attributes of the handler functions themselves.
+Each such ordered dict is sorted by the precondition priorities.
 
-Note that handler functions are in one-to-one correspondence with precondition
-labels.  If it needs to have a unique handler function then it needs to have a
+Internally, the preconditions functions for a token label are stored in a
+static dict attribute of the corresponding ``TokenNode`` subclass called
+``preconditions_dict``.  There are methods to register functions and
+unregister them, as well as use a parser-global dict.  This dict is keyed by
+the unique labels required for unique preconditions functions.
+
+Defined type signatures (possibly overloaded, as a list) are stored as
+attributes of the handler functions themselves.  Duplicates are not allowed,
+and equality is defined by the `TypeSig` class' definition of `==`.  Note that
+handler functions are in one-to-one correspondence with precondition labels
+(possibly a default one if one is not specified), not overloaded signatures.
+If something needs to have a unique handler function then it needs to have a
 unique precondition label.  Evaluation functions, however, are saved with every
-overloaded type signature associated with every handler function (i.e., the
-Cartesian product of the two).
+overloaded type signature associated with every handler function (i.e.,
+one-to-one with the Cartesian product of the two).
 
 Using preconditions similarly to recursive descent parsing
 ----------------------------------------------------------

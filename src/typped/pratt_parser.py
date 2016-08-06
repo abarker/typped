@@ -1286,6 +1286,7 @@ class PrattParser(object):
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
+                      precond_priority=1,
                       val_type=None, arg_types=None, eval_fun=None, ast_label=None,
                       num_args=None):
         """This definition of stdfun uses lookahead.  This will take
@@ -1322,9 +1323,9 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler, ast_label=ast_label)
             return tok
         self.modify_token_subclass(fname_token_label, prec=0,
-                         head=head_handler, precond_label=precond_label,
-                         precond_fun=preconditions, precond_priority=1,
-                         val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
+                     head=head_handler, precond_label=precond_label,
+                     precond_fun=preconditions, precond_priority=precond_priority,
+                     val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
