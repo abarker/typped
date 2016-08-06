@@ -1,7 +1,126 @@
 # -*- coding: utf-8 -*-
 """
 
-A general lexer/scanner module.
+The `Lexer` class is a general lexer/scanner/tokenizer module.  It was meant to
+be used by the `PrattParser` class, but it could also be used for other lexical
+scanning applications.
+
+The general purpose of the `Lexer` is to take a string of text and produce a
+string of tokens.  The tokens themselves are defined by the user, and given a
+regex pattern that is searched for in the program text.  The lexer is a generator
+that sequentially products tokens.
+
+A token for a left parenthesis, for example, would be defined like this::
+
+    lexer.def_token("k_lpar", r"lpar")
+
+The string `k_lpar` is a label for the token.  Similarly, an identifier could be
+defined like this::
+
+    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+
+Notice that in the definition of the identifier the keyword argument `on_ties`
+is set to -1.  The lexer will by default always match the longest string which
+matches some defined regex pattern for a token.  If there is a tie then by
+default an exception will be raised.  The `on_ties` value is used to break
+ties; strings with the same length are sorted by that value.  The default
+`on_ties` value is 0.  Suppose you also wanted a token for the string `mod`,
+and defined it as::
+
+    lexer.def_token("k_mod", r"mod")
+
+Since this token has a higher `on_ties` value, it will always take precedence over
+the identifier token (even though both match and have the same length).
+
+With some lexers the order in which tokens are defined is significant.  This
+lexer was designed to function independently of the order in which tokens are
+defined.  That allows token definitions to be either put in one place or spread
+around in the code, however the programmer wants to organize things.
+
+Using the lexer
+---------------
+
+This is a simple example of using the lexer.  Notice that multiple token definitions
+can be combined using the `def_multi_tokens` method.::
+
+    lex = Lexer()
+
+    lex.def_begin_end_tokens("begin", "end")
+    lex.def_token("space", r"[ \\t]+", ignore=True) # note + NOT *
+    lex.def_token("newline", r"[\\n\\f\\r\\v]+", ignore=True) # note + NOT *
+    tokens = [
+        ("k_identifier", r"[a-zA-Z_](?:\w*)")
+        ("k_plus", r"\+")
+        ]
+    lex.def_multi_tokens(tokens)
+    
+    lex.set_text("x  + y")
+
+    for t in lex:
+        print(t)
+
+The result is as follows:
+::
+
+    <k_identifier,x>
+    <k_plus,+>
+    <k_identifier,y>
+    <end,None>
+
+Notice that the end token is actually returned, but the begin token is not.
+
+User-accessible attributes of tokens
+------------------------------------
+
+The tokens returned by the lexer are instances of a subclass of the class
+`TokenNode` (named that since the parser combines them into the nodes of a
+parse tree).  The subclasses themselves represent the general kind of token,
+for example if `k_identifier` was defined as a token label then a particular
+subclass of `TokenNode` would be created to represent identifiers in general.
+The particular instances of identifiers, found in the lexed text with their
+actual string values, are represented by instances of the general class for
+identifiers.
+
+For a token named `t`, these attributes are available:
+
+* `t.token_label` -- the string label of the token (which was defined with it)
+* `t.value` -- the string value for the token, found in the lexed text
+* `t.ignored_before` -- a list of all the tokens ignored immediately before this one
+* `t.is_first` -- true when this is the first token in the text, false otherwise
+* `t.parent` -- can be set to the parent in a tree; set by the lexer to `None`
+* `t.children` -- can be set to a list of children; set by the lexer to `[]`
+
+TODO, list other methods, too.
+
+User-callable methods of `Lexer`
+--------------------------------
+
+There are many utility methods of the lexer that users can call.
+
+General methods:
+
+* `next` -- return the next token
+* `peek` -- peek at the next token without consuming it
+* `go_back` -- go back in the text stream by some number of tokens
+
+Some boolean-valued informational methods:
+
+* `is_first` -- true only if the token passed in is the first token
+* `is_begin_token` -- true only if the argument is a begin token
+* `is_end_token` -- true only if the argument passed in is an end token
+
+TODO, list more, why not make some methods of `TokenNode` instead?
+
+Initialization options
+----------------------
+
+There are several options that can be set on initialization, including the
+level of token lookahead that is supported.
+
+TODO
+
+Code
+----
 
 """
 
@@ -161,7 +280,7 @@ def create_token_subclass():
     class TokenSubclass(TokenNode):
         def __init__(self, value):
             super(TokenSubclass, self).__init__() # Call base class __init__.
-            self.value = value # Set by Lexer token generator for instances.
+            self.value = value # Passed in for instances by the Lexer token generator.
 
     return TokenSubclass
 

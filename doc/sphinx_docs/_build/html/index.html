@@ -78,11 +78,12 @@ to be parsed.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="dispatching.html">2. Preconditioned Dispatching</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-preconditioning-to-define-syntactic-constructs">2.1. Using preconditioning to define syntactic constructs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#implementation">2.2. Implementation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-preconditions-similarly-to-recursive-descent-parsing">2.3. Using preconditions similarly to recursive descent parsing</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#lookbehind">2.4. Lookbehind</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#references">2.5. References</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#uniqueness-of-preconditions-functions">2.1. Uniqueness of preconditions functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-preconditioning-to-define-syntactic-constructs">2.2. Using preconditioning to define syntactic constructs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#implementation">2.3. Implementation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-preconditions-similarly-to-recursive-descent-parsing">2.4. Using preconditions similarly to recursive descent parsing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#lookbehind">2.5. Lookbehind</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#references">2.6. References</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="calculator_example.html">3. Example: Implementing a simple calculator</a></li>
@@ -104,21 +105,20 @@ to be parsed.</p>
 <li class="toctree-l1"><a class="reference internal" href="extending_prattparser.html">6. Extending the <tt class="docutils literal"><span class="pre">PrattParser</span></tt> class</a></li>
 <li class="toctree-l1"><a class="reference internal" href="typped.html">7. The typped package API</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="typped.html#submodules">7.1. Submodules</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="typped.basic_defs.html">7.1.1. typped.basic_defs module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.directory_locator.html">7.1.2. typped.directory_locator module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.enum_wrapper.html">7.1.3. typped.enum_wrapper module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.external_program_calls.html">7.1.4. typped.external_program_calls module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html">7.1.5. typped.lexer module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html">7.1.6. typped.pratt_parser module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.pratt_types.html">7.1.7. typped.pratt_types module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict.html">7.1.8. typped.regex_trie_dict module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_lexer.html">7.1.9. typped.regex_trie_dict_lexer module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_scanner.html">7.1.10. typped.regex_trie_dict_scanner module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.text_stream.html">7.1.11. typped.text_stream module</a></li>
-<li class="toctree-l3"><a class="reference internal" href="typped.trie_dict.html">7.1.12. typped.trie_dict module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.directory_locator.html">7.1.1. typped.directory_locator module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.enum_wrapper.html">7.1.2. typped.enum_wrapper module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.external_program_calls.html">7.1.3. typped.external_program_calls module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html">7.1.4. typped.lexer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html">7.1.5. typped.pratt_parser module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_types.html">7.1.6. typped.pratt_types module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict.html">7.1.7. typped.regex_trie_dict module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_lexer.html">7.1.8. typped.regex_trie_dict_lexer module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.regex_trie_dict_scanner.html">7.1.9. typped.regex_trie_dict_scanner module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.text_stream.html">7.1.10. typped.text_stream module</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.trie_dict.html">7.1.11. typped.trie_dict module</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="typped.html#module-contents">7.2. Module contents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.html#module-typped">7.2. Module contents</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="other_possible_generalizations.html">8. Appendix I: Possible (but unimplemented) generalizations</a><ul>

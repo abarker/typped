@@ -43,11 +43,6 @@ def define_default_tokens(lex_or_pp):
     define_basic_tokens(lex_or_pp)
     define_identifier_token(lex_or_pp)
 
-def define_comment_to_EOL_token(lex_or_pp, begin_string):
-    # Note that comment_to_endline is non-greedy due to *? symbol.
-    lex_or_pp.def_token("comment_to_EOL", r"{0}.*?[\n]"
-                           .format(begin_string), ignore=True)
-
 class TestLexer:
     def test_basic_stuff(self):
         lex = Lexer()
@@ -193,9 +188,34 @@ class TestLexer:
         with raises(StopIteration):
             lex.next()
 
-#def setup_module(module):
-#    """setup module"""
+def test_documentation_example():
 
-#def teardown_module(module):
-#    """teardown module"""
+    lex = Lexer()
+
+    lex.def_begin_end_tokens("begin", "end")
+    lex.def_token("space", r"[ \t]+", ignore=True) # note + NOT *
+    lex.def_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
+    tokens = [
+        ("k_identifier", r"[a-zA-Z_](?:\w*)"),
+        ("k_plus", r"\+"),
+        ]
+    lex.def_multi_tokens(tokens)
+    
+    lex.set_text("x  + y")
+
+    for t in lex:
+        print(t)
+
+    # example above, tests below
+
+    lex.set_text("x  + y")
+    lst = [str(t) for t in lex]
+    assert lst[0] == "<k_identifier,x>"
+    assert lst[1] == "<k_plus,+>"
+    assert lst[2] == "<k_identifier,y>"
+    assert lst[3] == "<end,None>"
+ 
+    lex.set_text("x  + y")
+    t = next(lex)
+    assert str(t) == "<k_identifier,x>"
 
