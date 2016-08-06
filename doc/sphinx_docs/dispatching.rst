@@ -147,19 +147,33 @@ BNF or EBNF grammar.  For each production you need to know all of the tokens
 which can start that production, as well as any required disambiguating
 lookahead.  That is like the case statement or conditionals in the function
 implementing a production in a recursive descent parser.  You maintain a stack
-of states for the production being parsed, pushing and popping as defined
-below.
+of states representing the production being parsed at each level, pushing and
+popping as defined below.  The handler functions for the different cases can
+use information in the state stack as part of their preconditions, and they can
+also modify the state stack.
 
-To implement the parser for a production you define and register a head for each
-type of token which can begin the production as a literal.  For the "or" cases
-where a recursive call is immediately made you can implicitly define a head for
-all tokens by setting a default token with only the production-state as the
-precondition (TODO maybe).  Inside each head you process the relevant "or" cases
-of the production.  To immediately do a recursive production evaluation you
-push back the token which was read, change the production-state to the one you
-want to read, and then call ``recursive_parse``.  That returns the parse tree
-for the sub-production, and you can then continue to evaluate the production in
-much the same way as for recursive descent.  At the end of each 
+We will assume that the stack is in a list called `pstack`, and holds string
+labels for the names of the productions.
+
+To implement the parser for a production you define and register a head handler
+for each type of token which can begin the production as a literal.  For the
+"or" cases you can either define a separate head for each disjunct in the
+production, or you can use "or" conditionals inside a single precondition
+function for a single head function.  Inside each head you process the relevant
+case or cases of the production.
+
+Note that some productions immediately do a recursive production evaluation.
+For those case you can push back the token which was read, change the
+production-state to the one you want to process, and then call
+``recursive_parse``.  That returns the parse tree for the sub-production, with
+which you can continue to evaluate the production in much the same way as for
+recursive descent.
+
+As a possible idea for the "or" cases where a recursive call is immediately,
+made you can implicitly define a head for all tokens by setting a default token
+with only the production-state as the precondition (TODO maybe).  Could these
+handle the general recursive descent in a better way?  Just define with
+preconditions based on the top label in the production stack....
 
 Consider this example of a very simple expression grammar (even though the
 expression parts of grammars are better evaluated with Pratt-style parsing).
@@ -188,54 +202,4 @@ such head should also pop the state stack before returning.
 
 - Should you define these default things to not even read a token, maybe?
   Then no pushback and you use peek.
-
-Lookbehind
-----------
-
-Another minor generalization to Pratt parsing is the use of "lookbehind"
-information.  A Pratt parser can use lookahead information from the lexer in
-defining preconditions, etc.  In some cases lookbehind information, looking at
-the previous ``processed_left`` values for the current subexpression, could be
-useful.  This is a simple modification, which has been implemented.  In the
-``recursive_parse`` function, whenever the ``processed_left`` variable is
-assigned a new value, the value is also appended to a list called
-``lookbehind``.  That list is passed as an argument to all tail handler
-functions in addition to the ``processed_left`` value.
-
-Since the lookbehind tokens have already been processed they allow the
-preconditions to make use of information such as resolved type information (not
-just token label information).  Of course you already can look at the ``left``
-variable in a tail handler and see the type of the subexpression for, say, the
-type of the left operand of an operator.  If nothing else, the lookbehind list
-tells you how many subexpressions preceed the current one (at its same level in
-the recursion).
-
-This is not a feature which will be commonly used, but it may have use cases.
-Note, though, that the ``lookbehind`` list contains references and so the
-previous values will generally be modified versions of what they were when they
-were first appended to the list.
-
-.. _References:
-
-References
-----------
-
-Vaughan R. Pratt, "Top down operator precedence," 1973.  The original
-article.  Paywalled at the ACM site.
-http://dl.acm.org/citation.cfm?id=512931
-
-Fredrik Lundh, July 2008.  Excellent explanation and good code examples
-in Python.  http://effbot.org/zone/simple-top-down-parsing.htm Related
-articles by Lundh on Pratt parsing and lexing with regexes:
-http://effbot.org/zone/tdop-index.htm
-
-Eli Bendersky, 1/2/2010.  An article based on Lundh's article above.  It
-also uses Python.
-http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/
-
-Douglas Crockford 2007-02-21, using JavaScript.
-http://javascript.crockford.com/tdop/tdop.html
-
-Bob Nystrom, 3/19/2011, using Java.
-http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/
 

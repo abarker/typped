@@ -74,7 +74,7 @@ and Pratt's original naming conventions is given in this table:
 
 from __future__ import print_function, division, absolute_import
 import types
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from enum_wrapper import Enum
 from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
 
@@ -133,6 +133,7 @@ def create_token_subclass():
         handler_funs[HEAD] = OrderedDict() # Head handlers sorted by priority.
         handler_funs[TAIL] = OrderedDict() # Tail handlers sorted by priority.
         preconditions_dict = {} # Registered preconditions for this kind of token.
+        #eval_fun_dict = defaultdict(dict) # Store eval funs, by precond fun and typesig.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later by create_token_subclass.
         def __init__(self, value):
@@ -142,7 +143,7 @@ def create_token_subclass():
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
             self.val_type = None # The type of the token (after parsing).
-            self.type_sig = None # The full type signature after parsing.
+            self.type_sig = TypeSig(None) # The full type signature, set after parsing.
 
         @classmethod
         def prec(self):
@@ -200,7 +201,7 @@ def create_token_subclass():
         @classmethod
         def register_handler_fun(self, head_or_tail, handler_fun,
                              precond_label=None, precond_fun=None, precond_priority=0,
-                             type_sig=None, eval_fun=None):
+                             type_sig=TypeSig(None), eval_fun=None):
             # TODO: save the eval_fun with the signature, in a way that
             # process_and_check_node can recover and set for instance (after
             # finding matching one).  Make sure that unregister_handler_fun
@@ -260,11 +261,8 @@ def create_token_subclass():
             # might or might not work out nicely.  Maybe do first part, then
             # wait to see how that turns out?
 
-            # TODO: update to use below line or similar, or delete.
-            #type_sig_and_eval_tuple = (type_sig, eval_fun)
-
-            # Get and save any previous type sig data, for overloaded sigs
-            # corresponding to a single precond_label.  (Code could use
+            # Get and save any previous type sig data (for overloaded sigs
+            # corresponding to a single precond_label).  Code could use
             # cleanup.)
             prev_handler_data_for_precond = self.handler_funs[head_or_tail].get(
                                                      precond_label, None)
@@ -286,7 +284,11 @@ def create_token_subclass():
             # Type info is stored as an attribute of handler funs.  For
             # overloading, append the type_sig to prev_type_sigs_for_precond,
             # saving them all.
-            prev_type_sigs_for_precond.append(type_sig)
+            fun_sig_tuple = SigData(type_sig=type_sig,
+                                    actual_sig=None,
+                                    eval_fun=eval_fun)
+            # TODO save fun_sig_tuple instead, and change all refs to \.type_sigs
+            prev_type_sigs_for_precond.append(type_sig) # TODO: test for equality to existing signature
             handler_fun.type_sigs = prev_type_sigs_for_precond
 
             if precond_fun:
@@ -302,9 +304,10 @@ def create_token_subclass():
                 # Default precondition label is a tuple so that no string matches it.
                 precond_label = ("always-true-default-precondition",)
 
-            # Note that each precond_label has exactly one data tuple, overwritten
-            # if already there.
-
+            # Now that we have the final precond label, save the eval fun.
+            #print("DEBUG setting eval fun dict with keys", precond_label, type_sig)
+            #self.eval_fun_dict[precond_label][type_sig] = eval_fun
+            
             # Get the current dict of head or tail handlers for the node,
             # containing the (precond_fun, precond_priority, handler_fun) named
             # tuples which have already been registered.
@@ -392,7 +395,10 @@ def create_token_subclass():
             
             If the parameter `precond_label` is set then this method returns the
             handler function which *would be* returned, assuming that that were
-            the label of the "winning" precondition function."""
+            the label of the "winning" precondition function.
+            
+            Note that this function also sets the attribute `precond_label` to
+            the winning precondition function for this token instance."""
 
             sorted_handler_dict = self.handler_funs[head_or_tail]
             if not sorted_handler_dict:
@@ -403,13 +409,14 @@ def create_token_subclass():
                         .format(head_or_tail, self.token_label, self.value))
 
             if precond_label:
-                for pre_fun_label, (pre_fun, pre_prior, handler) in sorted_handler_dict.items():
-                    print("\nDEBUG priority rank", pre_prior, "\n")
+                for pre_fun_label, data_tuple in sorted_handler_dict.items():
                     if pre_fun_label == precond_label:
-                        return pre_fun
+                        return data_tuple.precond_fun
 
-            for pre_fun_label, (pre_fun, pre_prior, handler) in sorted_handler_dict.items():
+            # Sequentially run the sorted precondition functions until one is true.
+            for pre_label, (pre_fun, pre_prior, handler) in sorted_handler_dict.items():
                 if pre_fun(lex, lookbehind):
+                    self.precond_label = pre_label # Set precond label for the instance.
                     return handler
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
@@ -482,7 +489,7 @@ def create_token_subclass():
             #    # This sets for the CLASS, not the instance, we need for instance...
             #    #self.add_eval_subtree_method(eval_fun)
             #    self.eval_fun = eval_fun # DEBUG, testing....
-            self.eval_fun = fun_object.eval_fun
+            self.eval_fun = fun_object.eval_fun # TODO need modify for overload
            
             # Process the children to implement in_tree, if set.
             modified_children = []
@@ -540,6 +547,7 @@ def create_token_subclass():
                 # Found a unique signature; set the node's val_type to its val_type.
                 self.type_sig = self.matching_sigs[0] # Save sig for semantic actions.
                 self.val_type = self.type_sig.val_type # Set the node type.
+                #self.eval_fun = self.eval_fun_dict[self.precond_label][self.type_sig]
                 delattr(self, "matching_sigs")
             return
 
@@ -565,12 +573,13 @@ def create_token_subclass():
             final signature for each of its children.  It depends on the
             node attribute `self.matching_sigs` having been set in the first
             pass."""
-            # On FIRST pass: on the way *up* the tree get all the signature
-            # types for a node which match in arguments for *some* possible
-            # return-type choice of the children.  Same as the one-pass
-            # version, but now sets of possibilities are allowed and state is
-            # saved for the second pass to use: the list of matching sigs is
-            # saved with the node in self.matched_sigs.
+            # On FIRST pass: on the way *up* the tree (after getting the
+            # literals, the leaves of the tree) get all the signature types for
+            # a node which match in arguments for *some* possible return-type
+            # choice of the children.  Same as the one-pass version, but now
+            # sets of possibilities are allowed and state is saved for the
+            # second pass to use: the list of matching sigs is saved with the
+            # node in self.matched_sigs.
             #
             # Summary: first pass, bottom-up, find all sigs that match possible
             # val_types of the node's children, across all arguments.
@@ -583,16 +592,17 @@ def create_token_subclass():
             # On SECOND pass: On the way *down* the tree, parents choose one
             # sig as final for each child and set it in that child's node as
             # the new self.matching_sigs.  This should always be a unique sig;
-            # otherwise there is ambibuity.  
+            # otherwise there is ambibuity.  Recursively called on children.
             #
             # Summary: second pass, top-down, root is unique and parents assign
             # and set the (unique) signature for each of their children.
             #
             # Note that this algorithm works just as well if the second pass is
-            # run on each subtree where the root has a unique signature, and
-            # the recursion is only down to subtrees with roots having a unique
-            # signature.  This yields partial results and some error conditions
-            # sooner, and is what is implemented here.
+            # run on each subtree as soon as the root has a unique signature,
+            # and the recursion is only down to subtrees with roots having a
+            # unique signature.  This yields partial results and some error
+            # conditions sooner, and is what is implemented here.
+            print("The matching sigs are", self.matching_sigs)
             if len(self.matching_sigs) != 1: # The root case needs this.
                 self._raise_type_mismatch_error(self.matching_sigs,
                         "Ambiguous type resolution (second pass).  Possible type "
@@ -603,6 +613,7 @@ def create_token_subclass():
             # We have a unique signature; set the node's type attributes
             self.type_sig = self.matching_sigs[0] # Save signature for semantic actions.
             self.val_type = self.type_sig.val_type # Set the type for the node.
+            #self.eval_fun = self.eval_fun_dict[self.precond_label][self.type_sig]
 
             def get_child_sigs_matching_return_arg_type(child, return_type):
                 return [ s for s in child.matching_sigs 
@@ -1102,7 +1113,7 @@ class PrattParser(object):
 
         if tail: TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
-        if arg_types is None:
+        if arg_types is None: # TODO, what is point of this, does same thing?
             type_sig = TypeSig(val_type, None)
         else: 
             type_sig = TypeSig(val_type, arg_types) 
@@ -1175,7 +1186,8 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler_literal, ast_label=ast_label)
             return tok
         self.modify_token_subclass(token_label, head=head_handler_literal,
-                                                val_type=val_type, eval_fun=eval_fun)
+                                                val_type=val_type, arg_types=(),
+                                                eval_fun=eval_fun)
 
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
@@ -1427,8 +1439,21 @@ def sort_handler_dict(d):
     # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
     return OrderedDict(sorted(d.items(), key=lambda item: item[1].precond_priority, reverse=True))
 
+#
+# Named tuples for storing data.
+#
+
+# These named tuples are stored in the ordered dicts handler_funs[HEAD] and
+# handler_funs[TAIL] for each token subclass.
 HandlerData = namedtuple("HandlerData",
                          ["precond_fun", "precond_priority", "handler_fun"])
+
+# Each handler function has a list of these tuples, holding the possible type
+# overloads and the corresponding evaluation function (if any).
+# The `actual_sig` field is set when the original sig is expanded for
+# wildcards (to match the number of arguments).
+SigData = namedtuple("SigData",
+                     ["type_sig", "actual_sig", "eval_fun"])
 
 #
 # Exceptions

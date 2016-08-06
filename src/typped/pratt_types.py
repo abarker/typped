@@ -14,44 +14,42 @@ Terminology:
 Note that the formal type of a parameter can possibly match more than one
 actual type.  At least one must match, however.
 
+A type template is basically a parameterized type, representing some fixed
+collection of actual types.
+
+The each instance of the `PrattParser` class holds all of its defined types in
+a `TypeTemplateDict` class, defined in this module.
+
 """
 
 from __future__ import print_function, division, absolute_import
 import sys
 from enum_wrapper import Enum
 
-
-class TypeObject(object):
-    """Subclasses of this object represent parameterized types.  Instances of
-    those subclasses represent the actual types.
-
-    Each *parameterized* type is represented as a subclass of the `TypeObject`
-    class.  Each type itself is an instance of such a subclass, with the
-    parameters filled in with actual arguments (which may or may not match the
-    required arguments, that is checked elsewhere)."""
-    def __init__(self):
-        pass
-    def __repr__(self): 
-        return "TypeObject()"
-
+#
+# Formal and actual type specs for functions.
+#
 
 class FunctionTypes(object):
-    """This object is essentially just a tuple `(val_type, arg_types)`, where
-    `val_type` is hashable and `arg_types ` is a list.  This container is the
-    base class for both the `ActualTypes` and `TypeSig` classes.  The first
-    one holds actual types (always instantiated if parameterized) in its slots
+    """This base-class object is essentially just a tuple `(val_type,
+    arg_types)`, where `val_type` is hashable and `arg_types` is a list.  This
+    container is the base class for both the `ActualTypes` and `TypeSig`
+    classes, which are the classes used in the main program.  The first one
+    holds actual types (always instantiated if parameterized) in its slots
     while the second one represents the formal types and can have parameterized
     types in its slots.
     
     For the purposes of comparison these objects are equivalent to the tuple
-    form.  Making a separate class allows for additional information to be
+    form.  Using a separate class allows for additional information to be
     stored with the tuple and produces better error messages.  The class also
     provides a convenient place to localize some routines which operate on type
     signatures and lists of type signatures.
     
     Note that `None` is a wildcard which matches any type, and `None` for the
-    `arg_types` list/tuple matches any arguments and any number of
-    arguments."""
+    `arg_types` list/tuple matches any arguments and any number of arguments.
+    We define `TypeSig(None) == TypeSig(None, None)`.  To take no arguments (as
+    a literal) an empty tuple should be used, as in `TypeSig(None, ())`."""
+
     def __init__(self, val_type=None, arg_types=None, test_fun=None):
         """The argument `val_type` should be a hashable type in the language or
         else `None`.  The argument `arg_types` should be a list, tuple, or
@@ -165,10 +163,13 @@ class FunctionTypes(object):
         return matching_sigs
 
     def __getitem__(self, index):
+        """Indexing works like a tuple."""
         if index == 0: return self.val_type
         elif index == 1: return self.arg_types
         else: raise IndexError
     def __eq__(self, sig):
+        """Note that this method defines equality of type signatures (currently
+        a simple form)."""
         return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
     def __ne__(self, sig):
         return not self.__eq__(sig)
@@ -191,6 +192,25 @@ class TypeSig(FunctionTypes):
     Set at function definition."""
     def __init__(self, val_type=None, arg_types=None, test_fun=None):
         super(TypeSig, self).__init__(val_type, arg_types, test_fun)
+
+#
+# Type templates, representing individual types.
+#
+
+class TypeObject(object):
+    """Each formal type is represented by a subclasses of this class.  Formal
+    types can be parameterized or not.  Instances of those subclasses represent
+    the actual types (which may or may not match the required argument
+    signature, that is checked by `FunctionTypes` objects).
+
+    Subclasses of this class are automatically generated via the
+    `create_type_template` function.  The `TypeTemplateDict` class calls that
+    function to create the classes (representing types) that it stores.
+    """
+    def __init__(self):
+        pass
+    def __repr__(self): 
+        return "TypeObject()"
 
 
 def create_type_template():
@@ -246,7 +266,8 @@ def create_type_template():
             try: del self.conversions[to_type]
             except KeyError: return
         def __eq__(self, typeobject):
-            """Define `==` as exact match only."""
+            """Note that this defines equality between types.  Currently `==` is defined
+            as exact match only."""
             if self.type_name != typeobject.type_name: return False
             if len(self.parameters) != len(typeobject.parameters): return False
             return all(self.parameters[i] == typeobject.parameters[i]

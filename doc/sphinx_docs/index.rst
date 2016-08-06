@@ -35,6 +35,7 @@ Contents:
 
    pratt_parsing_intro
    dispatching.rst
+   lookbehind.rst
    calculator_example
    types_in_typped
    juxtaposition_operators
