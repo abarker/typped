@@ -356,10 +356,10 @@ def test_types_mixed_numerical_bool_expressions():
                         arg_types=["t_number","t_number"], ast_label="a_exp")
 
     # run simple tests with just one type
-    assert parser.parse("5 + 100").string_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("5 + 100").string_tree_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
     # note k_double_ast ** and with an alias ^ on next
-    assert parser.parse("5^100").string_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
-    assert parser.parse("exp(100)-5^100^2").string_repr() == \
+    assert parser.parse("5^100").string_tree_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
             "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
             "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
 
@@ -382,7 +382,7 @@ def test_types_mixed_numerical_bool_expressions():
                                 ast_label="a_test_fun_number_bool_to_bool")
 
     # test some mixed type expressions
-    assert parser.parse("f_bn2n(True,100)+100").string_repr() == \
+    assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
     with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,True)+100")
@@ -476,12 +476,12 @@ def test_types_overloaded_return():
                         arg_types=["t_number","t_number"], ast_label="a_exp")
 
     # run simple tests with just one type
-    assert parser.parse(" 5 + 100").string_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
+    assert parser.parse(" 5 + 100").string_tree_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
     # note k_double_ast ** and with an alias ^ on next
-    assert parser.parse("5^100").string_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
-    assert parser.parse("exp(100)-5^100^2").string_repr() == \
-            "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
-            "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
+    assert parser.parse("5^100").string_tree_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
+         "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
+         "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
 
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
@@ -500,7 +500,7 @@ def test_types_overloaded_return():
                                ast_label="a_test_fun_number_bool_to_bool")
 
     # test some mixed type expressions
-    assert parser.parse("f_bn2n(True,100)+100").string_repr() == \
+    assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
     with raises(ParserTypeError) as e:
         parser.parse("f_bn2n(True,True)+100")
@@ -564,8 +564,8 @@ def test_types_overloaded_return():
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # with return type overloading this should again work if we add to a number,
     # to get unique resolution at the higher level
-    assert parser.parse("f_nb2b(1,False) + 5").string_repr() == "<k_plus,+>" \
-                                 "(<f_nb2b,f_nb2b>(<k_number,1>,<k_false,False>),<k_number,5>)"
+    assert parser.parse("f_nb2b(1,False) + 5").string_tree_repr() == "<k_plus,+>" \
+                        "(<f_nb2b,f_nb2b>(<k_number,1>,<k_false,False>),<k_number,5>)"
 
     # overload f_nb2b again, to also take two number arguments
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
@@ -576,8 +576,8 @@ def test_types_overloaded_return():
         parser.parse("f_nb2b(4, f_nb2b(4,False))")
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # but this order should be OK
-    assert parser.parse("f_nb2b(f_nb2b(4,False), 4)").string_repr() == "<f_nb2b,f_nb2b>" \
-                              "(<f_nb2b,f_nb2b>(<k_number,4>,<k_false,False>),<k_number,4>)"
+    assert parser.parse("f_nb2b(f_nb2b(4,False), 4)").string_tree_repr() == "<f_nb2b,f_nb2b>" \
+                        "(<f_nb2b,f_nb2b>(<k_number,4>,<k_false,False>),<k_number,4>)"
     # trigger the same message as before at lower level in tree, get 'parent expects'
     # err msg rather than just 'ambiguous' err msg which haparserens at the root
     with raises(ParserTypeError) as e:

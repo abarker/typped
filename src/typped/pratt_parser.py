@@ -69,9 +69,6 @@ and Pratt's original naming conventions is given in this table:
 
 """
 
-# TODO:  make a real package, importing stuff into the __init__.py, etc. and maybe
-# using setup.py and pip -e, but first can just add to AUTOENV.
-
 from __future__ import print_function, division, absolute_import
 import types
 from collections import OrderedDict, namedtuple, defaultdict
@@ -385,20 +382,34 @@ def create_token_subclass():
                                precond_label=None):
             """Look up and return the handler function for the given
             subexpression position in `head_or_tail`, based on the current state.
+
             Either the `lex` parameter or the `precond_label` parameter must be
             set.  If `lex` is set it will be passed to the precondition
-            functions as an argument, and similarly for `lookbehind`.  This
-            method evaluates each preconditions function in the sorted dict for
-            the kind of handler and this kind of token, returning the handler
-            function associated with the first one which evaluates to `True`.
-            Raises `NoHandlerFunctionDefined` if no handler function can be found.
+            functions as an argument, and similarly for `lookbehind`.
+            
+            This method evaluates each preconditions function in the sorted
+            dict for this kind of token and the specified kind of handler (head
+            or tail), returning the handler function associated with the first
+            one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`
+            if no handler function can be found.
             
             If the parameter `precond_label` is set then this method returns the
             handler function which *would be* returned, assuming that that were
             the label of the "winning" precondition function.
             
-            Note that this function also sets the attribute `precond_label` to
-            the winning precondition function for this token instance."""
+            Note that this function also sets the attribute `precond_label` of
+            this token instance to the label of the winning precondition
+            function."""
+
+            # TODO: For each null-string token, process it and save the fun
+            # and precedence of the highest-priority one to eval to true.
+            # Then compare all those precedences (can optimize a little) to
+            # get the one null-string token to call the head or tail of (if
+            # any).  If none, fall through to the usual stuff below.
+            # EXPERIMENTAL; later maybe optimize for efficiency; see
+            # if it works OK or not first.  That should complete the prototype
+            # implementation (unless want to build in a production stack at
+            # some point).
 
             sorted_handler_dict = self.handler_funs[head_or_tail]
             if not sorted_handler_dict:
@@ -1003,6 +1014,7 @@ class PrattParser(object):
         self.preconditions_dict = {} # Registered parser-global preconditions functions.
         self.jop_token_subclass = None
         self.jop_token_label = None
+        self.null_string_tokens = [] # A list of all the null-string tokens.
         self.multi_expression = False # Whether to parse multiple expressions.
         # Type-checking options below; these can be changed between calls to `parse`.
         self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
@@ -1016,10 +1028,16 @@ class PrattParser(object):
     #
 
     # TODO these need undefine methods
+    # TODO consider setting token kinds for everything and using that
+    # to combine these, taking a token_kind="jop" sort of optional argument.
+    # Kinds so far "regular", "begin", "end", "ignored", "jop", "null-string"
+    # The first three should be set in the Lexer.  Maybe a better way to
+    # define it.  Remove the beginnings of t.token_kind below if don't use.
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """A convenience function; calls the Lexer `def_token` method."""
-        self.lex.def_token(token_label, regex_string, on_ties=on_ties, ignore=ignore)
+        return self.lex.def_token(token_label, regex_string,
+                                  on_ties=on_ties, ignore=ignore)
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define a token with `ignored=True`."""
@@ -1040,7 +1058,8 @@ class PrattParser(object):
 
     def undef_token(self, token_label):
         """A convenience function; calls the Lexer `undef_token` method.  Should
-        not be used for the begin or end token."""
+        not be used for the begin or end token or null-string tokens."""
+        # TODO: Maybe err check for begin/end or null token, or combine all into one.
         self.lex.undef_token(token_label)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
@@ -1091,10 +1110,37 @@ class PrattParser(object):
                                   "undefined before defining an new one.")
         self.jop_token_label = jop_token_label
         self.jop_ignored_token_label = ignored_token_label
-        self.jop_token_subclass = self.symbol_table.create_token_subclass(
-                                                           jop_token_label)
-        self.jop_token_subclass.lex = self.lex
+        token = self.def_token(jop_token_label, None)
+        self.jop_token_subclass = token
+        token.lex = self.lex
+        token.token_kind = "jop"
         return self.jop_token_subclass
+
+    def undef_jop_token(self):
+        """Undefine a jop token."""
+        self.undef_token(self.jop_token_label)
+        self.jop_token_subclass = None
+        self.jop_token_label = None
+        self.jop_ignored_token_label = None
+
+    def def_null_string_token(self, token_label):
+        """Define a null token, i.e., one which matches the null string.  All
+        null string tokens with defined handlers are tested and potentially
+        executed between any pair of actual tokens.  These are useful for
+        emulating recursive descent while still using the Pratt parser
+        framework."""
+        token = self.def_token(token_label, None)
+        token.lex = self.lex
+        token.token_kind = "null_string"
+        self.null_string_tokens.append(token)
+        return token
+
+    def undef_null_string_token(self, token_label):
+        """Undefine a null string token."""
+        for i in reversed(range(self.null_tokens)):
+            if self.null_string_tokens[i].token_label == token_label:
+                del self.null_string_tokens[i]
+        self.undef_token(token_label)
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
                        precond_label=None, precond_fun=None,

@@ -248,6 +248,9 @@ one-to-one with the Cartesian product of the two).
 Using preconditions similarly to recursive descent parsing
 ----------------------------------------------------------
 
+TODO: describe null-string tokens and their handlers, as EXPERIMENTAL.
+      Say could be implemented more efficiently if useful enough.
+
 It is possible to use preconditions to fake a recursive descent parser for a
 BNF or EBNF grammar.  For each production you need to know all of the tokens
 which can start that production, as well as any required disambiguating

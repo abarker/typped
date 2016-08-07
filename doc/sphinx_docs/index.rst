@@ -27,6 +27,14 @@ The easiest way to install Typped is to use pip:
 Introduction
 ============
 
+The Typped package provides a framework for defining and using Pratt parsers,
+with optional type-checking.  Because it is based on Pratt parsing it is
+especially good at expression languages with various types of operators.   The
+package was designed for logic languages and mathematical languages, but the
+framework is general-purpose.  Languages can be fully dynamic, defined and
+modified on-the-fly.  Since the package is pure Python it is not the best
+choice if speed is the most important factor.
+
 Contents:
 
 .. toctree::

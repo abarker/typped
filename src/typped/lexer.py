@@ -217,6 +217,9 @@ class TokenNode(object):
     # Various representations.
     #
 
+    def traditional_repr(self):
+        """Representation as a string that looks like class initialization."""
+        return "TokenNode()"
     def value_repr(self):
         """Token representation as its value."""
         return str(self.value)
@@ -228,12 +231,12 @@ class TokenNode(object):
         the value."""
         return "<" + str(self.token_label) + "," + str(self.value) + ">"
     def tree_repr(self, indent=""):
-        """Token representation as the root of a parse subtree."""
+        """Token representation as the root of a parse subtree, with formatting."""
         string = indent + self.summary_repr() + "\n"
         for c in self.children:
             string += c.tree_repr(indent=indent+" "*4)
         return string
-    def string_repr(self, only_vals=False, only_labels=False):
+    def string_tree_repr(self, only_vals=False, only_labels=False):
         """Token representation as the root of a parse subtree, in a string format.
         This is the default representation, used for `__repr__`."""
         string = self.summary_repr()
@@ -241,7 +244,7 @@ class TokenNode(object):
         if only_labels: string = self.label_repr()
         if self.children:
             string += "("
-            string += ",".join(c.string_repr() for c in self.children)
+            string += ",".join(c.string_tree_repr() for c in self.children)
             string += ")"
         return string
     def old_repr(self):
@@ -256,7 +259,7 @@ class TokenNode(object):
             for a in self.children: str_val += " " + a.old_repr()
             str_val += "]"
             return str_val
-    __repr__ = string_repr
+    __repr__ = string_tree_repr
 
 
 def create_token_subclass():
@@ -676,21 +679,31 @@ class Lexer(object):
     #
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """Define a token and the regex to recognize it.  The label
-        `token_label` is the label for the kind of token.  Setting
-        `ignore=True` will cause all such tokens to be ignored (except that
-        they will be placed on the `ignored_before` list of the non-ignored
-        token that they precede).  In case of ties for the longest match in
-        scanning, the integer `on_ties` values are used to break the ties.  If
-        any two are still equal an exception will be raised.  Returns the new
-        token subclass."""
+        """Define a token and the regex to recognize it.
+        
+        The label `token_label` is the label for the kind of token.  The label
+        `regex_string` is a Python regular expression defining the text strings
+        which match for the token.  If `regex_string` is set to `None` then a
+        dummy token will be created which is never searched for in the lexed
+        text.
+        
+        Setting `ignore=True` will cause all such tokens to be ignored (except
+        that they will be placed on the `ignored_before` list of the
+        non-ignored token that they precede).
+        
+        In case of ties for the longest match in scanning, the integer
+        `on_ties` values are used to break the ties.  If any two are still
+        equal an exception will be raised.
+        
+        Returns the new token subclass."""
         if self.is_defined_token_label(token_label):
             raise LexerException("A token with label '{0}' is already defined.  It "
             "must be undefined before it can be redefined.".format(token_label))
-        self._insert_pattern(regex_string)
-        self.token_labels.append(token_label)
-        self.on_ties.append(on_ties)
-        if ignore: self.ignore_tokens.add(token_label)
+        if regex_string is not None:
+            self._insert_pattern(regex_string)
+            self.token_labels.append(token_label)
+            self.on_ties.append(on_ties)
+            if ignore: self.ignore_tokens.add(token_label)
         # Initialize with a bare-bones, default token_subclass.
         new_subclass = self.symbol_table.create_token_subclass(token_label)
         new_subclass.lex = self
@@ -699,7 +712,7 @@ class Lexer(object):
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define an ignored token without setting
         `ignore=True`.  This just calls `def_token` with the value set."""
-        self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True)
+        return self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True)
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
@@ -721,7 +734,7 @@ class Lexer(object):
 
     def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
-        # Remove from the list of defined tokens and the symbol table.
+        # Remove from the list of defined tokens and from the symbol table.
         self.symbol_table.undef_token_subclass(token_label)
         self.ignore_tokens.discard(token_label)
         try: tok_index = self.token_labels.index(token_label)
@@ -752,13 +765,13 @@ class Lexer(object):
         self.end_token_subclass.lex = self
         return self.begin_token_subclass, self.end_token_subclass
 
-    def define_unstored_token(self, token_label):
-        """Define a token that is not stored in the symbol table dict, and which
-        has no regex pattern."""
-        new_subclass = self.symbol_table.create_token_subclass(
-                                                token_label, store_in_dict=False)
-        new_subclass.lex = self
-        return new_subclass
+    #def define_unstored_token(self, token_label):
+    #    """Define a token that is not stored in the symbol table dict, and which
+    #    has no regex pattern."""
+    #    new_subclass = self.symbol_table.create_token_subclass(
+    #                                            token_label, store_in_dict=False)
+    #    new_subclass.lex = self
+    #    return new_subclass
 
     #
     # Lower-level methods related to token generation
