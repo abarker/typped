@@ -684,6 +684,20 @@ def create_token_subclass():
         # Some helper functions for use in handler functions.
         #
 
+        def last_n_tokens_original_text(self, n):
+            """Returns the original text parsed by the last `n` tokens.  This
+            routine is mainly used to make error messages more helpful.  It
+            uses the token attribute `original_matched_string` and the lexer
+            attribute `previous_tokens` (which must be large enough for `n`)."""
+            # TODO: move to lexer and debug, also better document the stuff it
+            # uses in the doc section.  Useful fun, though.  Could also print
+            # line numbers and stuff....
+            lex = self.lex
+            prev_tokens = [lex.previous_tokens[i] for i in range(-n-1, 0)] + [self]
+            string_list = [s.original_matched_string for s in prev_tokens]
+            full_string = "".join(string_list)
+            return full_string
+
         def match_next(self, token_label_to_match, peeklevel=1,
                        raise_on_fail=False, raise_on_true=False, consume=True):
             """A utility function that tests whether the value of the next token label
@@ -704,14 +718,18 @@ def create_token_subclass():
             if retval and raise_on_true:
                     raise ParserException(
                         "Function match_next with peeklevel={0} found unexpected "
-                        "token {1}."
-                        .format(peeklevel, str(lex.peek(peeklevel))))
+                        "token {1}.  The text parsed from the three tokens up to "
+                        "the error is: {2}"
+                        .format(peeklevel, str(lex.peek(peeklevel)),
+                            self.last_n_tokens_original_text(3))) # TODO, make 3 param
             if not retval and raise_on_fail:
                     raise ParserException(
                         "Function match_next with peeklevel={0} expected token "
-                        " with label '{1}' but found token {2}."
+                        "with label '{1}' but found token {2}.  The text parsed "
+                        "from the three tokens up to the error is: {3}"
                         .format(peeklevel, token_label_to_match,
-                                str(lex.peek(peeklevel))))
+                                str(lex.peek(peeklevel)),
+                                self.last_n_tokens_original_text(3))) # TODO, make 3 param
             return retval
 
         def in_ignored_tokens(self, token_label_to_match,

@@ -89,6 +89,7 @@ For a token named `t`, these attributes are available:
 * `t.is_first` -- true when this is the first token in the text, false otherwise
 * `t.parent` -- can be set to the parent in a tree; set by the lexer to `None`
 * `t.children` -- can be set to a list of children; set by the lexer to `[]`
+* `original_matched_string` -- the original text that was consumed for this token
 
 TODO, list other methods, too.
 
@@ -148,6 +149,7 @@ class TokenNode(object):
     node, i.e. `t_node[0]` would be the leftmost child."""
     
     token_label = None # A label for subclasses representing kinds of tokens.
+    original_matched_string = "" # Default, for begin and end tokens.
 
     def __init__(self):
         """Initialize the TokenNode."""

@@ -2,6 +2,17 @@
 Preconditioned dispatching
 ==========================
 
+In this section we describe the use of preconditioned dispatching in the
+`PrattParser` class.  The parser comes with various built-in methods which
+encapsulate the definition and use of preconditioning functions, so many Typped
+users will never need to use the techniques described here.  See the calulator
+example, for example, which uses only built-in methods.  This description is
+mainly for those interested in the details of how it works and for those who
+want to extend the built-in collection of methods.
+
+What is preconditioned dispatching?
+-----------------------------------
+
 In the usual Pratt parser each token has a fixed head and/or tail handler
 function associated with it.  In this generalization, each token can have
 multiple possible head and/or tail handler functions associated with it.  At
@@ -88,12 +99,24 @@ in the lexer, looking for the left parenthesis.
 
 This example works, but is simplified from the actual `def_stdfun` method of
 the Pratt parser class.  It assumes a fixed number of arguments and does not
-make use of type data.  Note that this function does not allow whitespace
-(ignored tokens) to occur between the function name and the left parenthesis.
-The preconditions function is defined as a nested function, but it could also
-be passed in as another argument. ::
+make use of type data.  The function is still fairly general, though.  Note
+that this function does not allow whitespace (ignored tokens) to occur between
+the function name and the left parenthesis.  The preconditions function is
+defined as a nested function, but it could also be passed in as another
+argument. 
+
+TODO: maybe make non-subclass version the example.... less confusing to newbies.
+
+In this example the `PrattParser` class is extended by defining a subclass with
+additional methods.  It is not strictly necessary to create a subclass,
+however.  You would just rename the `self` variable to something like `parser`
+and explicitly pass in a parser instance when calling it.  Note that the
+example file `example_stdfun_lookahead` has both versions.  Extending the
+class has the advantage the the newer methods are accessed in the same way
+as the previous ones. ::
 
      class MyParser(PrattParser):
+        """Add a new method to the `PrattParser` class as an example."""
         def __init__(self, *args):
             super(MyParser, self).__init__()
 
@@ -131,11 +154,32 @@ be passed in as another argument. ::
                                    precond_fun=preconditions,
                                    precond_priority=precond_priority)
 
-The function defined above would be called as::
+TODO: get the current version of both of these, and mention example file to
+download.
+
+The function defined above could be called as follows.  Note that literals in
+the sense of the parser are any leaves (terminals) of the parse tree. ::
 
     parser = MyParser()
-    ... # define tokens here
+    parser.def_token("k_space", r"[ \t]+", ignore=True) # note + NOT *
+    parser.def_token("k_newline", r"[\n\f\r\v]+", ignore=True) # note + NOT
+    tokens = [("k_number", r"\d+"),
+              ("k_lpar", r"\("),
+              ("k_rpar", r"\)"),
+              ("k_add"),
+              ("k_sub"),
+             ]
+    parser.def_multi_tokens(tokens)
+    literals = [("k_number"),
+                ("k_lpar"),
+                ("k_rpar"),
+               ]
+    parser.def_multi_literals(literals)
+
     parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", 2)
+    parser.def_stdfun("k_sub", "k_lpar", "k_rpar", "k_comma", 2)
+
+    print(parser.parse("add(4, sub(5, 6)"))
 
 Implementation
 --------------
