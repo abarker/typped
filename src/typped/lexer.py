@@ -262,7 +262,7 @@ class TokenNode(object):
     __repr__ = string_tree_repr
 
 
-def create_token_subclass():
+def basic_token_subclass_factory():
     """Create and return a new token subclass representing tokens with label
     `token_label`.  This function is called from the `create_token_subclass`
     method  of `TokenSubclassDict` when it needs to create a new one to
@@ -290,7 +290,7 @@ def create_token_subclass():
     return TokenSubclass
 
 #
-# Token subclass symbol table
+# Token subclass token table
 #
 
 class TokenSubclassDict(object):
@@ -298,12 +298,12 @@ class TokenSubclassDict(object):
     defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
     class to save the subclasses for the kinds of tokens which have been defined for
     it."""
-    def __init__(self, token_subclassing_fun=create_token_subclass):
-        """Initialize the symbol table.  The parameter `token_subclassing_fun`
+    def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory):
+        """Initialize the token table.  The parameter `token_subclass_factory_fun`
         can be passed a function to be used to generate token subclasses,
         taking a token label as an argument.  The default is
-        `create_token_subclass`."""
-        self.token_subclassing_fun = token_subclassing_fun
+        `basic_token_subclass_factory`."""
+        self.token_subclassing_fun = token_subclass_factory_fun
         self.token_subclass_dict = {}
 
     def has_key(self, token_label):
@@ -312,17 +312,17 @@ class TokenSubclassDict(object):
 
     def get_token_subclass(self, token_label):
         """Look up the subclasses of base class `TokenNode` corresponding to
-        `token_label` in the symbol table and return it.  Raises a
+        `token_label` in the token table and return it.  Raises a
         `LexerException` if no subclass is found for the token label."""
         if token_label in self.token_subclass_dict:
             TokenSubclass = self.token_subclass_dict[token_label]
-        else: raise LexerException("No token with label '{0}' is in the symbol table."
+        else: raise LexerException("No token with label '{0}' is in the token table."
                                    .format(token_label))
         return TokenSubclass
 
     def create_token_subclass(self, token_label, store_in_dict=True):
         """Create a subclass for tokens with label `token_label` and store it
-        in the symbol table.  Return the new subclass.  Raises a `LexerException`
+        in the token table.  Return the new subclass.  Raises a `LexerException`
         if a subclass for `token_label` has already been created.  If
         `store_in_dict` is `False` then the token is not stored."""
         if token_label in self.token_subclass_dict:
@@ -370,7 +370,7 @@ class Lexer(object):
     case of ties the `on_ties` value (passed to `def_token`) is used to
     break it.  If that fails a `LexerException` is raised.
     
-    If no symbol table is passed into `__init__` the `Lexer` will create its
+    If no token table is passed into `__init__` the `Lexer` will create its
     own empty one."""
 
     ERROR_MSG_TEXT_SNIPPET_SIZE = 40 # Number of characters to show for context.
@@ -381,7 +381,7 @@ class Lexer(object):
     # Initialization methods
     #
 
-    def __init__(self, symbol_table=None, num_lookahead_tokens=2,
+    def __init__(self, token_table=None, num_lookahead_tokens=2,
                  max_go_back_tokens=None, default_begin_end_tokens=False):
         """Initialize the Lexer.  Optional arguments set the
         `TokenSubclassDict` to be used (default creates a new one), the
@@ -391,10 +391,10 @@ class Lexer(object):
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
-        if symbol_table is None:
-            self.symbol_table = TokenSubclassDict()
+        if token_table is None:
+            self.token_table = TokenSubclassDict()
         else:
-            self.symbol_table = symbol_table
+            self.token_table = token_table
         self.ignore_tokens = set()
 
         # These three lists below are kept in the same order so the same index
@@ -719,7 +719,7 @@ class Lexer(object):
             self.on_ties.append(on_ties)
             if ignore: self.ignore_tokens.add(token_label)
         # Initialize with a bare-bones, default token_subclass.
-        new_subclass = self.symbol_table.create_token_subclass(token_label)
+        new_subclass = self.token_table.create_token_subclass(token_label)
         new_subclass.lex = self
         return new_subclass
 
@@ -731,25 +731,30 @@ class Lexer(object):
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
-        ordinary `def_token` method.  Called in the same order as the list."""
+        ordinary `def_token` method.  Called in the same order as the list.  Returns
+        a tuple of the defined tokens."""
+        tok_list = []
         for t in tuple_list:
-            self.def_token(*t)
+            tok_list.append(self.def_token(*t))
+        return tuple(tok_list)
 
     def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once with
         `ignore=True` set.  Each element of the passed-in list should be a tuple
         containing the arguments to the ordinary `def_token` method.  Called in
-        the same order as the list."""
+        the same order as the list.  Returns a tuple of the defined tokens."""
+        tok_list = []
         for t in tuple_list:
             t = list(t)
             if len(t) == 3: t.append("True") # Has a tie breaker, no ignore set.
             elif len(t) == 2: t.extend([0, "True"]) # Has no on_ties, set to default.
-            self.def_token(*t)
+            tok_list.append(self.def_token(*t))
+        return tuple(tok_list)
 
     def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
-        # Remove from the list of defined tokens and from the symbol table.
-        self.symbol_table.undef_token_subclass(token_label)
+        # Remove from the list of defined tokens and from the token table.
+        self.token_table.undef_token_subclass(token_label)
         self.ignore_tokens.discard(token_label)
         try: tok_index = self.token_labels.index(token_label)
         except ValueError: return
@@ -769,20 +774,20 @@ class Lexer(object):
 
         # Define begin token.
         self.begin_token_label = begin_token_label
-        self.begin_token_subclass = self.symbol_table.create_token_subclass(
+        self.begin_token_subclass = self.token_table.create_token_subclass(
                                                                 begin_token_label)
         # Define end token.
         self.end_token_label = end_token_label
-        self.end_token_subclass = self.symbol_table.create_token_subclass(
+        self.end_token_subclass = self.token_table.create_token_subclass(
                                                                 end_token_label)
         self.begin_token_subclass.lex = self
         self.end_token_subclass.lex = self
         return self.begin_token_subclass, self.end_token_subclass
 
     #def define_unstored_token(self, token_label):
-    #    """Define a token that is not stored in the symbol table dict, and which
+    #    """Define a token that is not stored in the token table dict, and which
     #    has no regex pattern."""
-    #    new_subclass = self.symbol_table.create_token_subclass(
+    #    new_subclass = self.token_table.create_token_subclass(
     #                                            token_label, store_in_dict=False)
     #    new_subclass.lex = self
     #    return new_subclass
@@ -947,9 +952,9 @@ class Lexer(object):
 
                 # Look up the class to represent the winning_index.
                 try:
-                    token_subclass_for_label = self.symbol_table.get_token_subclass(label)
+                    token_subclass_for_label = self.token_table.get_token_subclass(label)
                 except LexerException:
-                    raise LexerException("Undefined key in symbol table for "
+                    raise LexerException("Undefined key in token table for "
                                          "label '{0}'.".format(label))
 
                 # Make an instance of the class to return (or at least to save
@@ -988,7 +993,7 @@ class Lexer(object):
             # === Return only end tokens state ======================================
             # =======================================================================
             elif self.token_generator_state == GenTokenState.end:
-                token_subclass_for_end = self.symbol_table.get_token_subclass(
+                token_subclass_for_end = self.token_table.get_token_subclass(
                                                              self.end_token_label)
                 tci = token_subclass_for_end(None)
                 tci.line_and_char = (self.linenumber, self.charnumber)

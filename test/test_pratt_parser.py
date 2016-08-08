@@ -6,6 +6,7 @@ pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
 pytest_helper.sys_path("../src/typped")
 
+# TODO: switch to importing the typped directory/package
 import pratt_parser
 
 # Some naming conventions.
@@ -23,17 +24,17 @@ import pratt_parser
 
 # TOKEN DEFINITIONS #################################################################
 
-def define_whitespace_tokens(lexer_or_parser):
-    #lexer_or_parser.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
+def define_whitespace_tokens(parser):
+    #parser.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
 
     whitespace_tokens = [
             ("k_space", r"[ \t]+"), # note + symbol, NOT * symbol
             ("k_newline", r"[\n\f\r\v]+") # note + symbol, NOT * symbol
             ]
-    lexer_or_parser.def_multi_ignored_tokens(whitespace_tokens)
+    parser.def_multi_ignored_tokens(whitespace_tokens)
 
-def define_basic_tokens(lexer_or_parser):
-    define_whitespace_tokens(lexer_or_parser)
+def define_basic_tokens(parser):
+    define_whitespace_tokens(parser)
     token_list = [
             ("k_number", r"\d+"),
             ("k_imag_number", r"\d+[i]"),
@@ -50,7 +51,7 @@ def define_basic_tokens(lexer_or_parser):
             ("k_colon", r"\:"),
             ("k_semicolon", r";")
             ]
-    lexer_or_parser.def_multi_tokens(token_list)
+    parser.def_multi_tokens(token_list)
 
     # NOTE that the exponentiation function could alternately be defined twice,
     # once for a ** token as the operator and once for a ^ token.  (They can
@@ -58,29 +59,28 @@ def define_basic_tokens(lexer_or_parser):
     # define multiple symbols for a single token (via the regex), making ^ an
     # alias for **.
 
-def define_identifier_token(lexer_or_parser):
+def define_identifier_token(parser):
     # The last part of below only needs \w, but commented-out line is a good
     # example of using a pattern.
-    #lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
-    lexer_or_parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    #parser.def_token("k_identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
+    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
-def define_default_tokens(lexer_or_parser):
+def define_default_tokens(parser):
     """Defines some default tokens for testing either a Lexer or a PrattParser."""
-    define_basic_tokens(lexer_or_parser)
-    define_identifier_token(lexer_or_parser)
+    define_basic_tokens(parser)
+    define_identifier_token(parser)
 
-    #lexer_or_parser.def_infix_op("divsign", u"÷") 
-    #lexer_or_parser.def_infix_op("caret", "^") 
+    #parser.def_infix_op("divsign", u"÷") 
+    #parser.def_infix_op("caret", "^") 
 
-def define_comment_to_EOL_token(lexer_or_parser, begin_string):
+def define_comment_to_EOL_token(parser, begin_string):
     # Note that comment_to_endline is non-greedy due to *? symbol.
-    lexer_or_parser.def_token("k_comment_to_EOL", r"{0}.*?[\n]"
+    parser.def_token("k_comment_to_EOL", r"{0}.*?[\n]"
                            .format(begin_string), ignore=True)
 
 # SYNTAX DEFINITIONS ################################################################
 
 def define_syntax(parser):
-    Assoc = pratt_parser.Assoc # Enum for association.
 
     # Literals
     literals = [
@@ -99,20 +99,20 @@ def define_syntax(parser):
     #parser.def_stdfun_lpar_tail("k_identifier", "k_lpar", "k_rpar", "k_comma", 20,
     #                            ast_label="a_std_function") # 20 is prec of (
 
-    parser.def_infix_op("k_plus", 10, Assoc.left, ast_label="a_add")
-    parser.def_infix_op("k_minus", 10, Assoc.left, ast_label="a_subtract")
+    parser.def_infix_op("k_plus", 10, "left", ast_label="a_add")
+    parser.def_infix_op("k_minus", 10, "left", ast_label="a_subtract")
 
-    parser.def_infix_op("k_ast", 20, Assoc.left, ast_label="a_mult")
-    parser.def_infix_op("k_fslash", 20, Assoc.left, ast_label="a_divide")
+    parser.def_infix_op("k_ast", 20, "left", ast_label="a_mult")
+    parser.def_infix_op("k_fslash", 20, "left", ast_label="a_divide")
 
     parser.def_prefix_op("k_plus", 100, ast_label="a_positive")
     parser.def_prefix_op("k_minus", 100, ast_label="a_negative")
 
     parser.def_postfix_op("k_bang", 100, allow_ignored_before=False, ast_label="factorial")
 
-    parser.def_infix_op("k_double_ast", 30, Assoc.right, ast_label="a_exp")
+    parser.def_infix_op("k_double_ast", 30, "right", ast_label="a_exp")
 
-    parser.def_infix_multi_op(["k_question", "k_colon"], 90, Assoc.right,
+    parser.def_infix_multi_op(["k_question", "k_colon"], 90, "right",
                               ast_label="a_ternary_conditional")
 
     # Note we have two exp operators, and we might want exp() standard fun too...
@@ -121,11 +121,11 @@ def define_syntax(parser):
 
     parser.def_bracket_pair("k_lpar", "k_rpar", ast_label="paren_brackets")
 
-    #parser.define_comma_list("k_comma", 5, Assoc.right, ast_label="comma_list")
-    parser.def_infix_multi_op(["k_comma"], 5, Assoc.left,
+    #parser.define_comma_list("k_comma", 5, "right", ast_label="comma_list")
+    parser.def_infix_multi_op(["k_comma"], 5, "left",
                               in_tree=False, repeat=True, ast_label="comma_list")
 
-    parser.def_infix_multi_op(["k_semicolon"], 3, Assoc.left,
+    parser.def_infix_multi_op(["k_semicolon"], 3, "left",
                                    repeat=True, ast_label="a_statements")
 
 # OLD PRINT TESTS ####################################################################
@@ -294,11 +294,10 @@ def test_jop(basic_setup):
     # or else better dispatching.  (Later: what does this mean??? Tests below work.
     # Maybe identifiers need testing???)
     #skip()
-    Assoc = pratt_parser.Assoc # Enum for association.
 
-    print("parser symbol table is", parser.symbol_table.token_subclass_dict.keys())
+    print("parser token table is", parser.token_table.token_subclass_dict.keys())
     parser.def_jop_token("k_jop", "k_space")
-    parser.def_jop(20, Assoc.left, ast_label="a_mult")
+    parser.def_jop(20, "left", ast_label="a_mult")
     expr = "5  9"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
@@ -329,7 +328,7 @@ def test_types_mixed_numerical_bool_expressions():
     """Test type-checking on number-valued and bool-valued expressions, using
     only overloading on argument types."""
     # setup
-    Assoc = pratt_parser.Assoc # Enum for association.
+
     ParserTypeError = pratt_parser.ParserTypeError
     TypeSig = pratt_parser.TypeSig
 
@@ -338,27 +337,29 @@ def test_types_mixed_numerical_bool_expressions():
     parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
     # define the types to be used
-    parser.def_type("t_number")
-    parser.def_type("t_bool")
+    t_number = parser.def_type("t_number")
+    t_bool = parser.def_type("t_bool")
 
     # define initial syntax
     parser.def_literal("k_number", val_type="t_number", ast_label="a_number")
     parser.def_literal("k_identifier", val_type="t_number", ast_label="a_variable")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma",
                       val_type="t_number", arg_types=["t_number"], ast_label="a_exp")
-    parser.def_infix_op("k_plus", 10, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_plus", 10, "left", val_type="t_number",
                       arg_types=["t_number","t_number"], ast_label="a_add")
-    parser.def_infix_op("k_minus", 10, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_minus", 10, "left", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_subtract")
-    parser.def_infix_op("k_ast", 20, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_ast", 20, "left", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_mult")
-    parser.def_infix_op("k_double_ast", 30, Assoc.right, val_type="t_number",
+    parser.def_infix_op("k_double_ast", 30, "right", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_exp")
 
     # run simple tests with just one type
-    assert parser.parse("5 + 100").string_tree_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("5 + 100").string_tree_repr() == \
+                                  "<k_plus,+>(<k_number,5>,<k_number,100>)"
     # note k_double_ast ** and with an alias ^ on next
-    assert parser.parse("5^100").string_tree_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("5^100").string_tree_repr() == \
+                                  "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
     assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
             "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
             "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
@@ -449,7 +450,6 @@ def test_types_overloaded_return():
     to make sure none of them break, then test cases specific to overloading on
     return types."""
     # setup
-    Assoc = pratt_parser.Assoc # Enum for association.
     ParserTypeError = pratt_parser.ParserTypeError
     TypeSig = pratt_parser.TypeSig
 
@@ -466,13 +466,13 @@ def test_types_overloaded_return():
     parser.def_literal("k_identifier", val_type="t_number", ast_label="a_variable")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma",
                       val_type="t_number", arg_types=["t_number"], ast_label="a_exp")
-    parser.def_infix_op("k_plus", 10, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_plus", 10, "left", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_add")
-    parser.def_infix_op("k_minus", 10, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_minus", 10, "left", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_subtract")
-    parser.def_infix_op("k_ast", 20, Assoc.left, val_type="t_number",
+    parser.def_infix_op("k_ast", 20, "left", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_mult")
-    parser.def_infix_op("k_double_ast", 30, Assoc.right, val_type="t_number",
+    parser.def_infix_op("k_double_ast", 30, "right", val_type="t_number",
                         arg_types=["t_number","t_number"], ast_label="a_exp")
 
     # run simple tests with just one type

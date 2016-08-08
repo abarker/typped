@@ -48,7 +48,7 @@ the return type and one for each argument.
 
 from __future__ import print_function, division, absolute_import
 import sys
-from enum_wrapper import Enum
+#from enum_wrapper import Enum
 
 #
 # Formal and actual type specs for functions.
@@ -80,18 +80,43 @@ class TypeSig(object):
     `val_type` argument set to whatever type if it is not a wildcard."""
 
     def __init__(self, val_type=None, arg_types=None, test_fun=None):
-        """The argument `val_type` should be a hashable type in the language or
-        else `None`.  The argument `arg_types` should be a list, tuple, or
-        other iterable of such hashable types (including `None`) or else simply
-        `None` (it will be converted to a tuple).  The `None` value is treated
-        as a wildcard that matches any corresponding type; `None` alone for
-        `arg_types` allows any number of arguments of any type."""
+        """Initialize a type signature object.
+        
+        The argument `val_type` should be `None`, a `TypeObject` subclass, or else
+        a string label registered for such a class.
+
+        The argument `arg_types` should be a list, tuple, or other iterable of
+        `None` values and/or `TypeObject` subclass instances.
+        
+        The `None` value is treated as a wildcard that matches any
+        corresponding type; `None` alone for `arg_types` allows any number of
+        arguments of any type."""
+
         # TODO test_fun is unset as a class var and unused.  What is it supposed
         # to do???
         if isinstance(arg_types, str):
             raise ParserException("The `arg_types` argument must"
                     " be `None` or an iterable returning types (e.g., a list"
                     " or tuple of types).")
+        
+        # TODO below works but seems to cause another problem... some string
+        # indexing still used, apparently, in ParameterizedTypeDict.
+        #
+        # Note that TypeObject objects *can* potentially know their parser because it
+        # created them.... but the strings do not have the info...
+        """
+        # Convert type labels to types if necessary (as a convenience feature).
+        if parser is not None:
+            if isinstance(val_type, str):
+                val_type = parser.type_table[val_type]
+            if arg_types is not None:
+                arg_types = list(arg_types)
+                for i in range(len(arg_types)):
+                    if isinstance(arg_types[i], str):
+                        arg_types[i] = parser.type_table[arg_types[i]]
+                arg_types = tuple(arg_types)
+        """
+
         self.val_type = val_type
         if arg_types:
             self.arg_types = tuple(arg_types)
@@ -152,7 +177,7 @@ class TypeSig(object):
                 new_sig = TypeSig(sig.val_type, (None,)*num_args)
             else:
                 new_sig = sig
-            new_sig.original_sig = sig
+            new_sig.original_sig = sig # Save the original sig as an attribute.
             all_sigs_expanded.append(new_sig)
         return all_sigs_expanded
 
@@ -167,9 +192,12 @@ class TypeSig(object):
         for sig in sig_list:
             sig_args_len = len(sig.arg_types)
             if sig_args_len != num_args:
-                if not repeat_args: continue
-                if num_actual_args % sig_args_len != 0: continue
+                if not repeat_args:
+                    continue
+                if num_actual_args % sig_args_len != 0:
+                    continue
                 num_repeats = num_actual_args // sig_args_len
+                # NOTE repeating adds refs, not copies; OK for now but keep in mind.
                 sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
             sigs_matching_numargs.append(sig)
 
@@ -211,7 +239,9 @@ class TypeSig(object):
                     # maybe disallow strings and force an actual type var name to
                     # be set in the actual application code (see later tests with
                     # types in test_pratt_parser.py).
+                    print("debug, arg_type is", arg_type)
                     if child_sig.val_type == arg_type:
+                    #if arg_type.is_valid_actual_sig(child_sig.val_type):
                         some_child_retval_matches = True
                         break
                 if not some_child_retval_matches:
@@ -270,9 +300,13 @@ class TypeSig(object):
         """Note that equality is *only* based on `val_type` and `arg_type` being
         *identical*.  It ignores other attributes, and does not consider more
         sophisticated notions of equality."""
+        if not isinstance(sig, self.__class__):
+            raise TypeError(
+                    "Comparing {0} with some other kind of object.".format(__class__))
+            #return False
         return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
     def __ne__(self, sig):
-        return not self.__eq__(sig)
+        return not self == sig
 
     def __repr__(self): 
         return "TypeSig('{0}', {1})".format(self.val_type, self.arg_types)
@@ -293,7 +327,7 @@ class TypeObject(object):
     checked by `TypeSig` objects).
 
     Subclasses of this class are automatically generated via the
-    `create_type_template` function.  The `ParameterizedTypeDict` class calls that
+    `type_subclass_factory` function.  The `ParameterizedTypeDict` class calls that
     function to create the classes (representing types) that it stores.
     """
     def __init__(self):
@@ -304,16 +338,16 @@ class TypeObject(object):
     @staticmethod
     def expand_type(num_args):
         """Expand this type object to fill in any parameter values with the
-        passed-in values (the latter still TODO)."""
+        passed-in values (still TODO)."""
 
-def create_type_template():
+def type_subclass_factory():
     """Return a subclass of `TypeObject` to represent a type template.  This
     routine can be redefined for particular applications, but should not be
     called directly.  Use the `create_typeobject_subclass` method of
     `ParameterizedTypeDict` instead (which creates a subclass, adds some
     attributes, and saves it in a dict).  End users should use the
     `def_type` method of a `PrattParser` instance, which calls
-    `create_typeobject_subclass`.  The `template_subclass_fun` keyword argument
+    `create_typeobject_subclass`.  The `param_type_subclass_fun` keyword argument
     in the initializer `ParameterizedTypeDict` can be used to change the function
     which is called."""
 
@@ -323,10 +357,10 @@ def create_type_template():
     # and arguments in the PrattParser?
 
     class ParameterizedType(TypeObject):
-        """Instances of this object are used to represent types in the parsed
-        language."""
-        type_name = None # Set by the method that calls create_type_template.
-        type_param_types = None # Set by the method that calls create_type_template.
+        """These subclasses represent parameterized types.  Instances of these subclasses
+        object are used to represent the actual types. TODO, consider design."""
+        type_label = None # Set by the method that calls type_subclass_factory.
+        type_param_types = None # Set by the method that calls type_subclass_factory.
 
         def __init__(self, type_param_vals=None, conversions=None):
             """Instantiate an actual type from the parameterized type represented
@@ -362,7 +396,7 @@ def create_type_template():
         def is_valid_actual_type(self, type_obj):
             """Test whether `type_obj` is a valid actual argument of this type
             object, treating this one as a formal type."""
-            if self.type_name != typeobject.type_name: return False
+            if self.type_label != typeobject.type_label: return False
             if len(self.parameters) != len(typeobject.parameters): return False
             return all(self.parameters[i] == typeobject.parameters[i]
                        for i in range(self.parameters))
@@ -371,22 +405,44 @@ def create_type_template():
             """Note that this defines equality between types.  The `==` symbol
             is defined as exact match only.  Use `is_valid_actual_type` for
             comparing formal to actual."""
-            if self.type_name != typeobject.type_name: return False
-            if len(self.parameters) != len(typeobject.parameters): return False
+            if not isinstance(typeObject, self.__class__):
+                raise TypeError(
+                    "Comparing {0} with some other kind of object.".format(__class__))
+                #return False
+            if self.type_label != typeobject.type_label:
+                return False
+            if len(self.parameters) != len(typeobject.parameters):
+                return False
             return all(self.parameters[i] == typeobject.parameters[i]
                        for i in range(self.parameters))
 
         def __ne__(self, typeobject):
-            return not self.__eq__(typeobject)
+            return not self == typeobject
         def __hash__(self):
             """Needed to index dicts and for use in Python sets."""
             # TODO, hash on only the first few vars, maybe
-            return hash((self.type_name, self.type_param_types))
+            return hash((self.type_label, self.type_param_types))
         def __repr__(self): 
-            return self.__name__ + "({0}, {1})".format(self.type_name, self.type_params)
+            return self.__name__ + "ParamType({0}, {1})".format(self.type_label, self.type_params)
 
     return ParameterizedType
 
+#
+# A dict-like class for holding type subclasses.
+#
+
+# TODO: Note that if we always use a label to denote types and manipulate them
+# then we will need to define labels when parameterized types are instantiated,
+# so that they can be reported to have some kind of typesig containing the
+# string labels.  The actual parameterized type names themselves do not need to
+# contain the parameters, but the objects need to know them and how to instantiate
+# them to create "new" types (with type labels).
+#
+# REMEMBER that as of now (maybe change) all types are represented by class
+# instances.  If we want partial instantiation then we will need to also return
+# class instances...  Kind of suggests just using one class and instances for
+# everything.  But a certain elegance to using the instances to hold the
+# fully-instantiated types and classes to hold the ones still with parameters.
 
 class ParameterizedTypeDict(object):
     """A symbol table holding subclasses of the `TypeObject` class, one for each
@@ -394,58 +450,63 @@ class ParameterizedTypeDict(object):
     which holds the objects which represent each type defined in the language
     that the particular parser parses."""
     aliases = {} # A static dict mapping defined aliases to TypeObjects. TODO
-    def __init__(self, template_subclass_fun=create_type_template):
+    def __init__(self, type_subclass_factory_fun=type_subclass_factory):
         """Initialize the symbol table.  The parameter `token_subclassing_fun`
         can be passed a function to be used to generate token subclasses,
         taking a token label as an argument.  The default is
         `create_token_subclass`."""
-        self.template_subclass_fun = template_subclass_fun
+        self.param_type_subclass_fun = type_subclass_factory_fun
         self.type_template_dict = {}
 
-    def has_key(self, type_name):
-        """Test whether a `TypeObject` subclass for `type_name` has been stored."""
-        return type_name in self.type_template_dict
+    def has_key(self, type_label):
+        """Test whether a `TypeObject` subclass for `type_label` has been stored."""
+        return type_label in self.type_template_dict
 
-    def get_typeobject_subclass(self, type_name):
+    def get_typeobject_subclass(self, type_label):
         """Look up the subclasses of base class `TypeObject` corresponding to
-        `type_name` in the symbol table and return it.  Raises a
+        `type_label` in the symbol table and return it.  Raises a
         `TypeException` if no subclass is found for the token label."""
-        if type_name in self.type_template_dict:
-            TokenSubclass = self.type_template_dict[type_name]
+        if type_label in self.type_template_dict:
+            TokenSubclass = self.type_template_dict[type_label]
         return TokenSubclass
+    __getitem__ = get_typeobject_subclass
 
-    def create_typeobject_subclass(self, type_name, type_param_types=None):
-        """Create a subclass for a type named `type_name` and store it
+    def create_typeobject_subclass(self, type_label, type_param_types=None):
+        """Create a subclass for a type with string label `type_label` and store it
         in the symbol table.  Return the new subclass.  Raises a `TypeException`
-        if a subclass for `type_name` has already been created."""
+        if a subclass for `type_label` has already been created."""
         # TODO: type_param_types field is only set and never used anywhere.
         # What is it supposed to be doing?  How does it differ from the field
         # type_params which is set for the same class objects in __init__?
-        if type_name in self.type_template_dict:
-            raise TypeException("In create_type_template, already created a"
-                                " type with type_name '{0}'.".format(type_name))
-        # Create a new TypeObject subclass for type_name and add some attributes.
-        TypeObjectSubclass = self.template_subclass_fun()
-        TypeObjectSubclass.type_name = type_name
+        if type_label in self.type_template_dict:
+            raise TypeException("In type_subclass_factory, already created a"
+                                " type with type_label '{0}'.".format(type_label))
+
+        # Create a new TypeObject subclass for type_label.
+        TypeObjectSubclass = self.param_type_subclass_fun()
+
+        # Add some attributes.
+        TypeObjectSubclass.type_label = type_label
         TypeObjectSubclass.type_param_types = type_param_types
 
         # Create an informative name for the subclass for debugging purposes.
+        # TODO give these generated classes better debugging names
         if not type_param_types:
-            type_param_type_names = "unparameterized"
+            type_param_type_labels = "unparameterized"
         else:
-            type_param_type_names = [ t.type_name for t in type_param_types ]
-        param_names_str = "-".join(type_param_type_names)
-        TypeObjectSubclass.__name__ = ("typeobject_subclass-" + type_name 
+            type_param_type_labels = [t.type_label for t in type_param_types]
+        param_names_str = "-".join(type_param_type_labels)
+        TypeObjectSubclass.__name__ = ("typeobject_subclass-" + type_label 
                                        + param_names_str)
 
-        # Store the newly-created subclass in the token_dict and return it, too.
-        self.type_template_dict[type_name] = TypeObjectSubclass
+        # Store the newly-created subclass in the token_dict and then return it.
+        self.type_template_dict[type_label] = TypeObjectSubclass
         return TypeObjectSubclass
 
-    def undef_typeobject_subclass(self, type_name):
-        """Un-define the token with label type_name.  The TokenNode subclass
+    def undef_typeobject_subclass(self, type_label):
+        """Un-define the token with label type_label.  The TokenNode subclass
         previously associated with that label is removed from the dictionary."""
-        try: del self.type_template_dict[type_name]
+        try: del self.type_template_dict[type_label]
         except KeyError: return # Not saved in dict, ignore.
 
 if __name__ == "__main__":

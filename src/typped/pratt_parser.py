@@ -29,7 +29,7 @@ To use the `PrattParser` class you need to do these things:
        way desired, including in preconditions).  Examples::
 
           parser.def_literal("k_number", val_type="t_number", ast_label="a_number")
-          parser.def_infix_op("k_plus", 10, Assoc.left,
+          parser.def_infix_op("k_plus", 10, "left",
                            val_type="number", arg_types=["t_number","t_number"],
                            ast_label="a_add")
 
@@ -67,12 +67,41 @@ and Pratt's original naming conventions is given in this table:
 | tail handler function            | left denotation, led     |
 +----------------------------------+--------------------------+
 
+
+Multiple parsers at once
+------------------------
+
+Tokens defined by a parser's `def_token` method belong to that parser in the
+sense that they maintain a link back to the parser to look at certain settings
+attributes.  So when multiple parsers are used they generally should only look
+for tokens which they themselves have defined.  (TODO, consider, maybe even
+check for it.)
+
+In other words, the separate parsers are considered to parse disjoint
+sublanguages -- tokens will need to be redefined and later associated with each
+other to have common tokens between a language excluding the sublanguage and
+the sublanguage itself.
+
+The same lexer **must** be used, since it will have been set to the text string
+to parse.  So the lexer does not maintain a link back to a particular parser,
+but tokens do.  Note that all tokens defined are ultimately stored in the
+lexer's token table dict.
+
+This is currently done by adding the attribute wherever a token is defined,
+which forces the use of the parser's define functions.  May be a cleaner
+way to do it, but not too bad.  Consider whether restriction can be removed,
+or if it should be.
+
+As far at types, types are stored with each parser in a ParameterizedTypeDict.
+It would be possible for parsers to share one of these objects, but that is
+not currently implemented.
+
 """
 
 from __future__ import print_function, division, absolute_import
 import types
 from collections import OrderedDict, namedtuple, defaultdict
-from enum_wrapper import Enum
+#from enum_wrapper import Enum
 from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
 
 from pratt_types import ParameterizedTypeDict, TypeSig
@@ -104,13 +133,13 @@ from pratt_types import ParameterizedTypeDict, TypeSig
 """ The `TokenNode` base class is defined in `lexer.py`.  It contains some of
 the basic, general methods that apply to tokens and nodes in token trees.
 Methods particular to an application need to be defined in a subclass.  The
-function `create_token_subclass` returns a subclass of `TokenNode` which
+function `token_subclass_factory` returns a subclass of `TokenNode` which
 represents tokens with a given token label.  The `PrattParser` class sets this
 function to be used by its `TokenSubclassDict` instance in order to
 create a token subclass for each kind of token.  Many methods particular to the
 `PrattParser` application are added to the subclass."""
 
-def create_token_subclass():
+def token_subclass_factory():
     """This function is called from the `create_token_subclass` method of
     `TokenSubclassDict` when it needs to create a new subclass to begin
     with.  It should not be called directly.
@@ -133,6 +162,7 @@ def create_token_subclass():
         preconditions_dict = {} # Registered preconditions for this kind of token.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later by create_token_subclass.
+        parser_instance = None # Set by a `PrattParser` method `def_token`.
 
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
@@ -152,7 +182,7 @@ def create_token_subclass():
             return cls.static_prec
 
         @classmethod
-        def register_precond_fun(cls, precond_label, precond_fun, parser_global=False):
+        def register_precond_fun(cls, precond_label, precond_fun):
             """Save the preconditions function `precond_fun` in a dict keyed by
             `precond_label`.  If there is already a dict entry for the label,
             then the new function overwrites the old one (but they should
@@ -161,19 +191,13 @@ def create_token_subclass():
             also replaced.  Using labels allows equality between preconditions
             functions to be easily defined and tested, and allows for
             commonly-used precondition functions to be predefined."""
-            if parser_global:
-                cls.parser_instance.preconditions_dict[precond_label] = precond_fun
-            else:
-                cls.preconditions_dict[precond_label] = precond_fun
+            cls.preconditions_dict[precond_label] = precond_fun
 
         @classmethod
-        def unregister_precond_fun(cls, precond_label, parser_global=False):
+        def unregister_precond_fun(cls, precond_label):
             """Un-registers the precondition label and its associated function."""
             try:
-                if parser_global:
-                    del cls.parser_instance.preconditions_dict[precond_label]
-                else:
-                    del cls.preconditions_dict[precond_label]
+                del cls.preconditions_dict[precond_label]
             except KeyError:
                 raise ParserException("Attempt to unregister a preconditions "
                         "function which is not registered.  The label is '{0}'"
@@ -188,9 +212,6 @@ def create_token_subclass():
             try:
                 precond_fun = cls.preconditions_dict[precond_label]
             except KeyError:
-                try:
-                    precond_fun = cls.parser_instance.preconditions_dict[precond_label]
-                except KeyError:
                     raise ParserException("In function lookup_preconditions: the "
                         " preconditions label '{0}' has not been registered."
                         .format(precond_label))
@@ -200,8 +221,8 @@ def create_token_subclass():
         def register_handler_fun(cls, head_or_tail, handler_fun,
                              precond_label=None, precond_fun=None, precond_priority=0,
                              type_sig=TypeSig(None, None), eval_fun=None):
-            """Register a handler function (either head or tail) for this
-            kind of token, with the given properties.
+            """Register a handler function (either head or tail) with the
+            subclass for this kind of token, setting the given properties.
             
             If no precondition label or function is provided a dummy
             precondition that always returns `True` will be used.  If
@@ -213,7 +234,9 @@ def create_token_subclass():
             registered for that label.  If `precond_fun` is also provided then
             it will be registered as a preconditions function with the given
             label.
-            
+
+            The `type_sig` argument must be a valid `TypeSig` instance.
+           
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
@@ -809,20 +832,27 @@ def create_token_subclass():
                 # Broke out of main loop, determine whether or not to infer a jop.
                 #
 
-                # TODO: Looking at the parser instance works for now, but as it
-                # is will break when different parsers share a common lexer.
-                # At least some of the jop stuff could move to the Lexer.  The
-                # parsers could also write their jop stuff to the lexer... consider.
-                # This seems to be the only place where lex.parser_instance is used
-                # like this.
+                # TODO consider ways to remove dependence on parser instance.
+                # Maybe just store the jop in the lexer token table, with a
+                # way to easily access it if there.  Then, use it if there.
+                # There is only ever one jop per symbol table (because it matches
+                # the null string or whitespace).  Does have preconditions, though.
+                # Still need to access the parser properties, though...
+                # FOR NOW, this is OK but different parsers cannot share tokens
+                # very well (whether or not they should be able to).
+
+                if not hasattr(lex.token, "parser_instance"):
+                    # This catches some cases, not all, but attribute needed below.
+                    raise ParserException("All tokens used in the parser must be"
+                            " defined in via parser's methods, not the lexer's.")
 
                 # Not if jop undefined.
-                if not lex.parser_instance.jop_token_subclass: break
+                if not lex.token.parser_instance.jop_token_subclass: break
                 # Not if at end of expression.
                 if lex.is_end_token(lex.peek()): break
                 # Not if the ignored token for jop is set but not present.
-                if lex.parser_instance.jop_ignored_token_label and (
-                              lex.parser_instance.jop_ignored_token_label 
+                if lex.token.parser_instance.jop_ignored_token_label and (
+                              lex.token.parser_instance.jop_ignored_token_label 
                               not in lex.peek().ignored_before_labels()): 
                     break
 
@@ -831,10 +861,10 @@ def create_token_subclass():
                 # handler defined in the conditions when the jop will need to
                 # run its head handler, and 3) the next token similarly has no
                 # tail handler in the context.
-                if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
+                if lex.token.parser_instance.jop_token_subclass.prec() > subexp_prec:
 
                     # Provisionally infer a jop; create a subclass instance for its token.
-                    jop_instance = lex.parser_instance.jop_token_subclass(None)
+                    jop_instance = lex.token.parser_instance.jop_token_subclass(None)
 
                     # This is a little inefficient (since it uses one go_back)
                     # but we need to be sure that when the tail handler of the
@@ -896,23 +926,18 @@ def create_token_subclass():
                 string += ")"
             return string
 
-    return TokenSubclass # Return from create_token_subclass function.
+    return TokenSubclass # Return from token_subclass_factory function.
 
 #
 # Parser
 #
-
-class Assoc(Enum):
-    """An enumeration of the kinds of association for infix operators."""
-    left = 0
-    right = 1
 
 # Some convenient constants, which double as strings to use in error messages.
 HEAD = "head"
 TAIL = "tail"
 
 class PrattParser(object):
-    """A parser object.  Each parser object contains its own symbol table for tokens
+    """A parser object.  Each parser object contains its own token table for tokens
     and its own lexer."""
     DEFAULT_BEGIN_TOKEN_LABEL = "k_begin" # Default label for begin token.
     DEFAULT_END_TOKEN_LABEL = "k_end" # Default label for end token.
@@ -925,15 +950,18 @@ class PrattParser(object):
                        overload_on_arg_types=True,
                        overload_on_ret_types=False,
                        multi_expression=False):
-        """Initialize the parser.  If a Lexer is passed in the parser will use
-        that lexer and its symbol table, otherwise a new one is created.  No
-        default begin and end functions will be set if a lexer is passed in,
+        """Initialize the parser.
+        
+        If a Lexer is passed in the parser will use
+        that lexer and its token table, otherwise a new lexer is created.
+        
+        No default begin and end functions will be set if a lexer is passed in,
         regardless of the value of `default_begin_end_tokens`.  Otherwise,
         default begin and end tokens will be defined unless
         `default_begin_end_tokens` is set false (note that creating them by
         default is the opposite of the default behavior for the lower-level
         Lexer class).
-        
+
         Setting `skip_type_checking=True` is slightly faster if typing is not
         being used at all.  Setting `overload_on_ret_types` requires an extra
         walk of the token tree, and implies overloading on argument types.
@@ -949,11 +977,11 @@ class PrattParser(object):
 
         if lexer: # Lexer passed in.
             self.lex = lexer
-            self.symbol_table = lexer.symbol_table
+            self.token_table = lexer.token_table
         else: # No Lexer passed in.
-            self.symbol_table = TokenSubclassDict(
-                                   token_subclassing_fun=create_token_subclass)
-            self.lex = Lexer(self.symbol_table,
+            self.token_table = TokenSubclassDict(
+                                token_subclass_factory_fun=token_subclass_factory)
+            self.lex = Lexer(self.token_table,
                                          num_lookahead_tokens=num_lookahead_tokens,
                                          default_begin_end_tokens=False)
             # Set the begin and end tokens unless the user specified not to.
@@ -965,8 +993,6 @@ class PrattParser(object):
         else:
             self.type_table = ParameterizedTypeDict()
         self.num_lookahead_tokens = num_lookahead_tokens
-        self.lex.parser_instance = self # To access parser from a lex argument alone.
-        self.preconditions_dict = {} # Registered parser-global preconditions functions.
         self.jop_token_subclass = None
         self.jop_token_label = None
         self.null_string_tokens = [] # A list of all the null-string tokens.
@@ -1002,26 +1028,35 @@ class PrattParser(object):
     # the special types.
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """A convenience function; calls the Lexer `def_token` method."""
-        return self.lex.def_token(token_label, regex_string,
+        """Define a token.  Use this instead of the Lexer `def_token` method,
+        since it adds extra attributes to the tokens."""
+        tok = self.lex.def_token(token_label, regex_string,
                                   on_ties=on_ties, ignore=ignore)
+        tok.parser_instance = self
+        return tok
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define a token with `ignored=True`."""
-        self.lex.def_ignored_token(token_label, regex_string, on_ties=on_ties)
+        tok = self.lex.def_ignored_token(token_label, regex_string, on_ties=on_ties)
+        tok.parser_instance = self
+        return tok
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        self.lex.def_multi_tokens(tuple_list)
+        tok_list = self.lex.def_multi_tokens(tuple_list)
+        for t in tok_list: t.parser_instance = self
+        return tok_list
 
     def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple ignored tokens at once.
         Each element of the passed-in list should be a tuple containing the arguments
         to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
-        self.lex.def_multi_ignored_tokens(tuple_list)
+        tok_list = self.lex.def_multi_ignored_tokens(tuple_list)
+        for t in tok_list: t.parser_instance = self
+        return tok_list
 
     def undef_token(self, token_label):
         """A convenience function; calls the Lexer `undef_token` method.  Should
@@ -1043,7 +1078,8 @@ class PrattParser(object):
         `TokenNode` subclasses."""
         # Call lexer to create and register the begin and end tokens.
         self.lex.def_begin_end_tokens(begin_token_label, end_token_label)
-        # define the begin token
+
+        # Define dummy handlers for the begin token.
         self.begin_token_label = begin_token_label
         def begin_head(self, lex):
             raise ParserException("Called head of begin token.")
@@ -1051,7 +1087,7 @@ class PrattParser(object):
             raise ParserException("Called tail of begin token.")
         self.begin_token_subclass = self.modify_token_subclass(
                                begin_token_label, head=begin_head, tail=begin_tail)
-        # define the end token
+        # Define dummy handlers the end token.
         self.end_token_label = end_token_label
         def end_head(self, lex):
             raise ParserException("Called head of end token.")
@@ -1059,11 +1095,14 @@ class PrattParser(object):
             raise ParserException("Called tail of end token.")
         self.end_token_subclass = self.modify_token_subclass(
                                   end_token_label, head=end_head, tail=end_tail)
+
+        self.begin_token_subclass.parser_instance = self
+        self.end_token_subclass.parser_instance = self
         return self.begin_token_subclass, self.end_token_subclass
 
     def def_jop_token(self, jop_token_label, ignored_token_label):
         """Define a token for the juxtaposition operator.  This token is not
-        stored in the lexer's symbol table and has no regex pattern.  An
+        stored in the lexer's token table and has no regex pattern.  An
         instance is inserted in `recursive_parse` when it is inferred to be
         present based based on type information in the definition of the
         juxtaposition operator.  This method must be called before a
@@ -1081,6 +1120,7 @@ class PrattParser(object):
         self.jop_token_subclass = token
         token.lex = self.lex
         token.token_kind = "jop"
+        self.jop_token_subclass.parser_instance = self
         return self.jop_token_subclass
 
     def undef_jop_token(self):
@@ -1100,6 +1140,7 @@ class PrattParser(object):
         token.lex = self.lex
         token.token_kind = "null_string"
         self.null_string_tokens.append(token)
+        token.parser_instance = self
         return token
 
     def undef_null_string_token(self, token_label):
@@ -1113,41 +1154,58 @@ class PrattParser(object):
                        precond_label=None, precond_fun=None,
                        precond_priority=0, val_type=None, arg_types=None,
                        eval_fun=None):
+
         """Look up the subclass of base class `TokenNode` corresponding to the
-        label `token_label` (in the symbol table) and modify it.  A token with
-        that label must already be in the symbol table, or an exception will be
-        raised.  Return the modified class. Sets any given head or tail functions
-        as attributes of the class.  If `tail` is set then the prec will also be
-        set unless `prec` is `None`.  For a head `prec` is ignored.  If `tail` is
-        set and `prec` is `None` then the prec value defaults to zero.  If `head`
-        or `tail` is set and `precond_label` is also set then the head or tail
-        function will be associated with the preconditions function for that
-        label.  If `precond_fun` is also set then it will first be registered
-        with the label `precond_label` (which must be present in that case)."""
+        label `token_label` (in the token table) and modify its properties.  A
+        token with that label must already be in the token table, or an
+        exception will be raised.
+        
+        Returns the modified class. Sets any given head or tail functions as
+        attributes of the class.
+        
+        If `tail` is set then the prec will also be set unless `prec` is
+        `None`.  For a head `prec` is ignored.  If `tail` is set and `prec` is
+        `None` then the prec value defaults to zero.  If `head` or `tail` is
+        set and `precond_label` is also set then the head or tail function will
+        be associated with the preconditions function for that label.  If
+        `precond_fun` is also set then it will first be registered with the
+        label `precond_label` (which must be present in that case)."""
+
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
                     " be None or an iterable returning type labels (e.g., a list"
                     " or tuple).")
         if tail and prec is None: prec = 0
 
-        if self.symbol_table.has_key(token_label):
-            TokenSubclass = self.symbol_table.get_token_subclass(token_label)
+        if self.token_table.has_key(token_label):
+            TokenSubclass = self.token_table.get_token_subclass(token_label)
         else:
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
                     " calling `def_token` first.".format(token_label))
             # This used to just create a subclass, but that can mask errors.
-            #TokenSubclass = self.symbol_table.create_token_subclass(token_label)
+            #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
         # Save a reference to the PrattParser, so nodes can access it if they need to.
         TokenSubclass.parser_instance = self # maybe weakref later
 
         if tail: TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
-        if arg_types is None: # TODO, what is point of this, does same thing?
-            type_sig = TypeSig(val_type, None)
-        else: 
-            type_sig = TypeSig(val_type, arg_types) 
+        # TODO the below code causes problems because TypeSig used in tests
+        # uses string labels, not objects.  Adding parser arg to TypeSig to
+        # look up automatically adds another bug.... see pratt_types.py file.
+        """
+        # Convert type labels to types if necessary (as a convenience feature).
+        if isinstance(val_type, str):
+            val_type = self.type_table[val_type]
+        if arg_types is not None:
+            for i in range(len(arg_types)):
+                if isinstance(arg_types[i], str):
+                    arg_types[i] = self.type_table[arg_types[i]]
+        """
+
+        # Get the type sig.
+        type_sig = TypeSig(val_type, arg_types) 
         
         # Save the eval_fun as an attribute of the signature type_sig.
         type_sig.eval_fun = eval_fun
@@ -1173,7 +1231,7 @@ class PrattParser(object):
         preconditions will be undefined.  If `all_overloads` then all
         overloaded type signatures will be undefined.  The token itself is
         never undefined; use the `undef_token` method for that."""
-        TokenSubclass = self.symbol_table.get_token_subclass(token_label)
+        TokenSubclass = self.token_table.get_token_subclass(token_label)
         TokenSubclass.unregister_handler_fun(head_or_tail,
                                          precond_label=precond_label,
                                          type_sig=TypeSig(val_type, arg_types),
@@ -1183,29 +1241,16 @@ class PrattParser(object):
     # Methods dealing with types.
     #
 
-    def def_type(self, type_name, type_params=None):
-        """Define a type associated with the name `type_name`."""
-        return self.type_table.create_typeobject_subclass(type_name, type_params)
+    def def_type(self, type_label, type_params=None):
+        """Define a type associated with the name `type_label`."""
+        return self.type_table.create_typeobject_subclass(type_label, type_params)
 
-    def undef_type(self, type_name):
-        self.type_table.undef_typeobject_subclass(type_name)
+    def undef_type(self, type_label):
+        self.type_table.undef_typeobject_subclass(type_label)
 
     #
     # Methods defining syntax elements.
     #
-
-    """
-    def def_parser_global_precondition(self):
-        pass
-        # TODO decide if this is a good idea, implement if so, delete otherwise.
-        # Is the right level for this, or should it be module level or only
-        # token subclass level?  Note that the dict and TokenSubclass method
-        # is already implemented.
-        #
-        # Note that precondition priority is a property of the handler functions
-        # using them, not the precondition funs.  If error not set to be raised
-        # on ties then last-set one has priority on ties.
-    """
 
     # TODO these define and undefine methods each need a corresponding
     # undefine method (or one that does all); should be easy with undef_handler method.
@@ -1252,8 +1297,10 @@ class PrattParser(object):
         operations based on left or right association.  Any argument-checking
         is done after any node removal, which may affect the types that should
         be passed-in in the list arg_types of parent constructs."""
+        if assoc not in ["left", "right"]:
+            raise ParserException('Argument assoc must be "left" or "right".')
         recurse_bp = prec
-        if assoc == Assoc.right: recurse_bp = prec - 1
+        if assoc == "right": recurse_bp = prec - 1
         def tail_handler(tok, lex, left):
             tok.append_children(left, tok.recursive_parse(recurse_bp))
             while True:
@@ -1269,16 +1316,16 @@ class PrattParser(object):
                                         repeat_args=repeat, ast_label=ast_label)
             return tok
         self.modify_token_subclass(operator_token_labels[0], prec=prec,
-                                tail=tail_handler, val_type=val_type, arg_types=arg_types,
-                                eval_fun=eval_fun)
+                                tail=tail_handler, val_type=val_type,
+                                arg_types=arg_types, eval_fun=eval_fun)
 
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This just calls the more general method `def_multi_infix_op`."""
         self.def_infix_multi_op([operator_token_label], prec,
                               assoc, in_tree=in_tree,
-                              val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                              ast_label=ast_label)
+                              val_type=val_type, arg_types=arg_types,
+                              eval_fun=eval_fun, ast_label=ast_label)
 
     def def_prefix_op(self, operator_token_label, prec, val_type=None, arg_types=None,
                       eval_fun=None, ast_label=None):
@@ -1410,9 +1457,11 @@ class PrattParser(object):
         type signature based on its argument types then, even if overloading on
         return types is in effect, the jop can be effectively inferred based on
         type signature information.""" 
+        if assoc not in ["left", "right"]:
+            raise ParserException('Argument assoc must be "left" or "right".')
 
         recurse_bp = prec
-        if assoc == Assoc.right: recurse_bp = prec - 1
+        if assoc == "right": recurse_bp = prec - 1
         def tail_handler(tok, lex, left):
             right_operand = tok.recursive_parse(recurse_bp)
             tok.append_children(left, right_operand)
@@ -1453,7 +1502,8 @@ class PrattParser(object):
                     .format(self.lex.token.token_label, self.lex.token.value, 
                             self.lex.peek().token_label, self.lex.peek().value))
 
-        if self.multi_expression: return parse_tree_list
+        if self.multi_expression:
+            return parse_tree_list
         else: return output
 
 
