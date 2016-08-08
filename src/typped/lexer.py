@@ -673,6 +673,20 @@ class Lexer(object):
         """Return true if `token` is currently defined as a token label."""
         return token in self.token_labels
 
+    def last_n_tokens_original_text(self, n):
+        """Returns the original text parsed by the last `n` tokens (back from
+        an including the current token).  This routine is mainly used to make
+        error messages more helpful.  It uses the token attribute
+        `original_matched_string` and the lexer attribute `previous_tokens`
+        (which must be large enough for `n`)."""
+        # TODO: clean up and debug, still flaky... also better document the stuff it
+        # uses in the doc section.  Useful fun, though.  Could also print
+        # line numbers and stuff....
+        prev_tokens = [self.previous_tokens[i] for i in range(-n-1, 0)]
+        string_list = [s.original_matched_string for s in prev_tokens]
+        full_string = "".join(string_list)
+        return full_string
+
     #
     # Methods to define and undefine tokens
     # Note that after defining a token you need to add the lexer as an attribute.

@@ -75,9 +75,10 @@ from collections import OrderedDict, namedtuple, defaultdict
 from enum_wrapper import Enum
 from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
 
-from pratt_types import TypeTemplateDict, TypeSig, ActualTypes
+from pratt_types import ParameterizedTypeDict, TypeSig
 
-# NOTE that you could use the evaluate function stuff to also do the conversion to AST.
+# NOTE that you could use the evaluate function stuff to also do the conversion
+# to AST.
 
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
@@ -130,9 +131,9 @@ def create_token_subclass():
         handler_funs[HEAD] = OrderedDict() # Head handlers sorted by priority.
         handler_funs[TAIL] = OrderedDict() # Tail handlers sorted by priority.
         preconditions_dict = {} # Registered preconditions for this kind of token.
-        #eval_fun_dict = defaultdict(dict) # Store eval funs, by precond fun and typesig.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later by create_token_subclass.
+
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
             labeled with `token_label`.  The `value` is the actual parsed
@@ -140,18 +141,18 @@ def create_token_subclass():
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
             self.val_type = None # The type of the token (after parsing).
-            self.type_sig = TypeSig(None) # The full type signature, set after parsing.
+            self.type_sig = TypeSig(None, None) # The full type sig, set after parsing.
 
         @classmethod
-        def prec(self):
+        def prec(cls):
             """Return the precedence for the token.  This is currently a static
             value for each type of token.  Later it may be dynamic value
             associated with the particular tail function which is selected in a
             given context."""
-            return self.static_prec
+            return cls.static_prec
 
         @classmethod
-        def register_precond_fun(self, precond_label, precond_fun, parser_global=False):
+        def register_precond_fun(cls, precond_label, precond_fun, parser_global=False):
             """Save the preconditions function `precond_fun` in a dict keyed by
             `precond_label`.  If there is already a dict entry for the label,
             then the new function overwrites the old one (but they should
@@ -161,34 +162,34 @@ def create_token_subclass():
             functions to be easily defined and tested, and allows for
             commonly-used precondition functions to be predefined."""
             if parser_global:
-                self.parser_instance.preconditions_dict[precond_label] = precond_fun
+                cls.parser_instance.preconditions_dict[precond_label] = precond_fun
             else:
-                self.preconditions_dict[precond_label] = precond_fun
+                cls.preconditions_dict[precond_label] = precond_fun
 
         @classmethod
-        def unregister_precond_fun(self, precond_label, parser_global=False):
+        def unregister_precond_fun(cls, precond_label, parser_global=False):
             """Un-registers the precondition label and its associated function."""
             try:
                 if parser_global:
-                    del self.parser_instance.preconditions_dict[precond_label]
+                    del cls.parser_instance.preconditions_dict[precond_label]
                 else:
-                    del self.preconditions_dict[precond_label]
+                    del cls.preconditions_dict[precond_label]
             except KeyError:
                 raise ParserException("Attempt to unregister a preconditions "
                         "function which is not registered.  The label is '{0}'"
                         "and the token label is '{1}'."
-                        .format(precond_label, self.token_label))
+                        .format(precond_label, cls.token_label))
 
         @classmethod
-        def lookup_precond_fun(self, precond_label):
+        def lookup_precond_fun(cls, precond_label):
             """Look up the preconditions function with label "precond_label."
             First checks the dict local to the token subclass, and if that
             fails it checks the parser-global dict."""
             try:
-                precond_fun = self.preconditions_dict[precond_label]
+                precond_fun = cls.preconditions_dict[precond_label]
             except KeyError:
                 try:
-                    precond_fun = self.parser_instance.preconditions_dict[precond_label]
+                    precond_fun = cls.parser_instance.preconditions_dict[precond_label]
                 except KeyError:
                     raise ParserException("In function lookup_preconditions: the "
                         " preconditions label '{0}' has not been registered."
@@ -196,17 +197,11 @@ def create_token_subclass():
             return precond_fun
 
         @classmethod
-        def register_handler_fun(self, head_or_tail, handler_fun,
+        def register_handler_fun(cls, head_or_tail, handler_fun,
                              precond_label=None, precond_fun=None, precond_priority=0,
-                             type_sig=TypeSig(None), eval_fun=None):
-            # TODO: save the eval_fun with the signature, in a way that
-            # process_and_check_node can recover and set for instance (after
-            # finding matching one).  Make sure that unregister_handler_fun
-            # still works, too.
-            #
-
-            """Register a handler function (either head or tail) with the given
-            properties.
+                             type_sig=TypeSig(None, None), eval_fun=None):
+            """Register a handler function (either head or tail) for this
+            kind of token, with the given properties.
             
             If no precondition label or function is provided a dummy
             precondition that always returns `True` will be used.  If
@@ -223,45 +218,9 @@ def create_token_subclass():
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
 
-            handler_fun.eval_fun = eval_fun # TODO change this to work for overloaded
-
-            # See if there is already a preconditions function with this
-            # precond_label associated with the token (in which case the type
-            # sig is assumed to be overloaded).  There should only ever be one
-            # previous preconditions function with the label, at most, since
-            # only overloaded type info is retained, nothing else (the way the
-            # preconditions are evaluated only the first would ever get called,
-            # anyway).
-            #
-
-            # Remember that you can only sort based on precondition priorities.
-            # You do not get to choose the particular signature that will
-            # appear in the program text stream.  BUT, we DO want the chosen
-            # eval_fun to depend on that.  The actual parsing method will NOT
-            # depend on the different signatures, since we need to parse it
-            # first before we learn its signature (could be done on the fly,
-            # but strange and hard to see how useful it would be).  So as it is
-            # it WORKS, but needs cleaning up (especially preconditions stuff,
-            # maybe also go to OrderedDict.  NOTE the difference between the
-            # parsing function and the evaluation function (if there is one)!
-            #
-            # For a simpler possible implementation, consider hashing the
-            # precond label with the type_sig.  Then you would only have one
-            # sig saved with each key in the dict and could store eval_fun
-            # there, too.  BUT it is uncertain what kind of interplay that will
-            # have with fancier type signatures.  For now, store eval_fun with
-            # the type sigs -- need to extract it right at the moment when a
-            # unique type sig has been narrowed down to.  Advantage is you
-            # could delete things in finer detail, a precond_label and type_sig
-            # combo; but either alone might be harder (though you can just search
-            # the keys).  Disadvantage is that type equality of fancy types
-            # might or might not work out nicely.  Maybe do first part, then
-            # wait to see how that turns out?
-
             # Get and save any previous type sig data (for overloaded sigs
-            # corresponding to a single precond_label).  Code could use
-            # cleanup.)
-            prev_handler_data_for_precond = self.handler_funs[head_or_tail].get(
+            # corresponding to a single precond_label).
+            prev_handler_data_for_precond = cls.handler_funs[head_or_tail].get(
                                                      precond_label, None)
 
             if prev_handler_data_for_precond:
@@ -271,28 +230,25 @@ def create_token_subclass():
                 prev_type_sigs_for_precond = []
 
             if (prev_handler_data_for_precond
-                              and not self.parser_instance.overload_on_arg_types):
-                raise ParserTypeError("Value of self.overload_on_arg_types is False "
+                              and not cls.parser_instance.overload_on_arg_types):
+                raise ParserTypeError("Value of cls.overload_on_arg_types is False "
                        "but attempt to redefine and possibly set multiple signatures "
                        "for the {0} function for token with label '{1}' with "
                        "preconditions label '{2}'."
-                       .format(head_or_tail, self.token_label, precond_label))
+                       .format(head_or_tail, cls.token_label, precond_label))
 
             # Type info is stored as an attribute of handler funs.  For
             # overloading, append the type_sig to prev_type_sigs_for_precond,
             # saving them all.
-            fun_sig_tuple = SigData(type_sig=type_sig,
-                                    actual_sig=None,
-                                    eval_fun=eval_fun)
-            # TODO save fun_sig_tuple instead, and change all refs to \.type_sigs
-            prev_type_sigs_for_precond.append(type_sig) # TODO: test for equality to existing signature
+            TypeSig.append_sig_to_list_replacing_if_identical(
+                                       prev_type_sigs_for_precond, type_sig)
             handler_fun.type_sigs = prev_type_sigs_for_precond
 
             if precond_fun:
-                self.register_precond_fun(precond_label, precond_fun)
+                cls.register_precond_fun(precond_label, precond_fun)
 
             if precond_label:
-                precond_fun = self.lookup_precond_fun(precond_label)
+                precond_fun = cls.lookup_precond_fun(precond_label)
             else:
                 # If neither precond_fun nor precond_label, use dummy True precond
                 def true_fun(lex, lookbehind): return True
@@ -303,12 +259,12 @@ def create_token_subclass():
 
             # Now that we have the final precond label, save the eval fun.
             #print("DEBUG setting eval fun dict with keys", precond_label, type_sig)
-            #self.eval_fun_dict[precond_label][type_sig] = eval_fun
+            #cls.eval_fun_dict[precond_label][type_sig] = eval_fun
             
             # Get the current dict of head or tail handlers for the node,
             # containing the (precond_fun, precond_priority, handler_fun) named
             # tuples which have already been registered.
-            sorted_handler_dict = self.handler_funs[head_or_tail]
+            sorted_handler_dict = cls.handler_funs[head_or_tail]
 
             # Set the new HandlerData named tuple and assign it the head or
             # tail dict keyed by its precond label.  This removes any existing
@@ -318,28 +274,28 @@ def create_token_subclass():
             sorted_handler_dict[precond_label] = data_list
 
             # Re-sort the OrderedDict, since we added an item.
-            self.handler_funs[head_or_tail] = sort_handler_dict(sorted_handler_dict)
-            sorted_handler_dict = self.handler_funs[head_or_tail]
+            cls.handler_funs[head_or_tail] = sort_handler_dict(sorted_handler_dict)
+            sorted_handler_dict = cls.handler_funs[head_or_tail]
 
             # Make sure we don't get multiple definitions with the same priority
             # when the new one is inserted.
             for p_label, data_item in sorted_handler_dict.items():
                 if p_label == precond_label: continue
                 if (data_item.precond_priority == precond_priority and
-                            self.parser_instance.raise_exception_on_precondition_ties):
+                            cls.parser_instance.raise_exception_on_precondition_ties):
                     raise ParserException("Two preconditions for the token"
                             " subclass named '{0}' for token with label '{1}' have"
                             " the same priority, {2}.  Their precondition labels"
                             " are '{3}' and '{4}'.  If precondition labels are"
                             " the same there may be a redefinition. Set the flag"
                             " False if you actually want to allow precondition"
-                            " ties." .format(self.__name__, self.token_label,
+                            " ties." .format(cls.__name__, cls.token_label,
                                 precond_priority, precond_label, p_label))
 
             return
 
         @classmethod
-        def unregister_handler_fun(self, head_or_tail,
+        def unregister_handler_fun(cls, head_or_tail,
                                    precond_label=None, type_sig=None):
 
             """Unregister the previously-registered handler function (head or
@@ -349,13 +305,13 @@ def create_token_subclass():
             No error is raised if a matching handler function is not found."""
 
             if precond_label is None:
-                if head_or_tail in self.handler_funs:
-                    self.handler_funs[head_or_tail] = OrderedDict()
+                if head_or_tail in cls.handler_funs:
+                    cls.handler_funs[head_or_tail] = OrderedDict()
                 return
 
             # Tuple format for sorted_handler_list is:
             #     (precond_fun, precond_priority, handler_fun)
-            sorted_handler_dict = self.handler_funs[head_or_tail]
+            sorted_handler_dict = cls.handler_funs[head_or_tail]
             if not sorted_handler_dict:
                 return
 
@@ -466,12 +422,12 @@ def create_token_subclass():
             handler function this function object is referenced simply by the
             name of the function.
            
-            The `typesig_override` argument is a `ActualTypes` other than `None`
-            then it will be *assigned* to the node as its signature after all
-            checking, overriding any other settings.  This is useful for
-            handling things like parentheses and brackets which inherit the
-            type of their child (assuming they are kept as nodes in the parse
-            tree and not eliminated).
+            The `typesig_override` argument must be a `TypeSig` instance.  It
+            will be *assigned* to the node as its signature after all checking,
+            overriding any other settings.  This is useful for handling things
+            like parentheses and brackets which inherit the type of their child
+            (assuming they are kept as nodes in the parse tree and not
+            eliminated).
             
             If `in_tree` is `False` then the node for this token will not
             appear in the final token tree: its children will replace it, in
@@ -496,11 +452,6 @@ def create_token_subclass():
 
             self.ast_label = ast_label
             self.in_tree = in_tree
-            #if eval_fun:
-            #    # This sets for the CLASS, not the instance, we need for instance...
-            #    #self.add_eval_subtree_method(eval_fun)
-            #    self.eval_fun = eval_fun # DEBUG, testing....
-            self.eval_fun = fun_object.eval_fun # TODO need modify for overload
            
             # Process the children to implement in_tree, if set.
             modified_children = []
@@ -523,12 +474,19 @@ def create_token_subclass():
                     # argument types (regardless of where the top-down pass
                     # starts from) we can in this case resolve the types in the
                     # subtree early.
-                    if len(self.matching_sigs) == 1:
+                    if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                         self.check_types_in_tree_second_pass()
 
+            if self.type_sig.original_sig:
+                # TODO this conditional is necessary because original_sig is NOT set
+                # on two-pass test where return types overloaded.  Why not?  Probably
+                # needs to be set, but look into it.
+                self.eval_fun = self.type_sig.original_sig.eval_fun
+
             if typesig_override:
-                self.typesig = typesig_override
+                self.type_sig = typesig_override
                 self.val_type = typesig_override.val_type
+
             return
 
         def _check_types(self, all_sigs, repeat_args, first_pass_of_two=False):
@@ -564,10 +522,12 @@ def create_token_subclass():
 
         def check_types_in_tree_second_pass(self, root=False):
             """Recursively run the second pass on the token subtree with the
-            `self` node as the root.  Currently still needs to be explicitly
-            called for the root of the final parse tree, from the `PrattParser`
-            method `parse`, as well as from the checking routines here to do
-            partial checks on subtrees which are resolvable."""
+            `self` node as the root.
+            
+            This method currently still needs to be explicitly called for the
+            root of the final parse tree, from the `PrattParser` method
+            `parse`, as well as from the checking routines here to do partial
+            checks on subtrees which are already resolvable."""
             unresolved_children = [ 
                     c for c in self.children if hasattr(c, "matching_sigs")]
             self._check_types_pass_two() # Call first on self to do top-down.
@@ -613,7 +573,6 @@ def create_token_subclass():
             # and the recursion is only down to subtrees with roots having a
             # unique signature.  This yields partial results and some error
             # conditions sooner, and is what is implemented here.
-            print("The matching sigs are", self.matching_sigs)
             if len(self.matching_sigs) != 1: # The root case needs this.
                 self._raise_type_mismatch_error(self.matching_sigs,
                         "Ambiguous type resolution (second pass).  Possible type "
@@ -626,15 +585,12 @@ def create_token_subclass():
             self.val_type = self.type_sig.val_type # Set the type for the node.
             #self.eval_fun = self.eval_fun_dict[self.precond_label][self.type_sig]
 
-            def get_child_sigs_matching_return_arg_type(child, return_type):
-                return [ s for s in child.matching_sigs 
-                        if s.val_type == return_type or return_type is None ]
-
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
                 if not hasattr(child, "matching_sigs"): continue # Already resolved.
-                matched_sigs = get_child_sigs_matching_return_arg_type(
-                                                 child, self.type_sig.arg_types[count])
+                matched_sigs = TypeSig.get_child_sigs_matching_return_arg_type(
+                                          child, self.type_sig.arg_types[count],
+                                          child.matching_sigs)
                 # From the first pass, we know at least one child sig matches.
                 assert len(matched_sigs) != 0
                 #if len(matched_sigs) == 0:
@@ -665,14 +621,13 @@ def create_token_subclass():
         # Evaluations and semantic actions.
         #
 
-        # TODO TODO TODO The evaluations need to depend on the final type that
-        # is resolved.  The eval funs are passed in with a type, and should be
-        # stored with that handler function which is set (like the type info
-        # itself).  This evaluate interface needs to be re-worked slightly to
-        # accomodate that, and the code below that uses the
-        # add_eval_subtree_method needs to be modified.
-        def eval_subtree(self): # DEBUG, testing.
-            print("id of eval fun", id(self.eval_fun))
+        def eval_subtree(self):
+            """Run the saved evaluation function on the token, if one was
+            registered with it.  Will raise an error if with no such function
+            is found (the `eval_fun` is initialized to `None`)."""
+            if not self.eval_fun:
+                raise ParserException("Attempted to run an evaluation function for"
+                        " token {0} but none was found.""".format(self))
             return self.eval_fun(self) # Run the function saved with the instance.
 
         def add_eval_subtree_method(self, eval_fun):
@@ -687,6 +642,8 @@ def create_token_subclass():
             self.eval_subtree = types.MethodType(eval_fun, self)
 
         def semantic_action(self):
+            """What should these be, and are they needed????  The handler functions
+            can implement any semantic actions they want to...."""
             # TODO decide how to implement and when to call.  Should probably
             # be relative to typesigs/handlers rather than nodes in particular.
             pass
@@ -695,30 +652,23 @@ def create_token_subclass():
         # Some helper functions for use in handler functions.
         #
 
-        def last_n_tokens_original_text(self, n):
-            """Returns the original text parsed by the last `n` tokens.  This
-            routine is mainly used to make error messages more helpful.  It
-            uses the token attribute `original_matched_string` and the lexer
-            attribute `previous_tokens` (which must be large enough for `n`)."""
-            # TODO: move to lexer and debug, also better document the stuff it
-            # uses in the doc section.  Useful fun, though.  Could also print
-            # line numbers and stuff....
-            lex = self.lex
-            prev_tokens = [lex.previous_tokens[i] for i in range(-n-1, 0)] + [self]
-            string_list = [s.original_matched_string for s in prev_tokens]
-            full_string = "".join(string_list)
-            return full_string
-
         def match_next(self, token_label_to_match, peeklevel=1,
-                       raise_on_fail=False, raise_on_true=False, consume=True):
-            """A utility function that tests whether the value of the next token label
-            in `lex` equals a given token label, and consumes the token from the lexer
-            if there is a match.  Returns a boolean.  The parameter `peeklevel` is
-            passed to the peek function for how far to look; the default is one.
+                       raise_on_fail=False, raise_on_true=False, consume=True,
+                       err_msg_tokens=3):
+            """A utility function that tests whether the value of the next
+            token label in `lex` equals a given token label, and consumes the
+            token from the lexer if there is a match.  Returns a boolean.  The
+            parameter `peeklevel` is passed to the peek function for how far to
+            look; the default is one.
             
             If `raise_on_fail` set true then a `ParserException` will be raised
             if the match fails.  If `consume` is false then no tokens will be
-            consumed."""
+            consumed.
+            
+            The parameter `err_msg_tokens` can be set to change how many tokens
+            worth of text back the error messages report (as debugging
+            information) when an exception is raised.  (The count does not
+            include whitespace, but it is printed, too.)"""
             lex = self.lex
             retval = False
             if token_label_to_match == lex.peek(peeklevel).token_label:
@@ -728,19 +678,19 @@ def create_token_subclass():
 
             if retval and raise_on_true:
                     raise ParserException(
-                        "Function match_next with peeklevel={0} found unexpected "
-                        "token {1}.  The text parsed from the three tokens up to "
-                        "the error is: {2}"
-                        .format(peeklevel, str(lex.peek(peeklevel)),
-                            self.last_n_tokens_original_text(3))) # TODO, make 3 param
+                        "Function match_next (with peeklevel={0}) found unexpected "
+                        "token {1}.  The text of the {3} tokens up to "
+                        "the error is: {3}"
+                        .format(peeklevel, str(lex.peek(peeklevel)), err_msg_tokens,
+                            lex.last_n_tokens_original_text(3))) # TODO, make 3 param
             if not retval and raise_on_fail:
                     raise ParserException(
-                        "Function match_next with peeklevel={0} expected token "
+                        "Function match_next (with peeklevel={0}) expected token "
                         "with label '{1}' but found token {2}.  The text parsed "
                         "from the three tokens up to the error is: {3}"
                         .format(peeklevel, token_label_to_match,
                                 str(lex.peek(peeklevel)),
-                                self.last_n_tokens_original_text(3))) # TODO, make 3 param
+                                lex.last_n_tokens_original_text(3))) # TODO, make 3 param
             return retval
 
         def in_ignored_tokens(self, token_label_to_match,
@@ -863,6 +813,8 @@ def create_token_subclass():
                 # is will break when different parsers share a common lexer.
                 # At least some of the jop stuff could move to the Lexer.  The
                 # parsers could also write their jop stuff to the lexer... consider.
+                # This seems to be the only place where lex.parser_instance is used
+                # like this.
 
                 # Not if jop undefined.
                 if not lex.parser_instance.jop_token_subclass: break
@@ -874,23 +826,26 @@ def create_token_subclass():
                               not in lex.peek().ignored_before_labels()): 
                     break
 
-                # Infer a jop, but only if 1) its prec would satisfy the while loop
-                # above as an ordinary token, 2) the next token has a head
-                # handler defined in the conditions when the jop will run its head
-                # handler, and 3) the next token similarly has no tail handler.
+                # Infer a jop, but only if 1) its prec would satisfy the while
+                # loop above as an ordinary token, 2) the next token has a head
+                # handler defined in the conditions when the jop will need to
+                # run its head handler, and 3) the next token similarly has no
+                # tail handler in the context.
                 if lex.parser_instance.jop_token_subclass.prec() > subexp_prec:
 
                     # Provisionally infer a jop; create a subclass instance for its token.
                     jop_instance = lex.parser_instance.jop_token_subclass(None)
 
-                    # This is a little inefficient, but we need to be sure that
-                    # when the tail handler of the jop is called and it reads a
-                    # token that that token has a head handler defined for it *in
-                    # that precondition context*.  Otherwise, no jop will be
-                    # inferred.  We also make sure that it has no tail handler in
-                    # the context, since then it would be a lower-precedence (lower
-                    # precedence because we broke out of the loop above) infix or
-                    # postfix operator, and no jop is inferred before another operator).
+                    # This is a little inefficient (since it uses one go_back)
+                    # but we need to be sure that when the tail handler of the
+                    # jop is called and it reads a token that that token has a
+                    # head handler defined for it *in that precondition
+                    # context*.  Otherwise, no jop will be inferred.  We also
+                    # make sure that it has no tail handler in the context,
+                    # since then it would be a lower-precedence (lower
+                    # precedence because we broke out of the loop above) infix
+                    # or postfix operator, and no jop is inferred before
+                    # another operator).
                     curr_token = lex.next()
                     try:
                         # Dispatch without calling here, since calling will consume
@@ -1008,7 +963,7 @@ class PrattParser(object):
         if type_table:
             self.type_table = type_table
         else:
-            self.type_table = TypeTemplateDict()
+            self.type_table = ParameterizedTypeDict()
         self.num_lookahead_tokens = num_lookahead_tokens
         self.lex.parser_instance = self # To access parser from a lex argument alone.
         self.preconditions_dict = {} # Registered parser-global preconditions functions.
@@ -1027,12 +982,24 @@ class PrattParser(object):
     # Methods dealing with tokens.
     #
 
-    # TODO these need undefine methods
     # TODO consider setting token kinds for everything and using that
     # to combine these, taking a token_kind="jop" sort of optional argument.
     # Kinds so far "regular", "begin", "end", "ignored", "jop", "null-string"
     # The first three should be set in the Lexer.  Maybe a better way to
     # define it.  Remove the beginnings of t.token_kind below if don't use.
+    # 
+    # How about using a set to hold all the kinds associated with a token?
+    # Then, easy to check even with multiples (though lists wouldn't be that
+    # bad, and most would have one element).
+    #
+    # Maybe easier just to define individual attributes for all.
+    # .is_regular_token
+    # .is_begin_token
+    # .is_ignored_token
+    # .is_jop_token
+    # .is_null_string_token
+    # Just need to initialize and set all the values, including when defining
+    # the special types.
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """A convenience function; calls the Lexer `def_token` method."""
@@ -1181,6 +1148,9 @@ class PrattParser(object):
             type_sig = TypeSig(val_type, None)
         else: 
             type_sig = TypeSig(val_type, arg_types) 
+        
+        # Save the eval_fun as an attribute of the signature type_sig.
+        type_sig.eval_fun = eval_fun
 
         if head:
             TokenSubclass.register_handler_fun(HEAD, head,
@@ -1224,6 +1194,7 @@ class PrattParser(object):
     # Methods defining syntax elements.
     #
 
+    """
     def def_parser_global_precondition(self):
         pass
         # TODO decide if this is a good idea, implement if so, delete otherwise.
@@ -1234,9 +1205,12 @@ class PrattParser(object):
         # Note that precondition priority is a property of the handler functions
         # using them, not the precondition funs.  If error not set to be raised
         # on ties then last-set one has priority on ties.
+    """
 
-    # TODO these can each have a corresponding undefine method; should be easy
-    # with undef_handler method.
+    # TODO these define and undefine methods each need a corresponding
+    # undefine method (or one that does all); should be easy with undef_handler method.
+    # Is it necessary to call undef_handler, or does undef the token do that
+    # too?  Look at undef_handler and see........ use below if needed.
 
     def def_literal(self, token_label, val_type=None, eval_fun=None, ast_label=None):
         """Defines the token with label `token_label` to be a literal in the
@@ -1342,7 +1316,7 @@ class PrattParser(object):
             tok.append_children(tok.recursive_parse(0))
             tok.match_next(rbrac_token_label, raise_on_fail=True)
             tok.process_and_check_node(head_handler,
-                        typesig_override=ActualTypes(tok.children[0].val_type, None),
+                        typesig_override=TypeSig(tok.children[0].val_type, ()),
                         ast_label=ast_label)
             return tok
         self.modify_token_subclass(lbrac_token_label, head=head_handler,

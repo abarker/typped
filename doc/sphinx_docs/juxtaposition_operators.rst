@@ -133,12 +133,16 @@ next token in the token stream.
 
 If types are being used with no overloading on function return values then type
 information about the two surrounding tokens can be used in the preconditions
-of the jop.  This tends to be better information because it is based on the
-full, evaluated subexpressions rather than just the individual tokens.
+of the jop.  This tends to be better information for inferring a jop or not
+because it is based on the full, evaluated subexpressions rather than just the
+individual tokens.
 
 Using type information from the left operand works because at the point when a
 jop is inferred you already know the type information for the left operand (or
-at least a list of possible types, if overloading on return is being used).
+at least a list of possible types, if overloading on return is being used).  It
+is already evaluated, and stored in the token tree rooted at `left`.  So you
+just look at `left.type_sig` or a similar attribute.
+
 That information can be incorporated into the preconditions for a jop (by 4
 above no jop is inferred if its preconditions fail).
 
@@ -146,10 +150,32 @@ Using the type information for the right operand is a little more involved.  At
 the point when the conditions for a jop are being evaluated you do *not* know
 the type of the (potential) right operand.  You can only look at the lookahead
 tokens in the token stream.  On the other hand, a jop will only be inferred in
-what would otherwise be an error condition (by 6).  So you can just check the
-type of the right operand inside the tail handler function for the jop (after
-getting the right operand with `recursive_parse`.  If it does not match the
-requirement you can raise an exception.
+what would otherwise be an error condition (by 6).  So you can just assume a
+jop (there is only one jop token to choose from, though its function sigs can
+be overloaded) and check the type of the right operand inside the tail handler
+function registered for the jop (after the jop's tail handler gets the right
+operand with `recursive_parse`).  If it does not match the requirement you can
+raise an exception.
+
+TODO: Have a way that a handler function can register an "expected right operand
+type" and then have a routine that the jop's handler function can call which
+checks the last registered expectation (which needs to be cleared at the
+appropriate time).
+
+TODO: is this discussion more general than just jops?  Doesn't it apply to
+general preconditions functions for inferring actual operators, too?  No, it
+doesn't, because the actual tokens do not need to be inferred or not inferred.
+The token will always have a handler function called (assuming some
+preconditions fun matches, otherwise error) and the handler function will
+always get the token with recursive_parse.  The type system will evaluate the
+parse tree after that, and *choose* the overloaded typesig based on the actual
+types.  That is all the parser is in charge of; the eval fun is associated with
+the type sig and any other actions are up to the user.  This *should* be
+discussed somewhere, though, as a discussion of how type information
+overloading works.  To reiterate, if we want overloading on "*" so that it only
+applies between numbers then we have a syntax error otherwise, since the "*" is
+explicit in the token stream.  If it has multiple definitions as an infix
+operator then you would have to deal with those inside the handler.
 
 Note that as far as overloading the juxtaposition operator you can only
 overload the jop based on the type of the left operand (and any other
@@ -158,8 +184,9 @@ then implement any further desired overloading based on the right operand, as
 described above.  
 
 Note that when overloading by return type is being used you do not have unique
-type information for any parse subtree (subexpression) because it may not yet be
-resolved.  That is not implemented because it would require some sort of
-backtracking.  You can, however, make use of the list of *possible* types at
-the current state of type resolution.
+type information for any parse subtree (subexpression) obtained from the
+`recursive_parse` function because it may not yet be resolved.  That is not
+implemented because it would require some sort of backtracking.  You can,
+however, make use of the list of *possible* types at the current state of type
+resolution.
 

@@ -1,24 +1,48 @@
 # -*- coding: utf-8 -*-
 """
 
+This module contains classes defining types and methods which can be called by
+the `PrattParser` class when checking types.  It defines the class `TypeSig`
+and the class `ParameterizedType`, as well as a dict class for storing
+parameterized types.
+
+All checking of type equivalence has been abstracted into this module, via
+utility routines (often static methods of classes).
+
 Terminology:
 
-- Function "parameters" or "formal arguments" are the identifiers which appear
+- Function **parameters** or **formal arguments** are the identifiers which appear
   in the function definition (and the function signature).  The type
-  specifications for parameters will be called "formal types."
+  specifications for parameters will be called **formal types**, since the
+  term parameter is used differently below.
 
-- Function "arguments" or "actual arguments" are the values which are actually
+- Function **arguments" or **actual arguments** are the values which are actually
   passed to the function on a function call.  Their types will be referred to
-  as "actual types."
+  as **actual types**.
 
 Note that the formal type of a parameter can possibly match more than one
 actual type.  At least one must match, however.
 
-A type template is basically a parameterized type, representing some fixed
-collection of actual types.
+On the other hand,
+
+- **Parameterized types** are type specifications which take arguments, such as
+  something like the type definition `Matrix<T>` in a C++-like language, which
+  can be called with, say, `Matrix<Float>` in the program text.  The variable
+  `T` is a **parameter** of the parameterized type.  In the terminology used
+  here, all types are parameterized types, except that some do not actually
+  take parameters (and so they equal their expanded types).  Formal types can
+  be parameterized, but actual types must be instantiated in all parameters.
+
+- **Expanded types** are parameterized types and types with `None` alone as a
+  wildcard argument which have been expanded to have the correct number of
+  arguments and to fill in values for the template variables.
 
 The each instance of the `PrattParser` class holds all of its defined types in
-a `TypeTemplateDict` class, defined in this module.
+a `ParameterizedTypeDict` class, defined in this module.
+
+This module defines two types of objects: type signatures and the type objects
+themselves.  Type signatures are basically tuples of type objects, one for
+the return type and one for each argument.
 
 """
 
@@ -30,33 +54,38 @@ from enum_wrapper import Enum
 # Formal and actual type specs for functions.
 #
 
-class FunctionTypes(object):
-    """This base-class object is essentially just a tuple `(val_type,
-    arg_types)`, where `val_type` is hashable and `arg_types` is a list.  This
-    container is the base class for both the `ActualTypes` and `TypeSig`
-    classes, which are the classes used in the main program.  The first one
-    holds actual types (always instantiated if parameterized) in its slots
-    while the second one represents the formal types and can have parameterized
-    types in its slots.
+class TypeSig(object):
+    """The formal type specification for a function; may have parameterized types, etc.
+    Set at function definition.
+
+    This object is essentially just a tuple `(val_type, arg_types)`, where
+    `val_type` is hashable and `arg_types` is a list.  Using a separate class
+    allows for additional information to be stored with the tuple and produces
+    better error messages.  The class also provides a convenient place to
+    localize some routines which operate on type signatures and lists of type
+    signatures.
     
-    For the purposes of comparison these objects are equivalent to the tuple
-    form.  Using a separate class allows for additional information to be
-    stored with the tuple and produces better error messages.  The class also
-    provides a convenient place to localize some routines which operate on type
-    signatures and lists of type signatures.
-    
+    For the purposes of equality comparison these objects are equivalent to the
+    tuple form.  Equality is exact equality and **does not** hold for
+    instantiated parameterized types.  For that, use `is_valid_actual_sig`.
+    Equality also ignores any attributes (other than `val_type` and
+    `arg_types`) which might be added to or modified in a `TypeSig` instance.
+
     Note that `None` is a wildcard which matches any type, and `None` for the
-    `arg_types` list/tuple matches any arguments and any number of arguments.
-    We define `TypeSig(None) == TypeSig(None, None)`.  To take no arguments (as
-    a literal) an empty tuple should be used, as in `TypeSig(None, ())`."""
+    `arg_types` list or tuple matches any arguments and any number of arguments
+    (it is expanded during parsing to as many `None` arguments as are
+    required).  Note that `TypeSig() == TypeSig(None) == TypeSig(None, None)`.
+    To specify an object like a literal which takes no arguments an empty tuple
+    should be used for `arg_types`, as in `TypeSig(None, ())`, with the
+    `val_type` argument set to whatever type if it is not a wildcard."""
 
     def __init__(self, val_type=None, arg_types=None, test_fun=None):
         """The argument `val_type` should be a hashable type in the language or
         else `None`.  The argument `arg_types` should be a list, tuple, or
         other iterable of such hashable types (including `None`) or else simply
-        `None`.  The `None` value is treated as a wildcard that matches any
-        corresponding type; `None` alone for `arg_types` allows any number of
-        arguments of any type."""
+        `None` (it will be converted to a tuple).  The `None` value is treated
+        as a wildcard that matches any corresponding type; `None` alone for
+        `arg_types` allows any number of arguments of any type."""
         # TODO test_fun is unset as a class var and unused.  What is it supposed
         # to do???
         if isinstance(arg_types, str):
@@ -64,41 +93,66 @@ class FunctionTypes(object):
                     " be `None` or an iterable returning types (e.g., a list"
                     " or tuple of types).")
         self.val_type = val_type
-        if arg_types: self.arg_types = tuple(arg_types)
-        else: self.arg_types = arg_types
+        if arg_types:
+            self.arg_types = tuple(arg_types)
+        else:
+            self.arg_types = arg_types
+        self.original_sig = None # This is set when wildcards are expanded.
+        self.eval_fun = None # Optional eval fun associated with this signature.
 
     @staticmethod
     def get_all_matching_sigs(sig_list, list_of_child_sig_lists, tnode=None,
                               repeat_args=False, raise_err_on_empty=True):
         """Return the list of all the signatures on `sig_list` whose arguments
-        match some choice of child signatures from `list_of_child_sig_lists`.
-        The latter list should be a list of lists, where each sublist is a
-        list of all the possible signatures for a child node.  The sublists
-        should be in the same order as the children/arguments."""
+        match some choice of child/argument signatures from `list_of_child_sig_lists`.
+
+        The `sig_list` argument should be a list of `TypeSig` instances.
+
+        The `list_of_child_sig_lists` argument should be a list of lists, where
+        each sublist is a list of all the possible signatures for a child node.
+        The sublists should be in the same order as the children/arguments.
+       
+        This is the only method of this class which is actually called from
+        the `PrattParser` class (except for `__init__` other magic methods
+        like equality testing)."""
         num_args = len(list_of_child_sig_lists)
-        sig_list = FunctionTypes.remove_duplicate_sigs(sig_list)
-        sig_list = FunctionTypes.expand_sigs_with_None_args(num_args, sig_list)
-        sig_list = FunctionTypes.get_sigs_matching_num_args(num_args, sig_list,
+
+        # Remove duplicates from the list.  This is PROBABLY no longer needed
+        # because they are removed in in register_handler_fun, using
+        # append_sig_to_list_replacing_if_identical.
+        #sig_list = TypeSig.remove_duplicate_sigs(sig_list)
+
+        # Expand the signatures with wildcards to match the number of args.
+        sig_list = TypeSig.expand_sigs_with_None_args(num_args, sig_list)
+
+        # Filter the signatures by the number of arguments.
+        sig_list = TypeSig.get_sigs_matching_num_args(num_args, sig_list,
                                          repeat_args, tnode, raise_err_on_empty)
-        sig_list = FunctionTypes.get_sigs_matching_child_types(sig_list,
+
+        # Now filter by sigs for which the actual value of the child type matches
+        # (as a type, not equality) the required formal type return type.
+        sig_list = TypeSig.get_sigs_matching_child_types(sig_list,
                              list_of_child_sig_lists, tnode, raise_err_on_empty)
         return sig_list
 
-    @staticmethod
-    def remove_duplicate_sigs(sig_list):
-        """Return the list of signatures in `sig_list`, removing any duplicates."""
-        return list(set(sig_list))
+    #@staticmethod
+    #def remove_duplicate_sigs(sig_list):
+    #    """Return the list of signatures in `sig_list`, removing any duplicates."""
+    #    return list(set(sig_list))
 
     @staticmethod
     def expand_sigs_with_None_args(num_args, sig_list):
-        """The signatures on list `sig_list` so that any `None` argument not
+        """Expand the signatures on list `sig_list` so that any `None` argument not
         inside a tuple or list is converted to a tuple of `None` having
-        `num_args` of argument."""
+        `num_args` of argument.  Each expanded version has the original signature
+        saved with it as an attribute called `original_sig`."""
         all_sigs_expanded = []
         for sig in sig_list:
             if sig.arg_types is None:
                 new_sig = TypeSig(sig.val_type, (None,)*num_args)
-            else: new_sig = sig
+            else:
+                new_sig = sig
+            new_sig.original_sig = sig
             all_sigs_expanded.append(new_sig)
         return all_sigs_expanded
 
@@ -147,7 +201,17 @@ class FunctionTypes(object):
                                     list_of_child_sig_lists, sig.arg_types):
                 some_child_retval_matches = False
                 for child_sig in child_sig_list:
-                    if child_sig.val_type == arg_type or arg_type == None:
+                    if arg_type == None:
+                        some_child_retval_matches = True
+                        break
+                    # TODO BUG, need to change below line to use
+                    # is_valid_actual_type, but that causes error because they have
+                    # string values in them!  Apparently not being registered or
+                    # looked up in dict by label?  Maybe mod when register?  Or,
+                    # maybe disallow strings and force an actual type var name to
+                    # be set in the actual application code (see later tests with
+                    # types in test_pratt_parser.py).
+                    if child_sig.val_type == arg_type:
                         some_child_retval_matches = True
                         break
                 if not some_child_retval_matches:
@@ -162,17 +226,54 @@ class FunctionTypes(object):
 
         return matching_sigs
 
+    @staticmethod
+    def get_child_sigs_matching_return_arg_type(child, return_type, matching_sigs):
+        """Called with a child node and the expected return type for that
+        child, and a list of matching sigs for the child.  Returns all the
+        `child.matching_sigs` which also match in return type.  This is used in
+        pass two of the type-checking, and `matching_sigs` is the
+        `child.matching_sigs` attribute which was set already on pass one."""
+        return [s for s in matching_sigs 
+                if s.val_type == return_type or return_type is None]
+
+    @staticmethod
+    def append_sig_to_list_replacing_if_identical(sig_list, sig):
+        """Return `sig_list` either with `sig` appended or with any identical
+        signature (according only to type equality, not attributes) replaced
+        if one is there.  This is called in `register_handler_funs`."""
+        try:
+            sig_list.remove(sig)
+        except ValueError:
+            pass
+        sig_list.append(sig)
+        return sig_list
+
+    def is_valid_actual_sig(self, sig):
+        """Test if the signature passed in is a valid actual signature matching
+        this signature as a formal signature.  Note the difference between this
+        and equality!  This is the one which should be called to determine
+        signature equivalence based on type equivalences and instantiations
+        of parameters."""
+        return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
+
     def __getitem__(self, index):
         """Indexing works like a tuple."""
         if index == 0: return self.val_type
         elif index == 1: return self.arg_types
         else: raise IndexError
+
+    
+    # TODO this is explicit and better than __eq__ but doesn't work with sets...
+    #def is_identical(self, sig):
+    #    return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
     def __eq__(self, sig):
-        """Note that this method defines equality of type signatures (currently
-        a simple form)."""
+        """Note that equality is *only* based on `val_type` and `arg_type` being
+        *identical*.  It ignores other attributes, and does not consider more
+        sophisticated notions of equality."""
         return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
     def __ne__(self, sig):
         return not self.__eq__(sig)
+
     def __repr__(self): 
         return "TypeSig('{0}', {1})".format(self.val_type, self.arg_types)
     def __hash__(self):
@@ -180,31 +281,19 @@ class FunctionTypes(object):
         return hash((self.val_type, self.arg_types))
 
 
-class ActualTypes(FunctionTypes):
-    """The actual type signature for a function, holding actual types.  Set from
-    the types of the function call arguments."""
-    def __init__(self, val_type=None, arg_types=None, test_fun=None):
-        super(ActualTypes, self).__init__(val_type, arg_types, test_fun)
-
-
-class TypeSig(FunctionTypes):
-    """The formal type specification for a function; may have parameterized types, etc.
-    Set at function definition."""
-    def __init__(self, val_type=None, arg_types=None, test_fun=None):
-        super(TypeSig, self).__init__(val_type, arg_types, test_fun)
-
 #
 # Type templates, representing individual types.
 #
 
 class TypeObject(object):
-    """Each formal type is represented by a subclasses of this class.  Formal
-    types can be parameterized or not.  Instances of those subclasses represent
-    the actual types (which may or may not match the required argument
-    signature, that is checked by `FunctionTypes` objects).
+    """The base class for type objects.  Each formal, parameterized type is
+    represented by a subclasses of this class.  Formal types can be
+    parameterized or not.  Instances of those subclasses represent the actual
+    types (which may or may not match the required argument signature, that is
+    checked by `TypeSig` objects).
 
     Subclasses of this class are automatically generated via the
-    `create_type_template` function.  The `TypeTemplateDict` class calls that
+    `create_type_template` function.  The `ParameterizedTypeDict` class calls that
     function to create the classes (representing types) that it stores.
     """
     def __init__(self):
@@ -212,24 +301,28 @@ class TypeObject(object):
     def __repr__(self): 
         return "TypeObject()"
 
+    @staticmethod
+    def expand_type(num_args):
+        """Expand this type object to fill in any parameter values with the
+        passed-in values (the latter still TODO)."""
 
 def create_type_template():
     """Return a subclass of `TypeObject` to represent a type template.  This
     routine can be redefined for particular applications, but should not be
     called directly.  Use the `create_typeobject_subclass` method of
-    `TypeTemplateDict` instead (which creates a subclass, adds some
+    `ParameterizedTypeDict` instead (which creates a subclass, adds some
     attributes, and saves it in a dict).  End users should use the
     `def_type` method of a `PrattParser` instance, which calls
     `create_typeobject_subclass`.  The `template_subclass_fun` keyword argument
-    in the initializer `TypeTemplateDict` can be used to change the function
+    in the initializer `ParameterizedTypeDict` can be used to change the function
     which is called."""
 
-    # TODO: Consider.  Should a TypeTemplate be a callable object, which takes
+    # TODO: Consider.  Should a ParameterizedType be a callable object, which takes
     # arguments which possibly instantiate some of the parameters?????  Does this
     # work nicely with using the TypeSig(...) call in the definitions of functions
     # and arguments in the PrattParser?
 
-    class TypeTemplate(TypeObject):
+    class ParameterizedType(TypeObject):
         """Instances of this object are used to represent types in the parsed
         language."""
         type_name = None # Set by the method that calls create_type_template.
@@ -265,13 +358,24 @@ def create_type_template():
         def undef_conversion(self, to_type):
             try: del self.conversions[to_type]
             except KeyError: return
-        def __eq__(self, typeobject):
-            """Note that this defines equality between types.  Currently `==` is defined
-            as exact match only."""
+
+        def is_valid_actual_type(self, type_obj):
+            """Test whether `type_obj` is a valid actual argument of this type
+            object, treating this one as a formal type."""
             if self.type_name != typeobject.type_name: return False
             if len(self.parameters) != len(typeobject.parameters): return False
             return all(self.parameters[i] == typeobject.parameters[i]
                        for i in range(self.parameters))
+
+        def __eq__(self, typeobject):
+            """Note that this defines equality between types.  The `==` symbol
+            is defined as exact match only.  Use `is_valid_actual_type` for
+            comparing formal to actual."""
+            if self.type_name != typeobject.type_name: return False
+            if len(self.parameters) != len(typeobject.parameters): return False
+            return all(self.parameters[i] == typeobject.parameters[i]
+                       for i in range(self.parameters))
+
         def __ne__(self, typeobject):
             return not self.__eq__(typeobject)
         def __hash__(self):
@@ -281,10 +385,10 @@ def create_type_template():
         def __repr__(self): 
             return self.__name__ + "({0}, {1})".format(self.type_name, self.type_params)
 
-    return TypeTemplate
+    return ParameterizedType
 
 
-class TypeTemplateDict(object):
+class ParameterizedTypeDict(object):
     """A symbol table holding subclasses of the `TypeObject` class, one for each
     defined type in the language.  Each `PrattParser` instance has such a table,
     which holds the objects which represent each type defined in the language
