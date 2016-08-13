@@ -68,63 +68,95 @@ and Pratt's original naming conventions is given in this table:
 +----------------------------------+--------------------------+
 
 
-Multiple parsers at once
-------------------------
-
-Tokens defined by a parser's `def_token` method belong to that parser in the
-sense that they maintain a link back to the parser to look at certain settings
-attributes.  So when multiple parsers are used they generally should only look
-for tokens which they themselves have defined.  (TODO, consider, maybe even
-check for it.)
-
-In other words, the separate parsers are considered to parse disjoint
-sublanguages -- tokens will need to be redefined and later associated with each
-other to have common tokens between a language excluding the sublanguage and
-the sublanguage itself.
-
-The same lexer **must** be used, since it will have been set to the text string
-to parse.  So the lexer does not maintain a link back to a particular parser,
-but tokens do.  Note that all tokens defined are ultimately stored in the
-lexer's token table dict.
-
-This is currently done by adding the attribute wherever a token is defined,
-which forces the use of the parser's define functions.  May be a cleaner
-way to do it, but not too bad.  Consider whether restriction can be removed,
-or if it should be.
-
-As far at types, types are stored with each parser in a ParameterizedTypeDict.
-It would be possible for parsers to share one of these objects, but that is
-not currently implemented.
-
 """
 
 from __future__ import print_function, division, absolute_import
+
+# Run tests when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
+
 import types
+import copy
 from collections import OrderedDict, namedtuple, defaultdict
 #from enum_wrapper import Enum
-from lexer import Lexer, TokenNode, TokenSubclassDict, LexerException, BufferIndexError
+from .lexer import Lexer, TokenNode, TokenTable, LexerException, BufferIndexError
+from .pratt_types import ParameterizedTypeDict, TypeSig
 
-from pratt_types import ParameterizedTypeDict, TypeSig
+
+# TODO: For multiple parsers, decide on a design.  Basically, we want the
+# parsers to be as independent as possible, each with their own settings, etc.,
+# while running off of the same token stream.
+#
+# One way to do that is to have separate lexers and essentially split the text
+# up into pieces, each parsed by a separate lexer.  Need some control
+# machinery, though.  Should be fairly easy and efficient, if not elegant.
+# Using a text stream abstraction might make it better... then lexers feed off
+# of that.  We also need to essentially use multi-token parse, where each part
+# reaches what would be a dead end ordinarily and then returns.  Error messages
+# might be confusing.  This one would call `parse` to recurse.
+#
+# Another way is to have all parsers run off of one single lexer.  But, tokens
+# have handler functions associated with them, and are defined in parsers with
+# additional things added.  So at the least the lexer would have to essentially
+# run off of separate token tables (containing the tokens for each parser).
+# Then you need to switch symbol tables on getting to the end....  This one
+# would call `recursive_parse` to recurse.
+#
+# Note that you may want to re-use one of the sub-parsers between different
+# super-parsers.  I.e., same sublanguage.  So, you cannot assume that the
+# parser itself is modified in any way, for the most general case.  Except, it
+# must be able to read from the same lexer, text stream, or token table.
+# Argues for case 1 above...  (having to share a lexer or is only set on init,
+# unless it is temporarily done...
+#
+# Is the text stream part of a lexer independent of the token table?  That
+# might be much more elegant.  Then to call another parser you just:
+#
+#   1) set multi_token_with_exit
+#   2) call lex.set_symbol_table and set it to the parser's token table.
+#   3) call the parse function (not recursive-parse, need to init...)
+#   As of now, though, the toplevel parser has to define begin and end tokens...
+#   maybe, anyway, might work as-is....
+# 
+# Parsers have token tables they can share with whatever lexer they want.....
+# All the above could be subsumed in a PrattParser method to call another...
+#
+# Restrict go-back, probably anyway, since complicated with a bunch of parsers.
+# It would still work, but user would have to handle the external parser
+# runtime stack stuff.
+#
+# BEST OPTION SO FAR: swappable token tables... nice and modular with all token
+# stuff being associated with parser.  Need to modify the lexer a bit, though,
+# probably not too much.  ALSO, you can then set and access the parser via the
+# lex.token_table.parser_instance attribute.
+
+
 
 # NOTE that you could use the evaluate function stuff to also do the conversion
 # to AST.
 
+
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
-# manage them in a dict, maybe with some predefined ones?  Seems like it could
-# be separated out, and reduce complexity.  Is equality testing of
-# preconditions ever truly required?  If not, why not just use the function
-# objects and leave the user to manage their functions however they want.  Presumably
-# you need some handle on them in order to undefine them...
+# manage them in a dict, maybe with some predefined ones?  Why can't you just
+# use the function names (full form)???????
 #
-# TODO: consider requiring users to past precond labels onto any functions that
-# they want to use as precond labels.  Keeps it localized, and keeps the same
-# function each time (at least if done right after definition).
-# (Do it inside the function?  No that only works at runtime.)
-# Can easily be checked and give error message, too.  Then just register them
-# in the hidden dictionary.  Users never need to know it is there.
-# This also makes it clear that the precond_label is really a "part" of the
-# function, and defines what it means for function equality.
+# Seems like it could be separated out, and reduce complexity.  Is equality
+# testing of preconditions ever truly required?  If not, why not just use the
+# function objects and leave the user to manage their functions however they
+# want.  Presumably you need some handle on them in order to undefine them...
+#
+# TODO: consider requiring users to paste precond labels onto any functions
+# that they want to use as precond labels.  Keeps it localized, and keeps the
+# same function each time (at least if done right after definition).  (Do it
+# inside the function?  No that only works at runtime.) Can easily be checked
+# and give error message, too.  Then just register them in the hidden
+# dictionary.  Users never need to know it is there.  This also makes it clear
+# that the precond_label is really a "part" of the function, and defines what
+# it means for function equality.
+
 
 #
 # TokenNode
@@ -135,13 +167,13 @@ the basic, general methods that apply to tokens and nodes in token trees.
 Methods particular to an application need to be defined in a subclass.  The
 function `token_subclass_factory` returns a subclass of `TokenNode` which
 represents tokens with a given token label.  The `PrattParser` class sets this
-function to be used by its `TokenSubclassDict` instance in order to
+function to be used by its `TokenTable` instance in order to
 create a token subclass for each kind of token.  Many methods particular to the
 `PrattParser` application are added to the subclass."""
 
 def token_subclass_factory():
     """This function is called from the `create_token_subclass` method of
-    `TokenSubclassDict` when it needs to create a new subclass to begin
+    `TokenTable` when it needs to create a new subclass to begin
     with.  It should not be called directly.
     
     Create and return a new token subclass which will be modified and used
@@ -380,6 +412,18 @@ def token_subclass_factory():
             this token instance to the label of the winning precondition
             function."""
 
+            #
+            # See if any null-string handlers match in the current conditions.
+            #
+
+            # TODO the Lexer needs to save the null-string tokens, not the
+            # parser, since the tokens know their lexer but their parser may
+            # not be unique for multi-parser scenarios.
+            #
+            # NO!!! Tokens have handlers with them, which depend on the parser.
+            # So tokens must know their parser, and token sets for distinct
+            # parsers must be disjoint.
+
             # TODO: For each null-string token, process it and save the fun
             # and precedence of the highest-priority one to eval to true.
             # Then compare all those precedences (can optimize a little) to
@@ -389,6 +433,14 @@ def token_subclass_factory():
             # if it works OK or not first.  That should complete the prototype
             # implementation (unless want to build in a production stack at
             # some point).
+
+            #
+            # See if any null-string handlers match in the current conditions.
+            #
+
+            #
+            # Process the normal handler functions for the token.
+            #
 
             sorted_handler_dict = self.handler_funs[head_or_tail]
             if not sorted_handler_dict:
@@ -902,6 +954,13 @@ def token_subclass_factory():
 
             return processed_left
 
+        #
+        # Shortcut for copying instances of tokens (deep copies should not be used).
+        #
+
+        def copy(self):
+            """Return a shallow copy."""
+            return copy.copy(self)
 
         #
         # Some representations that apply to the subclasses.
@@ -979,7 +1038,7 @@ class PrattParser(object):
             self.lex = lexer
             self.token_table = lexer.token_table
         else: # No Lexer passed in.
-            self.token_table = TokenSubclassDict(
+            self.token_table = TokenTable(
                                 token_subclass_factory_fun=token_subclass_factory)
             self.lex = Lexer(self.token_table,
                                          num_lookahead_tokens=num_lookahead_tokens,
@@ -1561,11 +1620,4 @@ class NoHandlerFunctionDefined(ParserException):
     (head or tail, whichever it was looking for)."""
     pass
 
-#
-# Run tests below when invoked as a script.
-#
-
-if __name__ == "__main__":
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
 

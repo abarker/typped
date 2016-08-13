@@ -5,4 +5,3 @@ typped.lexer module
     :members:
     :undoc-members:
     :show-inheritance:
-

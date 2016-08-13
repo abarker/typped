@@ -1,5 +1,5 @@
 .. Typped documentation master file, created by
-   sphinx-quickstart on Fri Jun 17 17:44:36 2016.
+   sphinx-quickstart on Mon Aug  8 19:14:55 2016.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
@@ -35,8 +35,6 @@ framework is general-purpose.  Languages can be fully dynamic, defined and
 modified on-the-fly.  Since the package is pure Python it is not the best
 choice if speed is the most important factor.
 
-Contents:
-
 .. toctree::
    :maxdepth: 3
    :numbered:
@@ -50,7 +48,6 @@ Contents:
    extending_prattparser
    typped
    other_possible_generalizations
-
 
 Indices and tables
 ==================

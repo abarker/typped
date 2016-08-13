@@ -69,6 +69,12 @@ in the dict (when it terminates at that node it is either recognized or not).
 """
 
 from __future__ import print_function, division, absolute_import
+
+# Run test cases below when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_trie_dict.py", pytest_args="-v")
+
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
@@ -427,13 +433,4 @@ class TrieDict(collections.MutableMapping):
     __iter__ = iterkeys
 
 
-#
-# Run test cases below when invoked as a script.
-#
-
-
-if __name__ == "__main__":
-
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_trie_dict.py", pytest_args="-v")
 

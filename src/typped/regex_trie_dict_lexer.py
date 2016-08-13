@@ -15,11 +15,16 @@ lower-level lexer.
 
 from __future__ import print_function, division, absolute_import
 
+# Run tests when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_regex_trie_dict_lexer.py", pytest_args="-v")
+ 
 import sys
-from regex_trie_dict import RegexTrieDict
-from regex_trie_dict_scanner import RegexTrieDictScanner, TokenData
-from text_stream import TextStream
 import collections # for named tuple
+from .regex_trie_dict import RegexTrieDict
+from .regex_trie_dict_scanner import RegexTrieDictScanner, TokenData
+from .text_stream import TextStream
 #from basic_defs import * # DataTuple namedtuple defined here is needed a few places
 
 # TODO remove DataTuple below and replace with the class instances for the various
@@ -388,11 +393,9 @@ class BufferedRegexTrieDictLexer(object):
 #  Run test cases.
 #
 
+   
 if __name__ == "__main__":
 
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_regex_trie_dict_lexer.py", pytest_args="-v")
-    
     # exit(0) # comment this out to test interactive
     print("\nTest interactive...\n")
     import readline

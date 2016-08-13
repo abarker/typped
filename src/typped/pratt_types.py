@@ -47,8 +47,13 @@ the return type and one for each argument.
 """
 
 from __future__ import print_function, division, absolute_import
+
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_pratt_types.py") # TODO no test file
+
 import sys
-#from enum_wrapper import Enum
+
 
 #
 # Formal and actual type specs for functions.
@@ -92,8 +97,11 @@ class TypeSig(object):
         corresponding type; `None` alone for `arg_types` allows any number of
         arguments of any type."""
 
-        # TODO test_fun is unset as a class var and unused.  What is it supposed
-        # to do???
+        # TODO test_fun is not set or used as of now, but it is supposed to
+        # be a user-defined function which tests whether the parsed subexpression
+        # subtree which was found in the parsed program text actually matches
+        # the declared type in the function spec.
+
         if isinstance(arg_types, str):
             raise ParserException("The `arg_types` argument must"
                     " be `None` or an iterable returning types (e.g., a list"
@@ -508,8 +516,4 @@ class ParameterizedTypeDict(object):
         previously associated with that label is removed from the dictionary."""
         try: del self.type_template_dict[type_label]
         except KeyError: return # Not saved in dict, ignore.
-
-if __name__ == "__main__":
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_pratt_types.py") # TODO no test file
 

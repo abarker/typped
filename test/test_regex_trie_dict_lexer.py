@@ -4,10 +4,10 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src/typped")
+pytest_helper.sys_path("../src")
 
 import random, string, re
-from regex_trie_dict_lexer import *
+from typped.regex_trie_dict_lexer import *
 from py.test import raises, fail
 
 #

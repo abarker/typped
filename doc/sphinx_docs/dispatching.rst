@@ -77,7 +77,7 @@ Uniqueness of preconditions functions
 In order to avoid problems in determining when functions are identical,
 every preconditions function must be associated with a unique label.
 These functions are then registered in a dict using methods of the
-`TokenSubclass` class.
+`TokenTable` class.
 
 These preconditions labels **define** identity or non-identity between
 preconditions functions.  Handler functions registered using the same

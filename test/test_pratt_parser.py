@@ -4,10 +4,9 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src/typped")
+pytest_helper.sys_path("../src")
 
-# TODO: switch to importing the typped directory/package
-import pratt_parser
+import typped # Test as a full package.
 
 # Some naming conventions.
 #
@@ -142,23 +141,23 @@ def run_and_print(ast_table, parser, prog):
         print(ast.tree_repr())
 
 def run_local_tests():
-    ast_table = pratt_parser.AST_NodeDict()
-    parser = pratt_parser.PrattParser()
+    ast_table = typped.AST_NodeDict()
+    parser = typped.PrattParser()
     define_default_tokens(parser)
     define_syntax(parser)
 
     #run_and_print(ast_table, parser, "3+5 // comment \n-30")
-    pratt_parser.run_and_print(ast_table, parser, "22, 44 + 44, 55, 44, 55")
-    pratt_parser.run_and_print(ast_table, parser, "4 * (f(x), 3)")
+    typped.run_and_print(ast_table, parser, "22, 44 + 44, 55, 44, 55")
+    typped.run_and_print(ast_table, parser, "4 * (f(x), 3)")
     #define_comment_to_EOL_token(parser, "//")
-    #pratt_parser.run_and_print(ast_table, parser, "4,3,7+f(3 * 2// comment \n * 3 * 4)")
-    pratt_parser.run_and_print(ast_table, parser, "3 + 4 ; egg55a; f(y)")
-    pratt_parser.run_and_print(ast_table, parser, "+4+5-ccc?4i:5")
-    pratt_parser.run_and_print(ast_table, parser, "3!")
-    pratt_parser.run_and_print(ast_table, parser, "f(3!)")
-    pratt_parser.run_and_print(ast_table, parser, "1+f(x)")
-    pratt_parser.run_and_print(ast_table, parser, "f( x,y,z)")
-    pratt_parser.run_and_print(ast_table, parser, "+1+ (1+2*3)*3 / 7")
+    #typped.run_and_print(ast_table, parser, "4,3,7+f(3 * 2// comment \n * 3 * 4)")
+    typped.run_and_print(ast_table, parser, "3 + 4 ; egg55a; f(y)")
+    typped.run_and_print(ast_table, parser, "+4+5-ccc?4i:5")
+    typped.run_and_print(ast_table, parser, "3!")
+    typped.run_and_print(ast_table, parser, "f(3!)")
+    typped.run_and_print(ast_table, parser, "1+f(x)")
+    typped.run_and_print(ast_table, parser, "f( x,y,z)")
+    typped.run_and_print(ast_table, parser, "+1+ (1+2*3)*3 / 7")
 
 #run_local_tests()
 
@@ -168,7 +167,7 @@ def run_local_tests():
 def basic_setup(request):
     lookahead_num = request.param
     global parser
-    parser = pratt_parser.PrattParser(lookahead_num)
+    parser = typped.PrattParser(lookahead_num)
     define_default_tokens(parser)
     define_syntax(parser)
 
@@ -200,8 +199,8 @@ def test_pratt_parser(basic_setup):
     #fail("Just to see output.")
 
 def test_error_conditions(basic_setup):
-    LexerException = pratt_parser.LexerException
-    ParserException = pratt_parser.ParserException
+    LexerException = typped.LexerException
+    ParserException = typped.ParserException
     with raises(LexerException): parser.parse("3%2") # unknown symbol
     with raises(ParserException): parser.parse("f (x,y)")
     with raises(ParserException): parser.parse("1+ (x,y")
@@ -210,8 +209,8 @@ def test_error_conditions(basic_setup):
     #fail("Just to see output.")
 
 def test_stdfun_functions(basic_setup):
-    ParserTypeError = pratt_parser.ParserTypeError
-    ParserException = pratt_parser.ParserException
+    ParserTypeError = typped.ParserTypeError
+    ParserException = typped.ParserException
 
     parser.def_token("k_exp", r"exp")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma", num_args=1)
@@ -248,8 +247,8 @@ def test_stdfun_functions(basic_setup):
     assert str(e.value).startswith("No head handler function matched")
     
 def test_stdfun_lpar_tail_functions(basic_setup):
-    ParserTypeError = pratt_parser.ParserTypeError
-    ParserException = pratt_parser.ParserException
+    ParserTypeError = typped.ParserTypeError
+    ParserException = typped.ParserException
 
     parser.def_token("k_exp", r"exp")
     parser.def_literal("k_exp")
@@ -329,10 +328,10 @@ def test_types_mixed_numerical_bool_expressions():
     only overloading on argument types."""
     # setup
 
-    ParserTypeError = pratt_parser.ParserTypeError
-    TypeSig = pratt_parser.TypeSig
+    ParserTypeError = typped.ParserTypeError
+    TypeSig = typped.TypeSig
 
-    parser = pratt_parser.PrattParser()
+    parser = typped.PrattParser()
     define_default_tokens(parser)
     parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
@@ -450,10 +449,10 @@ def test_types_overloaded_return():
     to make sure none of them break, then test cases specific to overloading on
     return types."""
     # setup
-    ParserTypeError = pratt_parser.ParserTypeError
-    TypeSig = pratt_parser.TypeSig
+    ParserTypeError = typped.ParserTypeError
+    TypeSig = typped.TypeSig
 
-    parser = pratt_parser.PrattParser(overload_on_ret_types=True)
+    parser = typped.PrattParser(overload_on_ret_types=True)
     define_default_tokens(parser)
     parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
@@ -476,9 +475,11 @@ def test_types_overloaded_return():
                         arg_types=["t_number","t_number"], ast_label="a_exp")
 
     # run simple tests with just one type
-    assert parser.parse(" 5 + 100").string_tree_repr() == "<k_plus,+>(<k_number,5>,<k_number,100>)"
+    assert parser.parse(" 5 + 100").string_tree_repr() == \
+                                         "<k_plus,+>(<k_number,5>,<k_number,100>)"
     # note k_double_ast ** and with an alias ^ on next
-    assert parser.parse("5^100").string_tree_repr() == "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+    assert parser.parse("5^100").string_tree_repr() == \
+                                   "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
     assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
          "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
          "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"

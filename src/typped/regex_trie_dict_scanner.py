@@ -97,10 +97,16 @@ inserts and deletes of keys.
 #TODO: rewrite using the RegexTrieDict and Matcher classes
 
 from __future__ import print_function, division, absolute_import
+
+# Run test cases below when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_regex_trie_dict_scanner.py", pytest_args="-v")
+
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
-import regex_trie_dict
+from . import regex_trie_dict
 
 
 class TokenData(object):
@@ -342,13 +348,4 @@ class RegexTrieDictScanner(object):
         print("]")
 
 
-#
-# Run test cases below when invoked as a script.
-#
-
-
-if __name__ == "__main__":
-
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_regex_trie_dict_scanner.py", pytest_args="-v")
 

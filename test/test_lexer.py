@@ -4,9 +4,9 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src/typped")
+pytest_helper.sys_path("../src")
 
-from lexer import *
+from typped.lexer import * # Test as an individual module.
 
 # TOKEN DEFINITIONS #################################################################
 

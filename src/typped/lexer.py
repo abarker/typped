@@ -110,6 +110,11 @@ Some boolean-valued informational methods:
 * `is_begin_token` -- true only if the argument is a begin token
 * `is_end_token` -- true only if the argument passed in is an end token
 
+Other attributes:
+
+`line_number` -- the line number of the current token
+`char_number` -- the character number of the current character
+
 TODO, list more, why not make some methods of `TokenNode` instead?
 
 Initialization options
@@ -125,7 +130,23 @@ Code
 
 """
 
+# TODO: consider making the token_table a separable part of the Lexer, so
+# you could swap one out for another and switch to lexing a different set
+# of tokens from the middle of the text stream.  The whole def_token thing
+# can be moved there, too, and just called from Lexer as a convenience.
+
+# TODO: consider adding a method to return the processed part and the unprocessed
+# part of the orginal text.  Shouldn't be too hard when up-to-speed on the Lexer
+# workings (just calculate the right slices into self.program).  Slight complication
+# with lookahead and how to define it.
+
 from __future__ import print_function, division, absolute_import
+
+# Run tests when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_lexer.py", pytest_args="-v")
+
 import re
 import collections
 
@@ -159,12 +180,6 @@ class TokenNode(object):
         # enough that including it here is probably helpful........
         self.children = [] # Args to functions are their children in parse tree.
         self.parent = None # The parent in a tree of nodes.
-
-        # TODO: shouldn't type stuff and eval stuff only be in parser?  Appparently
-        # not even used in this module, so comment out and see.....
-        #self.evaluate = None # A method to evaluate some nodes, added dynamically.
-        #self.val_type = None # The type of the node's value, after processing.
-        #self.allowed_types = None # Set in recursion to ensure return type matches.
 
     def original_text(self):
         """Return the original text that was read in lexing the token, including
@@ -265,13 +280,13 @@ class TokenNode(object):
 def basic_token_subclass_factory():
     """Create and return a new token subclass representing tokens with label
     `token_label`.  This function is called from the `create_token_subclass`
-    method  of `TokenSubclassDict` when it needs to create a new one to
+    method  of `TokenTable` when it needs to create a new one to
     start with.  This function **should not be called directly**, since
     additional attributes (such as the token label and a new subclass name)
     also need to be added to the generated subclass.
     
     This function is the default argument to the `token_subclassing_fun`
-    keyword argument of the initializer for `TokenSubclassDict`.  Users
+    keyword argument of the initializer for `TokenTable`.  Users
     can define their own such function in order to add methods to token objects
     which are particular to their own application (the `PrattParser` class does
     this, for example).
@@ -293,7 +308,7 @@ def basic_token_subclass_factory():
 # Token subclass token table
 #
 
-class TokenSubclassDict(object):
+class TokenTable(object):
     """A symbol table holding subclasses of the `TokenNode` class for each token label
     defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
     class to save the subclasses for the kinds of tokens which have been defined for
@@ -305,6 +320,14 @@ class TokenSubclassDict(object):
         `basic_token_subclass_factory`."""
         self.token_subclassing_fun = token_subclass_factory_fun
         self.token_subclass_dict = {}
+
+        # These three lists below are kept in the same order so the same index
+        # will correctly index into them.  There is one entry for each token,
+        # in the same order as they were defined.
+        self.token_labels = [] # The list of token_labels.
+        self.compiled_regexes = [] # The compiled regexes for recognizing tokens.
+        self.on_ties = [] # List of int values for breaking equal-length match ties.
+        self.ignore_tokens = set()
 
     def has_key(self, token_label):
         """Test whether a token subclass for `token_label` has been stored."""
@@ -341,7 +364,153 @@ class TokenSubclassDict(object):
         previously associated with that label is removed from the dictionary."""
         try: del self.token_subclass_dict[token_label]
         except KeyError: return # Not saved in dict, ignore.
-    
+
+    def is_defined_token_label(self, token):
+        """Return true if `token` is currently defined as a token label."""
+        return token in self.token_labels
+
+    def undef_token(self, token_label):
+        """Undefine the token corresponding to `token_label`."""
+        # Remove from the list of defined tokens and from the token table.
+        self.undef_token_subclass(token_label)
+        self.ignore_tokens.discard(token_label)
+        try:
+            tok_index = self.token_labels.index(token_label)
+        except ValueError:
+            return
+        del self.token_labels[tok_index]
+        del self.compiled_regexes[tok_index]
+        del self.on_ties[tok_index]
+
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
+        """Define a token and the regex to recognize it.
+        
+        The label `token_label` is the label for the kind of token.  The label
+        `regex_string` is a Python regular expression defining the text strings
+        which match for the token.  If `regex_string` is set to `None` then a
+        dummy token will be created which is never searched for in the lexed
+        text.
+        
+        Setting `ignore=True` will cause all such tokens to be ignored (except
+        that they will be placed on the `ignored_before` list of the
+        non-ignored token that they precede).
+        
+        In case of ties for the longest match in scanning, the integer
+        `on_ties` values are used to break the ties.  If any two are still
+        equal an exception will be raised.
+        
+        Returns the new token subclass."""
+        if self.is_defined_token_label(token_label):
+            raise LexerException("A token with label '{0}' is already defined.  It "
+            "must be undefined before it can be redefined.".format(token_label))
+        if regex_string is not None:
+            self._insert_pattern(regex_string)
+            self.token_labels.append(token_label)
+            self.on_ties.append(on_ties)
+            if ignore:
+                self.ignore_tokens.add(token_label)
+        # Initialize with a bare-bones, default token_subclass.
+        new_subclass = self.create_token_subclass(token_label)
+        return new_subclass
+
+    def _insert_pattern(self, regex_string):
+        """Insert the pattern in the list of patterns."""
+        # TODO prepare for using trie for simple patterns
+        # Note negative lookbehind assertion (?<!\\) for escape before
+        # the strings which start Python regex special chars.
+        # TODO move string below up to global space after testing.
+        non_simple_regex_contains = \
+                r"""(
+                        ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
+                    |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
+                    )"""
+        compiled_non_simple_regex_contains = re.compile(
+                                  non_simple_regex_contains, re.VERBOSE|re.UNICODE)
+        def is_simple_pattern(regex_string):
+            # TODO more complicated: could be single-char in brackets!
+            # https://docs.python.org/2.0/ref/strings.html
+            match_object = compiled_non_simple_regex_contains.search(regex_string)
+            #matched_string = regex_string[match_object.start():match_object.end()]
+            #print(" substring", matched_string)
+            return not bool(match_object)
+
+        #if is_simple_pattern(regex_string):
+        #    print("simple pattern", regex_string)
+        #else:
+        #    print("non-simple pattern", regex_string)
+
+        # below is actual code
+        compiled_regex = re.compile(regex_string, re.VERBOSE|re.MULTILINE|re.UNICODE)
+        self.compiled_regexes.append(compiled_regex)
+
+    def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
+        """A utility routine to do the actual string match on the prefix of
+        `self.program`.  Return the list of matching prefixes and a list of
+        (length, on_ties) data for ranking them."""
+        # Python's finditer finds the *first* match group and stops.  They
+        # are ordered by the order they occur in the regex.  It finds the
+        # longest match of any particular group, but stops when it finds a
+        # match of some group.  Instead of that, this code loops over the
+        # separate patterns to find the overall longest, breaking ties with
+        # on_ties values. 
+        matching_prefixes_list = [] # All the prefix strings that match some token.
+        len_and_on_ties_list = [] # Ordered like matching_prefixes_list (len, on_ties)
+        for count, patt in enumerate(self.compiled_regexes):
+            match_object = patt.match(program, 
+                                      unprocessed_slice_indices[0],
+                                      unprocessed_slice_indices[1])
+            if match_object: 
+                matched_string = program[
+                                 match_object.start():match_object.end()]
+                matching_prefixes_list.append(matched_string)
+                # Save info to compare matches by length, break ties if necessary.
+                len_on_ties_tuple = (len(matched_string), self.on_ties[count])
+                len_and_on_ties_list.append(len_on_ties_tuple)
+            else: # Match returns None if nothing matches, not a MatchObject.
+                matching_prefixes_list.append("")
+                len_and_on_ties_list.append((0,self.on_ties[count]))
+        return matching_prefixes_list, len_and_on_ties_list
+
+    def _find_winning_token_label_and_value(self, program, unprocessed_slice_indices,
+                                 matching_prefixes_list, len_and_on_ties_list,
+                                 ERROR_MSG_TEXT_SNIPPET_SIZE):
+        """Find the `(len, on_ties)` tuple in `len_and_on_ties_list` which is
+        longest and wins tie breaking.  Return the token label and value of the
+        matching prefix.  The list arguments should be in correspondence with
+        the `self.token_labels` list."""
+        # Note that tuple comparisons give the correct max value.
+        winning_tuple = max(len_and_on_ties_list)
+        if winning_tuple[0] == 0:
+            raise LexerException("No matches in Lexer, unknown token at "
+                    "the start of this unprocessed text:\n{0}"
+                    .format(program[unprocessed_slice_indices[0]
+                            :unprocessed_slice_indices[0] +
+                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+
+        # We know the winning tuple's value, now see if it is unique.
+        winning_indices = []
+        for i in range(len(len_and_on_ties_list)):
+            if len_and_on_ties_list[i] == winning_tuple:
+                winning_indices.append(i)
+
+        if len(winning_indices) > 1: # Still have a tie, raise an exception.
+            win_labels = [ self.token_labels[i] for i in winning_indices ]
+            raise LexerException("There were multiple token-pattern matches"
+                    " with the same length, found in Lexer.  Set the on_ties"
+                    " keyword arguments to break ties.  The possible token "
+                    " types are: {0}\nAmbiguity at the start of this "
+                    " unprocessed text:\n{1}".format(win_labels,
+                        program[unprocessed_slice_indices[0]
+                            :unprocessed_slice_indices[0] +
+                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+
+        # Got unique winner; use its index to get corresponding winning_index.
+        winning_index = winning_indices[0]
+        label = self.token_labels[winning_index]
+        value = matching_prefixes_list[winning_index]
+        return label, value
+
+
 #
 # Lexer
 #
@@ -384,7 +553,7 @@ class Lexer(object):
     def __init__(self, token_table=None, num_lookahead_tokens=2,
                  max_go_back_tokens=None, default_begin_end_tokens=False):
         """Initialize the Lexer.  Optional arguments set the
-        `TokenSubclassDict` to be used (default creates a new one), the
+        `TokenTable` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
         tokens that the `go_back` method can accept (default is unlimited).
         If `default_begin_end_tokens` is true then begin and end tokens will
@@ -392,17 +561,9 @@ class Lexer(object):
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
         if token_table is None:
-            self.token_table = TokenSubclassDict()
+            self.token_table = TokenTable()
         else:
             self.token_table = token_table
-        self.ignore_tokens = set()
-
-        # These three lists below are kept in the same order so the same index
-        # will correctly index into them.  There is one entry for each token,
-        # in the same order as they were defined.
-        self.token_labels = [] # The list of token_labels.
-        self.compiled_regexes = [] # The compiled regexes for recognizing tokens.
-        self.on_ties = [] # List of int values for breaking equal-length match ties.
 
         # Consider integrating the lookahead tokens and the previous tokens
         # into a single buffer.  Then the lookahead is just a slice of that
@@ -421,9 +582,7 @@ class Lexer(object):
             self.PREV_TOKEN_BUF_SIZE = None # None gives unlimited number.
         self.previous_tokens = collections.deque(maxlen=self.PREV_TOKEN_BUF_SIZE)
 
-        self.reset_linenumber = True # Reset linenumber on each set_text call.
         self.linenumber = 1
-        self.reset_charnumber = True # Reset charnumber on each set_text call.
         self.charnumber = 1
 
         self.token_generator_state = GenTokenState.uninitialized
@@ -433,7 +592,8 @@ class Lexer(object):
 
         return
 
-    def set_text(self, program):
+    def set_text(self, program,
+                 reset_linenumber=True, reset_charnumber=True):
         # TODO: redefine to take a TextStream.  Be sure to also pass back position
         # info with the returned text so that tokens have have their line/position
         # of origin pasted onto them..... or at least keep track in generating
@@ -452,8 +612,8 @@ class Lexer(object):
         self.ignored_before_curr = [] # Tokens ignored just before current one.
 
         # Reset line, character, and token counts.  All counts include the buffer.
-        if self.reset_linenumber: self.linenumber = 1
-        if self.reset_charnumber: self.charnumber = 1
+        if reset_linenumber: self.linenumber = 1
+        if reset_charnumber: self.charnumber = 1
         self.all_token_count = 0 # Count all actual tokens (not begin and end).
         self.non_ignored_token_count = 0 # Count non-ignored actual tokens.
 
@@ -468,7 +628,6 @@ class Lexer(object):
         self.token = self.token_buffer[0] # Last token returned; begin token here.
 
     def _initialize_token_buffer(self):
-
         """A utility routine to initialize (fill) the token buffer.  The
         `token_buffer[0]` slot is the current token.  The current token will be
         set to the begin token after this routine runs (since no tokens have
@@ -480,7 +639,8 @@ class Lexer(object):
         """
         # Put a begin token sentinel in self.previous_tokens if it is empty.
         begin_tok = self.begin_token_subclass(None)
-        if not self.previous_tokens: self.previous_tokens.append(begin_tok)
+        if not self.previous_tokens:
+            self.previous_tokens.append(begin_tok)
 
         # Set up the buffer.
         tb = self.token_buffer
@@ -671,7 +831,7 @@ class Lexer(object):
 
     def is_defined_token_label(self, token):
         """Return true if `token` is currently defined as a token label."""
-        return token in self.token_labels
+        return token in self.token_table.token_labels
 
     def last_n_tokens_original_text(self, n):
         """Returns the original text parsed by the last `n` tokens (back from
@@ -693,34 +853,12 @@ class Lexer(object):
     #
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """Define a token and the regex to recognize it.
-        
-        The label `token_label` is the label for the kind of token.  The label
-        `regex_string` is a Python regular expression defining the text strings
-        which match for the token.  If `regex_string` is set to `None` then a
-        dummy token will be created which is never searched for in the lexed
-        text.
-        
-        Setting `ignore=True` will cause all such tokens to be ignored (except
-        that they will be placed on the `ignored_before` list of the
-        non-ignored token that they precede).
-        
-        In case of ties for the longest match in scanning, the integer
-        `on_ties` values are used to break the ties.  If any two are still
-        equal an exception will be raised.
-        
-        Returns the new token subclass."""
-        if self.is_defined_token_label(token_label):
-            raise LexerException("A token with label '{0}' is already defined.  It "
-            "must be undefined before it can be redefined.".format(token_label))
-        if regex_string is not None:
-            self._insert_pattern(regex_string)
-            self.token_labels.append(token_label)
-            self.on_ties.append(on_ties)
-            if ignore: self.ignore_tokens.add(token_label)
-        # Initialize with a bare-bones, default token_subclass.
-        new_subclass = self.token_table.create_token_subclass(token_label)
-        new_subclass.lex = self
+        """A convenience method to define a token. It calls the corresponding
+        `def_token` method of the current `TokenTable` instance associated with
+        the lexer."""
+        new_subclass = self.token_table.def_token(token_label, regex_string,
+                       on_ties=on_ties, ignore=ignore)
+        new_subclass.lex = self # TODO: remove this if possible so only calls token_table
         return new_subclass
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
@@ -752,15 +890,9 @@ class Lexer(object):
         return tuple(tok_list)
 
     def undef_token(self, token_label):
-        """Undefine the token corresponding to `token_label`."""
-        # Remove from the list of defined tokens and from the token table.
-        self.token_table.undef_token_subclass(token_label)
-        self.ignore_tokens.discard(token_label)
-        try: tok_index = self.token_labels.index(token_label)
-        except ValueError: return
-        del self.token_labels[tok_index]
-        del self.compiled_regexes[tok_index]
-        del self.on_ties[tok_index]
+        """A convenience function to call the corresponding `undef_token` of
+        the current `TokenTable` instance associated with the Lexer."""
+        self.token_table.undef_token(token_label)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Define the sentinel tokens at the beginning and end of the token
@@ -771,6 +903,10 @@ class Lexer(object):
         need to be defined with `def_token` because they are never actually
         scanned and recognized in the program text (which would also require a
         regex pattern)."""
+        # TODO: consider if begin and end tokens should be created by a
+        # token_table method.  Probably they should, but then in Lexer need
+        # to change all the self.begin_token_label to have self.token_table
+        # prefix.
 
         # Define begin token.
         self.begin_token_label = begin_token_label
@@ -784,116 +920,12 @@ class Lexer(object):
         self.end_token_subclass.lex = self
         return self.begin_token_subclass, self.end_token_subclass
 
-    #def define_unstored_token(self, token_label):
-    #    """Define a token that is not stored in the token table dict, and which
-    #    has no regex pattern."""
-    #    new_subclass = self.token_table.create_token_subclass(
-    #                                            token_label, store_in_dict=False)
-    #    new_subclass.lex = self
-    #    return new_subclass
-
     #
-    # Lower-level methods related to token generation
+    # Lower-level routine for token generation
     #
-
-    def _insert_pattern(self, regex_string):
-        """Insert the pattern in the list of patterns."""
-        # TODO prepare for using trie for simple patterns
-        # Note negative lookbehind assertion (?<!\\) for escape before
-        # the strings which start Python regex special chars.
-        # TODO move string below up to global space after testing.
-        non_simple_regex_contains = \
-                r"""(
-                        ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
-                    |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
-                    )"""
-        compiled_non_simple_regex_contains = re.compile(
-                                  non_simple_regex_contains, re.VERBOSE|re.UNICODE)
-        def is_simple_pattern(regex_string):
-            # TODO more complicated: could be single-char in brackets!
-            # https://docs.python.org/2.0/ref/strings.html
-            match_object = compiled_non_simple_regex_contains.search(regex_string)
-            #matched_string = regex_string[match_object.start():match_object.end()]
-            #print(" substring", matched_string)
-            return not bool(match_object)
-
-        #if is_simple_pattern(regex_string):
-        #    print("simple pattern", regex_string)
-        #else:
-        #    print("non-simple pattern", regex_string)
-
-        # below is actual code
-        compiled_regex = re.compile(regex_string, re.VERBOSE|re.MULTILINE|re.UNICODE)
-        self.compiled_regexes.append(compiled_regex)
-
-    def _get_matched_prefixes_and_length_info(self):
-        """A utility routine to do the actual string match on the prefix of
-        `self.program`.  Return the list of matching prefixes and a list of
-        (length, on_ties) data for ranking them."""
-        # Python's finditer finds the *first* match group and stops.  They
-        # are ordered by the order they occur in the regex.  It finds the
-        # longest match of any particular group, but stops when it finds a
-        # match of some group.  Instead of that, this code loops over the
-        # separate patterns to find the overall longest, breaking ties with
-        # on_ties values. 
-        matching_prefixes_list = [] # All the prefix strings that match some token.
-        len_and_on_ties_list = [] # Ordered like matching_prefixes_list (len, on_ties)
-        for count, patt in enumerate(self.compiled_regexes):
-            match_object = patt.match(self.program, 
-                                      self.prog_unprocessed[0],
-                                      self.prog_unprocessed[1])
-            if match_object: 
-                matched_string = self.program[
-                                 match_object.start():match_object.end()]
-                matching_prefixes_list.append(matched_string)
-                # Save info to compare matches by length, break ties if necessary.
-                len_on_ties_tuple = (len(matched_string), self.on_ties[count])
-                len_and_on_ties_list.append(len_on_ties_tuple)
-            else: # Match returns None if nothing matches, not a MatchObject.
-                matching_prefixes_list.append("")
-                len_and_on_ties_list.append((0,self.on_ties[count]))
-        return matching_prefixes_list, len_and_on_ties_list
-
-    def _find_winning_token_label_and_value(self, 
-                                 matching_prefixes_list, len_and_on_ties_list):
-        """Find the `(len, on_ties)` tuple in `len_and_on_ties_list` which is
-        longest and wins tie breaking.  Return the token label and value of the
-        matching prefix.  The list arguments should be in correspondence with
-        the `self.token_labels` list."""
-        # Note that tuple comparisons give the correct max value.
-        winning_tuple = max(len_and_on_ties_list)
-        if winning_tuple[0] == 0:
-            raise LexerException("No matches in Lexer, unknown token at "
-                    "the start of this unprocessed text:\n{0}"
-                    .format(self.program[self.prog_unprocessed[0]
-                            :self.prog_unprocessed[0]
-                            + self.ERROR_MSG_TEXT_SNIPPET_SIZE]))
-
-        # We know the winning tuple's value, now see if it is unique.
-        winning_indices = []
-        for i in range(len(len_and_on_ties_list)):
-            if len_and_on_ties_list[i] == winning_tuple:
-                winning_indices.append(i)
-
-        if len(winning_indices) > 1: # Still have a tie, raise an exception.
-            win_labels = [ self.token_labels[i] for i in winning_indices ]
-            raise LexerException("There were multiple token-pattern matches"
-                    " with the same length, found in Lexer.  Set the on_ties"
-                    " keyword arguments to break ties.  The possible token "
-                    " types are: {0}\nAmbiguity at the start of this "
-                    " unprocessed text:\n{1}".format(win_labels,
-                        self.program[self.prog_unprocessed[0]
-                            :self.prog_unprocessed[0]
-                            + self.ERROR_MSG_TEXT_SNIPPET_SIZE]))
-
-        # Got unique winner; use its index to get corresponding winning_index.
-        winning_index = winning_indices[0]
-        label = self.token_labels[winning_index]
-        value = matching_prefixes_list[winning_index]
-        return label, value
 
     def token_generator(self):
-        """This routine generates tokens from the program text in
+        """This routine generates tokens from the program text in the attribute
         `self.program`.  It does not modify the program itself, but keeps slice
         indices in a list `self.prog_unprocessed` indexing the unprocessed
         part.  That slice can be externally modified (the `go_back` routine
@@ -901,14 +933,14 @@ class Lexer(object):
         
         This is a lower-level function used by `next` to do the real work.  All
         the token subclasses should have been defined and stored in the the
-        `TokenSubclassDict`.  Regexes defined for tokens are repeatedly
-        matched at the beinning of the string `program`.  When a winning_index
-        is found it is stripped off the beginning of the unprocessed slice of
-        `program` and the generator waits for the next call.  For each
-        winning_index the token subclass is looked up in the
-        `TokenSubclassDict` object and an instance of that subclass is
-        yielded to represent the token.  Every token processed is represented
-        by a unique new instance of the appropriate subclass of `TokenNode`.
+        `TokenTable`.  Regexes defined for tokens are repeatedly matched at the
+        beinning of the string `program`.  When a winning_index is found it is
+        stripped off the beginning of the unprocessed slice of `program` and
+        the generator waits for the next call.  For each winning_index the
+        token subclass is looked up in the `TokenTable` object and an instance
+        of that subclass is yielded to represent the token.  Every token
+        processed is represented by a unique new instance of the appropriate
+        subclass of `TokenNode`.
         
         This generator has two states which can be set class-globally to alter
         the state of the generator.  The states are `GenTokenState.ordinary`
@@ -935,14 +967,16 @@ class Lexer(object):
             # =======================================================================
             if self.token_generator_state == GenTokenState.ordinary:
                 # Get the matching prefixes and length-ranking information.
-
                 matching_prefixes_list, len_and_on_ties_list = \
-                                   self._get_matched_prefixes_and_length_info()
+                           self.token_table._get_matched_prefixes_and_length_info(
+                                   self.program, self.prog_unprocessed)
 
                 # Find the label and value of the matching prefix which is longest
                 # (with ties broken by the on_ties values).
-                label, value = self._find_winning_token_label_and_value(
-                                    matching_prefixes_list, len_and_on_ties_list)
+                label, value = self.token_table._find_winning_token_label_and_value(
+                                    self.program, self.prog_unprocessed,
+                                    matching_prefixes_list, len_and_on_ties_list,
+                                    self.ERROR_MSG_TEXT_SNIPPET_SIZE)
 
                 # Remove matched prefix of the self.prog_unprocessed argument after
                 # saving the matched prefix string.
@@ -981,7 +1015,7 @@ class Lexer(object):
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
                 # ------------------------------------------------------------------
-                if label in self.ignore_tokens:
+                if label in self.token_table.ignore_tokens:
                     ignored_before_labels.append(label)
                     ignored_before_tokens.append(tci)
                     continue
@@ -1016,16 +1050,13 @@ class Lexer(object):
 #
 
 class LexerException(Exception):
+    """The base exception for the `Lexer` class."""
     pass
 
 class BufferIndexError(IndexError):
+    """Raised on attempts to read past the beginning or the end of the buffer
+    (such as in `peek` methods).  This is treated as an `IndexError` rather than
+    a `LexerException`."""
     pass
 
-#
-# Run tests when invoked as a script.
-#
-
-if __name__ == "__main__":
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_lexer.py", pytest_args="-v")
 

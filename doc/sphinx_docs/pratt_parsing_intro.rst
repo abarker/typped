@@ -1,6 +1,10 @@
 
-Introduction to Pratt parsing (and dispatching Pratt parsing)
-=============================================================
+Introduction to Pratt parsing and its terminology
+=================================================
+
+This section provides an introduction to the general concept of Pratt
+parsing, as well as the terminology used in the Typped documentation and
+code.
 
 What is a Pratt parser?
 -----------------------
@@ -17,16 +21,17 @@ EBNF, etc.) of a language is associated with a function which is designed to
 parse that production.  By contrast, in a Pratt parser each type of token has
 one or more **handler functions** associated with it.
 
-Pratt parsing fell into relative obscurity for some years, but it has
-recently experienced a revival as a parsing technique that is
-well-suited for dynamic languages.
+Pratt parsing fell into relative obscurity for some years, but it has recently
+experienced something of a revival as a parsing technique that is well-suited
+for dynamic languages.
 
 Some of Pratt's original terminology is less-than-intuitive in a modern
-context, yet his original terminology is still commonly used to describe the
-parsing method.  Rather than using Pratt's terminology we instead use
-terminology which is hopefully more intuitive -- at least in the context of a
-Python implementation.  The correspondences of terms in our terminology to
-Pratt's original terms are noted both where they are defined and in a
+context.  That original terminology is still commonly used in descriptions of
+Pratt parsing and the code examples.  Rather than using Pratt's terminology,
+the Typped package instead uses different terminology which is hopefully more
+intuitive --- at least in the context of a Python implementation.  The
+correspondences between terms in this package's terminology and Pratt's
+original terminology are noted both where the terms are defined and in a
 summarizing table below.
 
 Basic assumptions
@@ -64,6 +69,8 @@ expression.  In general, some parsers do not return a parse tree but instead
 evaluate, interpret, or otherwise process the expressions as they go along.  We
 assume that any such evaluation or interpretation is applied at a later stage,
 based on the returned parse tree.
+
+.. _Operator precedence:
 
 Operator precedence
 -------------------
@@ -427,22 +434,25 @@ the basic algorithm will be described.
 References
 ----------
 
-Vaughan R. Pratt, "Top down operator precedence," 1973.  The original
-article.  Paywalled at the ACM site.
-http://dl.acm.org/citation.cfm?id=512931
+Vaughan R. Pratt, "`Top down operator precedence
+<http://dl.acm.org/citation.cfm?id=512931>`_," 1973.
+The original article, at the ACM site (paywall).
 
-Fredrik Lundh, July 2008.  Excellent explanation and good code examples
-in Python.  http://effbot.org/zone/simple-top-down-parsing.htm Related
-articles by Lundh on Pratt parsing and lexing with regexes:
-http://effbot.org/zone/tdop-index.htm
+Fredrik Lundh, July 2008.  "`Simple Top-Down Parsing in Python
+<http://effbot.org/zone/simple-top-down-parsing.htm>`_."  Excellent explanation
+and good code examples in Python.  Influenced the design and implementation of
+the Typped package.  See also the `related articles by Lundh on Pratt parsing
+and lexing with regexes <http://effbot.org/zone/tdop-index.htm>`_.
 
-Eli Bendersky, 1/2/2010.  An article based on Lundh's article above.  It
-also uses Python.
-http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/
+Eli Bendersky, 1/2/2010.  "`Top-Down operator precedence parsing
+<http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/>`_."
+An article based on Lundh's article above.  It also uses Python and has some
+useful discussion.
 
-Douglas Crockford 2007-02-21, using JavaScript.
-http://javascript.crockford.com/tdop/tdop.html
+Douglas Crockford 2007-02-21, "`Top Down Operator Precedence
+<http://javascript.crockford.com/tdop/tdop.html>`_."  Uses JavaScript.
 
-Bob Nystrom, 3/19/2011, using Java.
-http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/
+Bob Nystrom, 3/19/2011, "`Pratt Parsers: Expression Parsing Made Easy
+<http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/>`_."
+Uses Java.
 

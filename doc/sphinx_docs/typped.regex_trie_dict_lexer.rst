@@ -5,4 +5,3 @@ typped.regex_trie_dict_lexer module
     :members:
     :undoc-members:
     :show-inheritance:
-

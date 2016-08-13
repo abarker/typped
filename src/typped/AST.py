@@ -4,7 +4,13 @@
 """
 
 from __future__ import print_function, division, absolute_import
-from pratt_parser import PrattParser
+
+# Run tests when invoked as a script.
+if __name__ == "__main__":
+    import pytest_helper
+    pytest_helper.script_run("../../test/test_AST.py", pytest_args="-v")
+
+from .pratt_parser import PrattParser
 
 #
 # AST stuff
@@ -107,11 +113,4 @@ class AST_NodeDict(object):
         instance.token_label = token.token_label
         return instance
 
-#
-# Run tests below when invoked as a script.
-#
-
-if __name__ == "__main__":
-    import pytest_helper
-    pytest_helper.script_run("../../test/test_AST.py", pytest_args="-v")
 

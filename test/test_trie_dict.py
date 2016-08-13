@@ -4,12 +4,12 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src/typped")
+pytest_helper.sys_path("../src")
 
 import random
 import string
 import re
-from trie_dict import *
+from typped.trie_dict import *
 from py.test import raises, fail
 
 #

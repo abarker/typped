@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 # Typped documentation build configuration file, created by
-# sphinx-quickstart on Fri Jun 17 17:44:36 2016.
+# sphinx-quickstart on Mon Aug  8 19:14:55 2016.
 #
 # This file is execfile()d with the current directory set to its
 # containing dir.
@@ -20,7 +20,6 @@ import os
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath("../../src"))
-sys.path.insert(0, os.path.abspath("../../src/typped"))
 
 # -- General configuration ------------------------------------------------
 

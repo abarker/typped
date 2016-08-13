@@ -1,14 +1,12 @@
-The typped package API
-======================
+typped package
+==============
 
 Submodules
 ----------
 
 .. toctree::
 
-   typped.directory_locator
-   typped.enum_wrapper
-   typped.external_program_calls
+   typped.AST
    typped.lexer
    typped.pratt_parser
    typped.pratt_types
