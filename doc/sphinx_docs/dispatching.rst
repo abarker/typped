@@ -107,6 +107,9 @@ argument.
 
 TODO: maybe make non-subclass version the example.... less confusing to newbies.
 
+TODO: the whole extending_prattparser.rst file may be moot if the example here
+just does it.... consolidate somehow (not much in that file yet, anyway)
+
 In this example the `PrattParser` class is extended by defining a subclass with
 additional methods.  It is not strictly necessary to create a subclass,
 however.  You would just rename the `self` variable to something like `parser`
@@ -148,7 +151,7 @@ as the previous ones. ::
             return tok
 
         # Always call this function to register a handler function with the token.
-        self.modify_token_subclass(fname_token_label, prec=0,
+        return self.modify_token_subclass(fname_token_label, prec=0,
                                    head=head_handler,
                                    precond_label=precond_label,
                                    precond_fun=preconditions,

@@ -200,7 +200,8 @@ import copy
 import functools
 from collections import OrderedDict, namedtuple, defaultdict
 
-from .lexer import Lexer, TokenNode, TokenTable, LexerException, BufferIndexError
+from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
+                    multi_funcall)
 from .pratt_types import ParameterizedTypeDict, TypeSig
 
 # TODO: if PrattParser requires tokens defined from itself, it should mark them and
@@ -424,7 +425,6 @@ def token_subclass_factory():
         @classmethod
         def unregister_handler_fun(cls, head_or_tail,
                                    precond_label=None, type_sig=None):
-
             """Unregister the previously-registered handler function (head or
             tail).  If `precond_label` is not set then all head or tail
             handlers (as selected by `head_or_tail`) are unregistered.  If
@@ -483,7 +483,6 @@ def token_subclass_factory():
             Note that this function also sets the attribute `precond_label` of
             this token instance to the label of the winning precondition
             function."""
-
             sorted_handler_dict = self.handler_funs[head_or_tail]
             if not sorted_handler_dict:
                 raise NoHandlerFunctionDefined(
@@ -507,25 +506,6 @@ def token_subclass_factory():
                     "token with token label '{1}' and value '{2}' in the current "
                     "preconditions."
                     .format(head_or_tail, self.token_label, self.value))
-
-#        def dispatch_and_call_handler(self, head_or_tail, lex, 
-#                                      left=None, lookbehind=None, call=True):
-#            """Look up and call the handler function, passing along the arguments.
-#            
-#            If `call` is set false then the handler will not be called.  This
-#            is used to test if there is a handler of the specified type, by
-#            catching the `NoHandlerFunctionDefined` exception."""
-#            if head_or_tail == HEAD:
-#                fun = self.lookup_handler_fun(HEAD, lex)
-#                if call:
-#                    return fun(self, lex)
-#            elif head_or_tail == TAIL:
-#                fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
-#                if call:
-#                    return fun(self, lex, left)
-#            else: 
-#                raise ParserException("Bad first argument to dispatch_and_call_handler"
-#                        " function: must be HEAD or TAIL or equivalent.")
 
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
             """Look up and return the handler function for the token."""
@@ -965,7 +945,7 @@ def token_subclass_factory():
                 if not lex.token.parser_instance.jop_token_subclass:
                     break
                 # Not if at end of expression.
-                if lex.is_end_token(lex.peek()):
+                if lex.peek().is_end_token():
                     break
                 # Not if the ignored token for jop is set but not present.
                 if lex.token.parser_instance.jop_ignored_token_label and (
@@ -1143,34 +1123,20 @@ class PrattParser(object):
     def def_token_master(self, token_label, regex_string=None, on_ties=0, ignore=False,
                          ignored_token_label=None, token_kind="regular"):
         """The master method for defining tokens that all the convenience methods
-        call.  Allows for factoring out some common code and keeping the attributes
-        of the different kinds of tokens up-to-date."""
-        # Note that using self.lex to define tokens is equivalent to using
-        # self.token_table, since the lexer just calls token-table routine.
-        # Whenever something might be defined the lexer will point to the
-        # correct token table, and call its method (remember that when parsers
-        # call parsers the lexer is temporarily swapped, but the token-table is
-        # kept the same).
-        #
-        # TODO want to move the def_begin_token and def_end_token methods of the lexer
-        # to the token table.  Then, change all the self.lex references below to
-        # token_table (set just below, not yet used).  But, the lexer is setting
-        # its own begin_token_label and end_token_label attributes *which should
-        # really be associated with the token-table* and looked up from there
-        # (in case it switches and another parser expects a different label).
-        # So, not too complicated but need to get right.
-        token_table = self.token_table # TODO not yet used
+        must call.  Allows for factoring out some common code and keeping the
+        attributes of all the different kinds of tokens up-to-date."""
+        token_table = self.token_table
 
         if token_kind == "regular":
-            tok = self.lex.def_token(token_label, regex_string,
+            tok = token_table.def_token(token_label, regex_string,
                                       on_ties=on_ties, ignore=ignore)
 
         elif token_kind == "ignored":
-            tok = self.lex.def_ignored_token(token_label, regex_string,
-                                             on_ties=on_ties)
+            tok = token_table.def_token(token_label, regex_string,
+                                             on_ties=on_ties, ignore=True)
 
         elif token_kind == "begin":
-            self.lex.def_begin_token(token_label)
+            token_table.def_begin_token(token_label)
             self.begin_token_label = token_label
             # Define dummy handlers for the begin-token.
             def begin_head(self, lex):
@@ -1182,7 +1148,7 @@ class PrattParser(object):
             self.begin_token_subclass = tok
 
         elif token_kind == "end":
-            self.lex.def_end_token(token_label)
+            token_table.def_end_token(token_label)
             self.end_token_label = token_label
             # Define dummy handlers for the begin-token.
             def end_head(self, lex):
@@ -1199,7 +1165,7 @@ class PrattParser(object):
                                       "undefined before defining a new one.")
             self.jop_token_label = token_label
             self.jop_ignored_token_label = ignored_token_label
-            tok = self.lex.def_token(token_label, None)
+            tok = token_table.def_token(token_label, None)
             self.jop_token_subclass = tok
 
         elif token_kind == "null-string":
@@ -1207,8 +1173,7 @@ class PrattParser(object):
                 raise ParserException("A null-string token is already defined.  It"
                          " must be undefined before defining an new one.")
             self.null_string_token_label = token_label
-            tok = self.def_token(null_string_token_label, None)
-            tok = self.lex.def_token(token_label, None)
+            tok = token_table.def_token(token_label, None)
             self.null_string_token_subclass = tok
 
         else:
@@ -1229,30 +1194,21 @@ class PrattParser(object):
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define a token with `ignored=True`."""
-        return self.def_token_master(token_label, regex_string, on_ties, ignore,
-                                     token_kind="ignored")
+        return self.def_token_master(token_label, regex_string, on_ties,
+                                     ignore=True, token_kind="ignored")
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        # TODO need a master token definer for all multi-token defs or another way to do it.
-        tok_list = self.lex.def_multi_tokens(tuple_list)
-        for t in tok_list:
-            t.parser_instance = self
-            t.token_table = self.token_table
-        return tok_list
+        return multi_funcall(self.def_token, tuple_list)
 
     def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple ignored tokens at once.
         Each element of the passed-in list should be a tuple containing the arguments
         to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
-        tok_list = self.lex.def_multi_ignored_tokens(tuple_list)
-        for t in tok_list:
-            t.parser_instance = self
-            t.token_table = self.token_table
-        return tok_list
+        return multi_funcall(self.def_ignored_token, tuple_list)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Calls the `Lexer` method to define begin- and end-tokens.  The
@@ -1298,31 +1254,25 @@ class PrattParser(object):
     # Undefine tokens.
     #
 
-    def undef_token_master(self, token_label):
+    def undef_token(self, token_label):
         """A method for undefining any token defined by the `PrattParser` methods.
         Since the `token_kind` was set for all tokens when they were defined
-        it knows how to undelete any kind."""
-        # TODO implement, then rename to undef_token and delete all others
-
-    def undef_token(self, token_label):
-        """A convenience function; calls the Lexer `undef_token` method.  Should
-        not be used for the begin or end token or null-string tokens."""
-        # TODO: Maybe err check for begin/end or null token, or combine all into one.
-        self.lex.undef_token(token_label)
-
-    def undef_null_string_token(self):
-        """Undefine a null_string token."""
-        self.undef_token(self.null_string_token_label)
-        self.null_string_token_subclass = None
-        self.null_string_token_label = None
-        self.null_string_ignored_token_label = None
-
-    def undef_jop_token(self):
-        """Undefine a jop token."""
-        self.undef_token(self.jop_token_label)
-        self.jop_token_subclass = None
-        self.jop_token_label = None
-        self.jop_ignored_token_label = None
+        it knows how to undelete any kind of token."""
+        token_table = self.token_table
+        tok = token_table.get_token_subclass(token_label)
+        kind = tok.token_kind
+        if kind == "jop":
+            token_table.undef_token(self.jop_token_label)
+            self.jop_token_subclass = None
+            self.jop_token_label = None
+            self.jop_ignored_token_label = None
+        elif kind == "null-string":
+            token_table.undef_token(self.null_string_token_label)
+            self.null_string_token_subclass = None
+            self.null_string_token_label = None
+            self.null_string_ignored_token_label = None
+        else:
+            token_table.undef_token(token_label)
 
     #
     # Methods to modify tokens.
@@ -1445,7 +1395,7 @@ class PrattParser(object):
         def head_handler_literal(tok, lex):
             tok.process_and_check_node(head_handler_literal, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(token_label, head=head_handler_literal,
+        return self.modify_token_subclass(token_label, head=head_handler_literal,
                                                 val_type=val_type, arg_types=(),
                                                 eval_fun=eval_fun)
 
@@ -1454,7 +1404,7 @@ class PrattParser(object):
         tuples.  The `def_literal` method will be called for each tuple, unpacked
         in the order in the tuple.  Unspecified optional arguments get their default
         values."""
-        multi_funcall(self.def_literal, tuple_list)
+        return multi_funcall(self.def_literal, tuple_list)
 
     def def_infix_multi_op(self, operator_token_labels, prec,
                                     assoc, repeat=False, in_tree=True,
@@ -1492,14 +1442,14 @@ class PrattParser(object):
             tok.process_and_check_node(tail_handler, in_tree=in_tree,
                                         repeat_args=repeat, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(operator_token_labels[0], prec=prec,
+        return self.modify_token_subclass(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type,
                                 arg_types=arg_types, eval_fun=eval_fun)
 
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This just calls the more general method `def_multi_infix_op`."""
-        self.def_infix_multi_op([operator_token_label], prec,
+        return self.def_infix_multi_op([operator_token_label], prec,
                               assoc, in_tree=in_tree,
                               val_type=val_type, arg_types=arg_types,
                               eval_fun=eval_fun, ast_label=ast_label)
@@ -1511,7 +1461,7 @@ class PrattParser(object):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(operator_token_label, head=head_handler,
+        return self.modify_token_subclass(operator_token_label, head=head_handler,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
@@ -1526,7 +1476,7 @@ class PrattParser(object):
             tok.append_children(left)
             tok.process_and_check_node(tail_handler, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
+        return self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
@@ -1543,7 +1493,7 @@ class PrattParser(object):
                         typesig_override=TypeSig(tok.children[0].val_type, ()),
                         ast_label=ast_label)
             return tok
-        self.modify_token_subclass(lbrac_token_label, head=head_handler,
+        return self.modify_token_subclass(lbrac_token_label, head=head_handler,
                                    eval_fun=eval_fun)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
@@ -1584,7 +1534,7 @@ class PrattParser(object):
             tok.match_next(rpar_token_label, raise_on_fail=True)
             tok.process_and_check_node(head_handler, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(fname_token_label, prec=0,
+        return self.modify_token_subclass(fname_token_label, prec=0,
                      head=head_handler, precond_label=precond_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
@@ -1612,7 +1562,7 @@ class PrattParser(object):
             tok.match_next(rpar_token_label, raise_on_fail=True)
             left.process_and_check_node(tail_handler, ast_label=ast_label)
             return left
-        self.modify_token_subclass(lpar_token_label,
+        return self.modify_token_subclass(lpar_token_label,
                                          prec=prec_of_lpar, tail=tail_handler,
                                          val_type=val_type, arg_types=arg_types,
                                          eval_fun=eval_fun)
@@ -1644,7 +1594,7 @@ class PrattParser(object):
             tok.append_children(left, right_operand)
             tok.process_and_check_node(tail_handler, ast_label=ast_label)
             return tok
-        self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
+        return self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
                             precond_priority=precond_priority,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun)
@@ -1686,7 +1636,7 @@ class PrattParser(object):
         parse_tree_list = []
         while True:
             self.lex.set_text(program)
-            begin_tok = self.lex.peek(0) # Get first token only to access recursive_parse.
+            begin_tok = self.lex.token # Get begin token to access recursive_parse.
             output = begin_tok.recursive_parse(0)
             parse_tree_list.append(output)
 
@@ -1695,7 +1645,7 @@ class PrattParser(object):
                 output.check_types_in_tree_second_pass(root=True)
 
             # See if we reached the end of the token stream.
-            if self.lex.is_end_token(self.lex.peek()):
+            if self.lex.peek().is_end_token():
                 break
             if self.multi_expression:
                 continue
@@ -1710,22 +1660,6 @@ class PrattParser(object):
             return parse_tree_list
         else:
             return output
-
-
-def multi_funcall(function, tuple_list):
-   """A convenience function that takes a list of tuples and a method name and
-   calls `function` with the values in the tuple as arguments.  The parameter
-   `num_args` is the number of arguments, and `defaults` is a list of all the
-   default values assigned to parameters.  The parameter `tuple_list` is the
-   list of tuples of arguments."""
-   for t in tuple_list:
-       try:
-          function(*t)
-       except TypeError:
-           raise ParserException(
-                   "Bad multi-definition of {0}: Omitted required arguments."
-                   "\nError on this tuple: {1}".format(function.__name__, t))
-
 
 def sort_handler_dict(d):
     """Return the sorted `OrderedDict` version of the dict `d` passed in,
@@ -1742,13 +1676,6 @@ def sort_handler_dict(d):
 # handler_funs[TAIL] for each token subclass.
 HandlerData = namedtuple("HandlerData",
                          ["precond_fun", "precond_priority", "handler_fun"])
-
-# Each handler function has a list of these tuples, holding the possible type
-# overloads and the corresponding evaluation function (if any).
-# The `actual_sig` field is set when the original sig is expanded for
-# wildcards (to match the number of arguments).
-SigData = namedtuple("SigData",
-                     ["type_sig", "actual_sig", "eval_fun"])
 
 #
 # Exceptions

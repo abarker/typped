@@ -84,7 +84,7 @@ class TestLexer:
         t = lex.next(5)
         assert t[0].value == "7"
         assert t[1].value == "8"
-        assert t[2].token_label == lex.end_token_label
+        assert t[2].is_end_token()
         assert len(t) == 3
 
     def test_go_back(self):
@@ -129,12 +129,12 @@ class TestLexer:
         assert lex.next().value == "1"
         lex.go_back(2)
         t = lex.token
-        assert t.token_label == lex.begin_token_label # current token is begin token
+        assert t.is_begin_token()
         t = lex.next()
         assert t.is_first
         assert t.value == "1" 
         t = lex.go_back(4) # attempt to go back before beginning
-        assert t.token_label == lex.begin_token_label
+        assert t.is_begin_token()
         tt = lex.next(4)
         assert tt[0].value == "1"
         assert tt[3].value == "4"
@@ -160,8 +160,8 @@ class TestLexer:
         assert tt[-1].value == "7"
         t = lex.next() # Read the last non-end token.
         assert lex.token.value == "8"
-        assert lex.peek().token_label == lex.end_token_label # just before end
-        assert lex.peek(2).token_label == lex.end_token_label # buffer fills with end tokens
+        assert lex.peek().is_end_token() # just before end
+        assert lex.peek(2).is_end_token() # buffer fills with end tokens
 
         # Now we are at the end of the text, but haven't read end token.
         print("\nbefore go back")
@@ -174,17 +174,17 @@ class TestLexer:
         charnumber, linenumber = lex.token.line_and_char
         tc_lex = lex.non_ignored_token_count
         tc_tok = lex.token.non_ignored_token_count
-        assert lex.next().token_label == lex.end_token_label
+        assert lex.next().is_end_token()
         lex.go_back()
         assert (charnumber, linenumber) == lex.token.line_and_char
         assert lex.non_ignored_token_count == tc_lex
         assert lex.token.non_ignored_token_count == tc_tok
-        assert lex.next().token_label == lex.end_token_label
+        assert lex.next().is_end_token()
         lex.go_back(2)
         assert lex.next().value == "8"
 
         # Read two end tokens and see the StopIteration.
-        assert lex.next().token_label == lex.end_token_label
+        assert lex.next().is_end_token()
         with raises(StopIteration):
             lex.next()
 
