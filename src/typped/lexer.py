@@ -6,16 +6,26 @@ be used by the `PrattParser` class, but it could also be used for other lexical
 scanning applications.
 
 The general purpose of the `Lexer` is to take a string of text and produce a
-string of tokens.  The tokens themselves are defined by the user, and given a
-regex pattern that is searched for in the program text.  The lexer is a generator
-that sequentially products tokens.
+corresponding string of tokens.  The tokens themselves are defined by the user,
+with a string label and a regex pattern that is searched for in the program
+text.  A `Lexer` class is a generator that sequentially produces tokens.  It is
+also an iterator, so after initialization with text it can be used in loops,
+etc.
+
+With some lexers the order in which tokens are defined is significant.  The
+`Lexer` class was designed to function independently of the order in which
+tokens are defined.  This allows token definitions to be either put in one
+place or spread around in the code in any order, however the programmer wants
+to organize things.  It makes priorities explicit rather than being implicitly
+defined by ordering.
 
 A token for a left parenthesis, for example, would be defined like this::
 
     lexer.def_token("k_lpar", r"lpar")
 
-The string `k_lpar` is a label for the token.  Similarly, an identifier could be
-defined like this::
+The string `k_lpar` is a label for the token.  (The use of the string prefix
+`k_` is a naming convention for string token labels).  Similarly, an identifier
+could be defined like this::
 
     parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
@@ -32,10 +42,13 @@ and defined it as::
 Since this token has a higher `on_ties` value, it will always take precedence over
 the identifier token (even though both match and have the same length).
 
-With some lexers the order in which tokens are defined is significant.  This
-lexer was designed to function independently of the order in which tokens are
-defined.  That allows token definitions to be either put in one place or spread
-around in the code, however the programmer wants to organize things.
+The lexer assumes sentinel begin-token and end-token tokens, which must be
+explicitly defined using either the `def_begin_end_tokens` method or else by
+setting the `default_begin_end_tokens` flag to `True` when initializing the
+lexer.  The begin-token is never explicitly returned.  At the end of the text,
+the `next` method explicitly returns one end-token.  Calling `next` on that
+end-token raises `StopIteration` and halts the lexing of the currently-set
+text.  All peeks beyond the end of the text are reported as end-tokens.
 
 Using the lexer
 ---------------
@@ -67,7 +80,7 @@ The result is as follows:
     <k_identifier,y>
     <end,None>
 
-Notice that the end token is actually returned, but the begin token is not.
+Notice that the end-token is actually returned, but the begin-token is not.
 
 User-accessible attributes of tokens
 ------------------------------------
@@ -93,10 +106,11 @@ For a token named `t`, these attributes are available:
 
 TODO, list other methods, too.
 
-User-callable methods of `Lexer`
---------------------------------
+User-accessible methods and attributes of `Lexer`
+-------------------------------------------------
 
-There are many utility methods of the lexer that users can call.
+There are many utility methods of the lexer that users can call.  Only the main
+ones are listed here.  See the full documentation below.
 
 General methods:
 
@@ -107,13 +121,15 @@ General methods:
 Some boolean-valued informational methods:
 
 * `is_first` -- true only if the token passed in is the first token
-* `is_begin_token` -- true only if the argument is a begin token
-* `is_end_token` -- true only if the argument passed in is an end token
+* `is_begin_token` -- true only if the argument is a begin-token
+* `is_end_token` -- true only if the argument passed in is an end-token
+* `text_is_set` -- true only when text is currently set for scanning
 
 Other attributes:
 
-`line_number` -- the line number of the current token
-`char_number` -- the character number of the current character
+* `token` -- the current token (the most recent one returned by `next`)
+* `line_number` -- the line number of the current token
+* `char_number` -- the character number of the current character
 
 TODO, list more, why not make some methods of `TokenNode` instead?
 
@@ -130,10 +146,9 @@ Code
 
 """
 
-# TODO: consider making the token_table a separable part of the Lexer, so
-# you could swap one out for another and switch to lexing a different set
-# of tokens from the middle of the text stream.  The whole def_token thing
-# can be moved there, too, and just called from Lexer as a convenience.
+# TODO: why not consider a peek-on-demand lexer, that only peeks when it needs
+# to?  Then users get whatever they ask for or really need.  You could still
+# set a max_peek value to approximate the old way, with a default of infinity.
 
 # TODO: consider adding a method to return the processed part and the unprocessed
 # part of the orginal text.  Shouldn't be too hard when up-to-speed on the Lexer
@@ -170,7 +185,7 @@ class TokenNode(object):
     node, i.e. `t_node[0]` would be the leftmost child."""
     
     token_label = None # A label for subclasses representing kinds of tokens.
-    original_matched_string = "" # Default, for begin and end tokens.
+    original_matched_string = "" # Default, for begin- and end-tokens.
 
     def __init__(self):
         """Initialize the TokenNode."""
@@ -267,8 +282,10 @@ class TokenNode(object):
         if self.token_label == "k_number":
             return "[literal {0}]".format(self.value)
         if self.token_label == "k_lpar":
-            if self.children: return "[k_lpar {0} k_rpar]".format(self.children[0].old_repr())
-            else: return "[literal k_lpar]"
+            if self.children:
+                return "[k_lpar {0} k_rpar]".format(self.children[0].old_repr())
+            else:
+                return "[literal k_lpar]"
         else:
             str_val = "[" + str(self.value)
             for a in self.children: str_val += " " + a.old_repr()
@@ -327,7 +344,8 @@ class TokenTable(object):
         self.token_labels = [] # The list of token_labels.
         self.compiled_regexes = [] # The compiled regexes for recognizing tokens.
         self.on_ties = [] # List of int values for breaking equal-length match ties.
-        self.ignore_tokens = set()
+        self.ignore_tokens = set() # The set of tokens to ignore.
+        self.lex = None # The lexer currently associated with this token table.
 
     def has_key(self, token_label):
         """Test whether a token subclass for `token_label` has been stored."""
@@ -362,8 +380,10 @@ class TokenTable(object):
     def undef_token_subclass(self, token_label):
         """Un-define the token with label token_label.  The `TokenNode` subclass
         previously associated with that label is removed from the dictionary."""
-        try: del self.token_subclass_dict[token_label]
-        except KeyError: return # Not saved in dict, ignore.
+        try:
+            del self.token_subclass_dict[token_label]
+        except KeyError:
+            return # Not saved in dict, ignore.
 
     def is_defined_token_label(self, token):
         """Return true if `token` is currently defined as a token label."""
@@ -411,10 +431,11 @@ class TokenTable(object):
                 self.ignore_tokens.add(token_label)
         # Initialize with a bare-bones, default token_subclass.
         new_subclass = self.create_token_subclass(token_label)
+        new_subclass.token_table = self
         return new_subclass
 
     def _insert_pattern(self, regex_string):
-        """Insert the pattern in the list of patterns."""
+        """Insert the pattern in the list of regex patterns, after compiling it."""
         # TODO prepare for using trie for simple patterns
         # Note negative lookbehind assertion (?<!\\) for escape before
         # the strings which start Python regex special chars.
@@ -444,15 +465,15 @@ class TokenTable(object):
         self.compiled_regexes.append(compiled_regex)
 
     def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
-        """A utility routine to do the actual string match on the prefix of
+        """A utility routine that does the actual string match on the prefix of
         `self.program`.  Return the list of matching prefixes and a list of
         (length, on_ties) data for ranking them."""
-        # Python's finditer finds the *first* match group and stops.  They
-        # are ordered by the order they occur in the regex.  It finds the
+        # Note that Python's finditer finds the *first* match group and stops.
+        # They are ordered by the order they occur in the regex.  It finds the
         # longest match of any particular group, but stops when it finds a
-        # match of some group.  Instead of that, this code loops over the
-        # separate patterns to find the overall longest, breaking ties with
-        # on_ties values. 
+        # match of some group.  Instead of using that, this code loops over all
+        # the separate patterns to find the overall longest, breaking ties with
+        # on_ties values.
         matching_prefixes_list = [] # All the prefix strings that match some token.
         len_and_on_ties_list = [] # Ordered like matching_prefixes_list (len, on_ties)
         for count, patt in enumerate(self.compiled_regexes):
@@ -522,16 +543,15 @@ class GenTokenState:
     uninitialized = 3
 
 class Lexer(object):
-    """Scans the program and returns the tokens, represented by instances of
-    `TokenNode` subclass instances. There is one subclass for each kind of
-    token, i.e., for each token label.  These subclasses themselves are assumed
-    to have been created before any scanning operation which can return an
-    instance, via the `def_token` method. 
+
+    """Scans text and returns tokens, represented by instances of `TokenNode`
+    subclass instances. There is one subclass for each kind of token, i.e., for
+    each token label.  These subclasses themselves are assumed to have been
+    created before any scanning operation, via the `def_token` method. 
     
-    Token strings are assumed to have both a begin and an end token, defined
-    via the `def_begin_end_tokens` method.  These token types act as
-    sentinels at the beginning and end of the token stream.  Exactly one end
-    token will be returned by `next`; any further calls to `next` raise
+    Token sequences are assumed to have both a begin-token and an end-token
+    sentinel, defined via the `def_begin_end_tokens` method.  Exactly one
+    end-token will be returned by `next`; any further calls to `next` raise
     `StopIteration`.
     
     The scanning is independent of the order in which tokens are defined.  The
@@ -543,8 +563,8 @@ class Lexer(object):
     own empty one."""
 
     ERROR_MSG_TEXT_SNIPPET_SIZE = 40 # Number of characters to show for context.
-    DEFAULT_BEGIN = "k_begin" # Default label for begin token.
-    DEFAULT_END = "k_end" # Default label for end token.
+    DEFAULT_BEGIN = "k_begin" # Default label for begin-token.
+    DEFAULT_END = "k_end" # Default label for end-token.
 
     #
     # Initialization methods
@@ -556,20 +576,25 @@ class Lexer(object):
         `TokenTable` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
         tokens that the `go_back` method can accept (default is unlimited).
-        If `default_begin_end_tokens` is true then begin and end tokens will
+        If `default_begin_end_tokens` is true then begin- and end-tokens will
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
-        if token_table is None:
-            self.token_table = TokenTable()
-        else:
-            self.token_table = token_table
+        self.text_is_set = False
 
-        # Consider integrating the lookahead tokens and the previous tokens
-        # into a single buffer.  Then the lookahead is just a slice of that
-        # buffer.  This allows easy pushback operations, at least.  Obviously
-        # next() would have to be modified to know when to use generate_token
-        # or not.
+        if token_table is None:
+            token_table = TokenTable()
+        self.set_token_table(token_table)
+
+        # TODO: Consider integrating the lookahead tokens and the previous
+        # tokens into a single buffer.  Then the lookahead is just a slice of
+        # that buffer.  This allows easy push_back operations, at least.
+        # Obviously next() would have to be modified to know when to use
+        # generate_token or not.  Would be nice to have a push_back in addition
+        # to a go_back.  This would also work with the peek-on-demand
+        # enhancement idea.  Abstracting out the current buffer first would
+        # probably make the change/refactoring easier.  Would also make it easier
+        # to have different views of the lexer easier, such as if it were one back.
         self.NUM_LOOKAHEAD_TOKENS = num_lookahead_tokens
         self.MAX_TOKEN_BUFFER_SIZE = self.NUM_LOOKAHEAD_TOKENS + 1
         self.token_buffer = collections.deque(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
@@ -590,7 +615,21 @@ class Lexer(object):
         if default_begin_end_tokens:
             self.def_begin_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
 
-        return
+    def set_token_table(self, token_table, go_back=0):
+        """Sets the current `TokenTable` instance for the lexer to
+        `token_table`.  This is called on initialization, but can also be
+        called at any time.  If text is being scanned at the time it flushes,
+        re-scans, and refills the lookahead buffer (using `go_back`, with
+        the argument given by `go_back`).
+        
+        When set with this method the token table is always given the attribute
+        `lex`, which points to the lexer instance this method was called from.
+        This attribute is used by tokens (which know their fixed symbol table)
+        so they can find the current lexer (to call `next`, etc.)"""
+        self.token_table = token_table
+        self.token_table.lex = self
+        if self.text_is_set:
+            self.go_back(0)
 
     def set_text(self, program,
                  reset_linenumber=True, reset_charnumber=True):
@@ -612,8 +651,10 @@ class Lexer(object):
         self.ignored_before_curr = [] # Tokens ignored just before current one.
 
         # Reset line, character, and token counts.  All counts include the buffer.
-        if reset_linenumber: self.linenumber = 1
-        if reset_charnumber: self.charnumber = 1
+        if reset_linenumber:
+            self.linenumber = 1
+        if reset_charnumber:
+            self.charnumber = 1
         self.all_token_count = 0 # Count all actual tokens (not begin and end).
         self.non_ignored_token_count = 0 # Count non-ignored actual tokens.
 
@@ -625,19 +666,20 @@ class Lexer(object):
 
         # Set up the token buffer.
         self._initialize_token_buffer()
-        self.token = self.token_buffer[0] # Last token returned; begin token here.
+        self.token = self.token_buffer[0] # Last token returned; begin-token here.
+        self.text_is_set = True
 
     def _initialize_token_buffer(self):
         """A utility routine to initialize (fill) the token buffer.  The
         `token_buffer[0]` slot is the current token.  The current token will be
-        set to the begin token after this routine runs (since no tokens have
+        set to the begin-token after this routine runs (since no tokens have
         yet been read with `next`).  Any tokens in the buffer past the first
-        end token are also set to end tokens.  The size of the token buffer is
+        end-token are also set to end-tokens.  The size of the token buffer is
         `self.NUM_LOOKAHEAD_TOKENS` plus one for the current token.  For
         two-token lookahead the buffer deque has the form:
             [<current_token>, <peek1>, <peek2>]
         """
-        # Put a begin token sentinel in self.previous_tokens if it is empty.
+        # Put a begin-token sentinel in self.previous_tokens if it is empty.
         begin_tok = self.begin_token_subclass(None)
         if not self.previous_tokens:
             self.previous_tokens.append(begin_tok)
@@ -647,7 +689,7 @@ class Lexer(object):
         tb.clear()
         tb.append(begin_tok) # This will be popped off on first next().
         for i in range(self.NUM_LOOKAHEAD_TOKENS): # Fill with lookaheads.
-            new_token = self.token_generator() # Will generate all end tokens at end.
+            new_token = self.token_generator() # Will generate all end-tokens at end.
             tb.append(new_token)
         self.token = self.token_buffer[0]
         assert tb[0].token_label == self.begin_token_label # debug, remove
@@ -658,13 +700,19 @@ class Lexer(object):
 
     def next(self, num=1):
         """Return the next token, consuming from the token stream.  Also sets
-        `self.token` to the return value.  Returns one end token and raises
-        `StopIteration` on a `next` after that end token.  If `num` is greater
+        `self.token` to the return value.  Returns one end-token and raises
+        `StopIteration` on a `next` after that end-token.  If `num` is greater
         than one a list of the tokens is returned (this list is cut short if
-        the first end token is encountered, and so will never generate
-        `StopIteration`).  This method adds buffering on top of the lower-level
-        routine `token_generator`."""
-        if self.already_returned_end_token: raise StopIteration
+        the first end-token is encountered, and so will never generate
+        `StopIteration`).  This method basically just adds buffering on top of
+        the lower-level routine `token_generator`."""
+        if not self.text_is_set:
+            raise LexerException(
+                    "Attempt to call lexer's next method when no text is set.")
+
+        if self.already_returned_end_token:
+            self.text_is_set = False
+            raise StopIteration
 
         # Handle num > 1 case with recursion.
         if num > 1:
@@ -690,13 +738,18 @@ class Lexer(object):
     def peek(self, num_toks=1):
         """Peek ahead in the token stream without consuming any tokens.  Note
         that the argument is the actual number of tokens ahead to peek.  I.e.,
-        the indexing starts at 1. (You can consider 0 to mean to peek at
-        the current token, and that also works.)  Peeking beyond the end
-        of the buffer raises `BufferIndexError`, a subclass of `IndexError`.
-        A peek within the buffer size is always valid, and returns an end
-        token for all peeks from the first end token and beyond."""
-        try: retval = self.token_buffer[num_toks]
-        except IndexError: raise BufferIndexError
+        the indexing starts at 1. (Peeking 0 is considered to mean peek at the
+        current token.)  Peeking beyond the end of the buffer raises
+        `BufferIndexError`, a subclass of `IndexError`.  A peek within the
+        buffer size is always valid, and returns an end-token for all peeks
+        from the first end-token and beyond."""
+        if not self.text_is_set:
+            raise LexerException(
+                    "Attempt to call lexer's peek method when no text is set.")
+        try:
+            retval = self.token_buffer[num_toks]
+        except IndexError:
+            raise BufferIndexError
         return retval
 
     def go_back(self, num_toks=1):
@@ -720,12 +773,22 @@ class Lexer(object):
         
         This method returns the current token after any re-scanning.
 
-        This kind of backup method can be necessary when the token definitions
-        themselves are dynamically changed, such as by a semantic action.  For
-        example, a declaration for the string "my_fun" as a variable might
-        dynamically add a token for that new variable, which would then stop it
-        from matching a general identifier with an on_ties value set to, say,
-        -1."""
+        Note that this kind of backing up is different from the usual
+        `push_back` methods of lexers.  Those only push back parsed tokens, and
+        do not recreate the original text and re-scan it.  Re-scanning can be
+        necessary when token definitions themselves change dynamically, such as
+        by semantic actions.  For example, a declaration of the string "my_fun"
+        as a variable might dynamically add a token for that new variable,
+        which would then stop it from matching a general identifier with a
+        lower on_ties value (set to, say, -1).  This kind of thing is also
+        needed when swapping token tables, such as in parsing a sublanguage
+        with a different parser.  Since the sublanguage has a different
+        collection of tokens the lookahead buffer must be re-scanned based on
+        those tokens."""
+        if not self.text_is_set:
+            raise LexerException(
+                    "Attempt to call lexer's go_back method when no text is set.")
+
         #def print_debug(msg=""):
         #    print(msg, "   token_buffer:", self.token_buffer, 
         #            "\n   previous_tokens:", self.previous_tokens,
@@ -733,7 +796,7 @@ class Lexer(object):
         #            "\n   linenumber, charnumber:", self.linenumber, self.charnumber)
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
-                  "or has reached `StopIteration` by reading past the end token.")
+                  "or has reached `StopIteration` by reading past the end-token.")
         if self.MAX_GO_BACK_TOKENS and num_toks > self.MAX_GO_BACK_TOKENS:
             raise LexerException("Attempt to go back {0} tokens when `MAX_GO_BACK_LEVELS`"
                     " is set to {1}.".format(num_toks, self.MAX_GO_BACK_TOKENS))
@@ -754,7 +817,7 @@ class Lexer(object):
                 peek_token_is_first = True
                 break
             if popped.token_label == self.end_token_label:
-                i -=  1 # End tokens aren't actually read from the token stream.
+                i -=  1 # end-tokens aren't actually read from the token stream.
                 continue
             if popped.ignored_before():
                 (self.linenumber,
@@ -796,12 +859,12 @@ class Lexer(object):
     #
 
     def is_begin_token(self, token):
-        """Test whether the token is the end token."""
+        """Test whether the token is the begin-token."""
         return token.token_label == self.begin_token_label
 
     def curr_token_is_begin(self):
         """True if `self.token` (the last one returned by the `next` method) is
-        the begin token."""
+        the begin-token."""
         return self.token.token_label == self.begin_token_label
 
     def curr_token_is_first(self):
@@ -821,12 +884,12 @@ class Lexer(object):
         return self.token.ignored_before_tokens
 
     def is_end_token(self, token):
-        """Test whether `token` is the end token."""
+        """Test whether `token` is the end-token."""
         return token.token_label == self.end_token_label
 
     def curr_token_is_end(self):
         """True if `self.token` (the last one returned by the `next` method) is
-        the end token."""
+        the end-token."""
         return self.token.token_label == self.end_token_label
 
     def is_defined_token_label(self, token):
@@ -849,16 +912,14 @@ class Lexer(object):
 
     #
     # Methods to define and undefine tokens
-    # Note that after defining a token you need to add the lexer as an attribute.
     #
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """A convenience method to define a token. It calls the corresponding
         `def_token` method of the current `TokenTable` instance associated with
-        the lexer."""
+        the lexer, and does nothing else."""
         new_subclass = self.token_table.def_token(token_label, regex_string,
                        on_ties=on_ties, ignore=ignore)
-        new_subclass.lex = self # TODO: remove this if possible so only calls token_table
         return new_subclass
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
@@ -899,7 +960,7 @@ class Lexer(object):
         stream.  This method must be called before using the Lexer.  It will
         automatically be called using default token label values unless
         `default_begin_end_tokens` was set false on initialization.  Returns a
-        tuple of the new begin and end token subclasses.  These tokens do not
+        tuple of the new begin- and end-token subclasses.  These tokens do not
         need to be defined with `def_token` because they are never actually
         scanned and recognized in the program text (which would also require a
         regex pattern)."""
@@ -908,11 +969,11 @@ class Lexer(object):
         # to change all the self.begin_token_label to have self.token_table
         # prefix.
 
-        # Define begin token.
+        # Define begin-token.
         self.begin_token_label = begin_token_label
         self.begin_token_subclass = self.token_table.create_token_subclass(
                                                                 begin_token_label)
-        # Define end token.
+        # Define end-token.
         self.end_token_label = end_token_label
         self.end_token_subclass = self.token_table.create_token_subclass(
                                                                 end_token_label)
@@ -1024,14 +1085,14 @@ class Lexer(object):
                 self.non_ignored_token_count += 1
 
             # =======================================================================
-            # === Return only end tokens state ======================================
+            # === Return only end-tokens state ======================================
             # =======================================================================
             elif self.token_generator_state == GenTokenState.end:
                 token_subclass_for_end = self.token_table.get_token_subclass(
                                                              self.end_token_label)
                 tci = token_subclass_for_end(None)
                 tci.line_and_char = (self.linenumber, self.charnumber)
-                # Only save a single end token on previous_tokens list.
+                # Only save a single end-token on previous_tokens list.
                 if (self.previous_tokens and not 
                                 self.is_end_token(self.previous_tokens[-1])):
                     self.previous_tokens.append(tci)

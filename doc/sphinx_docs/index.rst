@@ -46,6 +46,7 @@ choice if speed is the most important factor.
    types_in_typped
    juxtaposition_operators
    extending_prattparser
+   multiple_parsers
    typped
    other_possible_generalizations
 
