@@ -405,11 +405,13 @@ class TokenTable(object):
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.
         
-        The label `token_label` is the label for the kind of token.  The label
-        `regex_string` is a Python regular expression defining the text strings
-        which match for the token.  If `regex_string` is set to `None` then a
-        dummy token will be created which is never searched for in the lexed
-        text.
+        The label `token_label` is the label for the kind of token.
+        
+        The label `regex_string` is a Python regular expression defining the
+        text strings which match for the token.  If `regex_string` is set to
+        `None` then a dummy token will be created which is never searched for
+        in the lexed text.  To better catch errors it does not have a default
+        value, so setting it to `None` must be done explicitly.
         
         Setting `ignore=True` will cause all such tokens to be ignored (except
         that they will be placed on the `ignored_before` list of the
@@ -955,6 +957,25 @@ class Lexer(object):
         the current `TokenTable` instance associated with the Lexer."""
         self.token_table.undef_token(token_label)
 
+    def def_begin_token(self, begin_token_label):
+        """Define the begin-token.  The `def_begin_end_tokens` method should usually
+        be called instead."""
+        self.begin_token_label = begin_token_label
+        tok = self.token_table.create_token_subclass(begin_token_label)
+        self.begin_token_subclass = tok
+        self.begin_token_subclass.lex = self # TODO tokens shouldn't see lex
+        return tok
+
+    def def_end_token(self, end_token_label):
+        """Define the end-token.  The `def_begin_end_tokens` method should usually
+        be called instead."""
+        # Define end-token.
+        self.end_token_label = end_token_label
+        tok = self.token_table.create_token_subclass(end_token_label)
+        self.end_token_subclass = tok
+        self.end_token_subclass.lex = self
+        return tok
+
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Define the sentinel tokens at the beginning and end of the token
         stream.  This method must be called before using the Lexer.  It will
@@ -968,18 +989,9 @@ class Lexer(object):
         # token_table method.  Probably they should, but then in Lexer need
         # to change all the self.begin_token_label to have self.token_table
         # prefix.
-
-        # Define begin-token.
-        self.begin_token_label = begin_token_label
-        self.begin_token_subclass = self.token_table.create_token_subclass(
-                                                                begin_token_label)
-        # Define end-token.
-        self.end_token_label = end_token_label
-        self.end_token_subclass = self.token_table.create_token_subclass(
-                                                                end_token_label)
-        self.begin_token_subclass.lex = self
-        self.end_token_subclass.lex = self
-        return self.begin_token_subclass, self.end_token_subclass
+        begin_tok = self.def_begin_token(begin_token_label)
+        end_tok = self.def_end_token(end_token_label)
+        return begin_tok, end_tok
 
     #
     # Lower-level routine for token generation

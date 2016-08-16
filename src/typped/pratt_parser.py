@@ -1135,59 +1135,108 @@ class PrattParser(object):
             self.overload_on_arg_types = True
 
     #
-    # Methods dealing with tokens.
+    # Methods defining tokens.
     #
 
-    # TODO consider setting token kinds for everything and using that
-    # to combine these, taking a token_kind="jop" sort of optional argument.
-    # Kinds so far "regular", "begin", "end", "ignored", "jop", "null-string"
-    # The first three should be set in the Lexer.  Maybe a better way to
-    # define it.  Remove the beginnings of t.token_kind below if don't use.
-    # 
-    # How about using a set to hold all the kinds associated with a token?
-    # Then, easy to check even with multiples (though lists wouldn't be that
-    # bad, and most would have one element).
-    #
-    # Maybe easier just to define individual attributes for all.
-    # .is_regular_token
-    # .is_begin_token
-    # .is_ignored_token
-    # .is_jop_token
-    # .is_null_string_token
-    # Just need to initialize and set all the values, including when defining
-    # the special types.
-    #
-    # DEFINITELY combine into one def_token.... much duplication hard to keep up-to-date.
-    # If only to put inside a giant case with a kwarg, factoring out the common stuff
-    # (and maybe even convenience methods for original ones, or require some arg
-    # to be passed to create special kinds of tokens.
+    token_kinds = ("regular", "ignored", "begin", "end", "jop", "null-string")
+
+    def def_token_master(self, token_label, regex_string=None, on_ties=0, ignore=False,
+                         ignored_token_label=None, token_kind="regular"):
+        """The master method for defining tokens that all the convenience methods
+        call.  Allows for factoring out some common code and keeping the attributes
+        of the different kinds of tokens up-to-date."""
+        # Note that using self.lex to define tokens is equivalent to using
+        # self.token_table, since the lexer just calls token-table routine.
+        # Whenever something might be defined the lexer will point to the
+        # correct token table, and call its method (remember that when parsers
+        # call parsers the lexer is temporarily swapped, but the token-table is
+        # kept the same).
+        #
+        # TODO want to move the def_begin_token and def_end_token methods of the lexer
+        # to the token table.  Then, change all the self.lex references below to
+        # token_table (set just below, not yet used).  But, the lexer is setting
+        # its own begin_token_label and end_token_label attributes *which should
+        # really be associated with the token-table* and looked up from there
+        # (in case it switches and another parser expects a different label).
+        # So, not too complicated but need to get right.
+        token_table = self.token_table # TODO not yet used
+
+        if token_kind == "regular":
+            tok = self.lex.def_token(token_label, regex_string,
+                                      on_ties=on_ties, ignore=ignore)
+
+        elif token_kind == "ignored":
+            tok = self.lex.def_ignored_token(token_label, regex_string,
+                                             on_ties=on_ties)
+
+        elif token_kind == "begin":
+            self.lex.def_begin_token(token_label)
+            self.begin_token_label = token_label
+            # Define dummy handlers for the begin-token.
+            def begin_head(self, lex):
+                raise ParserException("Called head of begin token.")
+            def begin_tail(self, lex, left):
+                raise ParserException("Called tail of begin token.")
+            tok = self.modify_token_subclass(
+                                   token_label, head=begin_head, tail=begin_tail)
+            self.begin_token_subclass = tok
+
+        elif token_kind == "end":
+            self.lex.def_end_token(token_label)
+            self.end_token_label = token_label
+            # Define dummy handlers for the begin-token.
+            def end_head(self, lex):
+                raise ParserException("Called head of end token.")
+            def end_tail(self, lex, left):
+                raise ParserException("Called tail of end token.")
+            tok = self.modify_token_subclass(
+                                      token_label, head=end_head, tail=end_tail)
+            self.end_token_subclass = tok
+
+        elif token_kind == "jop":
+            if self.jop_token_subclass:
+                raise ParserException("A jop token is already defined.  It must be "
+                                      "undefined before defining a new one.")
+            self.jop_token_label = token_label
+            self.jop_ignored_token_label = ignored_token_label
+            tok = self.lex.def_token(token_label, None)
+            self.jop_token_subclass = tok
+
+        elif token_kind == "null-string":
+            if self.null_string_token_subclass:
+                raise ParserException("A null-string token is already defined.  It"
+                         " must be undefined before defining an new one.")
+            self.null_string_token_label = token_label
+            tok = self.def_token(null_string_token_label, None)
+            tok = self.lex.def_token(token_label, None)
+            self.null_string_token_subclass = tok
+
+        else:
+            raise ParserException("Bad call to def_token_master, with unrecognized"
+                    ' string "{0}" for the keyword argument token_kind.'
+                    .format(token_kind))
+
+        tok.token_kind = token_kind
+        tok.parser_instance = self
+        tok.token_table = self.token_table
+        return tok
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token.  Use this instead of the Lexer `def_token` method,
         since it adds extra attributes to the tokens."""
-        # Note that using self.lex to define tokens is equivalent to using
-        # self.token_table, since the lexer just calls token-table routine.
-        # Whenever something might be defined the lexer will point to the
-        # correct token table, and call its method (remember that for
-        # multi-parsers the lexer is temporarily swapped but the token-table is
-        # not).
-        tok = self.lex.def_token(token_label, regex_string,
-                                  on_ties=on_ties, ignore=ignore)
-        tok.parser_instance = self
-        tok.token_table = self.token_table
-        return tok
+        return self.def_token_master(token_label, regex_string, on_ties, ignore,
+                                     token_kind="regular")
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define a token with `ignored=True`."""
-        tok = self.lex.def_ignored_token(token_label, regex_string, on_ties=on_ties)
-        tok.parser_instance = self
-        tok.token_table = self.token_table
-        return tok
+        return self.def_token_master(token_label, regex_string, on_ties, ignore,
+                                     token_kind="ignored")
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
+        # TODO need a master token definer for all multi-token defs or another way to do it.
         tok_list = self.lex.def_multi_tokens(tuple_list)
         for t in tok_list:
             t.parser_instance = self
@@ -1205,75 +1254,68 @@ class PrattParser(object):
             t.token_table = self.token_table
         return tok_list
 
+    def def_begin_end_tokens(self, begin_token_label, end_token_label):
+        """Calls the `Lexer` method to define begin- and end-tokens.  The
+        subclasses are then given initial head and tail functions for use in
+        the Pratt parser.  To use the `PrattParser` this method must be called,
+        not the method of `Lexer` with the same name (since it also creates
+        head and tail handler functions that raise exceptions for better error
+        messages).  The default is to call this method automatically on
+        initialization, with the default token labels for the begin and end
+        tokens.  If the flag `default_begin_end_tokens` is set false on
+        `PrattParser` initalization then the user must call this function
+        (setting whatever token labels are desired).  Returns a tuple
+        containing the new begin and end `TokenNode` subclasses."""
+        begin_tok = self.def_token_master(begin_token_label, token_kind="begin")
+        end_tok = self.def_token_master(end_token_label, token_kind="end")
+        return begin_tok, end_tok
+
+    def def_jop_token(self, jop_token_label, ignored_token_label):
+        """Define a token for the juxtaposition operator.  This token has no
+        regex pattern.  An instance is inserted in `recursive_parse` when it is
+        inferred to be present.  This method must be called before a
+        juxtaposition operator can be used.  The parameter `jop_token_label` is
+        the label for the newly-created token representing the juxtaposition
+        operator.  The `ignored_token_label` parameter is the label of an
+        ignored token which must be present for a jop to be inferred.  Some
+        token is required; usually it will be a token for spaces and tabs."""
+        # TODO: update docs above, ignored_token_label now not always used....
+        return self.def_token_master(jop_token_label,
+                                     ignored_token_label=ignored_token_label,
+                                     token_kind="jop")
+
+    def def_null_string_token(self, null_string_token_label):
+        """Define the null-string token.  This token has no regex pattern.  An
+        instance is inserted in `recursive_parse` when it is inferred to be
+        present based.  It can only ever have head handlers, and is not even
+        tested for tail handlers.  This method must be called before a
+        null-string can be used.  The parameter `null_string_token_label` is
+        the label for the newly-created tok representing it."""
+        return self.def_token_master(null_string_token_label,
+                                     token_kind="null-string")
+
+    #
+    # Undefine tokens.
+    #
+
+    def undef_token_master(self, token_label):
+        """A method for undefining any token defined by the `PrattParser` methods.
+        Since the `token_kind` was set for all tokens when they were defined
+        it knows how to undelete any kind."""
+        # TODO implement, then rename to undef_token and delete all others
+
     def undef_token(self, token_label):
         """A convenience function; calls the Lexer `undef_token` method.  Should
         not be used for the begin or end token or null-string tokens."""
         # TODO: Maybe err check for begin/end or null token, or combine all into one.
         self.lex.undef_token(token_label)
 
-    def def_begin_end_tokens(self, begin_token_label, end_token_label):
-        """Calls the `Lexer` to def_begin_end_tokens.  The subclasses are then
-        given initial head and tail functions for use in the Pratt parser.  To
-        use the `PrattParser` this method must be called, not the method of
-        `Lexer` with the same name (since it also creates head and tail handler
-        functions that raise exceptions for better error messages).  The
-        default is to call this method automatically on initialization, with
-        the default token labels for the begin and end tokens.  If the flag
-        `default_begin_end_tokens` is set false on `PrattParser` initalization
-        then the user must call this function (setting whatever token labels
-        are desired).  Returns a tuple containing the new begin and end
-        `TokenNode` subclasses."""
-        # Call lexer to create and register the begin and end tokens.
-        self.lex.def_begin_end_tokens(begin_token_label, end_token_label)
-
-        # Define dummy handlers for the begin token.
-        self.begin_token_label = begin_token_label
-        def begin_head(self, lex):
-            raise ParserException("Called head of begin token.")
-        def begin_tail(self, lex, left):
-            raise ParserException("Called tail of begin token.")
-        begin_tok = self.modify_token_subclass(
-                               begin_token_label, head=begin_head, tail=begin_tail)
-        self.begin_token_subclass = begin_tok
-
-        # Define dummy handlers the end token.
-        self.end_token_label = end_token_label
-        def end_head(self, lex):
-            raise ParserException("Called head of end token.")
-        def end_tail(self, lex, left):
-            raise ParserException("Called tail of end token.")
-        end_tok = self.modify_token_subclass(
-                                  end_token_label, head=end_head, tail=end_tail)
-        self.end_token_subclass = end_tok
-
-        begin_tok.parser_instance = self
-        end_tok.parser_instance = self
-        begin_tok.token_table = self.token_table
-        end_tok.token_table = self.token_table
-        return begin_tok, end_tok
-
-    def def_jop_token(self, jop_token_label, ignored_token_label):
-        """Define a tok for the juxtaposition operator.  This tok has no
-        regex pattern.  An instance is inserted in `recursive_parse` when it is
-        inferred to be present.  This method must be called before a
-        juxtaposition operator can be used.  The parameter `jop_token_label` is
-        the label for the newly-created tok representing the juxtaposition
-        operator.  The `ignored_token_label` parameter is the label of an
-        ignored tok which must be present for a jop to be inferred.  Some
-        tok is required; usually it will be a tok for spaces and tabs."""
-        # TODO: update docs above, ignored_token_label now not always used....
-        if self.jop_token_subclass:
-            raise ParserException("A jop tok is already defined.  It must be "
-                                  "undefined before defining an new one.")
-        self.jop_token_label = jop_token_label
-        self.jop_ignored_token_label = ignored_token_label
-        tok = self.def_token(jop_token_label, None)
-        self.jop_token_subclass = tok
-        tok.lex = self.lex
-        tok.token_kind = "jop"
-        tok.parser_instance = self
-        tok.token_table = self.token_table
-        return self.jop_token_subclass
+    def undef_null_string_token(self):
+        """Undefine a null_string token."""
+        self.undef_token(self.null_string_token_label)
+        self.null_string_token_subclass = None
+        self.null_string_token_label = None
+        self.null_string_ignored_token_label = None
 
     def undef_jop_token(self):
         """Undefine a jop token."""
@@ -1282,34 +1324,9 @@ class PrattParser(object):
         self.jop_token_label = None
         self.jop_ignored_token_label = None
 
-    def def_null_string_token(self, null_string_token_label):
-
-        """Define the null-string tok.  This tok has no regex pattern.  An
-        instance is inserted in `recursive_parse` when it is inferred to be
-        present based.  It can only ever have head handlers, and is not even
-        tested for tail handlers.  This method must be called before a
-        null-string can be used.  The parameter `null_string_token_label` is
-        the label for the newly-created tok representing it."""
-
-        if self.null_string_token_subclass:
-            raise ParserException("A null-string tok is already defined.  It must be "
-                                  "undefined before defining an new one.")
-        self.null_string_token_label = null_string_token_label
-        self.null_string_ignored_token_label = ignored_token_label
-        tok = self.def_token(null_string_token_label, None)
-        self.null_string_token_subclass = tok
-        tok.lex = self.lex
-        tok.token_kind = "null_string"
-        tok.parser_instance = self
-        tok.token_table = self.token_table
-        return self.null_string_token_subclass
-
-    def undef_null_string_token(self):
-        """Undefine a null_string token."""
-        self.undef_token(self.null_string_token_label)
-        self.null_string_token_subclass = None
-        self.null_string_token_label = None
-        self.null_string_ignored_token_label = None
+    #
+    # Methods to modify tokens.
+    #
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
                        precond_label=None, precond_fun=None,
