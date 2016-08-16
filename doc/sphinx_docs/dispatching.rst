@@ -184,6 +184,11 @@ the sense of the parser are any leaves (terminals) of the parse tree. ::
 Implementation
 --------------
 
+TODO
+   The implementation changed a little... now there is a dispatch_handler function
+   which returns the function (with all arguments bound) but doesn't call it.
+   So then you need to explicitly call it, too, with no arguments.
+
 This section contains some low-level implementation details and can be skipped
 by most users of the Typped package.  TODO, move some of this to doc section of
 the code file.
