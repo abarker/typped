@@ -10,38 +10,38 @@ from typped.lexer import * # Test as an individual module.
 
 # TOKEN DEFINITIONS #################################################################
 
-def define_whitespace_tokens(lex_or_pp):
-    lex_or_pp.def_token("space", r"[ \t]+", ignore=True) # note + NOT *
-    lex_or_pp.def_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
-    #lex_or_pp.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
+def define_whitespace_tokens(lex):
+    lex.def_token("space", r"[ \t]+", ignore=True) # note + NOT *
+    lex.def_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
+    #lex.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
 
-def define_basic_tokens(lex_or_pp):
-    define_whitespace_tokens(lex_or_pp)
-    lex_or_pp.def_begin_end_tokens("begin", "end")
-    lex_or_pp.def_token("number", r"\d+")
-    lex_or_pp.def_token("imag_number", r"\d+[i]")
-    lex_or_pp.def_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
-    lex_or_pp.def_token("plus", r"\+")
-    lex_or_pp.def_token("minus", r"\-")
-    lex_or_pp.def_token("fslash", r"/")
-    lex_or_pp.def_token("ast", r"\*")
-    lex_or_pp.def_token("lpar", r"\(")
-    lex_or_pp.def_token("rpar", r"\)")
-    lex_or_pp.def_token("comma", r",")
-    lex_or_pp.def_token("bang", r"!")
-    lex_or_pp.def_token("question", r"\?")
-    lex_or_pp.def_token("colon", r"\:")
-    lex_or_pp.def_token("semicolon", r";")
+def define_basic_tokens(lex):
+    define_whitespace_tokens(lex)
+    lex.def_begin_end_tokens("begin", "end")
+    lex.def_token("number", r"\d+")
+    lex.def_token("imag_number", r"\d+[i]")
+    lex.def_token("double_ast", r"(?:\*\*|\^)") # Note ^ is defined as synonym.
+    lex.def_token("plus", r"\+")
+    lex.def_token("minus", r"\-")
+    lex.def_token("fslash", r"/")
+    lex.def_token("ast", r"\*")
+    lex.def_token("lpar", r"\(")
+    lex.def_token("rpar", r"\)")
+    lex.def_token("comma", r",")
+    lex.def_token("bang", r"!")
+    lex.def_token("question", r"\?")
+    lex.def_token("colon", r"\:")
+    lex.def_token("semicolon", r";")
 
-def define_identifier_token(lex_or_pp):
+def define_identifier_token(lex):
     # The last part of below only needs \w, but good example of pattern.
-    #lex_or_pp.def_token("identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
-    lex_or_pp.def_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    #lex.def_token("identifier", r"[a-zA-Z_](?:[\w|\d]*)", on_ties=-1)
+    lex.def_token("identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
-def define_default_tokens(lex_or_pp):
+def define_default_tokens(lex):
     """Defines some default tokens for testing either a Lexer or a PrattParser."""
-    define_basic_tokens(lex_or_pp)
-    define_identifier_token(lex_or_pp)
+    define_basic_tokens(lex)
+    define_identifier_token(lex)
 
 class TestLexer:
     def test_basic_stuff(self):

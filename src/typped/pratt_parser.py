@@ -202,7 +202,10 @@ from collections import OrderedDict, namedtuple, defaultdict
 
 from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
                     multi_funcall)
-from .pratt_types import ParameterizedTypeDict, TypeSig
+from .pratt_types import TypeObjectDict, TypeSig
+
+# TODO: look at some of the helper functions in the pyparsing package:
+# https://pythonhosted.org/pyparsing/
 
 # TODO: if PrattParser requires tokens defined from itself, it should mark them and
 # refuse to deal with any others.  It implicitly does, with whatever attributes
@@ -235,7 +238,7 @@ from .pratt_types import ParameterizedTypeDict, TypeSig
 # TokenNode
 #
 
-""" The `TokenNode` base class is defined in `lexer.py`.  It contains some of
+"""The `TokenNode` base class is defined in `lexer.py`.  It contains some of
 the basic, general methods that apply to tokens and nodes in token trees.
 Methods particular to an application need to be defined in a subclass.  The
 function `token_subclass_factory` returns a subclass of `TokenNode` which
@@ -1100,7 +1103,7 @@ class PrattParser(object):
         if type_table:
             self.type_table = type_table
         else:
-            self.type_table = ParameterizedTypeDict()
+            self.type_table = TypeObjectDict(self)
         self.num_lookahead_tokens = num_lookahead_tokens
         self.jop_token_label = None # Label of the jop token, if any.
         self.jop_token_subclass = None # The actual jop token, if defined.
@@ -1368,12 +1371,12 @@ class PrattParser(object):
     # Methods dealing with types.
     #
 
-    def def_type(self, type_label, type_params=None):
+    def def_type(self, type_label):
         """Define a type associated with the name `type_label`."""
-        return self.type_table.create_typeobject_subclass(type_label, type_params)
+        return self.type_table.create_typeobject(type_label)
 
     def undef_type(self, type_label):
-        self.type_table.undef_typeobject_subclass(type_label)
+        self.type_table.undef_typeobject(type_label)
 
     #
     # Methods defining syntax elements.

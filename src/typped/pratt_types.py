@@ -3,7 +3,7 @@
 
 This module contains classes defining types and methods which can be called by
 the `PrattParser` class when checking types.  It defines the class `TypeSig`
-and the class `ParameterizedType`, as well as a dict class for storing
+and the class `TypeObject`, as well as a dict class for storing
 parameterized types.
 
 All checking of type equivalence has been abstracted into this module, via
@@ -25,6 +25,8 @@ actual type.  At least one must match, however.
 
 On the other hand,
 
+TODO fix terminology
+
 - **Parameterized types** are type specifications which take arguments, such as
   something like the type definition `Matrix<T>` in a C++-like language, which
   can be called with, say, `Matrix<Float>` in the program text.  The variable
@@ -38,11 +40,7 @@ On the other hand,
   arguments and to fill in values for the template variables.
 
 The each instance of the `PrattParser` class holds all of its defined types in
-a `ParameterizedTypeDict` class, defined in this module.
-
-This module defines two types of objects: type signatures and the type objects
-themselves.  Type signatures are basically tuples of type objects, one for
-the return type and one for each argument.
+a `TypeObjectDict` class, defined in this module.
 
 """
 
@@ -50,7 +48,8 @@ from __future__ import print_function, division, absolute_import
 
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("../../test/test_pratt_types.py") # TODO no test file
+    # No test file for now, just run the parser's tests.
+    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
 
 import sys
 
@@ -59,43 +58,84 @@ import sys
 # Formal and actual type specs for functions.
 #
 
+# TODO: If types have classes with formal args and instances with actual we may
+# want the same for TypeSig objects (like it used to be...).  But that seems
+# like a lot of machinery for what are now string labels and tuples.  It does
+# have room to get fancier, I suppose, and the classes are convenient
+# namespaces for related methods.
+#
+# Annoying complexity, but also solves an annoying problem of how to store the
+# actual versus the formal (instance has both, one static and one set in
+# instances, and can check it, etc.).  Don't really need to keep these in a
+# dict, like the TypeObjectSubclass objects representing types.  These are just
+# stored with the handlers, etc., and then and do not even have labels (i.e.,
+# dict keys).  Throwaway classes.
+#
+# Have formal_type_sig as a static attribute, and expanded_formal_sig and
+# actual_sig as instance attributes.
+#
+# All the static funs can stay with the base (convert TypeSig to TypeSigBase)
+# and then have a factory fun spit out TypeSig objects (which are classes)
+#
+# Back to prev thinking:
+#
+# TypeSig is *not* quite the same because we want user to be able to specify
+# TypeSig(.....) so maybe above isn't the right approach.... don't want another
+# dict and another label system.  Let the tokens keep track of which are actual
+# and formal... just a container with methods...
+#
+# Another note: looking ahead to templates, going to need to have an option to
+# avoid code bloat when using them as subst_funs.  Does it make sense for TypeObject
+# to take parameter?
+
 class TypeSig(object):
-    """The formal type specification for a function; may have parameterized types, etc.
-    Set at function definition.
 
-    This object is essentially just a tuple `(val_type, arg_types)`, where
-    `val_type` is hashable and `arg_types` is a list.  Using a separate class
-    allows for additional information to be stored with the tuple and produces
-    better error messages.  The class also provides a convenient place to
-    localize some routines which operate on type signatures and lists of type
-    signatures.
-    
+    """The formal type specification for a function.  Generally set at function
+    definition.  The "functions" themselves can be any syntactic construct that
+    produces a node in the final parse tree, with of the node representing the
+    arguments.
+
+    A `TypeSig` instance is essentially just a tuple `(val_type, arg_types)`,
+    where `val_type` is a `TypeObjectSubclass` and the `arg_types` is a tuple
+    of them.  Using a separate class instead of a tuple allows for additional
+    information to be stored with the data and produces better error messages.
+    The class also provides a convenient place to localize some routines which
+    operate on type signatures and lists of type signatures.
+
     For the purposes of equality comparison these objects are equivalent to the
-    tuple form.  Equality is exact equality and **does not** hold for
-    instantiated parameterized types.  For that, use `is_valid_actual_sig`.
-    Equality also ignores any attributes (other than `val_type` and
-    `arg_types`) which might be added to or modified in a `TypeSig` instance.
+    tuple form.  Equality is exact equality and **does not** hold for formal
+    signatures and their corresponding actual signatures.  For that, use
+    `is_valid_actual_sig`.  Equality also ignores any attributes (other than
+    `val_type` and `arg_types`) which might be added to or modified in a
+    `TypeSig` instance.
 
-    Note that `None` is a wildcard which matches any type, and `None` for the
-    `arg_types` list or tuple matches any arguments and any number of arguments
-    (it is expanded during parsing to as many `None` arguments as are
+    Note that `None` is a wildcard which matches any type argument, and `None`
+    for the `arg_types` list or tuple matches any arguments and any number of
+    arguments (it is expanded during parsing to as many `None` arguments as are
     required).  Note that `TypeSig() == TypeSig(None) == TypeSig(None, None)`.
     To specify an object like a literal which takes no arguments an empty tuple
     should be used for `arg_types`, as in `TypeSig(None, ())`, with the
     `val_type` argument set to whatever type if it is not a wildcard."""
 
-    def __init__(self, val_type=None, arg_types=None, test_fun=None):
+# TODO: type sigs look up their token table and set attribute, unless all None
+# and then they set it to None... shouldn't matter then....
+
+    def __init__(self, val_type=None, arg_types=None, test_fun=None, actual=False):
         """Initialize a type signature object.
         
-        The argument `val_type` should be `None`, a `TypeObject` subclass, or else
-        a string label registered for such a class.
+        The argument `val_type` should be either `None`, or a `TypeObject`
+        instance.
 
         The argument `arg_types` should be a list, tuple, or other iterable of
-        `None` values and/or `TypeObject` subclass instances.
+        `None` values and/or `TypeObject` instances.
         
         The `None` value is treated as a wildcard that matches any
         corresponding type; `None` alone for `arg_types` allows any number of
-        arguments of any type."""
+        arguments of any type.
+        
+        The `actual` parameter should be set `True` for type sigs which
+        represent actual type sigs.  This allows for some error-checking in the
+        methods.  It just sets the attribute `is_formal_sig` to false."""
 
         # TODO test_fun is not set or used as of now, but it is supposed to
         # be a user-defined function which tests whether the parsed subexpression
@@ -103,27 +143,44 @@ class TypeSig(object):
         # the declared type in the function spec.
 
         if isinstance(arg_types, str):
-            raise ParserException("The `arg_types` argument must"
+            raise TypeModuleException("The `arg_types` argument must"
                     " be `None` or an iterable returning types (e.g., a list"
                     " or tuple of types).")
+        self.is_formal_sig = not actual
         
-        # TODO below works but seems to cause another problem... some string
-        # indexing still used, apparently, in ParameterizedTypeDict.
-        #
-        # Note that TypeObject objects *can* potentially know their parser because it
-        # created them.... but the strings do not have the info...
-        """
-        # Convert type labels to types if necessary (as a convenience feature).
-        if parser is not None:
-            if isinstance(val_type, str):
-                val_type = parser.type_table[val_type]
-            if arg_types is not None:
-                arg_types = list(arg_types)
-                for i in range(len(arg_types)):
-                    if isinstance(arg_types[i], str):
-                        arg_types[i] = parser.type_table[arg_types[i]]
-                arg_types = tuple(arg_types)
-        """
+        # Get the type table, and check consistency (unless all None values).
+        # None values are converted to TypeObject(None).
+        self.type_table = None
+        if isinstance(val_type, TypeObject): # Ignores None values for val_type.
+            #self.type_table = val_type.type_table  # TODO
+            pass
+        #elif val_type is not None: # TODO
+        #    raise TypeModuleException("`TypeSig` initialized with invalid `val_type`"
+        #             " of '{0}', of Python type {1}.  Must be a `TypeObject` instance."
+        #                        .format(val_type, type(val_type)))
+        else:
+            #val_type = TypeObject(None) # TODO
+            pass
+        if arg_types is not None:
+            for i in range(len(arg_types)):
+                if isinstance(arg_types[i], TypeObject): # Ignores None values.
+                    if self.type_table is not None:
+                        if arg_types[i].type_table is not self.type_table:
+                            raise TypeModuleException("`TypeSig` instantiation with"
+                                    " inconsistent `TypeObject` instances ("
+                                    " belonging to different parsers).")
+                    else:
+                        #self.type_table = arg_types[i].type_table # TODO
+                        pass
+                #elif arg_types[i] is not None: # TODO
+                #    raise TypeModuleException("`TypeSig` initialized with invalid"
+                #                " `val_type` of '{0}', of Python type {1}.  Must be"
+                #                " a `TypeObject` instances."
+                #                .format(val_type, type(val_type)))
+                else:
+                    arg_types = list(arg_types)
+                    #arg_types[i] = TypeObject(None) # TODO
+                    arg_types = tuple(arg_types)
 
         self.val_type = val_type
         if arg_types:
@@ -133,25 +190,45 @@ class TypeSig(object):
         self.original_sig = None # This is set when wildcards are expanded.
         self.eval_fun = None # Optional eval fun associated with this signature.
 
+    # TODO: error check on actual vs. formal in methods below using self.is_formal_sig.
+
     @staticmethod
     def get_all_matching_sigs(sig_list, list_of_child_sig_lists, tnode=None,
                               repeat_args=False, raise_err_on_empty=True):
         """Return the list of all the signatures on `sig_list` whose arguments
-        match some choice of child/argument signatures from `list_of_child_sig_lists`.
+        match some choice of child/argument signatures from
+        `list_of_child_sig_lists`.
 
-        The `sig_list` argument should be a list of `TypeSig` instances.
+        The `sig_list` argument should be a list of `TypeSig` instances
+        representing formal types.
 
         The `list_of_child_sig_lists` argument should be a list of lists, where
-        each sublist is a list of all the possible signatures for a child node.
-        The sublists should be in the same order as the children/arguments.
+        each sublist is a list of all the possible actual signatures for a
+        child node.  The sublists should be in the same order as the
+        children/arguments.
        
         This is the only method of this class which is actually called from
         the `PrattParser` class (except for `__init__` other magic methods
         like equality testing)."""
         num_args = len(list_of_child_sig_lists)
 
+        if not all(s.is_formal_sig for s in sig_list):
+            # TODO: make separate file common_settings_and_exceptions.py and
+            # raise a relevant type error.  May want to separarate
+            # code flaws from parsing flaws, though, and add yet another to call.
+            raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
+                    " sigs as `sig_list` argument.")
+        # TODO DEBUG below, remove if False
+        if False and not all(s.is_formal_sig for s_lst in sig_list for s in s_lst):
+            # TODO: make separate file common_settings_and_exceptions.py and
+            # raise an ParserException, not a type error.  May want to separarate
+            # code flaws from parsing flaws, though, and add yet another to call.
+            raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
+                    " sigs as `sig_list` argument.")
+
         # Remove duplicates from the list.  This is PROBABLY no longer needed
-        # because they are removed in in register_handler_fun, using
+        # because identical sigs are now replaced/overwritten in
+        # register_handler_fun, using
         # append_sig_to_list_replacing_if_identical.
         #sig_list = TypeSig.remove_duplicate_sigs(sig_list)
 
@@ -211,8 +288,10 @@ class TypeSig(object):
 
         if raise_err_on_empty and not sigs_matching_numargs:
             msg = "Number of arguments does not match any signature."
-            if tnode: tnode._raise_type_mismatch_error([], msg)
-            else: raise TypeError(msg)
+            if tnode:
+                tnode._raise_type_mismatch_error([], msg)
+            else:
+                raise TypeErrorInParsedLanguage(msg)
         return sigs_matching_numargs
 
     @staticmethod
@@ -237,7 +316,8 @@ class TypeSig(object):
                                     list_of_child_sig_lists, sig.arg_types):
                 some_child_retval_matches = False
                 for child_sig in child_sig_list:
-                    if arg_type == None:
+                    if arg_type is None:
+                    #if arg_type.type_label == (None,): # TODO
                         some_child_retval_matches = True
                         break
                     # TODO BUG, need to change below line to use
@@ -259,8 +339,10 @@ class TypeSig(object):
 
         if raise_err_on_empty and not matching_sigs:
             msg = "Actual argument types do not match any signature."
-            if tnode: tnode._raise_type_mismatch_error([], msg)
-            else: raise TypeError(msg)
+            if tnode:
+                tnode._raise_type_mismatch_error([], msg)
+            else: 
+                raise TypeErrorInParsedLanguage(msg)
 
         return matching_sigs
 
@@ -290,8 +372,7 @@ class TypeSig(object):
         """Test if the signature passed in is a valid actual signature matching
         this signature as a formal signature.  Note the difference between this
         and equality!  This is the one which should be called to determine
-        signature equivalence based on type equivalences and instantiations
-        of parameters."""
+        signature equivalence based on type equivalences possible conversions."""
         return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
 
     def __getitem__(self, index):
@@ -311,7 +392,6 @@ class TypeSig(object):
         if not isinstance(sig, self.__class__):
             raise TypeError(
                     "Comparing {0} with some other kind of object.".format(__class__))
-            #return False
         return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
     def __ne__(self, sig):
         return not self == sig
@@ -324,196 +404,142 @@ class TypeSig(object):
 
 
 #
-# Type templates, representing individual types.
+# Type objects, representing individual types.
 #
+
+# NOTE: Consider if there is any advantage to having types themselves take
+# parameters other than the string labels.
+
+"""
+
+Only TypeSig takes None args... TypeObject converts None to a special wildcard
+TypeObject with type_label=None.
+
+"""
 
 class TypeObject(object):
-    """The base class for type objects.  Each formal, parameterized type is
-    represented by a subclasses of this class.  Formal types can be
-    parameterized or not.  Instances of those subclasses represent the actual
-    types (which may or may not match the required argument signature, that is
-    checked by `TypeSig` objects).
+    """Instances of this class represent types."""
 
-    Subclasses of this class are automatically generated via the
-    `type_subclass_factory` function.  The `ParameterizedTypeDict` class calls that
-    function to create the classes (representing types) that it stores.
-    """
-    def __init__(self):
-        pass
+    def __init__(self, type_label):  # TODO: no longer take type_table arg! TypeSig cant find for None args...... decide what to do later.
+        """Instantiate a type object or a wildcare object with `None` argument."""
+        super(TypeObject, self).__init__() # Call base class __init__.
+        if type_label is None:
+            self.type_label = (None,) # Not None so comparisons with == not a problem.
+            self.is_wildcard = True
+        else:
+            self.type_label = type_label
+            self.is_wildcard = False
+        self.conversions = {} # Dict keyed by to_type values.
+        #self.type_table = type_table # TODO
+
+    def def_conversion(self, to_type, priority=0, tree_data=None):
+        """Define an automatic conversion to be applied to the `TypeObjectBase`
+        instance, to convert it to type `to_type`.  The highest-priority
+        conversion which matches the type spec will always be the one which is
+        chosen.  Exact match has priority zero, so priorities will usually be
+        negative.  Raises `TypeError` if there is still ambiguity (i.e., a
+        tie).  The `tree_data` parameter is an arbitrary object which is
+        associated with the conversion and will be accessible from the
+        `TypeSig` stored in the parse tree.  It might be a Python function to
+        actually do the conversion, for example.  Or it might be a node to add
+        to the AST to represent the conversion.  No actual conversions are
+        performed; those are considered semantic actions for the user to
+        implement."""
+        # TODO may need to redefine priority mechanism, since across a
+        # full signature matching there may be problems with the greedy
+        # approach to choosing... you find all possible signatures, but
+        # then you have to rank the full signatures across all types in
+        # them.
+        self.conversions[to_type] = (priority, tree_data)
+
+    def undef_conversion(self, to_type):
+        try: del self.conversions[to_type]
+        except KeyError: return
+
+    def actual_type_would_match(self, type_obj):
+        """Test whether `type_obj` would be an valid actual type for this
+        type object, assuming it represents a formal type."""
+        # TODO: this is the one that needs to be used, will get fancier.
+        return self.type_label == typeobject.type_label
+
+    def __eq__(self, typeobject):
+        """Note that this defines equality between types.  The `==` symbol
+        is defined as exact match only.  Use `is_valid_actual_type` for
+        comparing formal to actual."""
+        return self.type_label == typeobject.type_label
+    def __ne__(self, typeobject):
+        return not self == typeobject
+
+    def __hash__(self):
+        """Needed to index dicts and for use in Python sets."""
+        # TODO, hash on only the first few vars, maybe
+        return hash(self.types_label)
     def __repr__(self): 
-        return "TypeObject()"
+        return "TypeObject({0})" .format(self.type_label)
 
-    @staticmethod
-    def expand_type(num_args):
-        """Expand this type object to fill in any parameter values with the
-        passed-in values (still TODO)."""
-
-def type_subclass_factory():
-    """Return a subclass of `TypeObject` to represent a type template.  This
-    routine can be redefined for particular applications, but should not be
-    called directly.  Use the `create_typeobject_subclass` method of
-    `ParameterizedTypeDict` instead (which creates a subclass, adds some
-    attributes, and saves it in a dict).  End users should use the
-    `def_type` method of a `PrattParser` instance, which calls
-    `create_typeobject_subclass`.  The `param_type_subclass_fun` keyword argument
-    in the initializer `ParameterizedTypeDict` can be used to change the function
-    which is called."""
-
-    # TODO: Consider.  Should a ParameterizedType be a callable object, which takes
-    # arguments which possibly instantiate some of the parameters?????  Does this
-    # work nicely with using the TypeSig(...) call in the definitions of functions
-    # and arguments in the PrattParser?
-
-    class ParameterizedType(TypeObject):
-        """These subclasses represent parameterized types.  Instances of these subclasses
-        object are used to represent the actual types. TODO, consider design."""
-        type_label = None # Set by the method that calls type_subclass_factory.
-        type_param_types = None # Set by the method that calls type_subclass_factory.
-
-        def __init__(self, type_param_vals=None, conversions=None):
-            """Instantiate an actual type from the parameterized type represented
-            by the subclass."""
-            self.type_params = type_param_vals
-            if conversions: self.conversions = conversions
-            else: self.conversions = {} # Dict keyed by to_type values.
-
-        def def_conversion(self, to_type, priority=0, tree_data=None):
-            """Define an automatic conversion to be applied to the `TypeObject`
-            instance, to convert it to type `to_type`.  The highest-priority
-            conversion which matches the type spec will always be the one which is
-            chosen.  Exact match has priority zero, so priorities will usually be
-            negative.  Raises `TypeError` if there is still ambiguity (i.e., a
-            tie).  The `tree_data` parameter is an arbitrary object which is
-            associated with the conversion and will be accessible from the
-            `TypeSig` stored in the parse tree.  It might be a Python function to
-            actually do the conversion, for example.  Or it might be a node to add
-            to the AST to represent the conversion.  No actual conversions are
-            performed; those are considered semantic actions for the user to
-            implement."""
-            # TODO define for parameterized template version or instantiated versions???
-            # TODO may need to redefine priority mechanism, since across a
-            # full signature matching there may be problems with the greedy
-            # approach to choosing... you find all possible signatures, but
-            # then you have to rank the full signatures across all types in
-            # them.
-            self.conversions[to_type] = (priority, tree_data)
-        def undef_conversion(self, to_type):
-            try: del self.conversions[to_type]
-            except KeyError: return
-
-        def is_valid_actual_type(self, type_obj):
-            """Test whether `type_obj` is a valid actual argument of this type
-            object, treating this one as a formal type."""
-            if self.type_label != typeobject.type_label: return False
-            if len(self.parameters) != len(typeobject.parameters): return False
-            return all(self.parameters[i] == typeobject.parameters[i]
-                       for i in range(self.parameters))
-
-        def __eq__(self, typeobject):
-            """Note that this defines equality between types.  The `==` symbol
-            is defined as exact match only.  Use `is_valid_actual_type` for
-            comparing formal to actual."""
-            if not isinstance(typeObject, self.__class__):
-                raise TypeError(
-                    "Comparing {0} with some other kind of object.".format(__class__))
-                #return False
-            if self.type_label != typeobject.type_label:
-                return False
-            if len(self.parameters) != len(typeobject.parameters):
-                return False
-            return all(self.parameters[i] == typeobject.parameters[i]
-                       for i in range(self.parameters))
-
-        def __ne__(self, typeobject):
-            return not self == typeobject
-        def __hash__(self):
-            """Needed to index dicts and for use in Python sets."""
-            # TODO, hash on only the first few vars, maybe
-            return hash((self.type_label, self.type_param_types))
-        def __repr__(self): 
-            return self.__name__ + "ParamType({0}, {1})".format(self.type_label, self.type_params)
-
-    return ParameterizedType
 
 #
-# A dict-like class for holding type subclasses.
+# A dict-like class for holding type objects
 #
 
-# TODO: Note that if we always use a label to denote types and manipulate them
-# then we will need to define labels when parameterized types are instantiated,
-# so that they can be reported to have some kind of typesig containing the
-# string labels.  The actual parameterized type names themselves do not need to
-# contain the parameters, but the objects need to know them and how to instantiate
-# them to create "new" types (with type labels).
-#
-# REMEMBER that as of now (maybe change) all types are represented by class
-# instances.  If we want partial instantiation then we will need to also return
-# class instances...  Kind of suggests just using one class and instances for
-# everything.  But a certain elegance to using the instances to hold the
-# fully-instantiated types and classes to hold the ones still with parameters.
-
-class ParameterizedTypeDict(object):
-    """A symbol table holding subclasses of the `TypeObject` class, one for each
+class TypeObjectDict(object):
+    """A type table holding instances of the `TypeObject` class, one for each
     defined type in the language.  Each `PrattParser` instance has such a table,
     which holds the objects which represent each type defined in the language
     that the particular parser parses."""
-    aliases = {} # A static dict mapping defined aliases to TypeObjects. TODO
-    def __init__(self, type_subclass_factory_fun=type_subclass_factory):
-        """Initialize the symbol table.  The parameter `token_subclassing_fun`
-        can be passed a function to be used to generate token subclasses,
-        taking a token label as an argument.  The default is
-        `create_token_subclass`."""
-        self.param_type_subclass_fun = type_subclass_factory_fun
-        self.type_template_dict = {}
+    aliases = {} # A static dict mapping defined aliases. TODO
+
+    def __init__(self, parser_instance):
+        """Initialize the type table.  The `parser_instance` parameter should be the
+        `PrattParser` instance which owns this type table."""
+        self.parser_instance = parser_instance
+        self.type_object_dict = {}
 
     def has_key(self, type_label):
-        """Test whether a `TypeObject` subclass for `type_label` has been stored."""
-        return type_label in self.type_template_dict
+        """Test whether a `TypeObject` instance for `type_label` has been stored."""
+        return type_label in self.type_object_dict
+    __contains__ = has_key # For testing with the "in" keyword.
 
-    def get_typeobject_subclass(self, type_label):
-        """Look up the subclasses of base class `TypeObject` corresponding to
-        `type_label` in the symbol table and return it.  Raises a
-        `TypeException` if no subclass is found for the token label."""
-        if type_label in self.type_template_dict:
-            TokenSubclass = self.type_template_dict[type_label]
-        return TokenSubclass
-    __getitem__ = get_typeobject_subclass
+    def get_typeobject(self, type_label):
+        """Look up the `TypeObject` instance corresponding
+        to `type_label` in the type table and return it.  Raises a
+        `TypeException` if no instance is found for the token label."""
+        if type_label in self.type_object_dict:
+            type_object = self.type_object_dict[type_label]
+        return type_object
+    __getitem__ = get_typeobject
 
-    def create_typeobject_subclass(self, type_label, type_param_types=None):
-        """Create a subclass for a type with string label `type_label` and store it
-        in the symbol table.  Return the new subclass.  Raises a `TypeException`
-        if a subclass for `type_label` has already been created."""
-        # TODO: type_param_types field is only set and never used anywhere.
-        # What is it supposed to be doing?  How does it differ from the field
-        # type_params which is set for the same class objects in __init__?
-        if type_label in self.type_template_dict:
-            raise TypeException("In type_subclass_factory, already created a"
-                                " type with type_label '{0}'.".format(type_label))
+    def create_typeobject(self, type_label):
+        """Create a `TypeObject` instance for a type with string label `type_label`
+        and store it in the type table.  Return the new instance.  Raises a
+        `TypeException` if an instance for `type_label` has already been
+        created."""
+        if type_label in self.type_object_dict:
+            raise TypeModuleException("Already created a type with type_label '{0}'."
+                                .format(type_label))
 
-        # Create a new TypeObject subclass for type_label.
-        TypeObjectSubclass = self.param_type_subclass_fun()
+        # Create a new TypeObject instance for the formal type label.
+        #type_object = TypeObject(type_label, self.parser_instance.type_table) # TODO
+        type_object = TypeObject(type_label)
 
-        # Add some attributes.
-        TypeObjectSubclass.type_label = type_label
-        TypeObjectSubclass.type_param_types = type_param_types
+        # Store the newly-created instance in the token_dict and then return it.
+        self.type_object_dict[type_label] = type_object
+        return type_object
 
-        # Create an informative name for the subclass for debugging purposes.
-        # TODO give these generated classes better debugging names
-        if not type_param_types:
-            type_param_type_labels = "unparameterized"
-        else:
-            type_param_type_labels = [t.type_label for t in type_param_types]
-        param_names_str = "-".join(type_param_type_labels)
-        TypeObjectSubclass.__name__ = ("typeobject_subclass-" + type_label 
-                                       + param_names_str)
-
-        # Store the newly-created subclass in the token_dict and then return it.
-        self.type_template_dict[type_label] = TypeObjectSubclass
-        return TypeObjectSubclass
-
-    def undef_typeobject_subclass(self, type_label):
-        """Un-define the token with label type_label.  The TokenNode subclass
+    def undef_typeobject(self, type_label):
+        """Un-define the token with label type_label.  The `TypeObject` instance
         previously associated with that label is removed from the dictionary."""
-        try: del self.type_template_dict[type_label]
-        except KeyError: return # Not saved in dict, ignore.
+        try:
+            del self.type_object_dict[type_label]
+        except KeyError:
+            return # Not saved in dict, ignore.
+
+class TypeErrorInParsedLanguage(Exception):
+    """Raised when the there is a type error in the language being parsed,
+    as opposed to a `TypeError` in the Python code."""
+    pass
+
+class TypeModuleException(Exception):
+    """An exception in the code of the `pratt_types` module."""
+    # TODO move to common module, derive from Parser base exception.
 
