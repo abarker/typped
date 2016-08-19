@@ -52,7 +52,7 @@ if __name__ == "__main__":
     pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
 
 import sys
-
+from .shared_settings_and_exceptions import ParserException
 
 #
 # Formal and actual type specs for functions.
@@ -235,7 +235,7 @@ class TypeSig(object):
         # TODO these should eval to false after they become actual types...
         if not all(s.is_formal_sig for s_lst in list_of_child_sig_lists for s in s_lst):
             # TODO: make separate file common_settings_and_exceptions.py and
-            # raise an ParserException, not a type error.  May want to separarate
+            # raise an exception, not a type error.  May want to separarate
             # code flaws from parsing flaws, though, and add yet another to call.
             raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
                     " sigs as `sig_list` argument.")
@@ -546,13 +546,12 @@ class TypeObjectDict(object):
         except KeyError:
             return # Not saved in dict, ignore.
 
-class TypeErrorInParsedLanguage(Exception):
+class TypeErrorInParsedLanguage(ParserException):
     """Raised when the there is a type error in the language being parsed,
     as opposed to a `TypeError` in the Python code."""
     pass
 
-class TypeModuleException(Exception):
+class TypeModuleException(ParserException):
     """An exception in the code of the `pratt_types` module."""
-    # TODO move to common module, derive from Parser base exception.
     pass
 

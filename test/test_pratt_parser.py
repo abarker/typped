@@ -210,7 +210,7 @@ def test_error_conditions(basic_setup):
     #fail("Just to see output.")
 
 def test_stdfun_functions(basic_setup):
-    ParserTypeError = typped.ParserTypeError
+    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
 
     parser.def_token("k_exp", r"exp")
@@ -218,10 +218,10 @@ def test_stdfun_functions(basic_setup):
 
     # Number of arguments
     assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp()")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
 
@@ -229,10 +229,10 @@ def test_stdfun_functions(basic_setup):
     parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", num_args=2)
     assert str(parser.parse(
                "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(44)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
 
@@ -248,7 +248,7 @@ def test_stdfun_functions(basic_setup):
     assert str(e.value).startswith("No head handler function matched")
     
 def test_stdfun_lpar_tail_functions(basic_setup):
-    ParserTypeError = typped.ParserTypeError
+    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
 
     parser.def_token("k_exp", r"exp")
@@ -257,10 +257,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     parser.def_stdfun_lpar_tail("k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
             num_args=1)
     assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp()")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
 
@@ -272,10 +272,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     assert str(parser.parse(
                "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
 
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
 
@@ -329,7 +329,7 @@ def test_types_mixed_numerical_bool_expressions():
     only overloading on argument types."""
     # setup
 
-    ParserTypeError = typped.ParserTypeError
+    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     TypeSig = typped.TypeSig
 
     parser = typped.PrattParser()
@@ -385,16 +385,16 @@ def test_types_mixed_numerical_bool_expressions():
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
@@ -427,13 +427,13 @@ def test_types_mixed_numerical_bool_expressions():
     assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].type_sig == TypeSig(t_number, (t_number, t_bool))
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
@@ -441,7 +441,7 @@ def test_types_mixed_numerical_bool_expressions():
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number, t_bool],
                                ast_label="a_test_fun_number_bool_to_bool")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Actual argument types match multiple signatures.")
 
@@ -450,7 +450,7 @@ def test_types_overloaded_return():
     to make sure none of them break, then test cases specific to overloading on
     return types."""
     # setup
-    ParserTypeError = typped.ParserTypeError
+    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     TypeSig = typped.TypeSig
 
     parser = typped.PrattParser(overload_on_ret_types=True)
@@ -504,16 +504,16 @@ def test_types_overloaded_return():
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
             "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
@@ -546,13 +546,13 @@ def test_types_overloaded_return():
     assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].type_sig == TypeSig(t_number, (t_number, t_bool))
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
 
@@ -561,7 +561,7 @@ def test_types_overloaded_return():
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number, t_bool],
                                ast_label="a_test_fun_number_bool_to_bool")
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)") # fails since two possibilities
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # with return type overloading this should again work if we add to a number,
@@ -574,7 +574,7 @@ def test_types_overloaded_return():
                                val_type=t_number, arg_types=[t_number, t_number],
                                ast_label="a_test_fun_number_number_to_bool")
     # now args are ambiguous in this order
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(4, f_nb2b(4,False))")
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # but this order should be OK
@@ -582,7 +582,7 @@ def test_types_overloaded_return():
                         "(<f_nb2b,f_nb2b>(<k_number,4>,<k_false,False>),<k_number,4>)"
     # trigger the same message as before at lower level in tree, get 'parent expects'
     # err msg rather than just 'ambiguous' err msg which haparserens at the root
-    with raises(ParserTypeError) as e:
+    with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(f_nb2b(2, f_nb2b(1,False)), 3)")
     assert str(e.value).startswith("Token node has multiple signatures with")
 

@@ -164,6 +164,7 @@ if __name__ == "__main__":
 
 import re
 import collections
+from .shared_settings_and_exceptions import LexerException
 
 #
 # TokenNode
@@ -1120,7 +1121,7 @@ class Lexer(object):
             return tci
 
 
-def multi_funcall(function, tuple_list):
+def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):
    """A convenience function that takes a function (or method) and a list of tuples
    and calls `function` with the values in those tuple as arguments."""
    retval_list = []
@@ -1128,7 +1129,7 @@ def multi_funcall(function, tuple_list):
        try:
            retval_list.append(function(*t))
        except TypeError:
-           raise ParserException(
+           raise exceptionToRaise(
                    "Bad multi-definition of {0}: Omitted required arguments."
                    "\nError on this tuple: {1}".format(function.__name__, t))
    return tuple(retval_list)
@@ -1137,14 +1138,9 @@ def multi_funcall(function, tuple_list):
 # Exceptions
 #
 
-class LexerException(Exception):
-    """The base exception for the `Lexer` class."""
-    pass
-
-class BufferIndexError(IndexError):
+class BufferIndexError(LexerException):
     """Raised on attempts to read past the beginning or the end of the buffer
-    (such as in `peek` methods).  This is treated as an `IndexError` rather than
-    a `LexerException`."""
+    (such as in `peek` methods)."""
     pass
 
 

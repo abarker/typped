@@ -200,9 +200,10 @@ import copy
 import functools
 from collections import OrderedDict, namedtuple, defaultdict
 
+from .shared_settings_and_exceptions import ParserException
 from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
                     multi_funcall)
-from .pratt_types import TypeObjectDict, TypeSig
+from .pratt_types import TypeObjectDict, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: consider how to define a named tuple to take the arguments of the
 # functions like literals and require them to be used in the multi-def things.
@@ -367,7 +368,7 @@ def token_subclass_factory():
 
             if (prev_handler_data_for_precond
                               and not cls.parser_instance.overload_on_arg_types):
-                raise ParserTypeError("Value of cls.overload_on_arg_types is False "
+                raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types is False "
                        "but attempt to redefine and possibly set multiple signatures "
                        "for the {0} function for token with label '{1}' with "
                        "preconditions label '{2}'."
@@ -736,7 +737,7 @@ def token_subclass_factory():
                              self.type_sig,
                              tuple(c.summary_repr() for c in self.children),
                              tuple(c.val_type for c in self.children), matching_sigs))
-            raise ParserTypeError(basic_msg + diagnostic)
+            raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
 
         #
         # Evaluations and semantic actions.
@@ -1211,17 +1212,14 @@ class PrattParser(object):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        # TODO, multi_funcall has fixed error raised, but not currently always
-        # available in scope!!!
-        return multi_funcall(self.def_token, tuple_list)
+        return multi_funcall(self.def_token, tuple_list, ParserException)
 
     def def_multi_ignored_tokens(self, tuple_list):
         """A convenience function, to define multiple ignored tokens at once.
         Each element of the passed-in list should be a tuple containing the arguments
         to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
-        # TODO see multi fun above, same.
-        return multi_funcall(self.def_ignored_token, tuple_list)
+        return multi_funcall(self.def_ignored_token, tuple_list, ParserException)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Calls the `Lexer` method to define begin- and end-tokens.  The
@@ -1695,14 +1693,6 @@ HandlerData = namedtuple("HandlerData",
 #
 # Exceptions
 #
-
-class ParserException(Exception):
-    """General parser errors."""
-    pass
-
-class ParserTypeError(ParserException):
-    """Error in type matching."""
-    pass
 
 class NoHandlerFunctionDefined(ParserException):
     """Raised by dispatcher function if it fails to find a handler function
