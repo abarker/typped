@@ -204,6 +204,11 @@ from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexErr
                     multi_funcall)
 from .pratt_types import TypeObjectDict, TypeSig
 
+# TODO: consider how to define a named tuple to take the arguments of the
+# functions like literals and require them to be used in the multi-def things.
+# Otherwise, gets confusing about what the arguments are, and cannot use
+# keywords... May or may not work, though.
+
 # TODO: look at some of the helper functions in the pyparsing package:
 # https://pythonhosted.org/pyparsing/
 
@@ -723,10 +728,12 @@ def token_subclass_factory():
 
         def _raise_type_mismatch_error(self, matching_sigs, basic_msg):
             """Raise an error, printing a helpful diagnostic message."""
-            diagnostic = ("  Current token node has value '{0}' and label '{1}'.  The"
+            diagnostic = ("  Current token node has value '{0}' and label '{1}'.  Its"
+                         " signature is {2}.  The"
                          " children/arguments have labels and values of {2} and "
-                         "types {3}.  The matching signatures "
+                         "val_types {3}.  The matching signatures "
                          "are {4}.".format(self.value, self.token_label,
+                             self.type_sig,
                              tuple(c.summary_repr() for c in self.children),
                              tuple(c.val_type for c in self.children), matching_sigs))
             raise ParserTypeError(basic_msg + diagnostic)
@@ -1204,6 +1211,8 @@ class PrattParser(object):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
+        # TODO, multi_funcall has fixed error raised, but not currently always
+        # available in scope!!!
         return multi_funcall(self.def_token, tuple_list)
 
     def def_multi_ignored_tokens(self, tuple_list):
@@ -1211,6 +1220,7 @@ class PrattParser(object):
         Each element of the passed-in list should be a tuple containing the arguments
         to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
         `Lexer` function."""
+        # TODO see multi fun above, same.
         return multi_funcall(self.def_ignored_token, tuple_list)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
@@ -1649,13 +1659,15 @@ class PrattParser(object):
 
             # See if we reached the end of the token stream.
             if self.lex.peek().is_end_token():
+                # TODO: Note that we never shut down the lexer's generator.
                 break
             if self.multi_expression:
                 continue
             else:
-                raise ParserException("Parsing never reached end of expression,"
-                    " stopped at current token with label '{0}' and value "
-                    "'{1}' before a token with label '{2}' and value '{3}'."
+                raise ParserException("Parsing never reached end of expression."
+                    " Parsing stopped before lexer reached the end.  The last parsed"
+                    " token had label '{0}' and value '{1}'.  Stopped before a token"
+                    " in lexer with label '{2}' and value '{3}'."
                     .format(self.lex.token.token_label, self.lex.token.value, 
                             self.lex.peek().token_label, self.lex.peek().value))
 

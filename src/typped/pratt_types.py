@@ -142,51 +142,64 @@ class TypeSig(object):
         # subtree which was found in the parsed program text actually matches
         # the declared type in the function spec.
 
-        if isinstance(arg_types, str):
+        if isinstance(arg_types, str): # TODO update when rest works
             raise TypeModuleException("The `arg_types` argument must"
                     " be `None` or an iterable returning types (e.g., a list"
                     " or tuple of types).")
         self.is_formal_sig = not actual
         
-        # Get the type table, and check consistency (unless all None values).
-        # None values are converted to TypeObject(None).
         self.type_table = None
-        if isinstance(val_type, TypeObject): # Ignores None values for val_type.
+
+        #
+        # Convert val_type argument to TypeObject instance.
+        #
+
+        if isinstance(val_type, TypeObject):
             #self.type_table = val_type.type_table  # TODO
             pass
-        #elif val_type is not None: # TODO
-        #    raise TypeModuleException("`TypeSig` initialized with invalid `val_type`"
-        #             " of '{0}', of Python type {1}.  Must be a `TypeObject` instance."
-        #                        .format(val_type, type(val_type)))
-        else:
-            #val_type = TypeObject(None) # TODO
+        elif val_type is None:
+            val_type = TypeObject(None)
             pass
-        if arg_types is not None:
+        else:
+            raise TypeModuleException("`TypeSig` initialized with invalid `val_type`"
+                     " of '{0}', of Python type {1}.  Must be a `TypeObject` instance."
+                                .format(val_type, type(val_type)))
+
+        #
+        # Convert arg_type to tuple of TypeObject instances or a single wildcard one.
+        #
+
+        if arg_types is None:
+            arg_types = TypeObject(None)
+            pass
+        elif not arg_types: # Matches (), [], and anything else that bools to False
+            arg_types = () # Below case catches this, but this clearer.
+        else:
+            arg_types = list(arg_types)
             for i in range(len(arg_types)):
                 if isinstance(arg_types[i], TypeObject): # Ignores None values.
-                    if self.type_table is not None:
-                        if arg_types[i].type_table is not self.type_table:
-                            raise TypeModuleException("`TypeSig` instantiation with"
-                                    " inconsistent `TypeObject` instances ("
-                                    " belonging to different parsers).")
-                    else:
-                        #self.type_table = arg_types[i].type_table # TODO
-                        pass
-                #elif arg_types[i] is not None: # TODO
-                #    raise TypeModuleException("`TypeSig` initialized with invalid"
-                #                " `val_type` of '{0}', of Python type {1}.  Must be"
-                #                " a `TypeObject` instances."
-                #                .format(val_type, type(val_type)))
+                    #if self.type_table is not None:
+                    #    if arg_types[i].type_table is not self.type_table:
+                    #        raise TypeModuleException("`TypeSig` instantiation with"
+                    #                " inconsistent `TypeObject` instances ("
+                    #                " belonging to different parsers).")
+                    #else:
+                    #    self.type_table = arg_types[i].type_table # TODO
+                    #    pass
+                    pass
+                elif arg_types[i] is None:
+                    arg_types[i] = TypeObject(None)
+                    pass
                 else:
-                    arg_types = list(arg_types)
-                    #arg_types[i] = TypeObject(None) # TODO
-                    arg_types = tuple(arg_types)
+                    raise TypeModuleException("`TypeSig` initialized with invalid"
+                                " `val_type` of '{0}', of Python type {1}.  Must be"
+                                " a `TypeObject` instances."
+                                .format(val_type, type(val_type)))
+            arg_types = tuple(arg_types)
 
         self.val_type = val_type
-        if arg_types:
-            self.arg_types = tuple(arg_types)
-        else:
-            self.arg_types = arg_types
+        self.arg_types = arg_types
+
         self.original_sig = None # This is set when wildcards are expanded.
         self.eval_fun = None # Optional eval fun associated with this signature.
 
@@ -212,25 +225,20 @@ class TypeSig(object):
         like equality testing)."""
         num_args = len(list_of_child_sig_lists)
 
+        # Do some integrity checks on the lists (could be removed for efficiency).
         if not all(s.is_formal_sig for s in sig_list):
             # TODO: make separate file common_settings_and_exceptions.py and
             # raise a relevant type error.  May want to separarate
             # code flaws from parsing flaws, though, and add yet another to call.
             raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
                     " sigs as `sig_list` argument.")
-        # TODO DEBUG below, remove if False
-        if False and not all(s.is_formal_sig for s_lst in sig_list for s in s_lst):
+        # TODO these should eval to false after they become actual types...
+        if not all(s.is_formal_sig for s_lst in list_of_child_sig_lists for s in s_lst):
             # TODO: make separate file common_settings_and_exceptions.py and
             # raise an ParserException, not a type error.  May want to separarate
             # code flaws from parsing flaws, though, and add yet another to call.
             raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
                     " sigs as `sig_list` argument.")
-
-        # Remove duplicates from the list.  This is PROBABLY no longer needed
-        # because identical sigs are now replaced/overwritten in
-        # register_handler_fun, using
-        # append_sig_to_list_replacing_if_identical.
-        #sig_list = TypeSig.remove_duplicate_sigs(sig_list)
 
         # Expand the signatures with wildcards to match the number of args.
         sig_list = TypeSig.expand_sigs_with_None_args(num_args, sig_list)
@@ -258,8 +266,8 @@ class TypeSig(object):
         saved with it as an attribute called `original_sig`."""
         all_sigs_expanded = []
         for sig in sig_list:
-            if sig.arg_types is None:
-                new_sig = TypeSig(sig.val_type, (None,)*num_args)
+            if sig.arg_types == TypeObject(None):
+                new_sig = TypeSig(sig.val_type, (TypeObject(None),)*num_args)
             else:
                 new_sig = sig
             new_sig.original_sig = sig # Save the original sig as an attribute.
@@ -316,26 +324,24 @@ class TypeSig(object):
                                     list_of_child_sig_lists, sig.arg_types):
                 some_child_retval_matches = False
                 for child_sig in child_sig_list:
-                    if arg_type is None:
-                    #if arg_type.type_label == (None,): # TODO
+                    if arg_type == TypeObject(None):
                         some_child_retval_matches = True
                         break
                     # TODO BUG, need to change below line to use
-                    # is_valid_actual_type, but that causes error because they have
-                    # string values in them!  Apparently not being registered or
-                    # looked up in dict by label?  Maybe mod when register?  Or,
-                    # maybe disallow strings and force an actual type var name to
-                    # be set in the actual application code (see later tests with
-                    # types in test_pratt_parser.py).
+                    # is_valid_actual_type, but that causes error because it claims
+                    # that one of the arg_type is a TypeObject.  Shouldn't that case
+                    # be caught above?  Maybe need to revamp this loop and all comparisons
+                    # in light of the new module organization....
                     print("debug, arg_type is", arg_type)
                     if child_sig.val_type == arg_type:
-                    #if arg_type.is_valid_actual_sig(child_sig.val_type):
+                    #if arg_type.is_valid_actual_sig(child_sig.val_type): 
                         some_child_retval_matches = True
                         break
                 if not some_child_retval_matches:
                     mismatch_with_sig = True
                     break
-            if not mismatch_with_sig: matching_sigs.append(sig)
+            if not mismatch_with_sig:
+                matching_sigs.append(sig)
 
         if raise_err_on_empty and not matching_sigs:
             msg = "Actual argument types do not match any signature."
@@ -424,6 +430,7 @@ class TypeObject(object):
         """Instantiate a type object or a wildcare object with `None` argument."""
         super(TypeObject, self).__init__() # Call base class __init__.
         if type_label is None:
+            # TODO nice to have only one wildcard objects, but may need __new__.
             self.type_label = (None,) # Not None so comparisons with == not a problem.
             self.is_wildcard = True
         else:
@@ -462,20 +469,25 @@ class TypeObject(object):
         # TODO: this is the one that needs to be used, will get fancier.
         return self.type_label == typeobject.type_label
 
-    def __eq__(self, typeobject):
+    def __eq__(self, type_obj):
         """Note that this defines equality between types.  The `==` symbol
         is defined as exact match only.  Use `is_valid_actual_type` for
         comparing formal to actual."""
-        return self.type_label == typeobject.type_label
-    def __ne__(self, typeobject):
-        return not self == typeobject
+        if not isinstance(type_obj, TypeObject):
+            return False
+        return self.type_label == type_obj.type_label
+    def __ne__(self, type_object):
+        return not self == type_object
 
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         # TODO, hash on only the first few vars, maybe
         return hash(self.types_label)
-    def __repr__(self): 
-        return "TypeObject({0})" .format(self.type_label)
+    def __repr__(self):
+        str_label = self.type_label
+        if self.type_label == (None,):
+            str_label = "None" # TODO, consider if good for debugging or other repr
+        return "TypeObject({0})" .format(str_label)
 
 
 #
@@ -542,4 +554,5 @@ class TypeErrorInParsedLanguage(Exception):
 class TypeModuleException(Exception):
     """An exception in the code of the `pratt_types` module."""
     # TODO move to common module, derive from Parser base exception.
+    pass
 
