@@ -609,13 +609,9 @@ def token_subclass_factory():
                     if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                         self.check_types_in_tree_second_pass()
 
-            if self.type_sig.original_sig:
-                # TODO this conditional is necessary because original_sig is NOT set
-                # on two-pass test where return types overloaded.  Why not?  Probably
-                # needs to be set, but look into it.
-                self.eval_fun = self.type_sig.original_sig.eval_fun
-
             if typesig_override:
+                typesig_override.ast_label = self.type_sig.ast_label
+                typesig_override.eval_fun = self.type_sig.eval_fun
                 self.type_sig = typesig_override
                 self.val_type = typesig_override.val_type
 
