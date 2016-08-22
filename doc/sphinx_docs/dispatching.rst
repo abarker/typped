@@ -256,18 +256,48 @@ one-to-one with the Cartesian product of the two).
 Using preconditions similarly to recursive descent parsing
 ----------------------------------------------------------
 
-TODO: describe null-string tokens and their handlers, as EXPERIMENTAL.
-      Say could be implemented more efficiently if useful enough.
+This section discusses some similiarities and differences between Pratt parsing
+with conditioned dispatching and recursive descent parsing.  It also discusses
+ways to use a Pratt-style parsing to do the same thing.  Of course recursive
+descent parsing is not all that difficult with a good lexer; it is possible to
+just implement a traditional recursive descent parser with functions calling
+the lexer, and then pass that lexer to a `PrattParser` instance to parse certain
+subexpression.
 
-It is possible to use preconditions to fake a recursive descent parser for a
-BNF or EBNF grammar.  For each production you need to know all of the tokens
-which can start that production, as well as any required disambiguating
-lookahead.  That is like the case statement or conditionals in the function
-implementing a production in a recursive descent parser.  You maintain a stack
-of states representing the production being parsed at each level, pushing and
-popping as defined below.  The handler functions for the different cases can
-use information in the state stack as part of their preconditions, and they can
-also modify the state stack.
+Similarities and differences
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pratt parsing is similar to recursive descent parsing in the sense that both
+are top-down recursive methods.  Pratt parsing is just based on tokens whereas
+recursive descent parsing is based on production rules in a grammar.  The use
+of dispatched handlers based on preconditions makes a Pratt parser even more
+similar to a recursive descent parser.
+
+If all the productions in a grammar begin with some literal (such as in a
+regular grammar) then a Pratt parser with preconditioned dispatching can
+be used to implement it.  Each rule begins with a token, which can be set with
+the head handler to process the rule.  You keep a stack of states and use
+that along with lookahead in the preconditions.  This effectively mimics
+separate recursive functions for each production rule (with the code now
+in head handler functions).  Precondition preferences can be used to mimic
+left-to-right evaluation of combined productions, containing "or" symbols.
+
+When a production does not necessarily start with literal then there is a
+problem as far as how to apply a Pratt parser while keeping the grammar
+structure.  To help deal with this, the Typped has an experimental feature
+called **null-string tokens**.  These are tokens that match the null string.
+Before each call to `next` in the lexer to get a token the parser first checks
+to see if any null-string tokens match.  If so, then the special null-string
+token is made into the current token, and the matching handler function is
+called to process the next subexpression.
+
+The experimental implementation of null-string tokens is currently not very
+efficient, though there no penalty if you do not use them.  In many cases
+efficiency is not all that important.  If the feature turns out to be useful
+there are various ways to optimize it.
+
+Example
+~~~~~~~
 
 We will assume that the stack is in a list called `pstack`, and holds string
 labels for the names of the productions.

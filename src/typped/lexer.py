@@ -257,7 +257,8 @@ class TokenNode(object):
         return self.token_label == self.token_table.end_token_label
 
     #
-    # Various representations.
+    # Various representations.  Note a token can be considered a node or a subtree.
+    # Coming straight from the Lexer, though, they do not yet have any children.
     #
 
     def traditional_repr(self):
@@ -272,7 +273,10 @@ class TokenNode(object):
     def summary_repr(self):
         """Token representation as a summarizing string containing both the label and
         the value."""
-        return "<" + str(self.token_label) + "," + str(self.value) + ">"
+        value_str = str(self.value)
+        if isinstance(self.value, str):
+            value_str = "'" + value_str + "'"
+        return "<{0},{1}>".format(self.token_label, value_str)
     def tree_repr(self, indent=""):
         """Token representation as the root of a parse subtree, with formatting."""
         string = indent + self.summary_repr() + "\n"

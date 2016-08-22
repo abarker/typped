@@ -217,7 +217,7 @@ def test_stdfun_functions(basic_setup):
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma", num_args=1)
 
     # Number of arguments
-    assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
+    assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
@@ -228,7 +228,7 @@ def test_stdfun_functions(basic_setup):
     parser.def_token("k_add", r"add")
     parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", num_args=2)
     assert str(parser.parse(
-               "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
+               "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
@@ -256,7 +256,7 @@ def test_stdfun_lpar_tail_functions(basic_setup):
 
     parser.def_stdfun_lpar_tail("k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
             num_args=1)
-    assert str(parser.parse("exp(44)")) == "<k_exp,exp>(<k_number,44>)"
+    assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
     assert str(e.value).startswith("Number of arguments does not match any signature.")
@@ -270,7 +270,7 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     parser.def_stdfun_lpar_tail("k_add", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
             num_args=2)
     assert str(parser.parse(
-               "add( 44 , 55 )")) == "<k_add,add>(<k_number,44>,<k_number,55>)"
+               "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
 
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
@@ -301,27 +301,27 @@ def test_jop(basic_setup):
     expr = "5  9"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
-    assert str(parser.parse(expr)) == "<k_jop,None>(<k_number,5>,<k_number,9>)"
+    assert str(parser.parse(expr)) == "<k_jop,None>(<k_number,'5'>,<k_number,'9'>)"
     expr = "2 pi - 4 z"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
-    assert str(parser.parse(expr)) == ("<k_minus,->"
-                                  "(<k_jop,None>(<k_number,2>,<k_identifier,pi>),"
-                                   "<k_jop,None>(<k_number,4>,<k_identifier,z>))")
+    assert str(parser.parse(expr)) == ("<k_minus,'-'>"
+                                  "(<k_jop,None>(<k_number,'2'>,<k_identifier,'pi'>),"
+                                   "<k_jop,None>(<k_number,'4'>,<k_identifier,'z'>))")
     expr = "2 pi (x+y) - 4^z s"
     #print("\nworking on", expr)
-    assert str(parser.parse(expr)) == ("<k_minus,->"
+    assert str(parser.parse(expr)) == ("<k_minus,'-'>"
                           "(<k_jop,None>("
                               "<k_jop,None>("
-                                  "<k_number,2>,<k_identifier,pi>),"
-                              "<k_lpar,(>(<k_plus,+>(<k_identifier,x>,<k_identifier,y>))),"
-                          "<k_jop,None>(<k_double_ast,^>("
-                              "<k_number,4>,<k_identifier,z>),<k_identifier,s>))")
+                                  "<k_number,'2'>,<k_identifier,'pi'>),"
+                              "<k_lpar,'('>(<k_plus,'+'>(<k_identifier,'x'>,<k_identifier,'y'>))),"
+                          "<k_jop,None>(<k_double_ast,'^'>("
+                              "<k_number,'4'>,<k_identifier,'z'>),<k_identifier,'s'>))")
     #fail()
     parser.def_token("k_sin", r"sin")
     parser.def_stdfun("k_sin", "k_lpar", "k_rpar", "k_comma")
     assert str(parser.parse("4 sin( 0 )")) == (
-                          "<k_jop,None>(<k_number,4>,<k_sin,sin>(<k_number,0>))")
+                          "<k_jop,None>(<k_number,'4'>,<k_sin,'sin'>(<k_number,'0'>))")
 
 
 def test_types_mixed_numerical_bool_expressions(): 
@@ -356,13 +356,13 @@ def test_types_mixed_numerical_bool_expressions():
 
     # run simple tests with just one type
     assert parser.parse("5 + 100").string_tree_repr() == \
-                                  "<k_plus,+>(<k_number,5>,<k_number,100>)"
+                                  "<k_plus,'+'>(<k_number,'5'>,<k_number,'100'>)"
     # note k_double_ast ** and with an alias ^ on next
     assert parser.parse("5^100").string_tree_repr() == \
-                                  "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+                                  "<k_double_ast,'^'>(<k_number,'5'>,<k_number,'100'>)"
     assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
-            "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
-            "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
+            "<k_minus,'-'>(<k_exp,'exp'>(<k_number,'100'>)," \
+            "<k_double_ast,'^'>(<k_number,'5'>,<k_double_ast,'^'>(<k_number,'100'>,<k_number,'2'>)))"
 
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
@@ -384,7 +384,7 @@ def test_types_mixed_numerical_bool_expressions():
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
-            "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
+            "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
@@ -477,13 +477,13 @@ def test_types_overloaded_return():
 
     # run simple tests with just one type
     assert parser.parse(" 5 + 100").string_tree_repr() == \
-                                         "<k_plus,+>(<k_number,5>,<k_number,100>)"
+                                         "<k_plus,'+'>(<k_number,'5'>,<k_number,'100'>)"
     # note k_double_ast ** and with an alias ^ on next
     assert parser.parse("5^100").string_tree_repr() == \
-                                   "<k_double_ast,^>(<k_number,5>,<k_number,100>)"
+                                   "<k_double_ast,'^'>(<k_number,'5'>,<k_number,'100'>)"
     assert parser.parse("exp(100)-5^100^2").string_tree_repr() == \
-         "<k_minus,->(<k_exp,exp>(<k_number,100>)," \
-         "<k_double_ast,^>(<k_number,5>,<k_double_ast,^>(<k_number,100>,<k_number,2>)))"
+         "<k_minus,'-'>(<k_exp,'exp'>(<k_number,'100'>)," \
+         "<k_double_ast,'^'>(<k_number,'5'>,<k_double_ast,'^'>(<k_number,'100'>,<k_number,'2'>)))"
 
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
@@ -503,7 +503,7 @@ def test_types_overloaded_return():
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
-            "<k_plus,+>(<f_bn2n,f_bn2n>(<k_true,True>,<k_number,100>),<k_number,100>)"
+            "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
@@ -566,8 +566,8 @@ def test_types_overloaded_return():
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # with return type overloading this should again work if we add to a number,
     # to get unique resolution at the higher level
-    assert parser.parse("f_nb2b(1,False) + 5").string_tree_repr() == "<k_plus,+>" \
-                        "(<f_nb2b,f_nb2b>(<k_number,1>,<k_false,False>),<k_number,5>)"
+    assert parser.parse("f_nb2b(1,False) + 5").string_tree_repr() == "<k_plus,'+'>" \
+                "(<f_nb2b,'f_nb2b'>(<k_number,'1'>,<k_false,'False'>),<k_number,'5'>)"
 
     # overload f_nb2b again, to also take two number arguments
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
@@ -578,8 +578,8 @@ def test_types_overloaded_return():
         parser.parse("f_nb2b(4, f_nb2b(4,False))")
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
     # but this order should be OK
-    assert parser.parse("f_nb2b(f_nb2b(4,False), 4)").string_tree_repr() == "<f_nb2b,f_nb2b>" \
-                        "(<f_nb2b,f_nb2b>(<k_number,4>,<k_false,False>),<k_number,4>)"
+    assert parser.parse("f_nb2b(f_nb2b(4,False), 4)").string_tree_repr() == "<f_nb2b,'f_nb2b'>" \
+                   "(<f_nb2b,'f_nb2b'>(<k_number,'4'>,<k_false,'False'>),<k_number,'4'>)"
     # trigger the same message as before at lower level in tree, get 'parent expects'
     # err msg rather than just 'ambiguous' err msg which haparserens at the root
     with raises(TypeErrorInParsedLanguage) as e:

@@ -40,7 +40,7 @@ TODO fix terminology
   arguments and to fill in values for the template variables.
 
 The each instance of the `PrattParser` class holds all of its defined types in
-a `TypeObjectDict` class, defined in this module.
+a `TypeTable` class, defined in this module.
 
 """
 
@@ -115,7 +115,11 @@ class TypeSig(object):
     required).  Note that `TypeSig() == TypeSig(None) == TypeSig(None, None)`.
     To specify an object like a literal which takes no arguments an empty tuple
     should be used for `arg_types`, as in `TypeSig(None, ())`, with the
-    `val_type` argument set to whatever type if it is not a wildcard."""
+    `val_type` argument set to whatever type if it is not a wildcard.
+    
+    The values type and the argument types can be accessed by indexing the
+    0 and 1 element of an instance, respectively, or by using the `val_type`
+    and `arg_types` attributes."""
 
 # TODO: type sigs look up their token table and set attribute, unless all None
 # and then they set it to None... shouldn't matter then....
@@ -383,9 +387,12 @@ class TypeSig(object):
 
     def __getitem__(self, index):
         """Indexing works like a tuple."""
-        if index == 0: return self.val_type
-        elif index == 1: return self.arg_types
-        else: raise IndexError
+        if index == 0: 
+            return self.val_type
+        elif index == 1:
+            return self.arg_types
+        else:
+            raise IndexError
 
     
     # TODO this is explicit and better than __eq__ but doesn't work with sets...
@@ -494,7 +501,7 @@ class TypeObject(object):
 # A dict-like class for holding type objects
 #
 
-class TypeObjectDict(object):
+class TypeTable(object):
     """A type table holding instances of the `TypeObject` class, one for each
     defined type in the language.  Each `PrattParser` instance has such a table,
     which holds the objects which represent each type defined in the language

@@ -25,10 +25,12 @@ with codecs.open(os.path.join(current_dir, "README.rst"), encoding="utf-8") as f
 
 setup(
     name="typped",
-    version="16.07", # Versions should comply with PEP440.
-    description="A typped Pratt parser which employs dispatching of handler functions.",
+    version="0.1.0", # Versions should comply with PEP440.
+    #description="A typped Pratt parser which employs dispatching of handler functions.",
+    description="A parser.", # TODO switch
     #url="https://github.com/pypa/sampleproject",
-    keywords=["parser", "pratt", "typed language"],
+    keywords=["parser"],
+    #keywords=["parser", "pratt", "typed language"],
     install_requires=["pytest>=2.0"],
 
     license="MIT",

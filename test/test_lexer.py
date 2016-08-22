@@ -210,12 +210,12 @@ def test_documentation_example():
 
     lex.set_text("x  + y")
     lst = [str(t) for t in lex]
-    assert lst[0] == "<k_identifier,x>"
-    assert lst[1] == "<k_plus,+>"
-    assert lst[2] == "<k_identifier,y>"
+    assert lst[0] == "<k_identifier,'x'>"
+    assert lst[1] == "<k_plus,'+'>"
+    assert lst[2] == "<k_identifier,'y'>"
     assert lst[3] == "<end,None>"
  
     lex.set_text("x  + y")
     t = next(lex)
-    assert str(t) == "<k_identifier,x>"
+    assert str(t) == "<k_identifier,'x'>"
 
