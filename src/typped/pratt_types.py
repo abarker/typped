@@ -120,11 +120,12 @@ class TypeSig(object):
     The values type and the argument types can be accessed by indexing the
     0 and 1 element of an instance, respectively, or by using the `val_type`
     and `arg_types` attributes."""
-    ast_label = None # Default value for extra attribute pasted onto instances.
-    eval_fun = None # Default value for extra attribute pasted onto instances.
-    original_sig = None # Set for instances when wildcards (None types) are expanded.
+    #ast_label = None # Default value for extra attribute pasted onto instances.
+    #eval_fun = None # Default value for extra attribute pasted onto instances.
+    #formal_sig = None # Set for instances when wildcards (None types) are expanded.
 
-    def __init__(self, val_type=None, arg_types=None, test_fun=None, actual=False):
+    def __init__(self, val_type=None, arg_types=None, test_fun=None, actual=False,
+            eval_fun=None, ast_label=None, formal_sig=None):
         """Initialize a type signature object.
         
         The argument `val_type` should be either `None`, or a `TypeObject`
@@ -139,7 +140,10 @@ class TypeSig(object):
         
         The `actual` parameter should be set `True` for type sigs which
         represent actual type sigs.  This allows for some error-checking in the
-        methods.  It just sets the attribute `is_actual_sig`."""
+        methods.  It just sets the attribute `is_actual_sig`.
+        
+        The `eval_fun` and `ast_label` arguments are just copied as attributes
+        of the newly-created signature."""
 
         # TODO test_fun is not set or used as of now, but it is supposed to be
         # an optional user-defined function which tests whether the parsed
@@ -148,6 +152,9 @@ class TypeSig(object):
         # useful, else delete.
 
         self.is_actual_sig = actual
+        self.eval_fun = eval_fun
+        self.ast_label = ast_label
+        self.formal_sig = formal_sig
         
         #
         # Convert val_type argument to TypeObject instance.
@@ -245,14 +252,14 @@ class TypeSig(object):
         """Expand the signatures on list `sig_list` so that any `None` argument not
         inside a tuple or list is converted to a tuple of `None` having
         `num_args` of argument.  Each expanded version has the original signature
-        saved with it as an attribute called `original_sig`."""
+        saved with it as an attribute called `formal_sig`."""
         all_sigs_expanded = []
         for sig in sig_list:
             if sig.arg_types == TypeObject(None):
-                new_sig = TypeSig(sig.val_type, (TypeObject(None),)*num_args)
+                new_sig = TypeSig(sig.val_type, (TypeObject(None),)*num_args,
+                        formal_sig=sig, eval_fun=sig.eval_fun, ast_label=sig.ast_label)
             else:
                 new_sig = sig
-            new_sig.original_sig = sig # Save the original sig as an attribute.
             all_sigs_expanded.append(new_sig)
         return all_sigs_expanded
 
@@ -273,7 +280,9 @@ class TypeSig(object):
                     continue
                 num_repeats = num_actual_args // sig_args_len
                 # NOTE repeating adds refs, not copies; OK for now but keep in mind.
-                sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
+                sig = TypeSig(sig.val_type, sig.arg_types * num_repeats,
+                        formal_sig=sig, eval_fun=sig.eval_fun,
+                        ast_label=sig.ast_label)
             sigs_matching_numargs.append(sig)
 
         if raise_err_on_empty and not sigs_matching_numargs:

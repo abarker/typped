@@ -157,25 +157,50 @@ function registered for the jop (after the jop's tail handler gets the right
 operand with `recursive_parse`).  If it does not match the requirement you can
 raise an exception.
 
-TODO: Have a way that a handler function can register an "expected right operand
-type" and then have a routine that the jop's handler function can call which
-checks the last registered expectation (which needs to be cleared at the
-appropriate time).
+.. topic:: General overloading on types
 
-TODO: is this discussion more general than just jops?  Doesn't it apply to
-general preconditions functions for inferring actual operators, too?  No, it
-doesn't, because the actual tokens do not need to be inferred or not inferred.
-The token will always have a handler function called (assuming some
-preconditions fun matches, otherwise error) and the handler function will
-always get the token with recursive_parse.  The type system will evaluate the
-parse tree after that, and *choose* the overloaded typesig based on the actual
-types.  That is all the parser is in charge of; the eval fun is associated with
-the type sig and any other actions are up to the user.  This *should* be
-discussed somewhere, though, as a discussion of how type information
-overloading works.  To reiterate, if we want overloading on "*" so that it only
-applies between numbers then we have a syntax error otherwise, since the "*" is
-explicit in the token stream.  If it has multiple definitions as an infix
-operator then you would have to deal with those inside the handler.
+   TODO: Move this stuff, maybe to general operator overloading section or the
+   types section for using type info in overloading.  Some stuff in dispatching
+   file as of now; might fit there in section, but could have own.
+
+   Is this discussion more general than just jops?  Doesn't it apply to
+   general preconditions functions for inferring actual operators, too?  No, it
+   doesn't, because the actual tokens do not need to be inferred or not
+   inferred.  That's much more difficult, and you want it to depend on the
+   types of both things even to decide whether to infer it.
+   
+   The actual operator token will always have a handler function called
+   (assuming some preconditions fun matches, otherwise error) and the handler
+   function will always get the token with recursive_parse.  The precondition
+   cannot depend on the r.h.s. type information, but the type system will
+   evaluate the parse tree after the call to `recursive_parse`, and *can*
+   choose the overloaded typesig based on the actual types.  That is all the
+   parser is in charge of; the eval fun is associated with the type sig and any
+   other actions are up to the user.
+   
+   This *should* be discussed somewhere, though, as a discussion of how type
+   information overloading works.  To reiterate, if we want overloading on "*"
+   so that it only applies between numbers then we have a syntax error
+   otherwise, since the "*" is explicit in the token stream.  If it has
+   multiple definitions as an infix operator then you would have to deal with
+   those inside the handler.
+
+   Any flaws in above reasoning?  If not it's pretty neat how the overloading
+   works out so well by keeping all the sigs with the single
+   token/precondition-handler.  (Even unary prefix operators need to grab the
+   next argument and append it as a child -- postfix ones don't care, since
+   they can see to the left.  They do construct differently, not making the 0
+   child from `left`.  But they always are handled by head-handlers versus
+   tail-handlers, anyway!)
+
+   (UNLESS we could assume that an infix operator will always call `recursive_parse`
+   to get its next argument... then we could have a "subexpression peek" kind
+   of thing... must be some way to make it work reasonably...)
+
+   TODO: Have a way that a handler function can register an "expected right operand
+   type" and then have a routine that the jop's handler function can call which
+   checks the last registered expectation (which needs to be cleared at the
+   appropriate time).
 
 Note that as far as overloading the juxtaposition operator you can only
 overload the jop based on the type of the left operand (and any other

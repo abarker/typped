@@ -224,13 +224,18 @@ from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexErr
                     multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
+# TODO: Consider putting versions of the helper functions like match_next in
+# the main module namespace as well as in the TokenSubclass space (can probably
+# use the same definitions).  That way it might be easier for people to use
+# them along with their own helper methods...  or not...  They are just called
+# as tok.match_next(...) instead of match_next(tok, ...).  SO, you could define
+# them in the main namespace and just set the functions as attributes in the
+# class and it would work OK.
+
 # TODO: consider how to define a named tuple to take the arguments of the
 # functions like literals and require them to be used in the multi-def things.
 # Otherwise, gets confusing about what the arguments are, and cannot use
 # keywords... May or may not work, though.
-
-# TODO: look at some of the helper functions in the pyparsing package:
-# https://pythonhosted.org/pyparsing/
 
 # TODO: if PrattParser requires tokens defined from itself, it should mark them and
 # refuse to deal with any others.  It implicitly does, with whatever attributes
@@ -644,7 +649,6 @@ def token_subclass_factory():
                 # Found a unique signature; set the node's val_type to its val_type.
                 self.type_sig = self.matching_sigs[0] # Save sig for semantic actions.
                 self.val_type = self.type_sig.val_type # Set the node type.
-                #self.eval_fun = self.eval_fun_dict[self.precond_label][self.type_sig]
                 delattr(self, "matching_sigs")
             return
 
@@ -677,8 +681,8 @@ def token_subclass_factory():
             # a node which match in arguments for *some* possible return-type
             # choice of the children.  Same as the one-pass version, but now
             # sets of possibilities are allowed and state is saved for the
-            # second pass to use: the list of matching sigs is saved with the
-            # node in self.matched_sigs.
+            # second pass to use: the list of matching sigs is temporarily
+            # saved with the node in the self.matched_sigs attribute.
             #
             # Summary: first pass, bottom-up, find all sigs that match possible
             # val_types of the node's children, across all arguments.
@@ -697,8 +701,8 @@ def token_subclass_factory():
             # and set the (unique) signature for each of their children.
             #
             # Note that this algorithm works just as well if the second pass is
-            # run on each subtree as soon as the root has a unique signature,
-            # and the recursion is only down to subtrees with roots having a
+            # run on each subtree as soon as the subtree root has a unique signature,
+            # and the recursion only goes down to subtrees with roots having a
             # unique signature.  This yields partial results and some error
             # conditions sooner, and is what is implemented here.
             if len(self.matching_sigs) != 1: # The root case needs this.
@@ -711,7 +715,6 @@ def token_subclass_factory():
             # We have a unique signature; set the node's type attributes
             self.type_sig = self.matching_sigs[0] # Save signature for semantic actions.
             self.val_type = self.type_sig.val_type # Set the type for the node.
-            #self.eval_fun = self.eval_fun_dict[self.precond_label][self.type_sig]
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
@@ -755,21 +758,10 @@ def token_subclass_factory():
             """Run the saved evaluation function on the token, if one was
             registered with it.  Will raise an error if with no such function
             is found (the `eval_fun` is initialized to `None`)."""
-            if not self.eval_fun:
+            if not self.type_sig.eval_fun:
                 raise ParserException("Attempted to run an evaluation function for"
                         " token {0} but none was found.""".format(self))
-            return self.eval_fun(self) # Run the function saved with the instance.
-
-        def add_eval_subtree_method(self, eval_fun):
-            """Add a method called `eval_subtree` to the instance of the class.
-            The function `eval_fun` passed in should take self as its first
-            argument.  It should return the result of evaluating the node,
-            calculated from its own attributes and from the results of calling
-            `c.eval_subtree()` for each child `c`.  For example, an addition
-            node would return the results of adding the evaluations from the
-            children.  If this is defined for all the nodes in a tree it can be
-            called from the root to evaluate the full tree."""
-            self.eval_subtree = types.MethodType(eval_fun, self)
+            return self.type_sig.eval_fun(self) # Run the function saved with the instance.
 
         def semantic_action(self):
             """What should these be, and are they needed????  The handler functions
@@ -812,7 +804,7 @@ def token_subclass_factory():
                         "token {1}.  The text of the {3} tokens up to "
                         "the error is: {3}"
                         .format(peeklevel, str(lex.peek(peeklevel)), err_msg_tokens,
-                            lex.last_n_tokens_original_text(3))) # TODO, make 3 a param
+                            lex.last_n_tokens_original_text(err_msg_tokens)))
             if not retval and raise_on_fail:
                     raise ParserException(
                         "Function match_next (with peeklevel={0}) expected token "
@@ -820,13 +812,14 @@ def token_subclass_factory():
                         "from the three tokens up to the error is: {3}"
                         .format(peeklevel, token_label_to_match,
                                 str(lex.peek(peeklevel)),
-                                lex.last_n_tokens_original_text(3))) # TODO, make 3 a param
+                                lex.last_n_tokens_original_text(err_msg_tokens)))
             return retval
 
         def in_ignored_tokens(self, token_label_to_match,
                               raise_on_fail=False, raise_on_true=False):
             """A utility function to test if a particular token label is among the
-            tokens ignored before the current token.  Returns a boolean value."""
+            tokens ignored before the current token.  Returns a boolean value.  Can
+            be set to raise an exception on success or failure."""
             lex = self.token_table.lex
             retval = False
             ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
@@ -847,7 +840,7 @@ def token_subclass_factory():
 
         def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
             """Boolean function to test if any tokens were ignored between current token
-            and lookahead."""
+            and lookahead.  Can be set to raise an exception on success or failure."""
             lex = self.token_table.lex
             retval = True
             if lex.peek().ignored_before():
@@ -869,8 +862,9 @@ def token_subclass_factory():
             return retval
 
         def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
-            """Boolean function to test if any tokens were ignored between previous token
-            and current token."""
+            """Boolean function to test if any tokens were ignored between
+            previous token and current token.  Can be set to raise an exception
+            on success or failure."""
             lex = self.token_table.lex
             retval = True
             if lex.token.ignored_before():
@@ -1350,12 +1344,8 @@ class PrattParser(object):
         if tail: TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Get the type sig.
-        type_sig = TypeSig(val_type, arg_types) 
+        type_sig = TypeSig(val_type, arg_types, eval_fun=eval_fun, ast_label=ast_label) 
         
-        # Save the eval_fun and ast_label as an attribute of the signature type_sig.
-        type_sig.eval_fun = eval_fun
-        type_sig.ast_label = ast_label
-
         if head:
             TokenSubclass.register_handler_fun(HEAD, head,
                                precond_label=precond_label, precond_fun=precond_fun,
@@ -1389,6 +1379,7 @@ class PrattParser(object):
         return self.type_table.create_typeobject(type_label)
 
     def undef_type(self, type_label):
+        """Undefine the type associated with the name `type_label`."""
         self.type_table.undef_typeobject(type_label)
 
     #
@@ -1530,7 +1521,8 @@ class PrattParser(object):
         arguments when typing is not being used.  If it is set to a nonnegative
         number then it will automatically set `arg_types` to the corresponding
         list of `None` values; if `arg_types` is set then it is ignored."""
-        if num_args is not None and arg_types is None: arg_types = [None]*num_args
+        if num_args is not None and arg_types is None:
+            arg_types = [None]*num_args
 
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
@@ -1622,11 +1614,39 @@ class PrattParser(object):
                             ast_label=ast_label)
 
     def def_production(self, precond_label=None, precond_fun=None, precond_priority=None,
-                      val_type=None, arg_types=None, eval_fun=None,
-                      ast_label=None):
+                       val_type=None, arg_types=None, eval_fun=None,
+                       ast_label=None):
         """Define a production in the sense of a recursive-descent parser,
         using the null-string token."""
-        # TODO, define the head handler, etc.
+        # TODO, this has the form, but is still a copy of the stdfun definer function...
+        def preconditions(lex, lookbehind):
+            """Must be followed by a token with label 'lpar_token_label', with no
+            whitespace in-between."""
+            peek_tok = lex.peek()
+            if peek_tok.ignored_before(): return False
+            if peek_tok.token_label != lpar_token_label: return False
+            return True
+        precond_label = "lpar after, no whitespace between" # Should be a unique label.
+
+        def head_handler(tok, lex):
+            # Below match is for a precondition, so it will match and consume.
+            tok.match_next(lpar_token_label, raise_on_fail=True)
+            # Read comma-separated subexpressions until the peek is rpar_token_label.
+            while not tok.match_next(rpar_token_label, consume=False):
+                tok.append_children(tok.recursive_parse(0))
+                if not tok.match_next(comma_token_label):
+                    break
+                else:
+                    tok.match_next(rpar_token_label, raise_on_true=True)
+            tok.match_next(rpar_token_label, raise_on_fail=True)
+            tok.process_and_check_node(head_handler)
+            return tok
+        return self.modify_token_subclass(fname_token_label, prec=0,
+                     head=head_handler, precond_label=precond_label,
+                     precond_fun=preconditions, precond_priority=precond_priority,
+                     val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                     ast_label=ast_label)
+
 
     #
     # The main parse routines.
