@@ -551,6 +551,7 @@ def token_subclass_factory():
                 fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
                 return functools.partial(fun, self, lex, left) # Bind all the args, known.
             else: 
+                # TODO: should this be a SyntaxError or something else, more serious?
                 raise ParserException("Bad first argument to dispatch_handler"
                         " function: must be HEAD or TAIL or equivalent.")
 
@@ -705,6 +706,7 @@ def token_subclass_factory():
             # and the recursion only goes down to subtrees with roots having a
             # unique signature.  This yields partial results and some error
             # conditions sooner, and is what is implemented here.
+
             if len(self.matching_sigs) != 1: # The root case needs this.
                 self._raise_type_mismatch_error(self.matching_sigs,
                         "Ambiguous type resolution (second pass).  Possible type "
@@ -774,6 +776,14 @@ def token_subclass_factory():
         # Some helper functions for use in handler functions.
         #
 
+        # TODO: consider just moving all of these to the ordinary module space
+        # and importing them into the typped package, etc.  Easy, just change
+        # the self param to tok.  Invoke as match_next(tok,.... instead of
+        # tok.match_next(...  Not that big a difference, but is it really
+        # needed, etc???  User defined ones have more parity, at least.  But
+        # you can still use in both precond funs (lex.token.match_next) as well
+        # as in the handlers tok.match_next....
+
         def match_next(self, token_label_to_match, peeklevel=1,
                        raise_on_fail=False, raise_on_true=False, consume=True,
                        err_msg_tokens=3):
@@ -809,7 +819,7 @@ def token_subclass_factory():
                     raise ParserException(
                         "Function match_next (with peeklevel={0}) expected token "
                         "with label '{1}' but found token {2}.  The text parsed "
-                        "from the three tokens up to the error is: {3}"
+                        "from the tokens up to the error is: {3}"
                         .format(peeklevel, token_label_to_match,
                                 str(lex.peek(peeklevel)),
                                 lex.last_n_tokens_original_text(err_msg_tokens)))
@@ -912,14 +922,29 @@ def token_subclass_factory():
             # prec for different handler functions might be doable: just do a
             # next then evaluate the prec, then pushback.
 
+            # NOTE it is tempting to define a jop and null-string token
+            # instance and only use it when necessary (and replace it only when
+            # used).  But, need to consider some things.  What if new head
+            # handlers are dynamically registered?  Is there any line info
+            # attribute or other thing that they will get?  (If not, probably
+            # should add extra things needed or desired at the time when you
+            # actually do use one.)  Note that currently you only really pay
+            # the creation costs if you actually use the corresponding feature.
+
+            # Set some convenience variable for the lexer and parser instances.
             lex = self.token_table.lex
+            if not hasattr(self, "parser_instance"):
+                # This catches some cases of tokens defined via Lexer, not all.
+                raise ParserException("All tokens used in the parser must be"
+                        " defined in via parser's methods, not the lexer's.")
+            parser_instance = self.parser_instance
 
             # See if a null-string matches.
             null_string_token_head_found = False
-            null_string_token = self.parser_instance.null_string_token_subclass
-            if null_string_token:
+            if parser_instance.null_string_token_label:
+                null_string_token = parser_instance.null_string_token_subclass(None)
                 try:
-                    head_handler = null_string_token_label.dispatch_handler(HEAD, lex)
+                    head_handler = null_string_token.dispatch_handler(HEAD, lex)
                     null_string_token_head_found = True
                 except NoHandlerFunctionDefined:
                     pass
@@ -956,20 +981,15 @@ def token_subclass_factory():
                 # Broke out of main loop, determine whether or not to infer a jop.
                 #
 
-                if not hasattr(lex.token, "parser_instance"):
-                    # This catches some cases, not all, but attribute needed below.
-                    raise ParserException("All tokens used in the parser must be"
-                            " defined in via parser's methods, not the lexer's.")
-
                 # Not if jop undefined.
-                if not lex.token.parser_instance.jop_token_subclass:
+                if not parser_instance.jop_token_subclass:
                     break
                 # Not if at end of expression.
                 if lex.peek().is_end_token():
                     break
                 # Not if the ignored token for jop is set but not present.
-                if lex.token.parser_instance.jop_ignored_token_label and (
-                              lex.token.parser_instance.jop_ignored_token_label 
+                if parser_instance.jop_ignored_token_label and (
+                              parser_instance.jop_ignored_token_label 
                               not in lex.peek().ignored_before_labels()): 
                     break
 
@@ -978,10 +998,10 @@ def token_subclass_factory():
                 # handler defined in the conditions when the jop will need to
                 # run its head handler, and 3) the next token similarly has no
                 # tail handler in the context.
-                if lex.token.parser_instance.jop_token_subclass.prec() > subexp_prec:
+                if parser_instance.jop_token_subclass.prec() > subexp_prec:
 
                     # Provisionally infer a jop; create a subclass instance for its token.
-                    jop_instance = lex.token.parser_instance.jop_token_subclass(None)
+                    jop_instance = parser_instance.jop_token_subclass(None)
 
                     # This is a little inefficient (since it uses one go_back)
                     # but we need to be sure that when the tail handler of the
@@ -998,11 +1018,10 @@ def token_subclass_factory():
                         # Dispatch without calling here, since calling will consume
                         # another token; also, deeper-level recursions could cause false
                         # results to come up the recursion chain.
-                        peek_head_handler = curr_token.dispatch_handler(
-                                           HEAD, lex, processed_left, lookbehind)
+                        peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
                         try: # Found head handler, now make sure it has no tail handler.
                             peek_tail_handler = curr_token.dispatch_handler(
-                                           TAIL, lex, processed_left, lookbehind)
+                                               TAIL, lex, processed_left, lookbehind)
                         except NoHandlerFunctionDefined:
                             pass
                         else:

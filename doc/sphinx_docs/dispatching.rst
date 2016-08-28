@@ -120,8 +120,8 @@ as the previous ones. ::
 
      class MyParser(PrattParser):
         """Add a new method to the `PrattParser` class as an example."""
-        def __init__(self, *args):
-            super(MyParser, self).__init__()
+        def __init__(self, *args, **kwargs):
+            super(MyParser, self).__init__(*args, **kwargs)
 
         def def_stdfun(self, fname_token_label, lpar_token_label,
                        rpar_token_label, comma_token_label, num_args,

@@ -941,7 +941,12 @@ class Lexer(object):
         # TODO: clean up and debug, still flaky... also better document the stuff it
         # uses in the doc section.  Useful fun, though.  Could also print
         # line numbers and stuff....
-        prev_tokens = [self.previous_tokens[i] for i in range(-n-1, 0)]
+        prev_tokens = []
+        for i in reversed(range(n-1, 0)): # from -1 down, TODO ugly and inefficient....
+            try:
+                prev_tokens.insert(0, self.previous_tokens[i])
+            except IndexError:
+                break
         string_list = [s.original_matched_string for s in prev_tokens]
         full_string = "".join(string_list)
         return full_string

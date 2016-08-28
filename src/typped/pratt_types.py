@@ -286,7 +286,8 @@ class TypeSig(object):
             sigs_matching_numargs.append(sig)
 
         if raise_err_on_empty and not sigs_matching_numargs:
-            msg = "Number of arguments does not match any signature."
+            msg = "The number of arguments ({0}) does not match any signature.".format(
+                    num_args)
             if tnode:
                 tnode._raise_type_mismatch_error([], msg)
             else:

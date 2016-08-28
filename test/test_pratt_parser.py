@@ -14,12 +14,8 @@ import typped # Test as a full package.
 #    tokens:    k_number
 # Syntax:
 #    types:     t_int
-#    operators: op_add
-#    otherwise: no currently defined prefix
-# AST nodes:
+# AST labels:
 #    a_number
-# Semantics:
-#    eval fun:  e_add
 
 # TOKEN DEFINITIONS #################################################################
 
@@ -220,10 +216,10 @@ def test_stdfun_functions(basic_setup):
     assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (2) does not match any sig")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp()")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (0) does not match any sig")
 
     parser.def_token("k_add", r"add")
     parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", num_args=2)
@@ -231,10 +227,10 @@ def test_stdfun_functions(basic_setup):
                "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (3) does not match any sig")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(44)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (1) does not match any sig")
 
     # General error conditions
     with raises(ParserException) as e:
@@ -259,10 +255,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp(33, 33)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (2) does not match any sig")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp()")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (0) does not match any sig")
 
     parser.def_token("k_add", r"add")
     parser.def_literal("k_add")
@@ -274,10 +270,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
 
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33, 33, 33)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (3) does not match any sig")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("add(33)")
-    assert str(e.value).startswith("Number of arguments does not match any signature.")
+    assert str(e.value).startswith("The number of arguments (1) does not match any sig")
 
     with raises(ParserException) as e:
         parser.parse("add(30 30)") # Left out comma.
