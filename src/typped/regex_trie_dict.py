@@ -1,100 +1,129 @@
 """
 
-Pattern Matching in RegexTrieDict
----------------------------------
+`RegexTrieDict`: Pattern matching on dict keys
+----------------------------------------------
 
-The RegexTrieDict also simple built-in pattern-matching capabilities.  To use
-these capabilities, you first create a key which contains some special
-meta-elements (see below).  Then you insert that key (meta-key) and an
-associated value into the TrieDict.  These meta-keys are still treated simply
-as ordinary keys by the usual TrieDict operations.  But the TrieDict also has
-the special methods has_key_meta, get_meta which interpret the meta-elements.
+The `RegexTrieDict` class is a subclass of `TrieDict` which adds
+pattern-matching capabilities.  To use these capabilities, you first create a
+key which contains some special meta-elements (which are meta-characters when
+the keys are strings).  Then you insert that key (meta-key) and an associated
+value into the `RegexTrieDict`.  These meta-keys are treated simply as ordinary
+keys by the usual `TrieDict` operations.  The `RegexTrieDict` adds some special
+methods, `has_key_meta` and `get_meta`, which interpret the meta-elements as
+regex symbols rather than treating them as ordinary elements.
 
-Calling has_key_meta for a key (an ordinary, non-meta key) returns True if any
-current key matches or if any meta-key pattern happens to match as a pattern.
-Similarly, get_meta finds any key or meta-key pattern which matches and returns
-a tuple of all the data associated with matching items (i.e., associated with
-the ordinary key or with the pattern meta-key it matches).
+The `has_key_meta` and `get_meta` methods take ordinary keys as arguments,
+i.e., they to not take meta-keys as arguments.  Instead, they match the
+ordinary key against the keys in the trie, interpreting the meta-keys in the
+trie as regex patterns.  So calling `has_key_meta` for an ordinary, non-meta
+key returns `True` if any current key in the trie matches exactly or if any
+meta-key pattern in the trie happens to match as a pattern.  Similarly,
+`get_meta` finds any key or meta-key pattern in the trie which matches and
+returns a tuple containing all the data associated with those matching items.
 
-The special meta-symbols are user-defined.  By default the values are defined
-for keys which are strings of characters.  The default definitions are:
-
-<TODO update below, some changed>
+The special meta-symbols themselves can be user-defined, but their
+intepretations as meta-symbols are fixed.  By default the values are defined
+for keys which are strings of characters (but, in general, keys can be
+sequences of some kind of elements).  The default definitions are as follows
+<TODO update below, some changed>::
 
    define_meta_elems(escape="\\", repetition="*", lGroup="(", rGroup=")",
                      lWildcard="[", rWildcard="]", range="-", rangeTestFun=None)
 
-In order for an element of a key to be interpreted as a meta-symbol it must be
-preceded by the defined escape element.  So in a string key the meta-symbols
-with their default definitions above would always appear as "\\*", "\\(", "\\)",
-"\\[", "\\]", and "\\-".  This is intended to minimize interference with ordinary
-key elements.  All specially-interpreted characters must be escaped, without
-exception.  As usual a double escape such as "\\\\" (or r"\\") reverts to the
-original symbol, as does an escape not followed by one of the defined
-meta-elements.
+In order for an element of a key to be interpreted as a meta-symbol it **must**
+be preceded by the defined escape element.  So in a string key the meta-symbols
+with their default definitions above would always appear as `"\\*"`, `"\\("`,
+`"\\)"`, `"\\["`, `"\\]"`, and `"\\-"`.  If the backslash character is the
+escape then raw strings like `r"\*"` and `"r\("` can be convenient.  (But
+remember that in Python raw strings cannot end with a single backslash.)
 
-Keep in mind that if a TrieDict is to be used with escaped elements as
-meta-elements then all the literal escape-elements in it must be escaped.  Even
-the non-pattern keys which are inserted into the TrieDict in that case must
-have any escape elements escaped (they are still patterns, just simple ones).
-In the queries sequences themselves, however, escape elements are always simply
-treated as literals (i.e., no meta-interpretation is ever performed on the
-query-key sequences).  So a single escape on a key-query matches an escaped
-escape in the stored key-sequences in the Trie.
+The requirement that all meta-elements must be escaped is intended to minimize
+interference with ordinary key elements.  There are no exceptions, so it is a
+consistent rule which does not require memorizing which elements need to be
+escaped.  As usual, a double escape such as `"\\\\"` (or `r"\\"`) reverts to
+the original escape symbol, as does an escape not followed by any of the
+defined meta-elements.
+
+Keep in mind that when a `RegexTrieDict` is used with escaped elements in the
+keys, to be treated as meta-elements, all the literal escape-elements in the
+keys must be escaped as described above.  Even the ordinary keys which are
+inserted into the `RegexTrieDict` in that case must have any escape elements
+escaped (ordinary strings as regexes are still patterns, just simple ones).
+<TODO: if they are not followed by special char do they need to be escaped?> In
+the query sequences (query keys) themselves, however, escape elements are
+always simply treated as literals.  That is, no meta-interpretation is ever
+performed on the query-key sequences and the escape character has no special
+meaning.  So a single escape on a key-query matches an escaped escape in the
+stored key-sequences in the Trie.
 
 The meta-level and the object-level are intentionally kept distinct in order to
-minimize some of the confusions that can occur (even though there always are
-some).  The ordinary dict methods always operate on trie keys as if they were
-literals.  To get an extra level of interpretation, the special meta-level
-methods must be used.  These operations, however, can be freely mixed.  Patterns
-can be inserted and deleted, etc.
+minimize some of the confusions that can occur.  The ordinary dict methods
+always operate on trie keys as if they were literals.  To get an extra level of
+interpretation, the special meta-level methods must be used.  These operations,
+however, can be freely mixed.  Patterns can be inserted and deleted on the fly,
+etc.
 
-Pattern scanning is left-to-right in a key's elements (i.e., with string keys
-the characters are scanned from left to right).
+Pattern scanning is left-to-right in a key's elements.  For example, with
+strings as the keys the characters of the key strings are scanned from left to
+right.
 
-The language allows single-character wildcards.  As an example with strings,
-consider using these patterns as keys:
+Syntax of the regex language
+----------------------------
+
+The `RegexTrieDict` class implements all the basic regex patterns (though not
+the fancier ones that some regex implementations allow for).  Because it needs
+to be implemented in a trie, however, some of the usual syntax is modified.  In
+particular, the operations like `*` which are usually postfix operations are
+instead prefix operations so they are encountered first when walking down the
+trie.
+
+The language allows for single-character wildcards, i.e., wildcards which match
+a single character from some set of possibilities.  As an example with strings,
+consider these patterns are valid meta-keys using wildcards::
 
    patt1 = "abc\\[123\\]def"
    patt2 = "abc\\[1\\-3\\]def"
 
-The first pattern, patt1, matches abc1def, abd2def, and abc3def.  The second
-pattern, patt2, matches the same strings but uses a range specifier.
+The first pattern, `patt1`, matches `abc1def`, `abd2def`, and `abc3def` on
+meta-queries.  The second pattern, `patt2`, matches the same strings but uses a
+range specifier.
 
 <TODO note we now let them define the whole wildcard-processing...>
-The
-boolean-valued function rangeTestFun will be called for the first and last
-argument of the range, along with the element to test.  The default
-range-function (when the values is set to None in the call to defineMetaElems)
-only works for character ranges.
+
+The boolean-valued function `rangeTestFun` will be called for the first and
+last argument of the range, along with the element to test.  The default
+range-function (when the values is set to `None` in the call to
+`defineMetaElems`) only works for character ranges.
 
 <TODO note that Python patterns are allowed, and test some.>
+
 <TODO note that user can essentially redefine the processing of the part inside
 the brackets in any way desired.>
 
 Repetition patterns match zero or more occurrences of the pattern group.  Here
-is an example with strings as keys:
+is an example with strings as keys::
 
    patt1 = "abc\\*\\(DD\\)efg"
 
 This would match "abcefg", "abcDDefg", abcDDDDefg", etc.  The repetition
 pattern can also take optional numeric arguments, each separated by another
-asterick.  A single numeric argument, like in
+asterick.  A single numeric argument, like in ::
 
    patt = "abc\\*10\\(DD\\)efg
 
 specifies a minimum number of repetitions.  The previous example must have
-ten or more occurrences of "dd" in it.  So "abcDDefg" would not match,
-but "abcDDDDDDDDDDDDDDDDDDDDefg" would match.  When two numbers are given
+ten or more occurrences of `"dd"` in it.  So `"abcDDefg"` would not match,
+but `"abcDDDDDDDDDDDDDDDDDDDDefg"` would match.  When two numbers are given
 they represent the minimum and the maximum number of repetitions, respectively.
-So the pattern
+So the pattern ::
 
    patt = "abc\\*2\\*3\\(DD\\)efg"
 
-would not match "abcDDefg", would match "abcDDDDefg" and "abcDDDDDDefg", and
-would not match abcDDDDDDDDefg".
+would not match `"abcDDefg"`, would match `"abcDDDDefg"` and `"abcDDDDDDefg"`, and
+would not match `"abcDDDDDDDDefg"`.
 
-TODO below para not implemented
+<TODO below para not implemented>
+
 The grouping meta-elements must occur just after the start and at the end of
 the repetition pattern itself.  For efficiency, repetition can be limited such
 that it always "breaks out" of the "loop" at the first chance it gets.   This
@@ -169,22 +198,23 @@ used, but deletion would have to del the deleted-node entries.  Then we could
 start zero-repetition states but just set the stacks for the first loop, fixing
 the children in appendChildNode if the stack is not empty.
 
-How should the next version be implemented?  Based on current understanding
-from this implementation, the insert method for RegexTrieDict should be
-modified to create a virtual trie.  (The delete method also needs to be
-modified to fix the virtual trie on deletes.)  This can be hashed on the ids of
-nodes, for example, to avoid pasting things onto the actual nodes which must
-later be deleted.  The virtual trie can be created by overloading the child
-function for nodes.  Like for states currently, but it can be global and saved.
-The virtual trie should add virtual nodes for close-repetition and open-group
-nodes for 'or's.  This allows the processing for repetitions to keep track of
-the loop stacks, and the processing for 'or' sections to keep track of which
-paths were originally together in a common pattern, but otherwise the
-repetitions should just virtually both loop back and break out, and the 'or'
-patterns should be flattened down to an 'or' for each section starting at the
-initial open-group and then converging back to a common close-group node (but
-note the importance of keeping track of which ones were initially in the same
-pattern to avoid crosstalk amongst the patterns).
+If this algorithm were to be rewritten (partly or in whole), based on
+experience from this implementation, what should change?  The insert method for
+`RegexTrieDict` should probably be modified to create a virtual trie.  (The
+delete method would also need to be modified to fix the virtual trie on deletes.)
+This can be hashed on the ids of nodes, for example, to avoid pasting things
+onto the actual nodes which must later be deleted.  The virtual trie can be
+created by overloading the child function for nodes.  Like for states
+currently, but it can be global and saved.  The virtual trie should add virtual
+nodes for close-repetition and open-group nodes for 'or's.  This would allow the
+processing for repetitions to keep track of the loop stacks, and the processing
+for 'or' sections to keep track of which paths were originally together in a
+common pattern, but otherwise the repetitions should just virtually both loop
+back and break out, and the 'or' patterns should be flattened down to an 'or'
+for each section starting at the initial open-group and then converging back to
+a common close-group node (but note the importance of keeping track of which
+ones were initially in the same pattern to avoid crosstalk amongst the
+patterns).
 
 """
 
@@ -201,7 +231,6 @@ import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
 
 class NodeStateData(object):
-
     """This class is used in pattern-searches.  It is just a fancy data-record,
     essentially a named tuple.  It holds one state of a multi-state recognizer.
     The state consists of a node in the trie as well as some extra information
@@ -840,11 +869,11 @@ class RegexTrieDict(TrieDict):
 
 
     def processNodeData(self, queryElem, nodeData, nextNodeDataList, skipEscapes=True):
-        """Process one nodeData instance, usually from the nodeDataList.  Put the
-        results on nextNodeDataList.  This large routine does most of the work in
-        the processing, and is called recursively when necessary.  Escapes are
-        skipped (generally producing a list of NodeStateData classes) unless
-        skipEscapes is set False."""
+        """Process the instance `nodeData`, usually from the `nodeDataList`.
+        Put the results on `nextNodeDataList`.  This large routine does most of
+        the work in the processing, and is called recursively when necessary.
+        Escapes are skipped (generally producing a list of `NodeStateData`
+        classes) unless `skipEscapes` is set `False`."""
 
         #
         # If escapes are to be skipped, recursively process all the resulting nodes.
@@ -1198,37 +1227,32 @@ class RegexTrieDict(TrieDict):
         replaceNode is set to a node then it replaces the node in closeParenNodeData
         as the new node to jump to after a breaking a loop (used in inside sections
         of 'or' patterns)."""
-
-        """
-        TODO, consider
-        Greedy loops would be useful.  They always match as many loops around
-        as possible, even if that causes the larger pattern to fail.  This avoids
-        some worst-case scenarios.
-  
-        To implement: we need to link/entangle the two states that are produced
-        at the end of a loop.  Then, if the loopback state makes it through
-        another iteration, back to here in handleEndRepetition, it somehow signals
-        that other state to die.  But, if it doesn't complete another loop, that
-        state goes on.  (Note zero-repetition loops might be a problem...)
-  
-        Similarly, if two 'or' sections match we only need to keep one state... NO,
-        it will NOT necessarily result in the same pattern in the end.  The sections
-        can have different numbers of elements, and can have loops, etc.  We'd need
-        to use a greedy or non-greedy rule again.  So the last-exiting match or
-        first-exiting match could kill all the others.  We always come here to exit
-        the 'or' sections, since they are treated as loops at the outer level.
-  
-        See partial start commented out below.... one problem is that we need
-        unique IDs for NodeStateData instances, even across copy operations...
-        but do *some* copy operations need to get a new ID????
-  
-  
-        What if we just set the IDs here for the generated NodeStateData copies?
-        Then copy could just preserve it.  Presumably anything derived from a state
-        that is killed should also be killed!  So then we just put the ID on a kill
-        list and at the end of the main routine we go through and remove those states.
-  
-        """
+        # TODO, consider
+        # Greedy loops would be useful.  They always match as many loops around
+        # as possible, even if that causes the larger pattern to fail.  This avoids
+        # some worst-case scenarios.
+        #
+        # To implement: we need to link/entangle the two states that are produced
+        # at the end of a loop.  Then, if the loopback state makes it through
+        # another iteration, back to here in handleEndRepetition, it somehow signals
+        # that other state to die.  But, if it doesn't complete another loop, that
+        # state goes on.  (Note zero-repetition loops might be a problem...)
+        #
+        # Similarly, if two 'or' sections match we only need to keep one state... NO,
+        # it will NOT necessarily result in the same pattern in the end.  The sections
+        # can have different numbers of elements, and can have loops, etc.  We'd need
+        # to use a greedy or non-greedy rule again.  So the last-exiting match or
+        # first-exiting match could kill all the others.  We always come here to exit
+        # the 'or' sections, since they are treated as loops at the outer level.
+        #
+        # See partial start commented out below.... one problem is that we need
+        # unique IDs for NodeStateData instances, even across copy operations...
+        # but do *some* copy operations need to get a new ID????
+        #
+        # What if we just set the IDs here for the generated NodeStateData copies?
+        # Then copy could just preserve it.  Presumably anything derived from a state
+        # that is killed should also be killed!  So then we just put the ID on a kill
+        # list and at the end of the main routine we go through and remove those states.
 
         print("debug in handleEndRepetition")
 

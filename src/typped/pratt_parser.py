@@ -896,7 +896,37 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
-        def recursive_parse(self, subexp_prec):
+        def get_next_and_handler_with_nulls(self, head_or_tail, lex,
+                                         processed_left=None, lookbehind=None):
+            #TODO: move this fun to separate method when finalized, or revert.
+            """Get the next token and look up its handler, first considering
+            any possible matching null-string tokens."""
+            parser_instance = self.parser_instance
+            # See if a null-string token is set and a handler matches preconds.
+            null_string_token_handler_found = False
+            if parser_instance.null_string_token_label:
+                null_string_token = parser_instance.null_string_token_subclass(None)
+                try:
+                    handler_fun = null_string_token.dispatch_handler(
+                                  head_or_tail, lex, processed_left, lookbehind)
+                    null_string_token_handler_found = True
+                except NoHandlerFunctionDefined:
+                    pass
+
+            # If a null-string token matches, set it to be the next token and set
+            # the head-handler found above to be the handler.
+            if null_string_token_handler_found:
+                curr_token = null_string_token
+
+            # Otherwise, do the usual dispatching Pratt parser algorithm (read a
+            # token and dispatch one of its head-handlers).
+            else:
+                curr_token = lex.next()
+                handler_fun = curr_token.dispatch_handler(head_or_tail, lex,
+                                                  processed_left, lookbehind)
+            return curr_token, handler_fun
+
+        def recursive_parse(self, subexp_prec, processed_left=None, lookbehind=None):
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
@@ -931,7 +961,7 @@ def token_subclass_factory():
             # actually do use one.)  Note that currently you only really pay
             # the creation costs if you actually use the corresponding feature.
 
-            # Set some convenience variable for the lexer and parser instances.
+            # Set some convenience variables (the lexer and parser instances).
             lex = self.token_table.lex
             if not hasattr(self, "parser_instance"):
                 # This catches some cases of tokens defined via Lexer, not all.
@@ -939,30 +969,16 @@ def token_subclass_factory():
                         " defined in via parser's methods, not the lexer's.")
             parser_instance = self.parser_instance
 
-            # See if a null-string matches.
-            null_string_token_head_found = False
-            if parser_instance.null_string_token_label:
-                null_string_token = parser_instance.null_string_token_subclass(None)
-                try:
-                    head_handler = null_string_token.dispatch_handler(HEAD, lex)
-                    null_string_token_head_found = True
-                except NoHandlerFunctionDefined:
-                    pass
+            if not processed_left: # Skip head handling if special option passed in.
+                # The two commented lines are the equivalent without null_string tokens.
+                # curr_token = lex.next()
+                # head_handler = curr_token.dispatch_handler(HEAD, lex)
+                curr_token, head_handler = self.get_next_and_handler_with_nulls(
+                                                                        HEAD, lex)
 
-            # If a null-string token matches, set it to be the next token and set
-            # the head-handler found above to be the handler.
-            if null_string_token_head_found:
-                curr_token = null_string_token
-
-            # Otherwise, do the usual dispatching Pratt parser algorithm (read a
-            # token and dispatch one of its head-handlers).
-            else:
-                curr_token = lex.next()
-                head_handler = curr_token.dispatch_handler(HEAD, lex)
-
-            # Call the head-handler looked up above.
-            processed_left = head_handler()
-            lookbehind = [processed_left]
+                # Call the head-handler looked up above.
+                processed_left = head_handler()
+                lookbehind = [processed_left]
 
             while True:
 
@@ -971,9 +987,13 @@ def token_subclass_factory():
                 #
 
                 while lex.peek().prec() > subexp_prec:
-                    curr_token = lex.next()
-                    tail_handler = curr_token.dispatch_handler(
-                                           TAIL, lex, processed_left, lookbehind)
+                    # Commented lines are the equivalent without null_string tokens.
+                    # curr_token = lex.next()
+                    # tail_handler = curr_token.dispatch_handler(
+                    #                      TAIL, lex, processed_left, lookbehind)
+                    curr_token, tail_handler = self.get_next_and_handler_with_nulls(
+                                               TAIL, lex, processed_left, lookbehind)
+
                     processed_left = tail_handler()
                     lookbehind.append(processed_left)
 
@@ -1727,7 +1747,8 @@ class PrattParser(object):
 
 def sort_handler_dict(d):
     """Return the sorted `OrderedDict` version of the dict `d` passed in,
-    sorted by the precondition priority."""
+    sorted by the precondition priority in the items.  Used in
+    `PrattParser.register_handler_fun` to keep handlers sorted by priority."""
     # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
     return OrderedDict(sorted(
            d.items(), key=lambda item: item[1].precond_priority, reverse=True))

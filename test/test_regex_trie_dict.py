@@ -326,7 +326,7 @@ def test_patternsWithEscapes():
     assert td.has_key_meta("\\")
     assert td.has_key_meta("X")
     td.insert("\\*\\(\\\\abc\\\\\\)")
-    assert td.has_key_meta("\\abc\\") # this one still FAILS
+    assert td.has_key_meta("\\abc\\")
 
 
 def test_characterMatchesWithPythonEscapeSymbols():
