@@ -896,16 +896,21 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
-        def get_next_and_handler_with_nulls(self, head_or_tail, lex,
+        def get_curr_token_and_handler_fun(self, head_or_tail, lex, subexp_prec,
                                          processed_left=None, lookbehind=None):
-            #TODO: move this fun to separate method when finalized, or revert.
             """Get the next token and look up its handler, first considering
             any possible matching null-string tokens."""
+            # TODO: Need a way to pass the subexp_prec argument to null-string
+            # handlers, so they can relay it -- a way that works with recursive
+            # calls, too.  If different INSTANCES of the null-string token are
+            # always used then can paste it onto that -- the handler fun is passed
+            # tok.
             parser_instance = self.parser_instance
             # See if a null-string token is set and a handler matches preconds.
             null_string_token_handler_found = False
             if parser_instance.null_string_token_label:
                 null_string_token = parser_instance.null_string_token_subclass(None)
+                null_string_token.saved_subexp_prec = subexp_prec # So handlers can use.
                 try:
                     handler_fun = null_string_token.dispatch_handler(
                                   head_or_tail, lex, processed_left, lookbehind)
@@ -915,11 +920,14 @@ def token_subclass_factory():
 
             # If a null-string token matches, set it to be the next token and set
             # the head-handler found above to be the handler.
+            curr_token = None
             if null_string_token_handler_found:
                 curr_token = null_string_token
 
             # Otherwise, do the usual dispatching Pratt parser algorithm (read a
             # token and dispatch one of its head-handlers).
+            # TODO: consider moving this back to the main code, in BOTH places
+            # called, so code null-token stuff more localized.
             else:
                 curr_token = lex.next()
                 handler_fun = curr_token.dispatch_handler(head_or_tail, lex,
@@ -927,6 +935,8 @@ def token_subclass_factory():
             return curr_token, handler_fun
 
         def recursive_parse(self, subexp_prec, processed_left=None, lookbehind=None):
+            # TODO: Document the processed left etc (ONLY for null-string stuff)
+            # or remove.
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
@@ -969,13 +979,15 @@ def token_subclass_factory():
                         " defined in via parser's methods, not the lexer's.")
             parser_instance = self.parser_instance
 
-            if not processed_left: # Skip head handling if special option passed in.
-                # The two commented lines are the equivalent without null_string tokens.
-                # curr_token = lex.next()
-                # head_handler = curr_token.dispatch_handler(HEAD, lex)
-                curr_token, head_handler = self.get_next_and_handler_with_nulls(
-                                                                        HEAD, lex)
-
+            # Skip head-handling if `processed_left` passed in.  ONLY skipped
+            # when called from relaying null-string tail handlers.  The two
+            # commented lines are the equivalent when no null-string token is
+            # defined.
+            # curr_token = lex.next()
+            # head_handler = curr_token.dispatch_handler(HEAD, lex)
+            if not processed_left:
+                curr_token, head_handler = self.get_curr_token_and_handler_fun(
+                                                        HEAD, lex, subexp_prec)
                 # Call the head-handler looked up above.
                 processed_left = head_handler()
                 lookbehind = [processed_left]
@@ -983,7 +995,8 @@ def token_subclass_factory():
             while True:
 
                 #
-                # The main loop, except for the special case when a jop is defined.
+                # The loop below is the main loop in ordinary Pratt parsing.  The
+                # Outer loop is ONLY for the special case when a jop is defined.
                 #
 
                 while lex.peek().prec() > subexp_prec:
@@ -991,8 +1004,8 @@ def token_subclass_factory():
                     # curr_token = lex.next()
                     # tail_handler = curr_token.dispatch_handler(
                     #                      TAIL, lex, processed_left, lookbehind)
-                    curr_token, tail_handler = self.get_next_and_handler_with_nulls(
-                                               TAIL, lex, processed_left, lookbehind)
+                    curr_token, tail_handler = self.get_curr_token_and_handler_fun(
+                                    TAIL, lex, subexp_prec, processed_left, lookbehind)
 
                     processed_left = tail_handler()
                     lookbehind.append(processed_left)
@@ -1347,20 +1360,23 @@ class PrattParser(object):
         token with that label must already be in the token table, or an
         exception will be raised.
         
-        Returns the modified class. Sets any given head or tail functions as
-        attributes of the class.
+        Returns the modified class. Saves any given `head` or `tail` functions
+        in the handler dict for the token.  Both can be passed in one call, but
+        they must have the same preconditions function and priority.
         
         If `tail` is set then the prec will also be set unless `prec` is
-        `None`.  For a head `prec` is ignored.  If `tail` is set and `prec` is
-        `None` then the prec value defaults to zero.  If `head` or `tail` is
-        set and `precond_label` is also set then the head or tail function will
-        be associated with the preconditions function for that label.  If
-        `precond_fun` is also set then it will first be registered with the
-        label `precond_label` (which must be present in that case).
+        `None`.  For a head the `prec` value is ignored.  If `tail` is set and
+        `prec` is `None` then the prec value defaults to zero.  If `head` or
+        `tail` is set and `precond_label` is also set then the corresponding
+        preconditions function will be looked up and the head or tail function
+        will be associated that function.  If `precond_fun` is also set then it
+        will first be registered with the label `precond_label` (which must be
+        present in that case).
         
         The `eval_fun` and the `ast_label` arguments are saved as attributes of
-        the type signature.  This is so different overloads of the token can
-        have different AST labels and/or evaluation functions."""
+        the type signature (and all defined type signatures for a token are
+        saved with that token).  This is so different overloads of the token
+        can have different AST labels and/or evaluation functions."""
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
@@ -1472,13 +1488,17 @@ class PrattParser(object):
         be passed-in in the list arg_types of parent constructs."""
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
-        recurse_bp = prec
+        recurse_bp = prec # TODO: does late-binding affect this?????
+        # TODO also above, change name... is it stored with token as tok.prec?
+        # See the DEBUG statement below... should be settable, but if prec is
+        # fixed for a token it probably doesn't matter!
         if assoc == "right": recurse_bp = prec - 1
         def tail_handler(tok, lex, left):
             tok.append_children(left, tok.recursive_parse(recurse_bp))
             while True:
                 for op in operator_token_labels[1:]:
                     tok.match_next(op, raise_on_fail=True)
+                    assert tok.prec() == recurse_bp or tok.prec()-1 == recurse_bp # DEBUG
                     tok.append_children(tok.recursive_parse(recurse_bp))
                 if not repeat: break
                 # Peek ahead and see if we need to loop another time.
@@ -1652,36 +1672,46 @@ class PrattParser(object):
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                             ast_label=ast_label)
 
-    def def_production(self, precond_label=None, precond_fun=None, precond_priority=None,
+    def def_production(self, state_label, token_label, prec=0, precond_priority=None,
+                       # Below not used yet....
+                       precond_label=None, precond_fun=None,
                        val_type=None, arg_types=None, eval_fun=None,
                        ast_label=None):
         """Define a production in the sense of a recursive-descent parser,
-        using the null-string token."""
-        # TODO, this has the form, but is still a copy of the stdfun definer function...
-        def preconditions(lex, lookbehind):
-            """Must be followed by a token with label 'lpar_token_label', with no
-            whitespace in-between."""
-            peek_tok = lex.peek()
-            if peek_tok.ignored_before(): return False
-            if peek_tok.token_label != lpar_token_label: return False
-            return True
-        precond_label = "lpar after, no whitespace between" # Should be a unique label.
+        using the null-string token.  The handler functions basically just change
+        the state and relay the arguments that the null-string token was called with."""
+        # Use default argument to get early binding of closure.
+        def preconditions(lex, lookbehind, state_label=state_label):
+            if not lex.token_table.parser_instance.pstate[-1] == state_label:
+                return False
+            # TODO may also need to look ahead at peeks sometimes??
+        precond_label = "production-{0}-peeks-" + "-".join(peek_list)
 
         def head_handler(tok, lex):
-            # Below match is for a precondition, so it will match and consume.
-            tok.match_next(lpar_token_label, raise_on_fail=True)
-            # Read comma-separated subexpressions until the peek is rpar_token_label.
-            while not tok.match_next(rpar_token_label, consume=False):
-                tok.append_children(tok.recursive_parse(0))
-                if not tok.match_next(comma_token_label):
-                    break
-                else:
-                    tok.match_next(rpar_token_label, raise_on_true=True)
-            tok.match_next(rpar_token_label, raise_on_fail=True)
-            tok.process_and_check_node(head_handler)
-            return tok
-        return self.modify_token_subclass(fname_token_label, prec=0,
-                     head=head_handler, precond_label=precond_label,
+            """Just push the state, relay the call, and pop afterwards."""
+            # Pop the state off the pstack (was pushed before this handler was chosen)
+            tok.parser_instance.pop()
+            # Get the next subexpression, relaying the precedence.
+            processed = tok.recursive_parse(tok.subexp_prec)
+            # Push the new state onto the pstack if there is one.
+            # ..... etc..... special case handling, maybe not as general as hoped..
+            tok.parser_instance.pstack.append("state_label")
+            return processed
+
+        def tail_handler(tok, lex, left):
+            """Just push the state, relay the call, and pop afterwards."""
+            # Pop the state off the pstack.
+            tok.parser_instance.pop()
+            # Get the next subexpression, relaying the precedence.
+            processed = tok.recursive_parse(tok.subexp_prec, processed_left=left)
+            # Push the new state onto the pstack if there is one...
+            # ...... etc..... special case handling
+            tok.parser_instance.pstack.append("state_label")
+
+            return processed
+
+        return self.modify_token_subclass(fname_token_label, prec=prec,
+                     head=head_handler, tail=tail_handler, precond_label=precond_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      ast_label=ast_label)
