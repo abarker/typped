@@ -232,14 +232,22 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # them in the main namespace and just set the functions as attributes in the
 # class and it would work OK.
 
+# TODO: Define some common helper preconditions.  They are boolean so they can
+# easily be composed.  Can store them in a separate module,
+# precondition_helpers.py, and then import them in the __init__ for module
+# space.  Could store helpers like match_next with them (or similarly) if it
+# is determined that they shouldn't be in TokenSubclass namespace.
+
 # TODO: consider how to define a named tuple to take the arguments of the
 # functions like literals and require them to be used in the multi-def things.
 # Otherwise, gets confusing about what the arguments are, and cannot use
 # keywords... May or may not work, though.
 
-# TODO: if PrattParser requires tokens defined from itself, it should mark them and
-# refuse to deal with any others.  It implicitly does, with whatever attributes
-# it adds.... but a nice early warning would be good before an unexpected fail.
+# TODO: if PrattParser requires tokens defined from itself, it should mark them
+# and refuse to deal with any others.  It implicitly does, with whatever
+# attributes it adds.... but a nice early warning would be good before an
+# unexpected fail.  Currently checked at one place in recursive_parse, but
+# nowhere else.
 
 # NOTE that you could use the evaluate function stuff to also do the conversion
 # to AST.
@@ -247,22 +255,44 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # TODO: Do preconditions really need labels?  Can the users just be left to
 # manage their own preconditions, or maybe a separate class can be defined to
 # manage them in a dict, maybe with some predefined ones?  Why can't you just
-# use the function names (full form)???????
+# use the function names (fully qualified)?
 #
+# f.__module__ + "." + f.__name__
+# 
 # Seems like it could be separated out, and reduce complexity.  Is equality
-# testing of preconditions ever truly required?  If not, why not just use the
-# function objects and leave the user to manage their functions however they
-# want.  Presumably you need some handle on them in order to undefine them...
+# testing of preconditions ever truly required?  Will using function name fail
+# somehow?  If not, why not just use the function objects and leave the user to
+# manage their functions however they want.
 #
-# TODO: consider requiring users to paste precond labels onto any functions
-# that they want to use as precond labels.  Keeps it localized, and keeps the
-# same function each time (at least if done right after definition).  (Do it
-# inside the function?  No that only works at runtime.) Can easily be checked
-# and give error message, too.  Then just register them in the hidden
-# dictionary.  Users never need to know it is there.  This also makes it clear
-# that the precond_label is really a "part" of the function, and defines what
-# it means for function equality.
-
+# Main problems:
+#
+# 1) Presumably you need to keep some handle on them in order to undefine them
+# and their related handlers, etc.  Seems fair to require users to provide all
+# the information for an undo operation of, say, stdfun.  I.e., the token, the
+# actual precond function (or just name) as well as the typesig info.  Could be
+# saved inside the original routines and then looked up and deleted, but what
+# handle to use to do so?  The token can have multiple overrides stored with
+# it; you may want to just delete one.  But, the token class (not instance)
+# does store all the typesigs with it.
+#
+# 2) Lambdas get defined each time and all have the same name.  You might have
+# to disallow use of lambdas when expecting function equality...  Lambdas just
+# get a `__name__ == <lambda>`.  Rule: Handler functions are equal iff their
+# fully-qualified name is the same.  Note that __module__ is always
+# fully-qualified, BUT can get into bugs when file imported differently because
+# of sys.path (Python problem, though).
+#
+# --> Implement the undo function for, say, a stdfun.  See what is needed to be
+# kept.
+#
+# Consider requiring users to paste precond labels onto any functions that they
+# want to use as precond labels.  Keeps it localized, and keeps the same
+# function each time (at least if done right after definition).  (Do it inside
+# the function?  No that only works at runtime.) Can easily be checked and give
+# error message, too.  Then just register them in the hidden dictionary.  Users
+# never need to know it is there.  This also makes it clear that the
+# precond_label is really a "part" of the function, and defines what it means
+# for function equality.
 
 #
 # TokenNode
