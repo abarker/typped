@@ -31,7 +31,7 @@ setup(
     #url="https://github.com/pypa/sampleproject",
     keywords=["parser"],
     #keywords=["parser", "pratt", "typed language"],
-    install_requires=["pytest>=2.0"],
+    install_requires=["wheel", "pytest>=2.0"],
 
     license="MIT",
     classifiers=[
