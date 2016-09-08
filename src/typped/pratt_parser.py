@@ -926,6 +926,61 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
+        def get_jop_token_instance(self, lex, processed_left, lookbehind, subexp_prec):
+            """Returns an instance of the jop token if one should be inferred in the
+            current context; otherwise returns `None`."""
+            parser_instance = self.parser_instance
+            # Not if jop undefined.
+            if not parser_instance.jop_token_subclass:
+                return None
+            # Not if at end of expression.
+            if lex.peek().is_end_token():
+                return None
+            # Not if the ignored token for jop is set but not present.
+            if parser_instance.jop_ignored_token_label and (
+                          parser_instance.jop_ignored_token_label 
+                          not in lex.peek().ignored_before_labels()): 
+                return None
+
+            # Infer a jop, but only if 1) its prec would satisfy the while loop
+            # in `recursive_parse` as an ordinary token, 2) the next token has
+            # a head handler defined in the conditions when the jop will need
+            # to run its head handler, and 3) the next token similarly has no
+            # tail handler in the context.
+            if parser_instance.jop_token_subclass.prec() > subexp_prec:
+                # Provisionally infer a jop; create a subclass instance for its token.
+                jop_instance = parser_instance.jop_token_subclass(None)
+
+                # This is a little inefficient (since it uses a `go_back` call)
+                # but we need to be sure that when the tail handler of the jop
+                # is called and it reads a token that that token has a head
+                # handler defined for it *in that precondition context*.
+                # Otherwise, no jop will be inferred.  We also make sure that
+                # it has no tail handler in the context, since then it would be
+                # a lower-precedence (lower precedence because we broke out of
+                # the loop above) infix or postfix operator, and no jop is
+                # inferred before another operator).
+                curr_token = lex.next()
+                try:
+                    # Dispatch without calling here, since calling will consume
+                    # another token; also, deeper-level recursions could cause false
+                    # results to come up the recursion chain.
+                    peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
+                    try: # Found head handler, now make sure it has no tail handler.
+                        peek_tail_handler = curr_token.dispatch_handler(
+                                           TAIL, lex, processed_left, lookbehind)
+                    except NoHandlerFunctionDefined:
+                        # This is the only case where an actual token is returned.
+                        return jop_instance
+                    else:
+                        return None
+                except NoHandlerFunctionDefined:
+                    return None # No precondition matches, assume no jop.
+                finally:
+                    lex.go_back(1)
+            else:
+                return None
+
         def get_null_string_token_and_handler(self, head_or_tail, lex, subexp_prec,
                                          processed_left=None, lookbehind=None):
             """Check for any possible matching null-string tokens; return the
@@ -1029,65 +1084,9 @@ def token_subclass_factory():
                 # Broke out of main loop, determine whether or not to infer a jop.
                 #
 
-                """
-                jop_token, jop_handler = test_for_jop_inferral(
-                        )
-                if jop_token:
-                else:
-                    break
-                """
-
-                # Not if jop undefined.
-                if not parser_instance.jop_token_subclass:
-                    break
-                # Not if at end of expression.
-                if lex.peek().is_end_token():
-                    break
-                # Not if the ignored token for jop is set but not present.
-                if parser_instance.jop_ignored_token_label and (
-                              parser_instance.jop_ignored_token_label 
-                              not in lex.peek().ignored_before_labels()): 
-                    break
-
-                # Infer a jop, but only if 1) its prec would satisfy the while
-                # loop above as an ordinary token, 2) the next token has a head
-                # handler defined in the conditions when the jop will need to
-                # run its head handler, and 3) the next token similarly has no
-                # tail handler in the context.
-                if parser_instance.jop_token_subclass.prec() > subexp_prec:
-
-                    # Provisionally infer a jop; create a subclass instance for its token.
-                    jop_instance = parser_instance.jop_token_subclass(None)
-
-                    # This is a little inefficient (since it uses one go_back)
-                    # but we need to be sure that when the tail handler of the
-                    # jop is called and it reads a token that that token has a
-                    # head handler defined for it *in that precondition
-                    # context*.  Otherwise, no jop will be inferred.  We also
-                    # make sure that it has no tail handler in the context,
-                    # since then it would be a lower-precedence (lower
-                    # precedence because we broke out of the loop above) infix
-                    # or postfix operator, and no jop is inferred before
-                    # another operator).
-                    curr_token = lex.next()
-                    try:
-                        # Dispatch without calling here, since calling will consume
-                        # another token; also, deeper-level recursions could cause false
-                        # results to come up the recursion chain.
-                        peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
-                        try: # Found head handler, now make sure it has no tail handler.
-                            peek_tail_handler = curr_token.dispatch_handler(
-                                               TAIL, lex, processed_left, lookbehind)
-                        except NoHandlerFunctionDefined:
-                            pass
-                        else:
-                            break
-                    except NoHandlerFunctionDefined:
-                        break # No precondition matches, assume no jop.
-                    finally:
-                        lex.go_back(1)
-
-                    # Finally, we can infer a jop.
+                jop_instance = self.get_jop_token_instance(
+                                         lex, processed_left, lookbehind, subexp_prec)
+                if jop_instance:
                     tail_handler = jop_instance.dispatch_handler(
                                            TAIL, lex, processed_left, lookbehind)
                     processed_left = tail_handler()
