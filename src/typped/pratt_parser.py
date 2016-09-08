@@ -926,46 +926,32 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
-        def get_curr_token_and_handler_fun(self, head_or_tail, lex, subexp_prec,
+        def get_null_string_token_and_handler(self, head_or_tail, lex, subexp_prec,
                                          processed_left=None, lookbehind=None):
-            """Get the next token and look up its handler, first considering
-            any possible matching null-string tokens."""
+            """Check for any possible matching null-string tokens; return the
+            token and the handler if one is found."""
             # TODO: Need a way to pass the subexp_prec argument to null-string
             # handlers, so they can relay it -- a way that works with recursive
             # calls, too.  If different INSTANCES of the null-string token are
             # always used then can paste it onto that -- the handler fun is passed
             # tok.
             parser_instance = self.parser_instance
+            curr_token = None
+            handler_fun = None
             # See if a null-string token is set and a handler matches preconds.
-            null_string_token_handler_found = False
             if parser_instance.null_string_token_label:
                 null_string_token = parser_instance.null_string_token_subclass(None)
                 null_string_token.saved_subexp_prec = subexp_prec # So handlers can use.
                 try:
                     handler_fun = null_string_token.dispatch_handler(
                                   head_or_tail, lex, processed_left, lookbehind)
-                    null_string_token_handler_found = True
+                    curr_token = null_string_token
                 except NoHandlerFunctionDefined:
                     pass
-
-            # If a null-string token matches, set it to be the next token and set
-            # the head-handler found above to be the handler.
-            curr_token = None
-            if null_string_token_handler_found:
-                curr_token = null_string_token
-
-            # Otherwise, do the usual dispatching Pratt parser algorithm (read a
-            # token and dispatch one of its head-handlers).
-            # TODO: consider moving this back to the main code, in BOTH places
-            # called, so code null-token stuff more localized.
-            else:
-                curr_token = lex.next()
-                handler_fun = curr_token.dispatch_handler(head_or_tail, lex,
-                                                  processed_left, lookbehind)
             return curr_token, handler_fun
 
         def recursive_parse(self, subexp_prec, processed_left=None, lookbehind=None):
-            # TODO: Document the processed left etc (ONLY for null-string stuff)
+            # TODO: Document the processed left etc (ONLY used for null-string stuff)
             # or remove.
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
@@ -1010,14 +996,13 @@ def token_subclass_factory():
             parser_instance = self.parser_instance
 
             # Skip head-handling if `processed_left` passed in.  ONLY skipped
-            # when called from relaying null-string tail handlers.  The two
-            # commented lines are the equivalent when no null-string token is
-            # defined.
-            # curr_token = lex.next()
-            # head_handler = curr_token.dispatch_handler(HEAD, lex)
+            # when called from relaying null-string tail handlers.
             if not processed_left:
-                curr_token, head_handler = self.get_curr_token_and_handler_fun(
-                                                        HEAD, lex, subexp_prec)
+                curr_token, head_handler = self.get_null_string_token_and_handler(
+                                                           HEAD, lex, subexp_prec)
+                if not curr_token:
+                    curr_token = lex.next()
+                    head_handler = curr_token.dispatch_handler(HEAD, lex)
                 # Call the head-handler looked up above.
                 processed_left = head_handler()
                 lookbehind = [processed_left]
@@ -1030,12 +1015,12 @@ def token_subclass_factory():
                 #
 
                 while lex.peek().prec() > subexp_prec:
-                    # Commented lines are the equivalent without null_string tokens.
-                    # curr_token = lex.next()
-                    # tail_handler = curr_token.dispatch_handler(
-                    #                      TAIL, lex, processed_left, lookbehind)
-                    curr_token, tail_handler = self.get_curr_token_and_handler_fun(
+                    curr_token, tail_handler = self.get_null_string_token_and_handler(
                                     TAIL, lex, subexp_prec, processed_left, lookbehind)
+                    if not curr_token:
+                        curr_token = lex.next()
+                        tail_handler = curr_token.dispatch_handler(
+                                             TAIL, lex, processed_left, lookbehind)
 
                     processed_left = tail_handler()
                     lookbehind.append(processed_left)
@@ -1043,6 +1028,14 @@ def token_subclass_factory():
                 #
                 # Broke out of main loop, determine whether or not to infer a jop.
                 #
+
+                """
+                jop_token, jop_handler = test_for_jop_inferral(
+                        )
+                if jop_token:
+                else:
+                    break
+                """
 
                 # Not if jop undefined.
                 if not parser_instance.jop_token_subclass:
