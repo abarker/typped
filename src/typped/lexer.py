@@ -575,11 +575,43 @@ class TokenTable(object):
 # Lexer
 #
 
+class TokenBuffer(object):
+    """An abstraction of the token buffer.  Basically a nicer wrapper over the
+    underlying deque.  Currently adds nothing (and could be replaced in code
+    with just a deque), but later can allow for indexing offsets, combining the
+    previous token list with the buffer, and other features."""
+    def __init__(self, maxlen):
+        self.token_buffer = collections.deque(maxlen=maxlen)
+
+    def __getitem__(self, index):
+        return self.token_buffer[index]
+
+    def __setitem__(self, index, item):
+        self.token_buffer[index] = item
+
+    def __len__(self):
+        return len(self.token_buffer)
+
+    def clear(self):
+        self.token_buffer.clear()
+
+    def append(self, item):
+        self.token_buffer.append(item)
+
+    def popleft(self):
+        return self.token_buffer.popleft()
+
 class GenTokenState:
     """The state of the token_generator program execution."""
     ordinary = 1
     end = 2
     uninitialized = 3
+
+# The beginnings of a state tuple for the Lexer.  Not yet used at all.
+LexerState = collections.namedtuple("LexerState", [
+                           "x",
+                           "y",
+                        ])
 
 class Lexer(object):
 
@@ -639,7 +671,8 @@ class Lexer(object):
         # is part of language... currently must use max value for all parsers/lexers.
         self.NUM_LOOKAHEAD_TOKENS = num_lookahead_tokens
         self.MAX_TOKEN_BUFFER_SIZE = self.NUM_LOOKAHEAD_TOKENS + 1
-        self.token_buffer = collections.deque(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
+        #self.token_buffer = collections.deque(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
+        self.token_buffer = TokenBuffer(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
 
         self.MAX_GO_BACK_TOKENS = max_go_back_tokens
         if self.MAX_GO_BACK_TOKENS: 

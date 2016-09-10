@@ -29,13 +29,26 @@ overloading.
    There are various ways that one might consider implementing a juxtaposition
    operator.  A few possibilities are briefly discussed here.
    
-   Juxtaposition could be built into the grammar itself, and then that grammar
-   could be implemeted.  That can, however, make the grammar inconvenient to
-   express and make implementations difficult (introducing many special cases).
-   It can also make it difficult to add new operators to extend the grammar.
-   In a Pratt parser you would need to define special head handlers for any
-   possible left operand of a juxtaposition operator, with the logic to
-   determine whether or not to infer the operator.
+   Juxtaposition could be built into the formal grammar itself, and then that
+   grammar could be implemented.  That can, however, make the grammar
+   inconvenient to express and make implementations difficult (introducing many
+   special cases).  It can also make it difficult to add new operators to
+   extend the grammar.  In a Pratt parser you would need to define special head
+   handlers for any possible left operand of a juxtaposition operator, with the
+   logic to determine whether or not to infer the operator.
+
+   In a Pratt parser it would be fairly simple to implicitly modify the grammar
+   by defining all the syntax elements which can participate in a jop to be
+   either prefix or postfix operators.  For example, a postfix operator using
+   lookbehind on the type of the previous subexpression.  Matrices could be
+   explicitly declared as operators (in certain conditions) rather than using
+   an inferred multiplication operation between them.  This adds a lot of
+   operators, which is contrary to the usual practices.  It seems especially
+   unusual to apply it to types like real numbers.  Questions of possible
+   ambiguities need to be considered.  This is not the approach taken here with
+   jops, but it might be worth considering in some cases.  It is doable with
+   the Typped parser and is not mutually exclusive with the implementation of
+   jops described here.
    
    Another approach is to attempt to hack the lexer to recognize when to infer
    a jop, and then insert and return a token any inferred operators.  The

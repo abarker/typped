@@ -983,31 +983,89 @@ def token_subclass_factory():
 
         def get_null_string_token_and_handler(self, head_or_tail, lex, subexp_prec,
                                          processed_left=None, lookbehind=None):
-            """Check for any possible matching null-string tokens; return the
-            token and the handler if one is found."""
-            # TODO: Need a way to pass the subexp_prec argument to null-string
+            """Check for any possible matching null-string token handlers;
+            return the token and the matching handler if one is found."""
+
+            # Need a way to pass the subexp_prec argument to null-string
             # handlers, so they can relay it -- a way that works with recursive
-            # calls, too.  If different INSTANCES of the null-string token are
-            # always used then can paste it onto that -- the handler fun is passed
-            # tok.
+            # calls, too.
+            #
+            # Since different INSTANCES of the null-string token are always
+            # used then can paste it onto that -- the handler fun is passed
+            # tok.  Currently done like this.
+            #
+            # How about setting it as an attribute of the looked-up handler
+            # function itself?  Handler fun (only for null-string) can then
+            # look at its own attribute.  Token instance probably better.
+            #
+            # TODO: consider "virtual null-string tokens" which only execute
+            # their handlers (such as to change pstate) but are not treated
+            # as actual tokens.  Some possible uses, but is there enough
+            # real advantage?
+            #
+            # To do backtracking stuff you can handle productions like this
+            #   <prod> = <prod1> | <prod2> | <prod3>
+            # with virtual tokens by going in order (of def or priority) and
+            # setting the state to, say <prod1>, looking up the handler,
+            # calling the handler.  Inside the handler, call *this routine*
+            # recursively until a non-fail result returned or all fail.  Raise
+            # a special exception on fail, and continue the loop on the next
+            # item if one fails.  Until one succeeds or possibilities
+            # exhausted.
+            #
+            # Each production needs to declare whether it is a head or tail,
+            # though (should be same for whole thing).
+            #
+            # ---> Above probably works for general backtracking... also for
+            # formulaic evaluation of production rules.  Just need to register
+            # a special handler for head token of each production case.  (Could
+            # conceivably even do optimization and search the full tree once --
+            # such as for G-normal-form rules -- setting improved preconditions
+            # for the tokens...)
+            #
+            # Note this routine now returns a (possible) actual token.  So the
+            # handlers can call this routine *and* the dispatch_handler routine
+            # inside them, until all fail or an actual handler returned.  They
+            # need to call lex.next to get the actual token, so it would also be
+            # easy to substitute-in an instance of the null-string token.
+
+            # DEFINE: this routine must return nothing or an actual token and
+            # handler.  So, job of handlers in null-string tokens is to return
+            # an actual token and handler to call to fill the "slot" in the
+            # grammar, NOT to return a processed-left... Kind of inelegant that
+            # they behave differently... UNLESS this routine actually makes the
+            # call, too... 
+            #   processed_left = self.get_next_token_call_handler_return_processed(...)
+            # Note that this comes about because of the need to repeatedly call
+            # the handler in some cases (not all).  Instead, could just use jump
+            # into middle of the recursive_parse (or break it into two functions
+            # and have recursive_parse call both).
+            #
+            # Jumping into recursive_parse in middle may be better solution...
+            # as originally done.  To the handlers it is all the same loop,
+            # since they get the same info.
+
             parser_instance = self.parser_instance
             curr_token = None
             handler_fun = None
             # See if a null-string token is set and a handler matches preconds.
             if parser_instance.null_string_token_label:
                 null_string_token = parser_instance.null_string_token_subclass(None)
-                null_string_token.saved_subexp_prec = subexp_prec # So handlers can use.
                 try:
                     handler_fun = null_string_token.dispatch_handler(
-                                  head_or_tail, lex, processed_left, lookbehind)
+                                      head_or_tail, lex, processed_left, lookbehind)
                     curr_token = null_string_token
+                    # Save subexp_prec and lookbehind as attributes so null-string
+                    # token's handler funs can access them when relaying calls.
+                    curr_token.saved_subexp_prec = subexp_prec
+                    curr_token.lookbehind = lookbehind
                 except NoHandlerFunctionDefined:
                     pass
             return curr_token, handler_fun
 
-        def recursive_parse(self, subexp_prec, processed_left=None, lookbehind=None):
-            # TODO: Document the processed left etc (ONLY used for null-string stuff)
-            # or remove.
+        def recursive_parse(self, subexp_prec,
+                            # Below parameters only used in null-string handler funs.
+                            processed_left=None, lookbehind=None):
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
@@ -1028,19 +1086,28 @@ def token_subclass_factory():
             This function is made a method of `TokenSubclass` so that handler
             functions can easily call it by using `tok.recursive_parse`, and
             also so that it can access the lexer without it needing to be
-            passed as an argument."""
+            passed as an argument.
+            
+            If `processed_left` is set (evaluates to true) then the first part
+            of `recursive_parse` is skipped and it jumps right to the
+            tail-handling loop part using the passed-in values of
+            `processed_left` and `lookbehind`.  These parameters should
+            generally not be set.  They are only used by certain null-string
+            tokens tail-handlers so they can relay their call as a tail-handler
+            to the actual token (which does the real work)."""
             # NOTE that with a good, efficient pushback function the modifiable
             # prec for different handler functions might be doable: just do a
             # next then evaluate the prec, then pushback.
 
             # NOTE it is tempting to define a jop and null-string token
             # instance and only use it when necessary (and replace it only when
-            # used).  But, need to consider some things.  What if new head
-            # handlers are dynamically registered?  Is there any line info
-            # attribute or other thing that they will get?  (If not, probably
-            # should add extra things needed or desired at the time when you
-            # actually do use one.)  Note that currently you only really pay
-            # the creation costs if you actually use the corresponding feature.
+            # used).  But, some things need to be considered.  What if new head
+            # handlers are dynamically registered?  Is there any special
+            # attribute or other thing that is assigned on creation which
+            # changes?  (Either way, should probably add extra things like line
+            # numbers to mimic ordinary tokens.) Note that currently you only
+            # really pay the creation cost if you actually use the
+            # corresponding feature, but you incur it more than necessary.
 
             # Set some convenience variables (the lexer and parser instances).
             lex = self.token_table.lex
@@ -1694,15 +1761,30 @@ class PrattParser(object):
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                             ast_label=ast_label)
 
-    def def_production(self, state_label, token_label, prec=0, precond_priority=None,
-                       # Below not used yet....
+    def def_production(self, pstate_label, token_label, prec=0, precond_priority=None,
+                       # Below not used yet.... need to know cases of production...
                        precond_label=None, precond_fun=None,
                        val_type=None, arg_types=None, eval_fun=None,
                        ast_label=None):
         """Define a production in the sense of a recursive-descent parser,
         using the null-string token.  The handler functions basically just change
-        the state and relay the arguments that the null-string token was called with."""
-        # Use default argument to get early binding of closure.
+        the state and relay the arguments that the null-string token was called with.
+        
+        It is assumed that the start state will be initially pushed on the
+        `pstack` attribute of the parser whenever productions are being
+        used."""
+
+        # TODO: In order to do the backtracking this routine will need to know
+        # all the cases of the production.  Then, it should iterate over them,
+        # call each one (by priority order) and catch special exception
+        # BacktrackFailedBranch on failure.  On failure move to next one, or
+        # raise the fail again if out of choices.
+        #
+        # In future optimizations this "tree" of cases coule be searched to find
+        # the tokens for, say LL(1) grammars which can be set as preconditions
+        # to avoid the backtracking by using a lookahead.
+        
+        # Use a default argument to preconditions to get early binding of closure.
         def preconditions(lex, lookbehind, state_label=state_label):
             if not lex.token_table.parser_instance.pstate[-1] == state_label:
                 return False
@@ -1711,24 +1793,24 @@ class PrattParser(object):
 
         def head_handler(tok, lex):
             """Just push the state, relay the call, and pop afterwards."""
-            # Pop the state off the pstack (was pushed before this handler was chosen)
-            tok.parser_instance.pop()
+            # Push the new state onto the pstack.
+            tok.parser_instance.pstack.append("pstate_label")
             # Get the next subexpression, relaying the precedence.
             processed = tok.recursive_parse(tok.subexp_prec)
-            # Push the new state onto the pstack if there is one.
-            # ..... etc..... special case handling, maybe not as general as hoped..
-            tok.parser_instance.pstack.append("state_label")
+            # Pop the state off the pstack.
+            tok.parser_instance.pop()
             return processed
 
         def tail_handler(tok, lex, left):
             """Just push the state, relay the call, and pop afterwards."""
+            # Push the new state onto the pstack.
+            tok.parser_instance.pstack.append("pstate_label")
+            # Get the next subexpression, relaying the precedence.
+            processed = tok.recursive_parse(tok.subexp_prec,
+                                processed_left=left, lookbehind=tok.lookbehind)
             # Pop the state off the pstack.
             tok.parser_instance.pop()
-            # Get the next subexpression, relaying the precedence.
-            processed = tok.recursive_parse(tok.subexp_prec, processed_left=left)
-            # Push the new state onto the pstack if there is one...
-            # ...... etc..... special case handling
-            tok.parser_instance.pstack.append("state_label")
+
 
             return processed
 
