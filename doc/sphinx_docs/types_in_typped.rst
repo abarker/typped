@@ -25,6 +25,8 @@ mechanism.  It is optional, however, and can be ignored for untyped languages.
 When they are defined the types will be automatically checked at parse-time
 (according to any options which are set).  The type system also allows for
 operator overloading, including optional overloading on return types.
+Overloading currently has the mild restriction that all overloads defined for
+an operator must share the same precedence value.
 
 In this implementation type information is associated with head and tail handler
 functions.  That is because type specifications and type checking are closely

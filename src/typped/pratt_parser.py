@@ -391,7 +391,7 @@ def token_subclass_factory():
                              type_sig=TypeSig(None, None)):
             """Register a handler function (either head or tail) with the
             subclass for this kind of token, setting the given properties.
-            Thie method is only ever called from the `modify_token_subclass`
+            This method is only ever called from the `modify_token_subclass`
             method of a `PrattParser` instance.
             
             If no precondition label or function is provided a dummy
@@ -404,6 +404,16 @@ def token_subclass_factory():
             registered for that label.  If `precond_fun` is also provided then
             it will be registered as a preconditions function with the given
             label.
+
+            Type information is stored as an attribute of the handler function
+            itself, so it can easily be accessed from inside the handler
+            function when it runs.  A list of typesigs must be stored because
+            overloaded functions use the same handler function (it is unknown
+            which signature will apply until after the arguments/subtree is
+            parsed to resolve the overload).  Some additional information (eval
+            functions and ast labels) is stored as attributes of typesigs,
+            since only the typesigs are one-to-one with the final, resolved
+            functions.
 
             The `type_sig` argument must be a valid `TypeSig` instance.  Any
             extra data attributes which should be associated with signatures
@@ -428,17 +438,17 @@ def token_subclass_factory():
 
             if (prev_handler_data_for_precond
                               and not cls.parser_instance.overload_on_arg_types):
-                raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types is False "
-                       "but attempt to redefine and possibly set multiple signatures "
-                       "for the {0} function for token with label '{1}' with "
-                       "preconditions label '{2}'."
+                raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types"
+                       " is False but attempt to redefine and possibly set multiple"
+                       " signatures for the {0} function for token with label '{1}'"
+                       " with preconditions label '{2}'."
                        .format(head_or_tail, cls.token_label, precond_label))
 
             # Type info is stored as an attribute of handler funs.  For
             # overloading, append the type_sig to prev_type_sigs_for_precond,
             # saving them all.
             TypeSig.append_sig_to_list_replacing_if_identical(
-                                       prev_type_sigs_for_precond, type_sig)
+                                               prev_type_sigs_for_precond, type_sig)
             handler_fun.type_sigs = prev_type_sigs_for_precond
 
             if precond_fun:
@@ -484,7 +494,6 @@ def token_subclass_factory():
                             " False if you actually want to allow precondition"
                             " ties." .format(cls.__name__, cls.token_label,
                                 precond_priority, precond_label, p_label))
-
             return
 
         @classmethod
@@ -561,10 +570,10 @@ def token_subclass_factory():
                     if pre_fun_label == precond_label:
                         return data_tuple.precond_fun
 
-            # Sequentially run the sorted precondition functions until one is true.
+            # Sequentially run sorted precondition functions until one is true.
             for pre_label, (pre_fun, pre_prior, handler) in sorted_handler_dict.items():
                 if pre_fun(lex, lookbehind):
-                    self.precond_label = pre_label # Set precond label for the instance.
+                    self.precond_label = pre_label # Save label with token instance.
                     return handler
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
@@ -576,18 +585,17 @@ def token_subclass_factory():
             """Look up and return the handler function for the token."""
             if head_or_tail == HEAD:
                 fun = self.lookup_handler_fun(HEAD, lex)
-                return functools.partial(fun, self, lex) # Bind all the args, known.
+                return functools.partial(fun, self, lex) # Bind all known args.
             elif head_or_tail == TAIL:
                 fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
-                return functools.partial(fun, self, lex, left) # Bind all the args, known.
+                return functools.partial(fun, self, lex, left) # Bind all known args.
             else: 
-                # TODO: should this be a SyntaxError or something else, more serious?
                 raise ParserException("Bad first argument to dispatch_handler"
-                        " function: must be HEAD or TAIL or equivalent.")
+                        " function: must be HEAD or TAIL or the equivalent.")
 
         def process_and_check_node(self, fun_object,
-                                   typesig_override=None, in_tree=True,
-                                   repeat_args=False):
+                                   typesig_override=None, check_override_sig=False,
+                                   in_tree=True, repeat_args=False):
             """This routine should always be called from inside the individual
             head and tail handler functions, just before they return a value.
             It sets some attributes and checks that the actual types match some
@@ -604,20 +612,27 @@ def token_subclass_factory():
             overriding any other settings.  This is useful for handling things
             like parentheses and brackets which inherit the type of their child
             (assuming they are kept as nodes in the parse tree and not
-            eliminated).
+            eliminated).  The `eval_fun` and `ast_label` attributes are copied
+            over from the typesig that was found by normal resolution.
             
-            If `in_tree` is `False` then the node for this token will not
+            If `check_override_sig` is true then the overridden signature will
+            be the set as the only possible signature, and type checking will
+            be done on it.  Any desired `eval_fun` and/or `ast_label` must be
+            explicitly set for the signature.
+            
+            If `in_tree` is set false then the node for this token will not
             appear in the final token tree: its children will replace it, in
             order, in its parent node's list of children.  This does not
-            (currently) work for the root node, which has no parent.
+            (currently) work for the root node, which has no parent.  The
+            default is true, i.e., the token appears in the parse tree.
             
             Setting `in_tree` to `False` can be useful for things like unary
             plus and parentheses which are not wanted in the final tree.
             
             If `repeat_args` is true then the argument types for defined type
             signatures will be expanded to match the actual number of
-            arguments, if possible, by repeating them an arbitary number of
-            times."""
+            arguments, if possible, by cyclically repeating them an arbitary
+            number of times."""
             
             self.in_tree = in_tree
            
@@ -632,7 +647,10 @@ def token_subclass_factory():
             if not self.parser_instance.skip_type_checking:
 
                 # Get all the sigs for the node while we have access to fun_object.
-                all_sigs = fun_object.type_sigs
+                if typesig_override and check_override_sig:
+                    all_sigs = [typesig_override]
+                else:
+                    all_sigs = fun_object.type_sigs
                 self.all_sigs = all_sigs # Saved ONLY for printing error messages.
 
                 if not self.parser_instance.overload_on_ret_types: # One-pass.
@@ -647,7 +665,7 @@ def token_subclass_factory():
                     if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                         self.check_types_in_tree_second_pass()
 
-            if typesig_override:
+            if typesig_override: # Force the typesig to be the override sig.
                 typesig_override.ast_label = self.type_sig.ast_label
                 typesig_override.eval_fun = self.type_sig.eval_fun
                 self.type_sig = typesig_override
@@ -1311,9 +1329,9 @@ class PrattParser(object):
             self.begin_token_label = token_label
             # Define dummy handlers for the begin-token.
             def begin_head(self, lex):
-                raise ParserException("Called head of begin token.")
+                raise ParserException("Called head-handler for begin token.")
             def begin_tail(self, lex, left):
-                raise ParserException("Called tail of begin token.")
+                raise ParserException("Called tail-handler for begin token.")
             tok = self.modify_token_subclass(
                                    token_label, head=begin_head, tail=begin_tail)
             self.begin_token_subclass = tok
@@ -1323,9 +1341,9 @@ class PrattParser(object):
             self.end_token_label = token_label
             # Define dummy handlers for the begin-token.
             def end_head(self, lex):
-                raise ParserException("Called head of end token.")
+                raise ParserException("Called head-handler for end token.")
             def end_tail(self, lex, left):
-                raise ParserException("Called tail of end token.")
+                raise ParserException("Called tail-handler for end token.")
             tok = self.modify_token_subclass(
                                       token_label, head=end_head, tail=end_tail)
             self.end_token_subclass = tok
@@ -1494,9 +1512,10 @@ class PrattParser(object):
         # Save a reference to the PrattParser, so nodes can access it if they need to.
         TokenSubclass.parser_instance = self # maybe weakref later
 
-        if tail: TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
+        if tail:
+            TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
-        # Get the type sig.
+        # Create the type sig object.
         type_sig = TypeSig(val_type, arg_types, eval_fun=eval_fun, ast_label=ast_label) 
         
         if head:
@@ -1616,13 +1635,13 @@ class PrattParser(object):
                               val_type=val_type, arg_types=arg_types,
                               eval_fun=eval_fun, ast_label=ast_label)
 
-    def def_prefix_op(self, operator_token_label, prec, val_type=None, arg_types=None,
-                      eval_fun=None, ast_label=None):
-        """Define a prefix operator.  Note that head handlers do not have precedences,
-        only tail handlers.  With respect to the looping in `recursive_parse` it
-        wouldn't make a difference.  But, within the head handler, the call to
-        `recursive_parse` can be made with a nonzero precedence.  This allows
-        setting a precedence for prefix operators."""
+    def def_prefix_op(self, operator_token_label, prec,
+                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
+        """Define a prefix operator.  Note that head handlers do not have
+        precedences, only tail handlers.  With respect to the looping in
+        `recursive_parse` it wouldn't make a difference.  But, within the head
+        handler, the call to `recursive_parse` can be made with a nonzero
+        precedence.  This allows setting a precedence for prefix operators."""
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler)
@@ -1643,9 +1662,9 @@ class PrattParser(object):
             tok.append_children(left)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token_subclass(operator_token_label, prec=prec, tail=tail_handler, 
-                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                            ast_label=ast_label)
+        return self.modify_token_subclass(operator_token_label, prec=prec,
+                        tail=tail_handler, val_type=val_type, arg_types=arg_types,
+                        eval_fun=eval_fun, ast_label=ast_label)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
                                                eval_fun=None, ast_label=None):
