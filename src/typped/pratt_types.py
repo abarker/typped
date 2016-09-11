@@ -116,6 +116,11 @@ class TypeSig(object):
     To specify an object like a literal which takes no arguments an empty tuple
     should be used for `arg_types`, as in `TypeSig(None, ())`, with the
     `val_type` argument set to whatever type if it is not a wildcard.
+
+    A single `TypeObject` as an `arg_types` argument (i.e., not an iterable) is
+    expanded to be a tuple of that type of objects, of any required length.
+    For example, a function might take an arbitrary number of arguments but
+    they must all have `Int` type.
     
     The values type and the argument types can be accessed by indexing the
     0 and 1 element of an instance, respectively, or by using the `val_type`
@@ -174,8 +179,9 @@ class TypeSig(object):
         # Convert arg_type to tuple of TypeObject instances or a single wildcard one.
         #
 
-        if arg_types is None:
+        if arg_types is None: # None representing arbitrary objects.
             arg_types = TypeObject(None)
+        elif isinstance(arg_types, TypeObject): # Single TypeObject, expands as needed.
             pass
         elif not arg_types: # Matches (), [], and anything else that bools to False
             arg_types = () # Below case catches this, but this clearer.
@@ -252,11 +258,13 @@ class TypeSig(object):
         """Expand the signatures on list `sig_list` so that any `None` argument not
         inside a tuple or list is converted to a tuple of `None` having
         `num_args` of argument.  Each expanded version has the original signature
-        saved with it as an attribute called `formal_sig`."""
+        saved with it as an attribute called `formal_sig`.  This routine also
+        expands signatures which are a single `TypeObject` to take any number
+        of arguments of that type."""
         all_sigs_expanded = []
         for sig in sig_list:
-            if sig.arg_types == TypeObject(None):
-                new_sig = TypeSig(sig.val_type, (TypeObject(None),)*num_args,
+            if isinstance(sig.arg_types, TypeObject): # TypeObject(None) here also.
+                new_sig = TypeSig(sig.val_type, (sig.arg_types,)*num_args,
                         formal_sig=sig, eval_fun=sig.eval_fun, ast_label=sig.ast_label)
             else:
                 new_sig = sig
@@ -325,7 +333,7 @@ class TypeSig(object):
                     # be caught above?  Maybe need to revamp this loop and all comparisons
                     # in light of the new module organization....  Note that now
                     # TypeObject has `actual_type_would_match` method...
-                    print("debug, arg_type is", arg_type)
+                    #print("debug, arg_type is", arg_type)
                     if child_sig.val_type == arg_type:
                     #if arg_type.is_valid_actual_sig(child_sig.val_type): 
                         some_child_retval_matches = True
@@ -401,7 +409,7 @@ class TypeSig(object):
         return not self == sig
 
     def __repr__(self): 
-        return "TypeSig('{0}', {1})".format(self.val_type, self.arg_types)
+        return "TypeSig({0}, {1})".format(self.val_type, self.arg_types)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         return hash((self.val_type, self.arg_types))

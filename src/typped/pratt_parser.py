@@ -338,8 +338,8 @@ def token_subclass_factory():
             string from the text.  This instance represents the token."""
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
-            self.type_sig = TypeSig(None, None) # The full type sig, set after parsing.
-            self.val_type = self.type_sig.val_type # The type of the token (after parsing).
+            self.type_sig = "Unresolved" # The full signature.  Set after parsing.
+            self.val_type = "Unresolved" # The type of the token (after parsing).
 
         @classmethod
         def prec(cls):
@@ -628,11 +628,13 @@ def token_subclass_factory():
                 else: modified_children += child.children
             self.children = modified_children
 
-            # Get all the sigs for the node while we have access to fun_object.
-            all_sigs = fun_object.type_sigs
-
             # Perform the type-checking unless the skip option is set.
             if not self.parser_instance.skip_type_checking:
+
+                # Get all the sigs for the node while we have access to fun_object.
+                all_sigs = fun_object.type_sigs
+                self.all_sigs = all_sigs # Saved ONLY for printing error messages.
+
                 if not self.parser_instance.overload_on_ret_types: # One-pass.
                     self._check_types(all_sigs, repeat_args)
                 else: # Two-pass.
@@ -659,6 +661,8 @@ def token_subclass_factory():
             pass unless `first_pass_of_two` is set.  The `all_sigs` argument is
             a list (or iterable) of all the possible signatures for the
             node."""
+            # Note that self.all_sigs is now saved (currently for error
+            # messages) so the all_sigs argument to this function really isn't needed.
             
             if not first_pass_of_two:
                 # Ordinary case, each child c has a unique c.type_sig already set.
@@ -671,6 +675,7 @@ def token_subclass_factory():
             self.matching_sigs = TypeSig.get_all_matching_sigs(
                                       all_sigs, list_of_child_sig_lists,
                                       tnode=self, repeat_args=repeat_args)
+            self.all_sigs = all_sigs # Saved ONLY for printing error messages.
 
             if not first_pass_of_two:
                 if len(self.matching_sigs) != 1:
@@ -681,6 +686,7 @@ def token_subclass_factory():
                 self.type_sig = self.matching_sigs[0] # Save sig for semantic actions.
                 self.val_type = self.type_sig.val_type # Set the node type.
                 delattr(self, "matching_sigs")
+                delattr(self, "all_sigs")
             return
 
         def check_types_in_tree_second_pass(self, root=False):
@@ -699,7 +705,9 @@ def token_subclass_factory():
             # Delete childrens' matching_sigs lists after they are no longer needed.
             # This also acts as an indicator that the node has been resolved.
             for child in unresolved_children: delattr(child, "matching_sigs")
-            if root: delattr(self, "matching_sigs")
+            if root:
+                delattr(self, "matching_sigs")
+                delattr(self, "all_sigs")
 
         def _check_types_pass_two(self):
             """A second pass is only used when overloading on return types is
@@ -771,15 +779,20 @@ def token_subclass_factory():
             return
 
         def _raise_type_mismatch_error(self, matching_sigs, basic_msg):
-            """Raise an error, printing a helpful diagnostic message."""
+            """Raise an error, printing a helpful diagnostic message.  Assumes
+            that `_check_types` has been called (to set `self.all_sigs`)."""
+            # TODO: Will the self.type_sig *ever* be resolved when this routine is
+            # called?  If not, then it is not very useful and message could be reworded.
             diagnostic = ("  Current token node has value '{0}' and label '{1}'.  Its"
                          " signature is {2}.  The"
-                         " children/arguments have labels and values of {2} and "
-                         "val_types {3}.  The matching signatures "
-                         "are {4}.".format(self.value, self.token_label,
+                         " children/arguments have labels and values of {3} and "
+                         "val_types {4}.  The matching signatures "
+                         "are {5}.  The possible signatures were {6}"
+                         .format(self.value, self.token_label,
                              self.type_sig,
                              tuple(c.summary_repr() for c in self.children),
-                             tuple(c.val_type for c in self.children), matching_sigs))
+                             tuple(c.val_type for c in self.children),
+                             matching_sigs, self.all_sigs))
             raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
 
         #
@@ -795,13 +808,6 @@ def token_subclass_factory():
                         " token {0} but none was found.""".format(self))
             return self.type_sig.eval_fun(self) # Run the function saved with the instance.
 
-        def semantic_action(self):
-            """What should these be, and are they needed????  The handler functions
-            can implement any semantic actions they want to...."""
-            # TODO decide how to implement and when to call.  Should probably
-            # be relative to typesigs/handlers rather than nodes in particular.
-            pass
-
         #
         # Some helper functions for use in handler functions.
         #
@@ -813,6 +819,9 @@ def token_subclass_factory():
         # needed, etc???  User defined ones have more parity, at least.  But
         # you can still use in both precond funs (lex.token.match_next) as well
         # as in the handlers tok.match_next....
+        # ------> can just define in helpers.py and ALSO copy them to this namespace
+        # as, e.g.,
+        #    match = helpers.match
 
         def match_next(self, token_label_to_match, peeklevel=1,
                        raise_on_fail=False, raise_on_true=False, consume=True,
@@ -1577,10 +1586,7 @@ class PrattParser(object):
         be passed-in in the list arg_types of parent constructs."""
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
-        recurse_bp = prec # TODO: does late-binding affect this?????
-        # TODO also above, change name... is it stored with token as tok.prec?
-        # See the DEBUG statement below... should be settable, but if prec is
-        # fixed for a token it probably doesn't matter!
+        recurse_bp = prec
         if assoc == "right": recurse_bp = prec - 1
         def tail_handler(tok, lex, left):
             tok.append_children(left, tok.recursive_parse(recurse_bp))
@@ -1612,7 +1618,11 @@ class PrattParser(object):
 
     def def_prefix_op(self, operator_token_label, prec, val_type=None, arg_types=None,
                       eval_fun=None, ast_label=None):
-        """Define a prefix operator."""
+        """Define a prefix operator.  Note that head handlers do not have precedences,
+        only tail handlers.  With respect to the looping in `recursive_parse` it
+        wouldn't make a difference.  But, within the head handler, the call to
+        `recursive_parse` can be made with a nonzero precedence.  This allows
+        setting a precedence for prefix operators."""
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler)
@@ -1649,8 +1659,9 @@ class PrattParser(object):
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
             tok.match_next(rbrac_token_label, raise_on_fail=True)
+            child_type = tok.children[0].val_type
             tok.process_and_check_node(head_handler,
-                    typesig_override=TypeSig(tok.children[0].val_type, (None,)))
+                    typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.modify_token_subclass(lbrac_token_label, head=head_handler,
                                    eval_fun=eval_fun, ast_label=ast_label)
@@ -1661,9 +1672,7 @@ class PrattParser(object):
                       val_type=None, arg_types=None, eval_fun=None, ast_label=None,
                       num_args=None):
         """This definition of stdfun uses lookahead.  This will take
-        arbitrarily many arguments if `arg_types` is `None`.  To check the
-        number of arguments when types are not used, set `arg_types` to, for
-        example, `[None]*3` for three arguments.
+        arbitrarily many arguments if `arg_types` is `None`.
         
         The `num_args` parameter is optional for specifying the number of
         arguments when typing is not being used.  If it is set to a nonnegative
@@ -1810,7 +1819,6 @@ class PrattParser(object):
                                 processed_left=left, lookbehind=tok.lookbehind)
             # Pop the state off the pstack.
             tok.parser_instance.pop()
-
 
             return processed
 
