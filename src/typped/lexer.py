@@ -393,7 +393,7 @@ class TokenTable(object):
         # Create a new token subclass for token_label and add some attributes.
         TokenSubclass = self.token_subclassing_fun()
         TokenSubclass.token_label = token_label
-        TokenSubclass.__name__ = "token_subclass-" + token_label # For debugging.
+        TokenSubclass.__name__ = "token--" + token_label # For debugging.
         # Store the newly-created subclass in the token_dict.
         if store_in_dict: self.token_subclass_dict[token_label] = TokenSubclass
         return TokenSubclass
@@ -580,26 +580,51 @@ class TokenBuffer(object):
     underlying deque.  Currently adds nothing (and could be replaced in code
     with just a deque), but later can allow for indexing offsets, combining the
     previous token list with the buffer, and other features."""
-    def __init__(self, maxlen):
-        self.token_buffer = collections.deque(maxlen=maxlen)
+    def __init__(self, token_getter_fun, maxlen):
+        self.token_getter_fun = token_getter_fun
+        self.buffer_size = maxlen # rename
+        self.back_len = 10000 # consider more
+        self.total_len = maxlen + self.back_len
+        self.current_offset = 0
+        self.token_buffer = collections.deque(maxlen=self.total_len)
+
+    # TODO: this almost works with commented-out parts and taking out the calls
+    # to unbuffered_token_getter in the main code.  Fails hard on go_back, though.
+    # Other cases work.
 
     def __getitem__(self, index):
-        return self.token_buffer[index]
+        #while index + self.current_offset >= len(self.token_buffer):
+        #    self.token_buffer.append(self.token_getter_fun())
+        return self.token_buffer[index + self.current_offset]
 
     def __setitem__(self, index, item):
-        self.token_buffer[index] = item
+        self.token_buffer[index + self.current_offset] = item
 
     def __len__(self):
-        return len(self.token_buffer)
+        return len(self.token_buffer) - self.current_offset
 
-    def clear(self):
+    def pop(self):
+        """Pop off the rightmost item and return it."""
+        retval = self.token_buffer.pop()
+        if self.current_offset >= len(self.token_buffer):
+            self.current_offset = len(self.token_buffer) - 1
+        return retval
+
+    def init(self, begin_token):
+        self.current_offset = 0
         self.token_buffer.clear()
+        self.token_buffer.append(begin_token)
 
     def append(self, item):
         self.token_buffer.append(item)
+        if len(self) > self.buffer_size:
+            self.current_offset += 1
 
-    def popleft(self):
-        return self.token_buffer.popleft()
+    def goto_next(self):
+        self.current_offset += 1
+        #while self.current_offset >= len(self.token_buffer):
+        #    self.token_buffer.append(self.token_getter_fun())
+        return self.token_buffer[self.current_offset]
 
 class GenTokenState:
     """The state of the token_generator program execution."""
@@ -672,7 +697,8 @@ class Lexer(object):
         self.NUM_LOOKAHEAD_TOKENS = num_lookahead_tokens
         self.MAX_TOKEN_BUFFER_SIZE = self.NUM_LOOKAHEAD_TOKENS + 1
         #self.token_buffer = collections.deque(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
-        self.token_buffer = TokenBuffer(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
+        self.token_buffer = TokenBuffer(self.unbuffered_token_getter,
+                                        maxlen=self.MAX_TOKEN_BUFFER_SIZE)
 
         self.MAX_GO_BACK_TOKENS = max_go_back_tokens
         if self.MAX_GO_BACK_TOKENS: 
@@ -756,16 +782,15 @@ class Lexer(object):
             [<current_token>, <peek1>, <peek2>]
         """
         # Put a begin-token sentinel in self.previous_tokens if it is empty.
-        begin_tok = self.token_table.begin_token_subclass(None)
+        begin_tok = self.token_table.begin_token_subclass(None) # Get instance.
         if not self.previous_tokens:
             self.previous_tokens.append(begin_tok)
 
         # Set up the buffer.
         tb = self.token_buffer
-        tb.clear()
-        tb.append(begin_tok) # This will be popped off on first next().
+        tb.init(begin_tok) # Begin token set as current; first next() returns it.
         for i in range(self.NUM_LOOKAHEAD_TOKENS): # Fill with lookaheads.
-            new_token = self.token_generator() # Will generate all end-tokens at end.
+            new_token = self.unbuffered_token_getter() # Will generate all end-tokens at end.
             tb.append(new_token)
         self.token = self.token_buffer[0]
         assert tb[0].is_begin_token() # debug check, remove later
@@ -801,10 +826,10 @@ class Lexer(object):
 
         # Handle ordinary case.
         tb = self.token_buffer
-        tb.popleft()
+        tb.goto_next()
         if tb[0].is_end_token():
             self.already_returned_end_token = True
-        tb.append(self.token_generator())
+        tb.append(self.unbuffered_token_getter())
         self.token = tb[0]
         return self.token
     __next__ = next # For Python 3.
@@ -819,6 +844,7 @@ class Lexer(object):
         `BufferIndexError`, a subclass of `IndexError`.  A peek within the
         buffer size is always valid, and returns an end-token for all peeks
         from the first end-token and beyond."""
+        # TODO: would be nice to have negative peeks go back in lexer stream...
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's peek method when no text is set.")
@@ -877,8 +903,8 @@ class Lexer(object):
             raise LexerException("Attempt to go back {0} tokens when `MAX_GO_BACK_LEVELS`"
                     " is set to {1}.".format(num_toks, self.MAX_GO_BACK_TOKENS))
 
-        num_non_ends_in_buf = len([True for t in self.token_buffer
-                                                 if not t.is_end_token()])
+        num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
+                                          if not self.token_buffer[t].is_end_token()])
         n = num_toks + num_non_ends_in_buf
 
         # Pop the tokens from self.previous_tokens, resetting self.prog_unprocessed.
@@ -912,7 +938,7 @@ class Lexer(object):
             self._initialize_token_buffer()
         else:
             for i in range(max(-num_toks, 0), len(self.token_buffer)):
-                self.token_buffer[i] = self.token_generator()
+                self.token_buffer[i] = self.unbuffered_token_getter() # TODO better way?
 
         # Reset some state variables.
         self.token = self.token_buffer[0]
@@ -1041,7 +1067,7 @@ class Lexer(object):
     # Lower-level routine for token generation
     #
 
-    def token_generator(self):
+    def unbuffered_token_getter(self):
         """This routine generates tokens from the program text in the attribute
         `self.program`.  It does not modify the program itself, but keeps slice
         indices in a list `self.prog_unprocessed` indexing the unprocessed

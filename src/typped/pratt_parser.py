@@ -608,17 +608,19 @@ def token_subclass_factory():
             name of the function.
            
             The `typesig_override` argument must be a `TypeSig` instance.  It
-            will be *assigned* to the node as its signature after all checking,
-            overriding any other settings.  This is useful for handling things
-            like parentheses and brackets which inherit the type of their child
-            (assuming they are kept as nodes in the parse tree and not
-            eliminated).  The `eval_fun` and `ast_label` attributes are copied
-            over from the typesig that was found by normal resolution.
+            will be *assigned* to the node as its actual signature after all
+            checking, overriding any other settings.  This is useful for
+            handling things like parentheses and brackets which inherit the
+            type of their child (assuming they are kept as nodes in the parse
+            tree and not eliminated).  The `eval_fun` and `ast_label`
+            attributes are copied over from the typesig that was found by
+            normal resolution.
             
             If `check_override_sig` is true then the overridden signature will
             be the set as the only possible signature, and type checking will
             be done on it.  Any desired `eval_fun` and/or `ast_label` must be
-            explicitly set for the signature.
+            explicitly set for the signature.  The final, actual signature is
+            the possibly-expanded version found in type-checking.
             
             If `in_tree` is set false then the node for this token will not
             appear in the final token tree: its children will replace it, in
@@ -665,7 +667,8 @@ def token_subclass_factory():
                     if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                         self.check_types_in_tree_second_pass()
 
-            if typesig_override: # Force the typesig to be the override sig.
+            if typesig_override and not check_override_sig:
+                # Force the final, actual typesig to be the override sig.
                 typesig_override.ast_label = self.type_sig.ast_label
                 typesig_override.eval_fun = self.type_sig.eval_fun
                 self.type_sig = typesig_override

@@ -71,9 +71,6 @@ from .shared_settings_and_exceptions import ParserException
 # stored with the handlers, etc., and then and do not even have labels (i.e.,
 # dict keys).  Throwaway classes.
 #
-# Have formal_type_sig as a static attribute, and expanded_formal_sig and
-# actual_sig as instance attributes.
-#
 # All the static funs can stay with the base (convert TypeSig to TypeSigBase)
 # and then have a factory fun spit out TypeSig objects (which are classes)
 #
@@ -105,7 +102,7 @@ class TypeSig(object):
     For the purposes of equality comparison these objects are equivalent to the
     tuple form.  Equality is exact equality and **does not** hold for formal
     signatures and their corresponding actual signatures.  For that, use
-    `is_valid_actual_sig`.  Equality also ignores any attributes (other than
+    `matches_formal_sig`.  Equality also ignores any attributes (other than
     `val_type` and `arg_types`) which might be added to or modified in a
     `TypeSig` instance.
 
@@ -305,12 +302,13 @@ class TypeSig(object):
     @staticmethod
     def get_sigs_matching_child_types(sig_list, list_of_child_sig_lists,
                                           tnode=None, raise_err_on_empty=True):
-        """Return a list of all signatures in sig_list which have arguments that
-        match the return types of the child signatures in `list_of_child_sig_lists`.
-        The latter should be a list containing a list of all the signatures for
-        each child, in order.  The number of arguments is assumed to already match
-        (see `get_sigs_matching_num_args`).  The optional token-tree node `tnode`
-        is only used for improved error reporting."""
+        """Return a list of all signatures in `sig_list` which have arguments
+        that match (in order) the return type of some child signature in the
+        corresponding sublist of `list_of_child_sig_lists`.  The latter should
+        be a list containing lists of all the signatures for each child, in
+        order.  The number of arguments is assumed to already match (see
+        `get_sigs_matching_num_args`).  The optional token-tree node `tnode` is
+        only used for improved error reporting."""
         matching_sigs = []
         # Loop over each possible sig, testing for matches.
         for sig in sig_list:
@@ -327,15 +325,7 @@ class TypeSig(object):
                     if arg_type == TypeObject(None):
                         some_child_retval_matches = True
                         break
-                    # TODO BUG, need to change below line to use
-                    # is_valid_actual_type, but that causes error because it claims
-                    # that one of the arg_type is a TypeObject.  Shouldn't that case
-                    # be caught above?  Maybe need to revamp this loop and all comparisons
-                    # in light of the new module organization....  Note that now
-                    # TypeObject has `actual_type_would_match` method...
-                    #print("debug, arg_type is", arg_type)
-                    if child_sig.val_type == arg_type:
-                    #if arg_type.is_valid_actual_sig(child_sig.val_type): 
+                    if child_sig.val_type.matches_formal_type(arg_type):
                         some_child_retval_matches = True
                         break
                 if not some_child_retval_matches:
@@ -375,18 +365,22 @@ class TypeSig(object):
         sig_list.append(sig)
         return sig_list
 
-    def is_valid_actual_sig(self, sig):
-        """Test if the signature passed in is a valid actual signature matching
-        this signature as a formal signature.  Note the difference between this
-        and equality!  This is the one which should be called to determine
-        signature equivalence based on type equivalences possible conversions."""
-        # TODO: This only tests straight equality for now.  SEE ALSO
-        # actual_type_would_match method of TypeObject!!!! May not even need
-        # this, or maybe should use that in this.....
-        if not isinstance(sig, self.__class__):
+    def matches_formal_sig(self, formal_sig):
+        """Test if this signature as an actual signature matches `formal_sig`
+        as a formal signature.  Note the difference between this and equality!
+        This is the one which should be called to determine signature
+        equivalence based on type equivalences and possible conversions."""
+        if not isinstance(formal_sig, self.__class__):
             raise TypeError(
                     "Comparing {0} with some other kind of object.".format(__class__))
-        return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
+        if not self.val_type.matches_formal_type(formal_sig.val_type):
+            return False
+        if len(self.arg_types) != len(formal_sig.arg_types):
+            return False
+        for actual, formal in zip(self.arg_types, formal_sig.arg_types):
+            if not actual.matches_formal_type(formal):
+                return False
+        return True
 
     def __getitem__(self, index):
         """Indexing works like a tuple."""
@@ -408,8 +402,10 @@ class TypeSig(object):
     def __ne__(self, sig):
         return not self == sig
 
-    def __repr__(self): 
-        return "TypeSig({0}, {1})".format(self.val_type, self.arg_types)
+    def __repr__(self):
+        arglist = [t.short_repr() for t in self.arg_types]
+        arglist = ", ".join(arglist)
+        return "TypeSig({0}, [{1}])".format(self.val_type.short_repr(), arglist)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         return hash((self.val_type, self.arg_types))
@@ -422,17 +418,18 @@ class TypeSig(object):
 # NOTE: Consider if there is any advantage to having types themselves take
 # parameters other than the string labels.
 
-"""
-
-Only TypeSig takes None args... TypeObject converts None to a special wildcard
-TypeObject with type_label=None.
-
-"""
+def actual_matches_formal(actual, formal):
+    # TODO: this could be a method of a full class, which handles all the
+    # type equivalence, alias, and conversion stuff.....
+    # Alternately, it would fit in as part of the existing TypeTable class.
+    """The default function to check whether actual types match formal types.
+    Uses straight equality."""
+    return actual == formal
 
 class TypeObject(object):
     """Instances of this class represent types."""
 
-    def __init__(self, type_label):
+    def __init__(self, type_label, actual_matches_formal_fun=actual_matches_formal):
         """Instantiate a type object or a wildcare object with `None` argument."""
         super(TypeObject, self).__init__() # Call base class __init__.
         if type_label is None:
@@ -443,6 +440,7 @@ class TypeObject(object):
             self.type_label = type_label
             self.is_wildcard = False
         self.conversions = {} # Dict keyed by to_type values.
+        self.actual_matches_formal_fun = actual_matches_formal_fun
 
     def def_conversion(self, to_type, priority=0, tree_data=None):
         """Define an automatic conversion to be applied to the `TypeObjectBase`
@@ -468,17 +466,25 @@ class TypeObject(object):
         try: del self.conversions[to_type]
         except KeyError: return
 
-    def actual_type_would_match(self, type_obj):
-        """Test whether `type_obj` would be an valid actual type for this
-        type object, assuming it represents a formal type."""
-        # TODO: this is the one that needs to be used, will get fancier.
-        # See also the related method in TypeSig.
-        return self.type_label == typeobject.type_label
+    def matches_formal_type(self, formal_type):
+        """Test whether this object as an actual type matches `formal_type` as
+        a formal type.  All checks for type matches use this method.
+        
+        A hook is provided to pass in a different function to do the
+        comparison.  Set the `TypeObject` initializer keyword
+        `actual_matches_formal_fun` to the function on the creation of each
+        type.  It should take two `TypeObject` arguments: the actual one
+        followed by the formal one.  Different functions can be passed to
+        different type objects, or a generic one can be passed to all of them.
+        
+        See also the related method `matches_formal_sig` of `TypeSig` which
+        checks each value and argument in a signature"""
+        return self.actual_matches_formal_fun(self, formal_type)
 
     def __eq__(self, type_obj):
         """Note that this defines equality between types.  The `==` symbol
-        is defined as exact match only.  Use `is_valid_actual_type` for
-        comparing formal to actual."""
+        is defined as exact match only.  Use `matches_formal_type` for
+        comparing actual to formal."""
         if not isinstance(type_obj, TypeObject):
             return False
         return self.type_label == type_obj.type_label
@@ -491,9 +497,12 @@ class TypeObject(object):
     #    return hash(self.type_label)
     def __repr__(self):
         str_label = self.type_label
-        if self.type_label == (None,):
-            str_label = "None"
+        if self.type_label == (None,): str_label = "None"
         return "TypeObject({0})" .format(str_label)
+    def short_repr(self):
+        str_label = self.type_label
+        if self.type_label == (None,): str_label = "None"
+        return str_label
 
 #
 # A dict-like class for holding type objects
@@ -508,7 +517,9 @@ class TypeTable(object):
 
     def __init__(self, parser_instance):
         """Initialize the type table.  The `parser_instance` parameter should be the
-        `PrattParser` instance which owns this type table."""
+        `PrattParser` instance which owns this type table.  All type tables must
+        be associated with a parser instance (the types are part of the language
+        it parses)."""
         self.parser_instance = parser_instance
         self.type_object_dict = {}
 
