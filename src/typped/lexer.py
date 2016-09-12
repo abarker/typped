@@ -577,53 +577,57 @@ class TokenTable(object):
 
 class TokenBuffer(object):
     """An abstraction of the token buffer.  Basically a nicer wrapper over the
-    underlying deque.  Currently adds nothing (and could be replaced in code
-    with just a deque), but later can allow for indexing offsets, combining the
-    previous token list with the buffer, and other features."""
-    def __init__(self, token_getter_fun, maxlen):
+    underlying deque.  Previous tokens in the same deque as the current and
+    lookahead tokens.  Allows different views into the buffer."""
+    def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
         self.token_getter_fun = token_getter_fun
-        self.buffer_size = maxlen # rename
-        self.back_len = 10000 # consider more
-        self.total_len = maxlen + self.back_len
+        self.max_deque_size = max_deque_size
+        self.max_peek = max_peek
         self.current_offset = 0
-        self.token_buffer = collections.deque(maxlen=self.total_len)
-
-    # TODO: this almost works with commented-out parts and taking out the calls
-    # to unbuffered_token_getter in the main code.  Fails hard on go_back, though.
-    # Other cases work.
+        self.token_buffer = collections.deque(maxlen=self.max_deque_size)
 
     def __getitem__(self, index):
-        #while index + self.current_offset >= len(self.token_buffer):
-        #    self.token_buffer.append(self.token_getter_fun())
+        if self.max_peek is not None and index > self.max_peek:
+            raise LexerException("User-set maximum peeking level of {0} was"
+                                 " exceeded.".format(self.max_peek))
+        while index + self.current_offset >= len(self.token_buffer):
+            self._append(self.token_getter_fun())
         return self.token_buffer[index + self.current_offset]
 
     def __setitem__(self, index, item):
+        while index + self.current_offset >= len(self.token_buffer):
+            self._append(None) # TODO kludge only defined for go_back
         self.token_buffer[index + self.current_offset] = item
 
     def __len__(self):
         return len(self.token_buffer) - self.current_offset
 
-    def pop(self):
+    def _pop(self):
         """Pop off the rightmost item and return it."""
         retval = self.token_buffer.pop()
         if self.current_offset >= len(self.token_buffer):
             self.current_offset = len(self.token_buffer) - 1
         return retval
 
+    def _append(self, tok):
+        """Append to buffer and fix current index if necessary.  Users should not
+        call."""
+        if len(self.token_buffer) == self.max_deque_size:
+            self.current_offset -= 1
+            if self.current_offset < 0: raise LexerException("Error in TokenBuffer:"
+                    " Maximum buffer size is too small for the amount of peeking."
+                    " Current token was deleted.")
+        self.token_buffer.append(tok)
+
     def init(self, begin_token):
         self.current_offset = 0
         self.token_buffer.clear()
-        self.token_buffer.append(begin_token)
-
-    def append(self, item):
-        self.token_buffer.append(item)
-        if len(self) > self.buffer_size:
-            self.current_offset += 1
+        self._append(begin_token)
 
     def goto_next(self):
         self.current_offset += 1
-        #while self.current_offset >= len(self.token_buffer):
-        #    self.token_buffer.append(self.token_getter_fun())
+        while self.current_offset >= len(self.token_buffer):
+            self._append(self.token_getter_fun())
         return self.token_buffer[self.current_offset]
 
 class GenTokenState:
@@ -666,8 +670,8 @@ class Lexer(object):
     # Initialization methods
     #
 
-    def __init__(self, token_table=None, num_lookahead_tokens=2,
-                 max_go_back_tokens=None, default_begin_end_tokens=False):
+    def __init__(self, token_table=None, max_peek_tokens=None,
+                 max_deque_size=None, default_begin_end_tokens=False):
         """Initialize the Lexer.  Optional arguments set the
         `TokenTable` to be used (default creates a new one), the
         number of lookahead tokens (default is two), or the maximum number of
@@ -682,31 +686,11 @@ class Lexer(object):
             token_table = TokenTable()
         self.set_token_table(token_table)
 
-        # TODO: Consider integrating the lookahead tokens and the previous
-        # tokens into a single buffer.  Then the lookahead is just a slice of
-        # that buffer.  This allows easy push_back operations, at least.
-        # Obviously next() would have to be modified to know when to use
-        # generate_token or not.  Would be nice to have a push_back in addition
-        # to a go_back.  This would also work with the peek-on-demand
-        # enhancement idea.  Abstracting out the current buffer first would
-        # probably make the change/refactoring easier.  Would also make it easier
-        # to have different views of the lexer easier, such as if it were one back.
-        # TODO: these properties should maybe be properties of the token_table,
-        # not the lexer anymore.  Buffer is re-scanned, anyway, and lookahead level
-        # is part of language... currently must use max value for all parsers/lexers.
-        self.NUM_LOOKAHEAD_TOKENS = num_lookahead_tokens
-        self.MAX_TOKEN_BUFFER_SIZE = self.NUM_LOOKAHEAD_TOKENS + 1
-        #self.token_buffer = collections.deque(maxlen=self.MAX_TOKEN_BUFFER_SIZE)
         self.token_buffer = TokenBuffer(self.unbuffered_token_getter,
-                                        maxlen=self.MAX_TOKEN_BUFFER_SIZE)
+                                                 max_peek=max_peek_tokens,
+                                                 max_deque_size=max_deque_size)
 
-        self.MAX_GO_BACK_TOKENS = max_go_back_tokens
-        if self.MAX_GO_BACK_TOKENS: 
-            self.PREV_TOKEN_BUF_SIZE = (self.MAX_GO_BACK_TOKENS 
-                                        + self.NUM_LOOKAHEAD_TOKENS + 2)
-        else:
-            self.PREV_TOKEN_BUF_SIZE = None # None gives unlimited number.
-        self.previous_tokens = collections.deque(maxlen=self.PREV_TOKEN_BUF_SIZE)
+        self.previous_tokens = collections.deque(maxlen=max_deque_size)
 
         self.linenumber = 1
         self.charnumber = 1
@@ -789,9 +773,9 @@ class Lexer(object):
         # Set up the buffer.
         tb = self.token_buffer
         tb.init(begin_tok) # Begin token set as current; first next() returns it.
-        for i in range(self.NUM_LOOKAHEAD_TOKENS): # Fill with lookaheads.
-            new_token = self.unbuffered_token_getter() # Will generate all end-tokens at end.
-            tb.append(new_token)
+        #for i in range(self.NUM_LOOKAHEAD_TOKENS): # Fill with lookaheads.
+        #    new_token = self.unbuffered_token_getter() # Will generate all end-tokens at end.
+        #    tb.append(new_token)
         self.token = self.token_buffer[0]
         assert tb[0].is_begin_token() # debug check, remove later
 
@@ -829,7 +813,7 @@ class Lexer(object):
         tb.goto_next()
         if tb[0].is_end_token():
             self.already_returned_end_token = True
-        tb.append(self.unbuffered_token_getter())
+        #tb.append(self.unbuffered_token_getter())
         self.token = tb[0]
         return self.token
     __next__ = next # For Python 3.
@@ -899,10 +883,6 @@ class Lexer(object):
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
-        if self.MAX_GO_BACK_TOKENS and num_toks > self.MAX_GO_BACK_TOKENS:
-            raise LexerException("Attempt to go back {0} tokens when `MAX_GO_BACK_LEVELS`"
-                    " is set to {1}.".format(num_toks, self.MAX_GO_BACK_TOKENS))
-
         num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
                                           if not self.token_buffer[t].is_end_token()])
         n = num_toks + num_non_ends_in_buf

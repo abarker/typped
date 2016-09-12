@@ -1242,7 +1242,8 @@ class PrattParser(object):
     DEFAULT_BEGIN_TOKEN_LABEL = "k_begin" # Default label for begin token.
     DEFAULT_END_TOKEN_LABEL = "k_end" # Default label for end token.
 
-    def __init__(self, num_lookahead_tokens=2,
+    def __init__(self, max_peek_tokens=None,
+                       max_deque_size=None,
                        lexer = None,
                        default_begin_end_tokens=True,
                        type_table = None,
@@ -1251,9 +1252,21 @@ class PrattParser(object):
                        overload_on_ret_types=False,
                        multi_expression=False):
         """Initialize the parser.
+
+        The `max_peek_tokens` parameter is an optional arbitrary limit on the
+        level of peeks allowed in the lexer.  Setting to 1 limits it to a
+        single token lookahead.  The default setting `None` gives
+        peek-on-demand as far ahead as requested.
+
+        The `max_deque_size` parameter is an optional limit on the size of the
+        deque that the lexer keeps for previous tokens, the current token, and
+        requested peek tokens.  The default is for it to grow arbitrarily
+        (though it is reset on each parse).  Needs to be large enough for the
+        max level of peeks required plus the max `go_back` level required.
         
-        If a Lexer is passed in the parser will use
-        that lexer and its token table, otherwise a new lexer is created.
+        If a Lexer is passed in the parser will use that lexer and its token
+        table, otherwise a new lexer is created.  The previous lexer options
+        are ignored.
         
         No default begin and end functions will be set if a lexer is passed in,
         regardless of the value of `default_begin_end_tokens`.  Otherwise,
@@ -1282,7 +1295,8 @@ class PrattParser(object):
             self.token_table = TokenTable(
                                 token_subclass_factory_fun=token_subclass_factory)
             self.lex = Lexer(self.token_table,
-                                num_lookahead_tokens=num_lookahead_tokens,
+                                max_peek_tokens=max_peek_tokens,
+                                max_deque_size=max_deque_size,
                                 default_begin_end_tokens=False)
             # Set the begin and end tokens unless the user specified not to.
             if default_begin_end_tokens:
@@ -1292,7 +1306,7 @@ class PrattParser(object):
             self.type_table = type_table
         else:
             self.type_table = TypeTable(self)
-        self.num_lookahead_tokens = num_lookahead_tokens
+        self.num_lookahead_tokens = max_peek_tokens
         self.jop_token_label = None # Label of the jop token, if any.
         self.jop_token_subclass = None # The actual jop token, if defined.
         self.null_string_token_label = None # Label of the null-string token, if any.
