@@ -596,14 +596,15 @@ class TokenBuffer(object):
 
     def __setitem__(self, index, item):
         while index + self.current_offset >= len(self.token_buffer):
-            self._append(None) # TODO kludge only defined for go_back
+            self._append(None) # TODO kludge only defined for go_back; delete method later
         self.token_buffer[index + self.current_offset] = item
 
     def __len__(self):
         return len(self.token_buffer) - self.current_offset
 
     def _pop(self):
-        """Pop off the rightmost item and return it."""
+        """Pop off the rightmost item and return it.  Moves the current
+        token backward if necessary."""
         retval = self.token_buffer.pop()
         if self.current_offset >= len(self.token_buffer):
             self.current_offset = len(self.token_buffer) - 1
@@ -619,16 +620,34 @@ class TokenBuffer(object):
                     " Current token was deleted.")
         self.token_buffer.append(tok)
 
+    def _move_current_offset(self, delta):
+        """Move the current token by the offset `delta`, which can be any integer.
+        Positive numbers move forward and read new tokens if necessary.  Negative
+        numbers move backward (used in implementing pushback)."""
+        self.current_offset += delta
+        self._fill_to_current_offset()
+
     def init(self, begin_token):
         self.current_offset = 0
         self.token_buffer.clear()
         self._append(begin_token)
 
+    def num_peek_tokens_in_buffer(self):
+        """A boolean informational method.  Returns the number of tokens which
+        have been read past the position of the current token (due to peeks or
+        pushbacks)."""
+        return len(self.token_buffer) - 1 - self.current_offset
+
     def goto_next(self):
         self.current_offset += 1
+        self._fill_to_current_offset()
+        return self.token_buffer[self.current_offset]
+
+    def _fill_to_current_offset(self):
+        """If the current offset points past the end of the token buffer then
+        get tokens and append them until it is a valid index."""
         while self.current_offset >= len(self.token_buffer):
             self._append(self.token_getter_fun())
-        return self.token_buffer[self.current_offset]
 
 class GenTokenState:
     """The state of the token_generator program execution."""
@@ -810,31 +829,31 @@ class Lexer(object):
 
         # Handle ordinary case.
         tb = self.token_buffer
-        tb.goto_next()
-        if tb[0].is_end_token():
+        self.token = tb.goto_next()
+        if self.token.is_end_token():
             self.already_returned_end_token = True
-        #tb.append(self.unbuffered_token_getter())
-        self.token = tb[0]
         return self.token
     __next__ = next # For Python 3.
     
     def __iter__(self): return self # Class provides its own __next__ method.
 
     def peek(self, num_toks=1):
-        """Peek ahead in the token stream without consuming any tokens.  Note
-        that the argument is the actual number of tokens ahead to peek.  I.e.,
-        the indexing starts at 1. (Peeking 0 is considered to mean peek at the
-        current token.)  Peeking beyond the end of the buffer raises
-        `BufferIndexError`, a subclass of `IndexError`.  A peek within the
-        buffer size is always valid, and returns an end-token for all peeks
-        from the first end-token and beyond."""
-        # TODO: would be nice to have negative peeks go back in lexer stream...
+        """Peek ahead in the token stream without consuming any tokens.  The
+        argument `num_toks` is the number of tokens ahead to peek.  The default
+        peek of `numtoks=1` peeks at the token just beyond the current token.
+        Peeking zero shows the current token.  Negative peeks are allowed, and
+        look back at the previous tokens (up to the number in the token
+        buffer).
+        
+        Tokens are read into the buffer on-demand to satisfy any requested
+        peek.  If `max_peek_tokens` is set then an exception will be raised on
+        attempts to peek farther than that.  """
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's peek method when no text is set.")
         try:
             retval = self.token_buffer[num_toks]
-        except IndexError:
+        except IndexError: # Shouldn't happen.
             raise BufferIndexError
         return retval
 
@@ -871,6 +890,8 @@ class Lexer(object):
         with a different parser.  Since the sublanguage has a different
         collection of tokens the lookahead buffer must be re-scanned based on
         those tokens."""
+        # TODO rewrite parts of this to use the new TokenBuffer, and get rid
+        # of the deque previous_tokens entirely.
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's go_back method when no text is set.")
@@ -880,6 +901,17 @@ class Lexer(object):
         #            "\n   previous_tokens:", self.previous_tokens,
         #            "\n   prog_unprocessed:", self.prog_unprocessed,
         #            "\n   linenumber, charnumber:", self.linenumber, self.charnumber)
+
+        """
+        # REFACTOR PLAN, use this with below:
+        # Put in final place or one before to re-scan curr.
+        self.token_buffer.move_current_offset(delta)
+        # Pop off all saved beyond.
+        while self.token_buffer.num_peek_tokens_in_buffer() > 0:
+            popped = self.token_buffer._pop()
+            # Do stuff below to popped.
+        """
+
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
@@ -893,7 +925,8 @@ class Lexer(object):
         i = 0
         while True:
             i += 1
-            if i > n: break
+            if i > n:
+                break
             popped = self.previous_tokens.pop()
             if popped.is_begin_token():
                 peek_token_is_first = True
