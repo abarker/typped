@@ -293,6 +293,11 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # never need to know it is there.  This also makes it clear that the
 # precond_label is really a "part" of the function, and defines what it means
 # for function equality.
+#
+# UPDATE: See logic example.  There, you NEED different precond names for the
+# same function.  So at the least if you use function name attribute you would
+# have to change it just after defining the function (inside the other fun).
+# You also have two preconds with equal priorities, but mutually exclusive.
 
 #
 # TokenNode
@@ -481,19 +486,25 @@ def token_subclass_factory():
             sorted_handler_dict = cls.handler_funs[head_or_tail]
 
             # Make sure we don't get multiple definitions with the same priority
-            # when the new one is inserted.
-            for p_label, data_item in sorted_handler_dict.items():
-                if p_label == precond_label: continue
-                if (data_item.precond_priority == precond_priority and
-                            cls.parser_instance.raise_exception_on_precondition_ties):
-                    raise ParserException("Two preconditions for the token"
-                            " subclass named '{0}' for token with label '{1}' have"
-                            " the same priority, {2}.  Their precondition labels"
-                            " are '{3}' and '{4}'.  If precondition labels are"
-                            " the same there may be a redefinition. Set the flag"
-                            " False if you actually want to allow precondition"
-                            " ties." .format(cls.__name__, cls.token_label,
-                                precond_priority, precond_label, p_label))
+            # when the new one is inserted.  Note that we may not want to do this
+            # at all, or just give warning.  See case of preconds for quantifiers
+            # in logic example which use mutually exclusive handlers, same priority.
+            # TODO
+            pre_check_for_same_priority = False # Make attribute or pass in or delete all.
+            if pre_check_for_same_priority:
+                for p_label, data_item in sorted_handler_dict.items():
+                    if p_label == precond_label:
+                        continue
+                    if (data_item.precond_priority == precond_priority and
+                                cls.parser_instance.raise_exception_on_precondition_ties):
+                        raise ParserException("Two preconditions for the token"
+                                " subclass named '{0}' for token with label '{1}' have"
+                                " the same priority, {2}.  Their precondition labels"
+                                " are '{3}' and '{4}'.  If precondition labels are"
+                                " the same there may be a redefinition. Set the flag"
+                                " False if you actually want to allow precondition"
+                                " ties." .format(cls.__name__, cls.token_label,
+                                    precond_priority, precond_label, p_label))
             return
 
         @classmethod
@@ -1580,7 +1591,9 @@ class PrattParser(object):
     # Is it necessary to call undef_handler, or does undef the token do that
     # too?  Look at undef_handler and see........ use below if needed.
 
-    def def_literal(self, token_label, val_type=None, eval_fun=None, ast_label=None):
+    def def_literal(self, token_label, val_type=None, precond_label=None,
+                          precond_fun=None, precond_priority=1,
+                          eval_fun=None, ast_label=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
         function to the token.  Literals are the leaves of the parse tree; they
@@ -1592,8 +1605,9 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler_literal)
             return tok
         return self.modify_token_subclass(token_label, head=head_handler_literal,
-                                          val_type=val_type, arg_types=(),
-                                          eval_fun=eval_fun, ast_label=ast_label)
+                               val_type=val_type, arg_types=(),
+                               precond_label=precond_label, precond_fun=precond_fun,
+                               eval_fun=eval_fun, ast_label=ast_label)
 
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
