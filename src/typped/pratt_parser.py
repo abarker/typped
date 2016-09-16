@@ -1820,11 +1820,49 @@ class PrattParser(object):
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                             ast_label=ast_label)
 
-    def def_production(self, pstate_label, token_label, prec=0, precond_priority=None,
+    #
+    # Production rule methods.
+    #
+
+    def def_production(self, pstate_label, production_cases_list):
+        """Define an EBNF production with the cases on the list `production_cases_list`.
+        Each element of the list should be a case of the production, and should be
+        a list of tokens mixed with production-state labels."""
+        # TODO: Ignore precedences for now, but later allow them for all the
+        # items (though they only apply when called as a tail).  Could use
+        # tuples, or just precede with an int, or some other data structure
+        # might come to mind after basic form set up.
+        for case_index, case in enumerate(production_cases_list):
+            pstate_tuple = (pstate_label, case_index) # This is the pstate.
+            if isinstance(case[0], int):
+                prec = case[0]
+            if isinstance(case[0], TokenNode):
+                # Register handler with the preconditioned case[0] token.
+                # --> Currently assuming the token_label and pstate uniquely
+                # identify in both cases, but may need more preconds (later).
+                self.def_case_start_handlers(pstate_label, case_index, case[0], case)
+            elif isinstance(case[0], str):
+                # Register handler with the preconditioned null-string token.
+                # ---> Could define null_string_token if not already....
+                self.def_case_start_handlers(pstate_label, case_index,
+                                    self.null_string_token_subclass, case)
+
+        # TODO: now, if any fail when their handlers are running you just raise
+        # exception and the one that handles exception just increments the case
+        # index on the pstack and tries again.  Fail if all fail (needs to
+        # know how many to try, obviously).
+        #
+        # TODO inside the handler for each case-beginning you need to know all
+        # the other items in the case.  Then you loop over those, consuming tokens
+        # to compare labels with the tokens, and recursing on the pstate-labels
+        # by pushing (pstate_label, 0), calling recursive_parse, and then either
+        # get a result or get a failure.  If get a failure then increment.  If
+        # success then proceed with the case the same way until finished.
+
+    def def_case_start_handlers(self, pstate_label, case_index, token, case_items):
                        # Below not used yet.... need to know cases of production...
-                       precond_label=None, precond_fun=None,
-                       val_type=None, arg_types=None, eval_fun=None,
-                       ast_label=None):
+                       #val_type=None, arg_types=None, eval_fun=None,
+                       #ast_label=None):
         """Define a production in the sense of a recursive-descent parser,
         using the null-string token.  The handler functions basically just change
         the state and relay the arguments that the null-string token was called with.
@@ -1832,6 +1870,7 @@ class PrattParser(object):
         It is assumed that the start state will be initially pushed on the
         `pstack` attribute of the parser whenever productions are being
         used."""
+        case_items = tuple(case_items) # So they do not change in closure.
 
         # TODO: In order to do the backtracking this routine will need to know
         # all the cases of the production.  Then, it should iterate over them,
@@ -1839,25 +1878,55 @@ class PrattParser(object):
         # BacktrackFailedBranch on failure.  On failure move to next one, or
         # raise the fail again if out of choices.
         #
-        # In future optimizations this "tree" of cases coule be searched to find
-        # the tokens for, say LL(1) grammars which can be set as preconditions
-        # to avoid the backtracking by using a lookahead.
-        
-        # Use a default argument to preconditions to get early binding of closure.
-        def preconditions(lex, lookbehind, state_label=state_label):
-            if not lex.token_table.parser_instance.pstate[-1] == state_label:
-                return False
-            # TODO may also need to look ahead at peeks sometimes??
-        precond_label = "production-{0}-peeks-" + "-".join(peek_list)
+        # In future optimizations this "tree" of cases coule be searched to
+        # find the tokens for, say LL(1) grammars which can be set as
+        # preconditions to avoid the backtracking by using a lookahead.  They
+        # are relayed back up the CFG tree and assigned (as peeks) to all
+        # productions until reaching another non-production.
+
+        # TODO consider if using tokens as the terminals will cause problems
+        # when all functions have their own tokens... or just associate a
+        # function with a <function> state label.... what if some of the
+        # terminals just set a state and then read whatever the Pratt part of
+        # the parser determines, such as a function?  Otherwise, you could just
+        # do functions the ordinary grammar way if they are not Pratt parsed
+        # in the first place....
+
+        def preconditions(lex, lookbehind):
+            # TODO (general): can preconditions see their token, too, as arg?
+            # Convenient info to have....
+
+            # ASSUME pstates are [label, case_index] pairs....
+            pstate = lex.token_table.parser_instance.pstate
+            return pstate[-1] == [pstate_label, case_index]
+        precond_label = "precond for prod {0} case {1}".format(pstate_label, case_index)
 
         def head_handler(tok, lex):
-            """Just push the state, relay the call, and pop afterwards."""
-            # Push the new state onto the pstack.
-            tok.parser_instance.pstack.append("pstate_label")
-            # Get the next subexpression, relaying the precedence.
-            processed = tok.recursive_parse(tok.subexp_prec)
-            # Pop the state off the pstack.
-            tok.parser_instance.pop()
+            """   """
+            pstate = tok.parser_instance.pstate
+            for count, item in enumerate(case_items):
+                if isinstance(items, TokenNode):
+                    if count == 0: # This *is* the token for case 0 of the rule.
+                        continue
+                    if not tok.match_next(item.token_label):
+                        raise BranchFail("Expected token not found.")
+                    next_tok = tok.recursive_parse(0)
+                    # BUILD TREE SOMEHOW from next_tok
+                else: # a production
+                    num_cases = parser.case_dict[item].num_cases # TODO need global info
+                    for i in range(num_cases):
+                        pstate.append([item, i])
+                        try:
+                            next_tok = tok.recursive_parse(0)
+                        except BranchFail:
+                            if i == num_cases - 1:
+                                raise ParserException("All rule cases failed.")
+                        else:
+                            break
+                        finally:
+                            pstate.pop()
+                     # BUILD TREE SOMEHOW from next_tok
+
             return processed
 
         def tail_handler(tok, lex, left):
@@ -1877,7 +1946,6 @@ class PrattParser(object):
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      ast_label=ast_label)
-
 
     #
     # The main parse routines.

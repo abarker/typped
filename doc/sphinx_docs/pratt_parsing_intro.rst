@@ -150,7 +150,9 @@ of the ``recursive_parse`` function returns the parse tree for the largest
 subexpression to the right of the current token (which is usually one subtree
 of the full parse tree).  Thus, the ``parse`` function itself only needs to do
 some initialization and then call ``recursive_parse`` and return the result.
-So this is the basic code for ``parse``::
+So this is the basic code for ``parse``
+
+.. code-block:: python
 
     def parse(lex, program):
         lex.set_text(program)
@@ -159,7 +161,9 @@ So this is the basic code for ``parse``::
 
 Since the code for ``parse`` basically just makes a recursive call to
 ``recursive_parse``, we really need to focus on how ``recursive_parse`` works.
-Here is the code for ``recursive_parse``, which will be discussed next::
+Here is the code for ``recursive_parse``, which will be discussed next
+
+.. code-block:: python
 
     def recursive_parse(lex, subexp_prec):
         curr_token = lex.next()
@@ -307,7 +311,9 @@ the parse tree using the token representations returned by the lexer as the
 nodes.
 
 The head for literals basically just needs to return the token instance itself,
-since literals are the leaves of the parse tree::
+since literals are the leaves of the parse tree:
+
+.. code-block:: python
 
      def head_handler_literal(self, lex):
          return self
@@ -320,7 +326,9 @@ head and tail handlers for any tokens.
 Beyond just literals, the head and tail handlers do two things while
 constructing the result value to return: they read in more tokens, and they
 call ``recursive_parse`` to evaluate sub-subexpressions of their subexpression.
-This is the definition of the tail handler for the ``+`` operator::
+This is the definition of the tail handler for the ``+`` operator:
+
+.. code-block:: python
 
      def tail_handler_plus(self, lex, left):
          self.append_children(left, recursive_parse(lex, self.prec))

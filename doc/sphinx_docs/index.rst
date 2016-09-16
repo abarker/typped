@@ -20,7 +20,7 @@ Installation
 
 The easiest way to install Typped is to use pip:
 
-.. code:: bash
+.. code-block:: bash
 
    pip install typped
 

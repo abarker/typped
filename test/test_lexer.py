@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""
+
+Tests of the lexer.py code.
+
+"""
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 

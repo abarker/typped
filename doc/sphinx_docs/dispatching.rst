@@ -39,8 +39,8 @@ handler function.  The handler function associated with the highest-priority
 precondition-testing function which evaluates to true in the current conditions
 is chosen to handle the token in the given context.  The chosen handler
 function is returned (with its arguments bound, since they are known) and is
-then called in `recursive_parse`.  See the example below for an example of
-the code.
+then called in `recursive_parse`.  See the example below for an example of the
+code.
 
 .. note::
 
@@ -71,15 +71,17 @@ Uniqueness of preconditions functions
 -------------------------------------
 
 Each preconditions function for a token is associated with a head and/or tail
-handler function.  Any re-registration of a handler with the same preconditions
-function results in overwriting of the previous one.  (If the type signatures
-also differ then the type information *is* saved, which allows for function and
-operator overloading.)  It is important, then, to have a clear definition of
-when two functions are considered equal.
+handler function.  Any re-registration of a head or tail handler with *the same*
+preconditions function results in overwriting of the previously-registered
+handler.  (If the type signatures also differ then, to allow overloading, that
+type information *is* saved but the handler function itself is overwritten.)  It
+is important, then, to have a clear definition of when two functions are
+considered equal.
 
 In order to avoid problems in determining when functions are identical, every
-preconditions function must be associated with a unique label.  These functions
-are then registered in a dict using methods of the `TokenTable` class.
+preconditions function (or use of a preconditions function) **must** be assigned
+a unique label.  These functions are then registered in a dict using methods of
+the `TokenTable` class.
 
 These preconditions labels **define** identity or non-identity between
 preconditions functions.  Handler functions registered using the same
@@ -114,72 +116,91 @@ The code for this example can be found in a runnable form in the file
 
 .. note::
 
-   In this example the function name could be lexed as a generic identifier
-   token, the same as, say, variables.  With the Typped parser it is generally
-   a good idea to make every function name into a separate token, if possible,
-   or a least have a generic token that only represents functions.  This is
+   In this example the lexer could be set up to recognize the function name as
+   a generic identifier token, and variables could be treated the same way.
+   The precondition on the opening lpar for a function would differentiate
+   them.  With the Typped parser, though, it is generally a good idea to make
+   every function name into its own separate token type, if possible.  This is
    possible, when, for example, all functions in the language must be declared
-   ahead of time.  It helps to avoid possible ambiguities which can arise in
-   the interactions of multiple grammatical constructs in more-complex
-   grammars.  The Typped lexer is designed to efficiently deal with multiple
-   token definitions of this sort.  (It stores them in a trie and searches them
-   all at once.)
+   ahead of time.
+   
+   Having separate tokens for each name helps to avoid possible ambiguities
+   which can arise in the interactions of multiple grammatical constructs in
+   more-complex grammars.  It also helps with type-checking and overloading.
+
+   In order for type-checking to work on functions, each function with the same
+   signature must be handled by the same handler function.  This requires
+   either 1) a different precondition for each one, or 2) a different token for
+   each one.  The latter is generally easier.  The same holds for using
+   function overloading, except that the *same* handler must be used for each
+   overload redefinition.  (By the definition of overloading, the functions
+   parse the same and the actual argument types must be examined to resolve the
+   overload.)
+  
+   The Typped lexer is designed to efficiently deal with multiple token
+   definitions of this sort.  It is dynamically modifiable, and it stores
+   simple names in a trie so it can search them all in parallel.
 
 In this example the `PrattParser` class is extended by creating a subclass with
 additional methods.  It is not strictly necessary to create a subclass,
 however.  You could use an ordinary function by just renaming the `self`
 variable to something like `parser` and then explicitly pass in a parser
-instance when calling it.
-
-Extending the class has the
-advantage the newer methods are accessed in the same way as the built-in ones.
+instance when calling it.  Extending the class has the advantage the newer
+methods are accessed in the same way as the built-in ones.
 
 In this example the method `def_stdfun` is added to the `PrattParser`.  Before
 calling this method all of the tokens with passed-in labels must be defined
 (via the `def_token` method), as must ignored whitespace.  The lpar, rpar, and
-comma tokens must also be defined a literals (via the `def_literal` method).  ::
+comma tokens must also be defined a literals (via the `def_literal` method).
 
-     class MyParser(PrattParser):
-         """Add a new method to the `PrattParser` class as an example."""
-         def __init__(self, *args, **kwargs):
-             super(MyParser, self).__init__(*args, **kwargs)
+.. code-block:: python
 
-         def def_stdfun(self, fname_token_label, lpar_token_label,
-                        rpar_token_label, comma_token_label, num_args,
-                        precond_priority=1):
+   class MyParser(PrattParser):
+       """Add a new method to the `PrattParser` class as an example."""
+       def __init__(self, *args, **kwargs):
+            """Call the superclass initializer."""
+           super(MyParser, self).__init__(*args, **kwargs)
 
-             def preconditions(lex, lookbehind):
-                  peek_tok = lex.peek()
-                  if peek_tok.ignored_before(): return False
-                  if peek_tok.token_label != lpar_token_label: return False
-                  return True
-             precond_label = "lpar after, no whitespace between" # Some unique label.
+       def def_stdfun(self, fname_token_label, lpar_token_label,
+                      rpar_token_label, comma_token_label, num_args,
+                      precond_priority=1):
+           """Define a standard function with a fixed number of arguments."""
+           # Define the preconditions function and a unique label for it.
+           def preconditions(lex, lookbehind):
+                peek_tok = lex.peek()
+                if peek_tok.ignored_before(): return False
+                if peek_tok.token_label != lpar_token_label: return False
+                return True
+           precond_label = "lpar after, no whitespace between" # Some unique label.
 
-             def head_handler(tok, lex):
-                 # Below match is for a precondition, so it will match and consume.
-                 tok.match_next(lpar_token_label, raise_on_fail=True)
+           def head_handler(tok, lex):
+               # Below match is for a precondition, so it will match and consume.
+               tok.match_next(lpar_token_label, raise_on_fail=True)
 
-                 # Read comma-separated subexpressions as arguments.
-                 for i in range(num_args-1):
-                     tok.append_children(tok.recursive_parse(0))
-                     tok.match_next(comma_token_label, raise_on_fail=True)
-                 if num_args != 0:
-                     tok.append_children(tok.recursive_parse(0))
-                 tok.match_next(rpar_token_label, raise_on_fail=True)
-            
-                 # Always call this function at the end of a handler function.
-                 tok.process_and_check_node(head_handler)
-                 return tok
+               # Read comma-separated subexpressions as arguments.
+               for i in range(num_args-1):
+                   tok.append_children(tok.recursive_parse(0))
+                   tok.match_next(comma_token_label, raise_on_fail=True)
+                   tok.match_next(rpar_token_label, raise_on_true=True) # Error.
+               if num_args != 0:
+                   tok.append_children(tok.recursive_parse(0))
+               tok.match_next(rpar_token_label, raise_on_fail=True)
+          
+               # Always call this function at the end of a handler function.
+               tok.process_and_check_node(head_handler)
+               return tok
 
-             # Always call this function to register handler funs with the token.
-             return self.modify_token_subclass(fname_token_label, prec=0,
-                                        head=head_handler,
-                                        precond_label=precond_label,
-                                        precond_fun=preconditions,
-                                        precond_priority=precond_priority)
+           # Always call this function to register handler funs with the token.
+           self.modify_token_subclass(fname_token_label, prec=0,
+                                      head=head_handler,
+                                      precond_label=precond_label,
+                                      precond_fun=preconditions,
+                                      precond_priority=precond_priority)
 
 The function defined above could be called as follows.  Note that literals in
-the sense of the parser are any leaves (terminals) of the parse tree. ::
+the sense of the parser are any leaves (terminals) of the parse tree.
+
+.. code-block:: python
 
     parser = MyParser()
     parser.def_token("k_space", r"[ \t]+", ignore=True) # note + NOT *
@@ -188,8 +209,9 @@ the sense of the parser are any leaves (terminals) of the parse tree. ::
     tokens = [("k_number", r"\d+"),
               ("k_lpar", r"\("),
               ("k_rpar", r"\)"),
-              ("k_add"),
-              ("k_sub"),
+              ("k_comma", r","),
+              ("k_add", r"add"),
+              ("k_sub", r"sub"),
              ]
     parser.def_multi_tokens(tokens)
 
@@ -235,7 +257,7 @@ will have no need to modify the basic parsing routines ``parse`` and
 dispatching is used.  It is a little simplified from the actual code in Typped
 because it does not handler jops, null-string tokens, or error-checking.
 
-.. code::
+.. code-block:: python
 
    def recursive_parse(subexp_prec):
        lex = self.token_table.lex
@@ -289,7 +311,7 @@ one-to-one with the Cartesian product of the two).
 Using preconditions similarly to recursive descent parsing
 ----------------------------------------------------------
 
-This section discusses some similiarities and differences between Pratt parsing
+This section discusses some similarities and differences between Pratt parsing
 with conditioned dispatching and recursive descent parsing.  It also discusses
 ways to use a Pratt-style parsing to do the same thing.  Of course recursive
 descent parsing is not all that difficult with a good lexer; it is possible to
