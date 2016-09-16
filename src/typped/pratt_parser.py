@@ -223,6 +223,7 @@ from .shared_settings_and_exceptions import ParserException
 from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
                     multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
+from . import production_rules
 
 # TODO: Consider putting versions of the helper functions like match_next in
 # the main module namespace as well as in the TokenSubclass space (can probably
@@ -1467,6 +1468,14 @@ class PrattParser(object):
         return self.def_token_master(null_string_token_label,
                                      token_kind="null-string")
 
+    def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
+                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+"):
+        """Define the standard whitespace tokens for space and newline, setting
+        them as ignored tokens."""
+        # Note + symbol for one or more, NOT the * symbol for zero or more.
+        self.def_ignored_token(space_label, space_regex)
+        self.def_ignored_token(newline_label, newline_regex)
+
     #
     # Undefine tokens.
     #
@@ -1824,27 +1833,27 @@ class PrattParser(object):
     # Production rule methods.
     #
 
-    def def_production(self, pstate_label, production_cases_list):
-        """Define an EBNF production with the cases on the list `production_cases_list`.
-        Each element of the list should be a case of the production, and should be
-        a list of tokens mixed with production-state labels."""
+    def def_production_rule(self, rule_label, grammar):
+        """Define a production rule with the label `rule_label` as defined in
+        the `Grammar` object `grammar`."""
         # TODO: Ignore precedences for now, but later allow them for all the
         # items (though they only apply when called as a tail).  Could use
         # tuples, or just precede with an int, or some other data structure
         # might come to mind after basic form set up.
-        for case_index, case in enumerate(production_cases_list):
-            pstate_tuple = (pstate_label, case_index) # This is the pstate.
+        case_list = grammar[rule_label]
+        for case_index, case in case_list:
+            pstate_tuple = (rule_label, case_index) # This is the pstate.
             if isinstance(case[0], int):
                 prec = case[0]
             if isinstance(case[0], TokenNode):
                 # Register handler with the preconditioned case[0] token.
                 # --> Currently assuming the token_label and pstate uniquely
                 # identify in both cases, but may need more preconds (later).
-                self.def_case_start_handlers(pstate_label, case_index, case[0], case)
+                self.def_case_start_handlers(rule_label, case_index, case[0], case)
             elif isinstance(case[0], str):
                 # Register handler with the preconditioned null-string token.
                 # ---> Could define null_string_token if not already....
-                self.def_case_start_handlers(pstate_label, case_index,
+                self.def_case_start_handlers(rule_label, case_index,
                                     self.null_string_token_subclass, case)
 
         # TODO: now, if any fail when their handlers are running you just raise
@@ -2004,6 +2013,7 @@ class PrattParser(object):
             return parse_tree_list
         else:
             return output
+
 
 def sort_handler_dict(d):
     """Return the sorted `OrderedDict` version of the dict `d` passed in,
