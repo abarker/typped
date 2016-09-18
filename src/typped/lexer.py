@@ -130,6 +130,7 @@ Other attributes:
 * `token` -- the current token (the most recent one returned by `next`)
 * `line_number` -- the line number of the current token
 * `char_number` -- the character number of the current character
+* `all_tokens_count` -- num of tokens since text was set (begin and end not counted)
 
 TODO, list more, why not make some methods of `TokenNode` instead?
 
@@ -721,6 +722,8 @@ class Lexer(object):
         self.linenumber = 1
         self.charnumber = 1
 
+        self.all_token_count = 0
+
         self.token_generator_state = GenTokenState.uninitialized
 
         if default_begin_end_tokens:
@@ -816,7 +819,7 @@ class Lexer(object):
         than one a list of the tokens is returned (this list is cut short if
         the first end-token is encountered, and so will never generate
         `StopIteration`).  This method basically just adds buffering on top of
-        the lower-level routine `token_generator`."""
+        the lower-level routine `unbuffered_token_getter`."""
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's next method when no text is set.")
