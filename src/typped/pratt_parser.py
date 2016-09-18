@@ -845,7 +845,7 @@ def token_subclass_factory():
         # Some helper functions for use in handler functions.
         #
 
-        # TODO: consider just moving all of these to the ordinary module space
+        # Consider just moving all of these to the ordinary module space
         # and importing them into the typped package, etc.  Easy, just change
         # the self param to tok.  Invoke as match_next(tok,.... instead of
         # tok.match_next(...  Not that big a difference, but is it really
@@ -855,6 +855,10 @@ def token_subclass_factory():
         # ------> can just define in helpers.py and ALSO copy them to this namespace
         # as, e.g.,
         #    match = helpers.match
+        #
+        # TODO UPDATE, all of these belong in the Lexer module!!!!!  Handlers
+        # and preconds all have access to lex, and these routines ONLY use
+        # things from the lexer.
 
         def match_next(self, token_label_to_match, peeklevel=1,
                        raise_on_fail=False, raise_on_true=False, consume=True,
@@ -866,8 +870,10 @@ def token_subclass_factory():
             look; the default is one.
             
             If `raise_on_fail` set true then a `ParserException` will be raised
-            if the match fails.  If `consume` is false then no tokens will be
-            consumed.
+            if the match fails.
+            
+            If `consume` is false then no tokens will be consumed.  Otherwise a
+            token will be consumed if and only if it matches.
             
             The parameter `err_msg_tokens` can be set to change how many tokens
             worth of text back the error messages report (as debugging
@@ -1922,43 +1928,32 @@ class PrattParser(object):
         def head_handler(tok, lex):
             """The head handler assigned to the first token of the first case for
             a production rule.  It tries all the other cases if it fails."""
-            # What if you read the end token twice but need to backtrack?
-            # Might need to turn that off somehow... need to look at recursive_parse.
-            # --> The end token's handlers now raise CalledEndTokenHandler
-            # So can catch that, too, with backtrack error.
-
-            # You just handle *everything* from here..........
-            # You have all the cases.  If you can handle your own case you can
-            # certainly backtrack and do the same for the other cases.  Only
-            # problem is if you got an actual token that started a case.
-            # Then you have to put that back, too.  But you are then at the place
-            # where all the cases start.  So, you can just proceed to check them,
-            # too.
+            # You just handle all cases of a production from first null-string
+            # token for first case.  You have all the cases.  If you can handle
+            # your own case you can backtrack and do the same for the other
+            # cases.
             #
-            # -------> Greatly simplifies if it works... no modified states or
-            # special handlers for later case starting items.  What about when
-            # we have the LL(1) info as preconditions, though.  Don't we then
-            # want a handler for each beginning?  Or why not just incorporate
-            # the info into this routine like a case statement thing???
+            # Note that each *production* still has its own handler for the
+            # beginning of the first case.  It is only the cases of a
+            # production that are all handled from the head for the first item
+            # of the first case.
             #
-            # Note that each *production* still has its own handler for the beginning
-            # of the first case.  It is only the cases of a production that are all
-            # handled from the head for the first item of the first case.
+            # The "called as head vs. tail" thing won't matter, because
+            # productions are always called as the whole case, by the
+            # production label.  So, all cases will have the *same* method of
+            # calling....  If first case was called as head then call all later
+            # cases as heads; same with tails.
             #
-            # The "called as head vs. tail" thing won't matter, because it is
-            # always called as the whole case, by production label.  So, all cases
-            # will have the *same* method of calling....  If first case was called as
-            # head then call all later cases as heads, same with tails.
-            #
-            # This really is reducing to a recursive descent parser...  Once the
-            # routine is called from the start point knowing the production it is
-            # the same, *except* that the recursion to other production is done
-            # by pushing onto the stack to change the general state that some
-            # preconds look at.
+            # This really is reducing to a recursive descent parser...  Once
+            # the routine is called from the start point knowing the production
+            # it is the same, *except* that the recursion to other production
+            # is done by pushing onto the stack to change the general state
+            # that some preconds look at.
             pstate_stack = tok.parser_instance.pstate_stack
-            def indent():
+            tok.value = rule_label # TODO document that None value set to rule_label.
+            
+            def indent(): # DEBUG fun
                 return " " * (len(pstate_stack)-1) * 4
-
 
             num_cases = len(case_list)
             last_case = False
@@ -1971,38 +1966,74 @@ class PrattParser(object):
                 print()
                 print(indent() + "Handling case number", case_count, "of", rule_label)
                 assert lex.peek().token_label == lex_peek_label
+                tok.children = [] # Reset the children of this null-state token.
                 if case_count == num_cases - 1:
                     last_case = True
                 try:
                     for item in case:
-                        item_value = item.value
+                        # Token is the case item.
                         if item.kind_of_item == "token":
-                            if not tok.match_next(item_value.token_label):
-                                print(indent() + "    FAIL token match")
+                            item_token = item.value
+                            item_token_label = item_token.token_label
+                            if not tok.match_next(item_token_label, consume=False):
+                                print()
+                                print(indent() + "FAIL token match for",
+                                        item_token_label)
+                                print(indent() + "actual token is", lex.peek())
                                 raise BranchFail("Expected token not found.")
-                            print(indent() + "matched token", item_value.token_label)
+                            print(indent() + "matched token", item_token_label)
+
+                            # Actual tree nodes must be processed by literal handler.
+                            # Todo: document/improve this stuff, nice to push known label
+                            pstate_stack.append(None) # Avoid recursion to this handler.
                             next_tok = tok.recursive_parse(0) # Get the token.
+                            pstate_stack.pop()
+
+                            print(indent()+"==> next_tok subexpr is", next_tok)
+                            if next_tok.children:
+                                raise ParserException("In parsing the rule {0} a call"
+                                        " to recursive_parse returned a subexpression"
+                                        " tree rather than the expected single token"
+                                        " with label {1}.  Subexpression was {2}"
+                                        .format(rule_label, item_token_label, next_tok))
                             tok.append_children(next_tok) # Make the token a child.
+
+                        # Production is the case item.
                         elif item.kind_of_item == "production":
-                            pstate_stack.append(item_value)
+                            item_rule_label = item.value
+                            pstate_stack.append(item_rule_label)
                             try:
                                 next_subexp = tok.recursive_parse(0)
                             except (BranchFail, CalledEndTokenHandler):
-                                print(indent() + "    FAIL production")
+                                print(indent() + "FAIL production")
                                 raise
                             finally:
                                 pstate_stack.pop()
-                            tok.append_children(next_subexp)
+                            #tok.append_children(next_subexp) # Keep rule toks in tree.
+                            print(indent() + "Simply appending children", next_subexp.children)
+                            tok.append_children(next_subexp) # No subrule toks.
+
+                        # Unknown case item.
                         else:
                             print(indent() + "unrecognized item is", item)
                             raise ParserException("No item recognized.")
+
+                    # TODO need to process_and_check_node.
+                    # We know tok is a null-string token.  If only one child, then
+                    # just return that and leave null-string tokens out of the tree.
+                    assert tok.token_label == "k_null-string" # DEBUG
+                    print(indent() + "Returning tok with children", tok.children)
+                    print()
                     return tok
+
                 except (BranchFail, CalledEndTokenHandler):
                     # Backtrack, need to push back all tokens read.
                     #print()
                     #print(indent() + "============> backtracking")
                     new_lex_token_count = lex.all_token_count
-                    lex.go_back(new_lex_token_count - lex_token_count)
+                    # TODO works but the +2 below is total guessing KLUDGE!
+                    # Clean up the go_back mechanism...
+                    lex.go_back(new_lex_token_count - lex_token_count + 2, num_is_raw=True)
                     if last_case: # Give up, all cases failed.
                         raise BranchFail("All rule cases failed.")
 
@@ -2094,7 +2125,7 @@ class PrattParser(object):
     # The main parse routines.
     #
 
-    def parse_from_lexer(self, lex):
+    def parse_from_lexer(self, lex, pstate=None):
         """The same as the `parse` method, but a lexer is already assumed to be
         initialized.  This is used when one parser instance calls another
         parser instance (implicitly, via handler functions of its tokens)."""
@@ -2111,13 +2142,18 @@ class PrattParser(object):
         # Just copy the `parse` method and remove the stuff it doesn't need
         # to do.
 
-    def parse(self, program):
+    def parse(self, program, pstate=None):
         """The main routine for parsing a full program or expression.  Users of
         the class should call this method to perform the parsing operations
         (after defining a grammar, of course).  Returns a token tree or a list
-        of token trees if `multi_expression` is set."""
+        of token trees if `multi_expression` is set.  If the `pstate` variable
+        is set then the value will be pushed as the initial state on the production
+        rule stack `pstate_stack`."""
 
-        parse_tree_list = []
+        if pstate:
+            self.pstate_stack = [pstate] # For parsing production rule grammars.
+        parse_tree_list = [] # For multi-expression.
+
         while True:
             self.lex.set_text(program)
             begin_tok = self.lex.token # Get begin token to access recursive_parse.

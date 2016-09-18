@@ -278,8 +278,13 @@ class TokenNode(object):
         if isinstance(self.value, str):
             value_str = "'" + value_str + "'"
         return "<{0},{1}>".format(self.token_label, value_str)
-    def tree_repr(self, indent=""):
-        """Token representation as the root of a parse subtree, with formatting."""
+    def tree_repr(self, indent=0):
+        """Token representation as the root of a parse subtree, with formatting.
+        The optional `indent` parameter can be an indent string or an integer for
+        the number of spaces to indent."""
+        try: num_indent = int(indent)
+        except ValueError: pass
+        else: indent = " " * num_indent
         string = indent + self.summary_repr() + "\n"
         for c in self.children:
             string += c.tree_repr(indent=indent+" "*4)
@@ -867,7 +872,7 @@ class Lexer(object):
             raise BufferIndexError
         return retval
 
-    def go_back(self, num_toks=1):
+    def go_back(self, num_toks=1, num_is_raw=False):
         """This method allows the lexer to go back in time by `num_toks`
         tokens.  Going back one with `go_back(1)` or just `go_back()` results
         in the current token being set to a re-scanned version of the previous
@@ -886,6 +891,12 @@ class Lexer(object):
         the beginning of the program text go back to the beginning and stop
         there.
         
+        If `num_is_raw` is true then `num_toks` is interpreted as the actual
+        number of tokens to go back, including any in the buffer (which are
+        otherwise handled automatically).  This can be useful when looking at
+        `lex.all_token_count` to determine how far to go back and undo
+        something.
+
         This method returns the current token after any re-scanning.
 
         Note that this kind of backing up is different from the usual
@@ -927,22 +938,27 @@ class Lexer(object):
                   "or has reached `StopIteration` by reading past the end-token.")
         num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
                                           if not self.token_buffer[t].is_end_token()])
-        n = num_toks + num_non_ends_in_buf
+        n = num_toks + num_non_ends_in_buf + 1
+
+        if num_is_raw:
+            # Works with lex.all_token_count in production_rules, but why +2?
+            # Setting max_peek_tokens doesn't affect it.  Clean up code.
+            n = num_toks + 2
 
         # Pop the tokens from self.previous_tokens, resetting self.prog_unprocessed.
         peek_token_is_first = False
         current_token_is_first = False
-        i = 0
+        count = 1 # Note count starts at one.
         while True:
-            i += 1
-            if i > n:
+            count += 1
+            if count > n:
                 break
             popped = self.previous_tokens.pop()
             if popped.is_begin_token():
                 peek_token_is_first = True
                 break
             if popped.is_end_token():
-                i -=  1 # end-tokens aren't actually read from the token stream.
+                count -=  1 # end-tokens aren't actually read from the token stream.
                 continue
             if popped.ignored_before():
                 (self.linenumber,
@@ -960,8 +976,8 @@ class Lexer(object):
         if peek_token_is_first:
             self._initialize_token_buffer()
         else:
-            for i in range(max(-num_toks, 0), len(self.token_buffer)):
-                self.token_buffer[i] = self.unbuffered_token_getter() # TODO better way?
+            for count in range(max(-num_toks, 0), len(self.token_buffer)):
+                self.token_buffer[count] = self.unbuffered_token_getter() # TODO better way?
 
         # Reset some state variables.
         self.token = self.token_buffer[0]

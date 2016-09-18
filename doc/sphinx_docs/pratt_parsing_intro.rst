@@ -2,6 +2,12 @@
 Introduction to Pratt parsing and its terminology
 =================================================
 
+TODO: Note that Pratt parsers are producing **expression trees**.  These are
+trees where each function or operator is an interior node, with its arguments
+as its children.  A **parse tree**, on the other hand, corresponds to a
+grammar.  The internal nodes are all grammar productions, and the leaves are
+the actual tokens (literals) returned from the lexer.
+
 This section provides an introduction to the general concept of Pratt
 parsing, as well as the terminology used in the Typped documentation and
 code.

@@ -153,6 +153,15 @@ calling this method all of the tokens with passed-in labels must be defined
 (via the `def_token` method), as must ignored whitespace.  The lpar, rpar, and
 comma tokens must also be defined a literals (via the `def_literal` method).
 
+Recall that the head-handler will be called to process a subexpression starting
+from the beginning.  That head-handler is then responsible for parsing the full
+subexpression -- though it can itself call `recursive_parse` to parse
+sub-subexpressions.  We are defining a head-handler that only matches a
+function name in the case when the peek token is an lpar with no intervening
+space.
+
+TODO: update code with latest version from Python file, after cleanup, etc.
+
 .. code-block:: python
 
    class MyParser(PrattParser):
@@ -196,6 +205,18 @@ comma tokens must also be defined a literals (via the `def_literal` method).
                                       precond_label=precond_label,
                                       precond_fun=preconditions,
                                       precond_priority=precond_priority)
+
+In parsing the full function call the handler defined above uses both the
+helper function `match_next` as well as calls to the lexer and
+`recursive_parse`.  The general rule is that tokens which will appear in the
+final parse tree, even literals, should always be retrieved with
+`recursive_parse` (since it also processes the nodes and adds some extra
+attributes).  Tokens which do not appear in the final parse tree, such as the
+final closing rpar token of the function arguments, can simply be consumed by
+`match_next` or an explicit call to `lex.next()` and discarded.  (If you must
+include a directly-consumed token in the tree, it must at least have its
+`process_and_check_node` method called with an overridden type signature to
+mimic what the handler for literals does.)
 
 The function defined above could be called as follows.  Note that literals in
 the sense of the parser are any leaves (terminals) of the parse tree.
