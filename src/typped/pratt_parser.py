@@ -1402,6 +1402,7 @@ class PrattParser(object):
         tok.token_kind = token_kind
         tok.parser_instance = self
         tok.token_table = self.token_table
+        print("returning token", tok)
         return tok
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
@@ -1833,113 +1834,91 @@ class PrattParser(object):
     # Production rule methods.
     #
 
+    # TODO consider if using tokens as the terminals will cause problems when
+    # all functions have their own tokens... or just associate a function with
+    # a <function> state label.... what if some of the terminals just set a
+    # state and then read whatever the Pratt part of the parser determines,
+    # such as a function?  Otherwise, you could just do functions the ordinary
+    # grammar way if they are not Pratt parsed in the first place....
+
+    # TODO (general): can preconditions see their token, too, as arg?
+    # Convenient info to have.... could have here as closure, but maybe better
+    # to pass it in explicitly if possible.  Is it always available where these
+    # are called from?
+
     def def_production_rule(self, rule_label, grammar):
         """Define a production rule with the label `rule_label` as defined in
         the `Grammar` object `grammar`."""
-        # TODO: Ignore precedences for now, but later allow them for all the
-        # items (though they only apply when called as a tail).  Could use
-        # tuples, or just precede with an int, or some other data structure
-        # might come to mind after basic form set up.
         case_list = grammar[rule_label]
-        for case_index, case in case_list:
-            pstate_tuple = (rule_label, case_index) # This is the pstate.
-            if isinstance(case[0], int):
-                prec = case[0]
-            if isinstance(case[0], TokenNode):
-                # Register handler with the preconditioned case[0] token.
-                # --> Currently assuming the token_label and pstate uniquely
-                # identify in both cases, but may need more preconds (later).
-                self.def_case_start_handlers(rule_label, case_index, case[0], case)
-            elif isinstance(case[0], str):
-                # Register handler with the preconditioned null-string token.
-                # ---> Could define null_string_token if not already....
-                self.def_case_start_handlers(rule_label, case_index,
-                                    self.null_string_token_subclass, case)
+        first_case = case_list[0]
+        first_item_of_first_case = first_case[0]
 
-        # TODO: now, if any fail when their handlers are running you just raise
-        # exception and the one that handles exception just increments the case
-        # index on the pstack and tries again.  Fail if all fail (needs to
-        # know how many to try, obviously).
-        #
-        # TODO inside the handler for each case-beginning you need to know all
-        # the other items in the case.  Then you loop over those, consuming tokens
-        # to compare labels with the tokens, and recursing on the pstate-labels
-        # by pushing (pstate_label, 0), calling recursive_parse, and then either
-        # get a result or get a failure.  If get a failure then increment.  If
-        # success then proceed with the case the same way until finished.
+        if first_item_of_first_case.kind_of_item == "token":
+            # Register handler with the preconditioned case[0] token.
+            # --> Currently assuming the token_label and pstate uniquely
+            # identify in both cases, but may need more preconds (later).
+            token = first_item_of_first_case.value
+            self.def_first_case_start_handlers(rule_label, token, case_list)
 
-    def def_case_start_handlers(self, pstate_label, case_index, token, case_items):
+        elif first_item_of_first_case.kind_of_item == "production":
+            # Register handler with the preconditioned null-string token.
+            # ---> Could define null_string_token if not already....
+            token = self.null_string_token_subclass
+            self.def_first_case_start_handlers(rule_label, token, case_list)
+
+    def def_first_case_start_handlers(self, rule_label, token, case_list):
                        # Below not used yet.... need to know cases of production...
                        #val_type=None, arg_types=None, eval_fun=None,
                        #ast_label=None):
-        """Define a production in the sense of a recursive-descent parser,
-        using the null-string token.  The handler functions basically just change
-        the state and relay the arguments that the null-string token was called with.
-        
-        It is assumed that the start state will be initially pushed on the
-        `pstack` attribute of the parser whenever productions are being
-        used."""
-        case_items = tuple(case_items) # So they do not change in closure.
-
-        # TODO: In order to do the backtracking this routine will need to know
-        # all the cases of the production.  Then, it should iterate over them,
-        # call each one (by priority order) and catch special exception
-        # BacktrackFailedBranch on failure.  On failure move to next one, or
-        # raise the fail again if out of choices.
-        #
-        # In future optimizations this "tree" of cases coule be searched to
-        # find the tokens for, say LL(1) grammars which can be set as
-        # preconditions to avoid the backtracking by using a lookahead.  They
-        # are relayed back up the CFG tree and assigned (as peeks) to all
-        # productions until reaching another non-production.
-
-        # TODO consider if using tokens as the terminals will cause problems
-        # when all functions have their own tokens... or just associate a
-        # function with a <function> state label.... what if some of the
-        # terminals just set a state and then read whatever the Pratt part of
-        # the parser determines, such as a function?  Otherwise, you could just
-        # do functions the ordinary grammar way if they are not Pratt parsed
-        # in the first place....
-
+        """Define the handlers for the first token in the first case of a
+        production with label `pstate_label`.  If it fails it will implicitly
+        iterate over all the other cases of the production by pushing their
+        state labels and seeing if they succeed.  It is assumed that the start
+        state label will be initially pushed on the `pstack` attribute of the
+        parser whenever productions are being used."""
         def preconditions(lex, lookbehind):
-            # TODO (general): can preconditions see their token, too, as arg?
-            # Convenient info to have....
-
-            # ASSUME pstates are [label, case_index] pairs....
-            pstate = lex.token_table.parser_instance.pstate
-            return pstate[-1] == [pstate_label, case_index]
+            pstate_stack = lex.token_table.parser_instance.pstate_stack
+            return pstate_stack[-1] == pstate_label
         precond_label = "precond for prod {0} case {1}".format(pstate_label, case_index)
 
         def head_handler(tok, lex):
-            """   """
-            pstate = tok.parser_instance.pstate
-            for count, item in enumerate(case_items):
-                if isinstance(items, TokenNode):
-                    if count == 0: # This *is* the token for case 0 of the rule.
-                        continue
-                    if not tok.match_next(item.token_label):
-                        raise BranchFail("Expected token not found.")
-                    next_tok = tok.recursive_parse(0)
-                    # BUILD TREE SOMEHOW from next_tok
-                else: # a production
-                    num_cases = parser.case_dict[item].num_cases # TODO need global info
-                    for i in range(num_cases):
-                        pstate.append([item, i])
-                        try:
-                            next_tok = tok.recursive_parse(0)
-                        except BranchFail:
-                            if i == num_cases - 1:
-                                raise ParserException("All rule cases failed.")
-                        else:
-                            break
-                        finally:
-                            pstate.pop()
-                     # BUILD TREE SOMEHOW from next_tok
+            """The head handler assigned to the first token of the first case for
+            a production rule.  It tries all the other cases if it fails."""
 
-            return processed
+            # TODO rewrite the below based on the new interfaces and design
+            # above.  First token of first case is special, and iterates over
+            # all if necessary.
+
+            pstate_stack = tok.parser_instance.pstate_stack
+            for case in case_list:
+                for count, item in enumerate(case_items):
+                    if isinstance(items, TokenNode):
+                        if count == 0: # This *is* the token for case 0 of the rule.
+                            continue
+                        if not tok.match_next(item.token_label):
+                            raise BranchFail("Expected token not found.")
+                        next_tok = tok.recursive_parse(0)
+                        tok.append_children(next_tok)
+                    else: # a production
+                        num_cases = parser.case_dict[item].num_cases
+                        for i in range(num_cases):
+                            pstate_stack.append(pstate_label)
+                            try:
+                                next_tok = tok.recursive_parse(0)
+                            except BranchFail:
+                                if i == num_cases - 1:
+                                    raise ParserException("All rule cases failed.")
+                            else:
+                                break
+                            finally:
+                                pstate_stack.pop()
+                         # BUILD TREE SOMEHOW from next_tok
+
+            return tok
 
         def tail_handler(tok, lex, left):
             """Just push the state, relay the call, and pop afterwards."""
+            # Note that we presumably want *this* token as the subtree root.
             # Push the new state onto the pstack.
             tok.parser_instance.pstack.append("pstate_label")
             # Get the next subexpression, relaying the precedence.
@@ -1950,11 +1929,60 @@ class PrattParser(object):
 
             return processed
 
+        for case in case_list:
+            # TODO: register each case with its token and its modified label
+            # as a precond.  Should be fairly simple.
+            self.def_later_case_start_handlers(case.modified_rule_label, token)
+
         return self.modify_token_subclass(fname_token_label, prec=prec,
                      head=head_handler, tail=tail_handler, precond_label=precond_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      ast_label=ast_label)
+
+        def def_later_case_start_handlers(self, pstate_label, token):
+                       # Below not used yet.... need to know cases of production...
+                       #val_type=None, arg_types=None, eval_fun=None,
+                       #ast_label=None):
+
+            # TODO change all but params above, this is just a stub for now.
+            # Should be fairly simple.
+
+            case_items = tuple(case_items) # So they do not change in closure.
+
+            def preconditions(lex, lookbehind):
+                # TODO (general): can preconditions see their token, too, as arg?
+                # Convenient info to have....
+                pstate_stack = lex.token_table.parser_instance.pstate_stack
+                return pstate_stack[-1] == pstate_label
+            precond_label = "precond for prod {0} case {1}".format(pstate_label, case_index)
+
+            def head_handler(tok, lex):
+                """This is the head handler assigned to the first token of cases for
+                production rules.  The returned processed tree has this node as
+                the root and all the rest in that case as children."""
+                # FILL IN
+
+                return tok
+
+            def tail_handler(tok, lex, left):
+                """Just push the state, relay the call, and pop afterwards."""
+                # NOTE that we presumably want *this* token as the subtree root.
+                # Push the new state onto the pstack.
+                tok.parser_instance.pstack.append("pstate_label")
+                # Get the next subexpression, relaying the precedence.
+                processed = tok.recursive_parse(tok.subexp_prec,
+                                    processed_left=left, lookbehind=tok.lookbehind)
+                # Pop the state off the pstack.
+                tok.parser_instance.pop()
+
+                return processed
+
+            return self.modify_token_subclass(fname_token_label, prec=prec,
+                         head=head_handler, tail=tail_handler, precond_label=precond_label,
+                         precond_fun=preconditions, precond_priority=precond_priority,
+                         val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                         ast_label=ast_label)
 
     #
     # The main parse routines.

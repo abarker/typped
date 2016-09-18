@@ -330,6 +330,13 @@ def basic_token_subclass_factory():
     class itself without conflicts.  For example, the `PrattParser` subclass
     adds head handler and tail handler methods which are specific to a given
     token label."""
+    # Note that is we instead used a metaclass to generate the token subclasses
+    # instead of a factory then it would be possible to define a __repr__ that
+    # controls how the token-representing classes themselves are printed (they
+    # are ugly now).  How much would this complicate things for users who wanted
+    # to create their own factory?  Kind of an advanced topic for many people.
+    # It they could simply declare a metaclass that would be OK, but might need
+    # args passed, etc.
 
     class TokenSubclass(TokenNode):
         def __init__(self, value):
