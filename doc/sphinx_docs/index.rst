@@ -41,12 +41,12 @@ choice if speed is the most important factor.
 
    pratt_parsing_intro
    dispatching.rst
-   lookbehind.rst
    calculator_example
    types_in_typped
    juxtaposition_operators
    extending_prattparser
    multiple_parsers
+   lookbehind.rst
    typped
    other_possible_generalizations
 
