@@ -2,11 +2,21 @@
 Introduction to Pratt parsing and its terminology
 =================================================
 
-TODO: Note that Pratt parsers are producing **expression trees**.  These are
-trees where each function or operator is an interior node, with its arguments
-as its children.  A **parse tree**, on the other hand, corresponds to a
-grammar.  The internal nodes are all grammar productions, and the leaves are
-the actual tokens (literals) returned from the lexer.
+TODO move this to where it goes:
+   An **expression tree** is a tree for an expression such that each function
+   or operator is an interior node, with its arguments as its ordered child
+   nodes.  A **parse tree** or **derivation tree**, on the other hand,
+   corresponds to a grammar.  The internal nodes all correspond to grammar
+   productions, and the leaves are the actual tokens (literals) returned from
+   the lexer.  An **abstract syntax tree (AST)** is an abstract representation
+   of the information in a parse tree or expression tree, in some format chosen
+   to be convenient.  A Pratt parser can produce any of the above kinds of
+   trees, depending on how the handler functions are defined.
+   
+   Informally, expression trees are often referred to as parse trees.  The
+   general **parsing** of text tends to refer to either parsing the text to a
+   derivation tree or parsing it to an expression tree -- or even the use of
+   various ad hoc methods for breaking the text down into components.
 
 This section provides an introduction to the general concept of Pratt
 parsing, as well as the terminology used in the Typped documentation and

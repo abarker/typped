@@ -219,7 +219,7 @@ import copy
 import functools
 from collections import OrderedDict, namedtuple, defaultdict
 
-from .shared_settings_and_exceptions import ParserException
+from .shared_settings_and_exceptions import ParserException, return_first_exception
 from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
                     multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
@@ -870,7 +870,9 @@ def token_subclass_factory():
             look; the default is one.
             
             If `raise_on_fail` set true then a `ParserException` will be raised
-            if the match fails.
+            if the match fails.  Similarly, `raise_on_true` raises an exception
+            when a match is found.  If either one is set to a subclass of
+            `Exception` then that exception will be called.
             
             If `consume` is false then no tokens will be consumed.  Otherwise a
             token will be consumed if and only if it matches.
@@ -887,14 +889,16 @@ def token_subclass_factory():
                 lex.next() # Eat the token that was matched.
 
             if retval and raise_on_true:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_true, ParserException)
+                raise exception(
                         "Function match_next (with peeklevel={0}) found unexpected "
                         "token {1}.  The text of the {3} tokens up to "
                         "the error is: {3}"
                         .format(peeklevel, str(lex.peek(peeklevel)), err_msg_tokens,
                             lex.last_n_tokens_original_text(err_msg_tokens)))
             if not retval and raise_on_fail:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_fail, ParserException)
+                raise exception(
                         "Function match_next (with peeklevel={0}) expected token "
                         "with label '{1}' but found token {2}.  The text parsed "
                         "from the tokens up to the error is: {3}"
@@ -905,9 +909,10 @@ def token_subclass_factory():
 
         def in_ignored_tokens(self, token_label_to_match,
                               raise_on_fail=False, raise_on_true=False):
-            """A utility function to test if a particular token label is among the
-            tokens ignored before the current token.  Returns a boolean value.  Can
-            be set to raise an exception on success or failure."""
+            """A utility function to test if a particular token label is among
+            the tokens ignored before the current token.  Returns a boolean
+            value.  Like `match_next`, this method can be set to raise an
+            exception on success or failure."""
             lex = self.token_table.lex
             retval = False
             ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
@@ -915,12 +920,14 @@ def token_subclass_factory():
                 retval = True
 
             if retval and raise_on_true:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_true, ParserException)
+                raise exception(
                         "Function in_ignored_tokens found unexpected token with "
                         "label '{0}' before the current token {1}."
                         .format(token_label_to_match, str(lex.token)))
             if not retval and raise_on_fail:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_fail, ParserException)
+                raise exception(
                         "Function in_ignored_tokens expected token with label "
                         "'{0}' before the current token {1}, but it was not found."
                         .format(token_label_to_match, str(lex.token)))
@@ -928,19 +935,22 @@ def token_subclass_factory():
 
         def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
             """Boolean function to test if any tokens were ignored between current token
-            and lookahead.  Can be set to raise an exception on success or failure."""
+            and lookahead.  Like `match_next`, this method can be set to raise an
+            exception on success or failure."""
             lex = self.token_table.lex
             retval = True
             if lex.peek().ignored_before():
                 retval = False
 
             if retval and raise_on_true:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_true, ParserException)
+                raise exception(
                         "Function no_ignored_after expected tokens between the current "
                         "token {0} and the following token {1}, but there were none."
                         .format(str(lex.token), str(lex.peek())))
             if not retval and raise_on_fail:
-                raise ParserException(
+                exception = return_first_exception(raise_on_fail, ParserException)
+                raise exception(
                         "Function no_ignored_after expected nothing between the "
                         "current token {0} and the following token {1}, but there "
                         "were ignored tokens."
@@ -951,20 +961,22 @@ def token_subclass_factory():
 
         def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
             """Boolean function to test if any tokens were ignored between
-            previous token and current token.  Can be set to raise an exception
-            on success or failure."""
+            previous token and current token.  Like `match_next`, this method
+            can be set to raise an exception on success or failure."""
             lex = self.token_table.lex
             retval = True
             if lex.token.ignored_before():
                 retval = False
 
             if retval and raise_on_true:
-                    raise ParserException(
+                exception = return_first_exception(raise_on_true, ParserException)
+                raise exception(
                         "Function no_ignored_before expected ignored tokens before "
                         " the current token {0}, but none were found."
                         .format(str(lex.token)))
             if not retval and raise_on_fail:
-                raise ParserException(
+                exception = return_first_exception(raise_on_fail, ParserException)
+                raise exception(
                         "Function no_ignored_before expected no ignored tokens "
                         "before the current token {0}, but at least one was found."
                         .format(str(lex.token)))
@@ -1831,22 +1843,15 @@ class PrattParser(object):
             tok.append_children(left, right_operand)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token_subclass(self.jop_token_label, prec=prec, tail=tail_handler,
-                            precond_label=precond_label, precond_fun=precond_fun,
-                            precond_priority=precond_priority,
-                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                            ast_label=ast_label)
+        return self.modify_token_subclass(self.jop_token_label, prec=prec,
+                tail=tail_handler, precond_label=precond_label,
+                precond_fun=precond_fun, precond_priority=precond_priority,
+                val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                ast_label=ast_label)
 
     #
     # Production rule methods.
     #
-
-    # TODO consider if using tokens as the terminals will cause problems when
-    # all functions have their own tokens... or just associate a function with
-    # a <function> state label.... what if some of the terminals just set a
-    # state and then read whatever the Pratt part of the parser determines,
-    # such as a function?  Otherwise, you could just do functions the ordinary
-    # grammar way if they are not Pratt parsed in the first place....
 
     # TODO (general): can preconditions see their token, too, as arg?
     # Convenient info to have.... could have here as closure, but maybe better
@@ -1883,40 +1888,28 @@ class PrattParser(object):
             raise ParserException("First item of first case of rule {0} was"
                     " not recognized.".format(rule_label))
 
-#        # Register handlers for all the first items of later cases.
-#        for case in case_list[1:]:
-#            first_item_of_case = case[0]
-#            rule_label = case.modified_rule_label
-#            if first_item_of_case.kind_of_item == "token":
-#                # Register handler with the preconditioned case[0] token.
-#                # identify in both cases, but may need more preconds (later).
-#                token = first_item_of_case.value
-#                self.def_later_case_start_handlers(rule_label, token, case)
-#
-#            elif first_item_of_first_case.kind_of_item == "production":
-#                # Register handler with the preconditioned null-string token.
-#                token = self.null_string_token_subclass
-#                self.def_later_case_start_handlers(rule_label, token, case)
-#
-#            else: # Add TypeSig case later.
-#                raise ParserException("First item of non-first case of rule {0} was"
-#                        " not recognized.".format(rule_label))
-
-
     def def_first_case_start_handlers(self, rule_label, token, case_list,
                                                          peek_token_label=None):
                        # Below not used yet.... need to know cases of production...
                        #val_type=None, arg_types=None, eval_fun=None,
                        #ast_label=None):
-        """Define the handlers for the first token in the first case of a
-        production with label `pstate_label`.  The first item of the first case
-        of a production is specially treated.  If it fails it will implicitly
-        iterate over all the other cases of the production by pushing their
-        state labels and seeing if they succeed.
-        
-        The start state label is assumed to have initially been pushed on the
-        `pstate_stack` attribute of the parser whenever productions are being
-        used."""
+
+        """Define the head and tail handlers for the null-string token that is
+        first called for the production.  with label `pstate_label`.  These
+        handlers handle all the cases of the production, backtracking on
+        failure and trying the next case, etc.  They act very much like the
+        usual recursive descent function for parsing a production rule, except
+        that to make a recursive call they push a production state on the stack
+        `pstate_stack` and call `recursive_parse`.
+
+        The label of the starting state is assumed to have initially been
+        pushed on the `pstate_stack` attribute of the parser whenever
+        productions are being used."""
+        # Todo: later consider limiting the depth of the recursions by not
+        # allowing a null-string token handler to be called recursively
+        # unless something has been consumed from the lexer (curtailment,
+        # but no memoization, see e.g. Frost et. al 2007).
+
         print("case list passed to first case start is", case_list)
         def preconditions(lex, lookbehind):
             if peek_token_label and lex.peek().token_label != peek_token_label:
@@ -1928,27 +1921,11 @@ class PrattParser(object):
         def head_handler(tok, lex):
             """The head handler assigned to the first token of the first case for
             a production rule.  It tries all the other cases if it fails."""
-            # You just handle all cases of a production from first null-string
-            # token for first case.  You have all the cases.  If you can handle
-            # your own case you can backtrack and do the same for the other
-            # cases.
-            #
-            # Note that each *production* still has its own handler for the
-            # beginning of the first case.  It is only the cases of a
-            # production that are all handled from the head for the first item
-            # of the first case.
-            #
             # The "called as head vs. tail" thing won't matter, because
             # productions are always called as the whole case, by the
             # production label.  So, all cases will have the *same* method of
             # calling....  If first case was called as head then call all later
             # cases as heads; same with tails.
-            #
-            # This really is reducing to a recursive descent parser...  Once
-            # the routine is called from the start point knowing the production
-            # it is the same, *except* that the recursion to other production
-            # is done by pushing onto the stack to change the general state
-            # that some preconds look at.
             pstate_stack = tok.parser_instance.pstate_stack
             tok.value = rule_label # TODO document that None value set to rule_label.
             
@@ -2065,61 +2042,6 @@ class PrattParser(object):
                      precond_fun=preconditions, precond_priority=precond_priority)
                      #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      #ast_label=ast_label)
-
-#    def def_later_case_start_handlers(self, rule_label, token, case):
-#        """Define the handler for any item that is not the first item of the
-#        first case of a production."""
-#                   # Below not used yet.... need to know cases of production...
-#                   #val_type=None, arg_types=None, eval_fun=None,
-#                   #ast_label=None):
-#
-#        def preconditions(lex, lookbehind):
-#            # TODO (general): can preconditions see their token, too, as arg?
-#            # Convenient info to have....
-#            pstate_stack = lex.token_table.parser_instance.pstate_stack
-#            return pstate_stack[-1] == rule_label
-#        precond_label = "precond for production {0}".format(rule_label)
-#
-#        def head_handler(tok, lex):
-#            """This is the head handler assigned to the first token of cases for
-#            production rules.  The returned processed tree has this node as
-#            the root and all the rest in that case as children."""
-#            # TODO need to go through whole case and raise on fail.
-#            # Push the new state onto the pstate_stack.
-#            pstate_stack = tok.parser_instance.pstate_stack
-#            print("---> Running head handler for token", tok, "stack is", pstate_stack)
-#            pstate_stack.append("rule_label")
-#            # Get the next subexpression, relaying the precedence.
-#            processed = tok.recursive_parse(0)
-#            # Pop the state off the pstate_stack.
-#            pstate_stack.pop()
-#
-#            return tok
-#
-#        def tail_handler(tok, lex, left):
-#            """Just push the state, relay the call, and pop afterwards."""
-#            # NOTE that we presumably want *this* token as the subtree root.
-#            # Push the new state onto the pstate_stack.
-#            pstate_stack = tok.parser_instance.pstate_stack
-#            print("---> Running tail handler for token", tok, "stack is", pstate_stack)
-#            raise ParserException("ERROR: No tail functions defined yet for"
-#                " null-string tokens.")
-#            pstate_stack.append("rule_label")
-#            # Get the next subexpression, relaying the precedence.
-#            processed = tok.recursive_parse(tok.subexp_prec,
-#                                processed_left=left, lookbehind=tok.lookbehind)
-#            # Pop the state off the pstate_stack.
-#            pstate_stack.pop()
-#
-#            return processed
-#
-#        prec = 0 # TEMPORARY
-#        precond_priority = 10000
-#        return self.modify_token_subclass(token.token_label, prec=prec,
-#                     head=head_handler, tail=tail_handler, precond_label=precond_label,
-#                     precond_fun=preconditions, precond_priority=precond_priority)
-#                     #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-#                     #ast_label=ast_label)
 
     #
     # The main parse routines.
