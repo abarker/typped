@@ -120,6 +120,12 @@ General methods:
 * `peek` -- peek at the next token without consuming it
 * `go_back` -- go back in the text stream by some number of tokens
 
+Helper methods:
+
+* `match_next` -- matches the specified token, with various options
+
+TODO mention rest of helpers....
+
 Some boolean-valued informational methods:
 
 * `is_first` -- true only if the token passed in is the first token
@@ -131,6 +137,7 @@ Other attributes:
 * `line_number` -- the line number of the current token
 * `char_number` -- the character number of the current character
 * `all_tokens_count` -- num of tokens since text was set (begin and end not counted)
+* `default_helper_exception` -- the default exception for helpers like `match_next`
 
 TODO, list more, why not make some methods of `TokenNode` instead?
 
@@ -165,7 +172,7 @@ if __name__ == "__main__":
 
 import re
 import collections
-from .shared_settings_and_exceptions import LexerException
+from .shared_settings_and_exceptions import LexerException, return_first_exception
 
 #
 # TokenNode
@@ -591,7 +598,8 @@ class TokenTable(object):
 class TokenBuffer(object):
     """An abstraction of the token buffer.  Basically a nicer wrapper over the
     underlying deque.  Previous tokens in the same deque as the current and
-    lookahead tokens.  Allows different views into the buffer."""
+    lookahead tokens.  Allows different views into the buffer.  The default
+    indexing is relative to the current token, at `current_offset`."""
     def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
@@ -600,6 +608,8 @@ class TokenBuffer(object):
         self.token_buffer = collections.deque(maxlen=self.max_deque_size)
 
     def __getitem__(self, index):
+        """Index the buffer with `index + self.current_offset`.  No negative
+        indices for now."""
         if self.max_peek is not None and index > self.max_peek:
             raise LexerException("User-set maximum peeking level of {0} was"
                                  " exceeded.".format(self.max_peek))
@@ -645,11 +655,19 @@ class TokenBuffer(object):
         self.token_buffer.clear()
         self._append(begin_token)
 
-    def num_peek_tokens_in_buffer(self):
-        """A boolean informational method.  Returns the number of tokens which
-        have been read past the position of the current token (due to peeks or
-        pushbacks)."""
-        return len(self.token_buffer) - 1 - self.current_offset
+    def num_tokens_current_to_end(self, exclude_begin_end=False):
+        """An informational method.  Returns the number of tokens from
+        the current token to the end of the token buffer.  Some may have been
+        read past the position of the current token due to peeks or
+        pushbacks."""
+        count = 0
+        for i in range(self.current_offset, len(self.token_buffer)):
+            t = self.token_buffer[i]
+            if exclude_begin_end and (t.is_begin_token() or t.is_end_token()):
+                continue
+            count += 1
+        return count
+        #return len(self.token_buffer) - 1 - self.current_offset
 
     def goto_next(self):
         self.current_offset += 1
@@ -733,6 +751,9 @@ class Lexer(object):
 
         if default_begin_end_tokens:
             self.def_begin_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
+
+        # The default exception raised by methods like `match_next`.
+        self.default_helper_exception = LexerException
 
     def set_token_table(self, token_table, go_back=0):
         """Sets the current `TokenTable` instance for the lexer to
@@ -917,18 +938,12 @@ class Lexer(object):
             raise LexerException(
                     "Attempt to call lexer's go_back method when no text is set.")
 
-        #def print_debug(msg=""):
-        #    print(msg, "   token_buffer:", self.token_buffer, 
-        #            "\n   previous_tokens:", self.previous_tokens,
-        #            "\n   prog_unprocessed:", self.prog_unprocessed,
-        #            "\n   linenumber, charnumber:", self.linenumber, self.charnumber)
-
         """
         # REFACTOR PLAN, use this with below:
         # Put in final place or one before to re-scan curr.
         self.token_buffer.move_current_offset(delta)
         # Pop off all saved beyond.
-        while self.token_buffer.num_peek_tokens_in_buffer() > 0:
+        while self.token_buffer.num_tokens_current_to_end() > 0:
             popped = self.token_buffer._pop()
             # Do stuff below to popped.
         """
@@ -936,17 +951,31 @@ class Lexer(object):
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
-        num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
-                                          if not self.token_buffer[t].is_end_token()])
+
+        #num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
+        #                                  if not self.token_buffer[t].is_end_token()])
+        #assert num_non_ends_in_buf == self.token_buffer.num_tokens_current_to_end(
+        #                                                       exclude_begin_end=True)
+        num_non_ends_in_buf = self.token_buffer.num_tokens_current_to_end(
+                                                          exclude_begin_end=True)
         n = num_toks + num_non_ends_in_buf + 1
 
         if num_is_raw:
             # Works with lex.all_token_count in production_rules, but why +2?
             # Setting max_peek_tokens doesn't affect it.  Clean up code.
-            n = num_toks + 2
+            n = num_toks + 2 # The added number doesn't matter except when it does...
+
+        # NOTE that previous tokens is set in unbuffered_token_getter and has
+        # starting begin_token and every token ever returned by the function,
+        # *EXCEPT* only one end-token is saved to it when in the "only end
+        # tokens" state...
+        
+        # These look identical in some tests at least...
+        print("\nprevious_tokens is\n", self.previous_tokens)
+        print("\ntoken_buffer is\n", self.token_buffer.token_buffer)
 
         # Pop the tokens from self.previous_tokens, resetting self.prog_unprocessed.
-        peek_token_is_first = False
+        popped_off_begin_token = False
         current_token_is_first = False
         count = 1 # Note count starts at one.
         while True:
@@ -955,7 +984,7 @@ class Lexer(object):
                 break
             popped = self.previous_tokens.pop()
             if popped.is_begin_token():
-                peek_token_is_first = True
+                popped_off_begin_token = True
                 break
             if popped.is_end_token():
                 count -=  1 # end-tokens aren't actually read from the token stream.
@@ -973,7 +1002,7 @@ class Lexer(object):
                 current_token_is_first = True
 
         # Re-scan the necessary tokens in the token buffer.
-        if peek_token_is_first:
+        if popped_off_begin_token:
             self._initialize_token_buffer()
         else:
             for count in range(max(-num_toks, 0), len(self.token_buffer)):
@@ -981,7 +1010,7 @@ class Lexer(object):
 
         # Reset some state variables.
         self.token = self.token_buffer[0]
-        if peek_token_is_first:
+        if popped_off_begin_token:
             self.peek().is_first = True
             self._returned_first_token = False
             self._curr_token_is_first = False
@@ -1101,6 +1130,137 @@ class Lexer(object):
         """A convenience function to call the corresponding `undef_token` of
         the current `TokenTable` instance associated with the Lexer."""
         self.token_table.undef_token(token_label)
+
+    #
+    # Some helper functions when using the Lexer class.
+    #
+
+    def match_next(self, token_label_to_match, peeklevel=1,
+                   raise_on_fail=False, raise_on_true=False, consume=True,
+                   err_msg_tokens=3):
+        """A utility function that tests whether the value of the next token
+        label equals a given token label, and consumes the token from the lexer
+        if there is a match.  Returns a boolean.  The parameter `peeklevel` is
+        passed to the peek function for how far to look; the default is one.
+        
+        If `raise_on_fail` set true then a `LexerException` will be raised by
+        default if the match fails.  The default can be changed by setting the
+        lexer instance attribute `default_helper_exception`.  Similarly,
+        `raise_on_true` raises an exception when a match is found.  Either one
+        can be set to a subclass of `Exception` instead of a boolean, and then
+        that exception will be called.
+        
+        If `consume` is false then no tokens will be consumed.  Otherwise a
+        token will be consumed if and only if it matches.
+        
+        The parameter `err_msg_tokens` can be set to change how many tokens
+        worth of text back the error messages report (as debugging
+        information) when an exception is raised.  (The count does not
+        include whitespace, but it is printed, too.)"""
+        retval = False
+        if token_label_to_match == self.peek(peeklevel).token_label:
+            retval = True
+        if consume and retval:
+            self.next() # Eat the token that was matched.
+
+        if retval and raise_on_true:
+            exception = return_first_exception(raise_on_true,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function match_next (with peeklevel={0}) found unexpected "
+                    "token {1}.  The text of the {2} tokens up to "
+                    "the error is: {3}" # TODO fix below, fails with parser
+                    .format(peeklevel, str(self.peek(peeklevel)), err_msg_tokens,
+                        self.last_n_tokens_original_text(err_msg_tokens)))
+        if not retval and raise_on_fail:
+            exception = return_first_exception(raise_on_fail,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function match_next (with peeklevel={0}) expected token "
+                    "with label '{1}' but found token {2}.  The text parsed "
+                    "from the tokens up to the error is: {3}" # TODO fix below, fails
+                    .format(peeklevel, token_label_to_match,
+                            str(self.peek(peeklevel)),
+                            self.last_n_tokens_original_text(err_msg_tokens)))
+        return retval
+
+    def in_ignored_tokens(self, token_label_to_match,
+                          raise_on_fail=False, raise_on_true=False):
+        """A utility function to test if a particular token label is among
+        the tokens ignored before the current token.  Returns a boolean
+        value.  Like `match_next`, this method can be set to raise an
+        exception on success or failure."""
+        retval = False
+        ignored_token_labels = [t.token_label for t in self.peek().ignored_before_list]
+        if token_label_to_match in ignored_token_labels:
+            retval = True
+
+        if retval and raise_on_true:
+            exception = return_first_exception(raise_on_true,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function in_ignored_tokens found unexpected token with "
+                    "label '{0}' before the current token {1}."
+                    .format(token_label_to_match, str(self.token)))
+        if not retval and raise_on_fail:
+            exception = return_first_exception(raise_on_fail,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function in_ignored_tokens expected token with label "
+                    "'{0}' before the current token {1}, but it was not found."
+                    .format(token_label_to_match, str(self.token)))
+        return retval
+
+    def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
+        """Boolean function to test if any tokens were ignored between current token
+        and lookahead.  Like `match_next`, this method can be set to raise an
+        exception on success or failure."""
+        retval = True
+        if self.peek().ignored_before():
+            retval = False
+
+        if retval and raise_on_true:
+            exception = return_first_exception(raise_on_true,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function no_ignored_after expected tokens between the current "
+                    "token {0} and the following token {1}, but there were none."
+                    .format(str(self.token), str(self.peek())))
+        if not retval and raise_on_fail:
+            exception = return_first_exception(raise_on_fail,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function no_ignored_after expected nothing between the "
+                    "current token {0} and the following token {1}, but there "
+                    "were ignored tokens."
+                    .format(str(self.token), str(self.peek())))
+        else:
+            return False
+        return retval
+
+    def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
+        """Boolean function to test if any tokens were ignored between
+        previous token and current token.  Like `match_next`, this method
+        can be set to raise an exception on success or failure."""
+        retval = True
+        if self.token.ignored_before():
+            retval = False
+
+        if retval and raise_on_true:
+            exception = return_first_exception(raise_on_true,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function no_ignored_before expected ignored tokens before "
+                    " the current token {0}, but none were found."
+                    .format(str(self.token)))
+        if not retval and raise_on_fail:
+            exception = return_first_exception(raise_on_fail,
+                                               self.default_helper_exception)
+            raise exception(
+                    "Function no_ignored_before expected no ignored tokens "
+                    "before the current token {0}, but at least one was found."
+                    .format(str(self.token)))
+        return retval
 
     #
     # Lower-level routine for token generation

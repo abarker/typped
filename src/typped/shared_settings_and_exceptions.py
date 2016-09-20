@@ -25,10 +25,10 @@ class LexerException(TyppedBaseException):
 # Utility functions.
 #
 
-def is_subclass_of(class_name, subclass_name):
+def is_subclass_of(subclass_name, class_name):
     """This is just a call to `issubclass` except that it first checks that
     the first argument is a class, returning false if it is not."""
-    return isinstance(class_name, type) and issubclass(class_name, subclass_name)
+    return isinstance(subclass_name, type) and issubclass(subclass_name, class_name)
 
 def return_first_exception(*args):
     """Go down the argument list and return the first object that is a
