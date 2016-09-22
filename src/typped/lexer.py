@@ -371,12 +371,10 @@ def basic_token_subclass_factory():
 #
 
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
-                           "token_label",
                            "regex_string",
                            "compiled_regex",
                            "on_ties",
                         ])
-
 
 class TokenTable(object):
     """A symbol table holding subclasses of the `TokenNode` class for each token label
@@ -390,21 +388,16 @@ class TokenTable(object):
         `basic_token_subclass_factory`."""
         self.token_subclassing_fun = token_subclass_factory_fun
         self.token_subclass_dict = {}
-
-        # These three lists below are kept in the same order so the same index
-        # will correctly index into them.  There is one entry for each token,
-        # in the same order as they were defined.
-        self.token_labels = [] # The list of token_labels.
-        self.compiled_regexes = [] # The compiled regexes for recognizing tokens.
-        self.on_ties = [] # List of int values for breaking equal-length match ties.
-        self.regex_data_list = [] # Data for the regexes of tokens.  TODO replace above 3
-
-        self.ignore_tokens = set() # The set of tokens to ignore.
         self.lex = None # The lexer currently associated with this token table.
+
         self.begin_token_label = None
         self.begin_token_subclass = None
         self.end_token_label = None
         self.end_token_subclass = None
+
+        self.ignore_tokens = set() # The set of tokens to ignore.
+        self.regex_data_dict = {} # Data for the regexes of tokens.
+        self.regex_trie_dict = None # Simple patterns may be stored here.
 
     def has_key(self, token_label):
         """Test whether a token subclass for `token_label` has been stored."""
@@ -446,7 +439,7 @@ class TokenTable(object):
 
     def is_defined_token_label(self, token):
         """Return true if `token` is currently defined as a token label."""
-        return token in self.token_labels
+        return token in self.regex_data_dict
 
     def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
@@ -454,12 +447,9 @@ class TokenTable(object):
         self.undef_token_subclass(token_label)
         self.ignore_tokens.discard(token_label)
         try:
-            tok_index = self.token_labels.index(token_label)
-        except ValueError:
-            return
-        del self.token_labels[tok_index]
-        del self.compiled_regexes[tok_index]
-        del self.on_ties[tok_index]
+            del regex_data_dict[token_label]
+        except KeyError:
+            raise LexerException("Attempt to undefine token that was never defined.")
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.
@@ -487,8 +477,8 @@ class TokenTable(object):
 
         if regex_string is not None:
             regex_data = TokenPatternTuple(
-                            token_label, regex_string, None, on_ties)
-            self._insert_pattern(regex_data)
+                                       regex_string, None, on_ties)
+            self._insert_pattern(token_label, regex_data)
             if ignore:
                 self.ignore_tokens.add(token_label)
 
@@ -517,17 +507,23 @@ class TokenTable(object):
     # Pattern saving and matching routines.
     #
 
-    def is_simple_regex(self, regex_string):
+    def convert_simple_pattern(self, regex_string):
         """Beginning of routine to test for simple regex patterns to put in trie.
         only returns whether they are simple text strings for now."""
-        simple_regex = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
-        return match is not None
+        return None 
+        # TODO the immediate below seems to work for some very simple patterns.
+        # Test it some more.  Can put in Lexer test file!!!
+        # Insert it into tree.  Still need to modify the search, too.
+
+        simple_regex_patt = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
+        match = simple_regex_patt.match(regex_string)
+        if match is None: return None
+        return regex_string # No processing needed for very simple.
 
         # SCRATCH BELOW
 
         # Note negative lookbehind assertion (?<!\\) for escape before
         # the strings which start Python regex special chars.
-        # TODO move string below up to global space after testing.
         non_simple_regex_contains = \
                 r"""(
                         ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
@@ -536,7 +532,7 @@ class TokenTable(object):
         compiled_non_simple_regex_contains = re.compile(
                                   non_simple_regex_contains, re.VERBOSE|re.UNICODE)
         def is_simple_pattern(regex_string):
-            # TODO more complicated: could be single-char in brackets!
+            # Could be single-char in brackets!
             # https://docs.python.org/2.0/ref/strings.html
             match_object = compiled_non_simple_regex_contains.search(regex_string)
             #matched_string = regex_string[match_object.start():match_object.end()]
@@ -547,28 +543,21 @@ class TokenTable(object):
         #else:
         #    print("non-simple pattern", regex_string)
 
-    def _insert_pattern(self, regex_data):
+    def _insert_pattern(self, token_label, regex_data):
         """Insert the pattern in the list of regex patterns, after compiling it."""
-        # TODO prepare for using trie for simple patterns
-        #if self.is_simple_regex(regex_data):
-        #    print("SIMPLE PATTERN", regex_data)
-        #else:
-        #    print("NON-SIMPLE PATTERN", regex_data)
-        # Actual current code below.
-
-        compiled_regex = re.compile(regex_data.regex_string,
+        simple_pattern = self.convert_simple_pattern(regex_data.regex_string)
+        if simple_pattern:
+            print("got a simple one", regex_data)
+            import sys
+            sys.exit(0)
+            # TODO: Insert in self.regex_trie_dict, add search using it, too.
+        else:
+            compiled_regex = re.compile(regex_data.regex_string,
                                     re.VERBOSE|re.MULTILINE|re.UNICODE)
-
-        self.compiled_regexes.append(compiled_regex)  # TODO replace these three lists
-        self.token_labels.append(regex_data.token_label)
-        self.on_ties.append(regex_data.on_ties)
-
-        # New format below, replace three lists above.
-        regex_data = TokenPatternTuple(regex_data.token_label,
-                                       regex_data.regex_string, 
-                                       compiled_regex,
-                                       regex_data.on_ties)
-        self.regex_data_list.append(regex_data)
+            regex_data = TokenPatternTuple(regex_data.regex_string, 
+                                           compiled_regex,
+                                           regex_data.on_ties)
+            self.regex_data_dict[token_label] = regex_data
 
 
     def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
@@ -581,33 +570,38 @@ class TokenTable(object):
         # match of some group.  Instead of using that, this code loops over all
         # the separate patterns to find the overall longest, breaking ties with
         # on_ties values.
-        matching_prefixes_list = [] # All the prefix strings that match some token.
-        len_and_on_ties_list = [] # Ordered like matching_prefixes_list (len, on_ties)
-        for count, patt in enumerate(self.compiled_regexes):
-            match_object = patt.match(program, 
+        matching_prefixes_dict = {} # All the prefix strings that match some token.
+        len_and_on_ties_dict = {}
+        for token_label, (regex_str, compiled_regex, on_ties
+                                                ) in self.regex_data_dict.items():
+            match_object = compiled_regex.match(program, 
                                       unprocessed_slice_indices[0],
                                       unprocessed_slice_indices[1])
             if match_object: 
                 matched_string = program[
                                  match_object.start():match_object.end()]
-                matching_prefixes_list.append(matched_string)
+                matching_prefixes_dict[token_label] = matched_string
                 # Save info to compare matches by length, break ties if necessary.
-                len_on_ties_tuple = (len(matched_string), self.on_ties[count])
-                len_and_on_ties_list.append(len_on_ties_tuple)
+                len_on_ties_tuple = (len(matched_string), on_ties)
+                len_and_on_ties_dict[token_label] = len_on_ties_tuple
             else: # Match returns None if nothing matches, not a MatchObject.
-                matching_prefixes_list.append("")
-                len_and_on_ties_list.append((0,self.on_ties[count]))
-        return matching_prefixes_list, len_and_on_ties_list
+                matching_prefixes_dict[token_label] = ""
+                len_and_on_ties_dict[token_label] = (0, on_ties)
+        return matching_prefixes_dict, len_and_on_ties_dict
 
     def _find_winning_token_label_and_value(self, program, unprocessed_slice_indices,
-                                 matching_prefixes_list, len_and_on_ties_list,
                                  ERROR_MSG_TEXT_SNIPPET_SIZE):
-        """Find the `(len, on_ties)` tuple in `len_and_on_ties_list` which is
-        longest and wins tie breaking.  Return the token label and value of the
+        """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
+        longest and wins tie breaking.  Return the token token_label and value of the
         matching prefix.  The list arguments should be in correspondence with
         the `self.token_labels` list."""
+        # Get the matching prefixes and length-ranking information.
+        matching_prefixes_dict, len_and_on_ties_dict = \
+                   self._get_matched_prefixes_and_length_info(
+                           program, unprocessed_slice_indices)
+
         # Note that tuple comparisons give the correct max value.
-        winning_tuple = max(len_and_on_ties_list)
+        winning_tuple = max(len_and_on_ties_dict.values())
         if winning_tuple[0] == 0:
             raise LexerException("No matches in Lexer, unknown token at "
                     "the start of this unprocessed text:\n{0}"
@@ -616,28 +610,28 @@ class TokenTable(object):
                                 ERROR_MSG_TEXT_SNIPPET_SIZE]))
 
         # We know the winning tuple's value, now see if it is unique.
-        winning_indices = []
-        for i in range(len(len_and_on_ties_list)):
-            if len_and_on_ties_list[i] == winning_tuple:
-                winning_indices.append(i)
+        winning_items = []
+        for item in len_and_on_ties_dict.items():
+            if item[1] == winning_tuple:
+                winning_items.append(item)
 
-        if len(winning_indices) > 1: # Still have a tie, raise an exception.
-            win_labels = [ self.token_labels[i] for i in winning_indices ]
+        if len(winning_items) > 1: # Still have a tie, raise an exception.
+            winning_labels = [i[0] for i in winning_items]
             raise LexerException("There were multiple token-pattern matches"
                     " with the same length, found in Lexer.  Set the on_ties"
-                    " keyword arguments to break ties.  The possible token "
-                    " types are: {0}\nAmbiguity at the start of this "
-                    " unprocessed text:\n{1}".format(win_labels,
+                    " keyword arguments to break ties.  The possible token"
+                    " types and their matched text are: {0}\n"
+                    " Ambiguity at the start of this "
+                    " unprocessed text:\n{1}".format(winning_labels,
                         program[unprocessed_slice_indices[0]
                             :unprocessed_slice_indices[0] +
                                 ERROR_MSG_TEXT_SNIPPET_SIZE]))
 
         # Got unique winner; use its index to get corresponding winning_index.
-        winning_index = winning_indices[0]
-        label = self.token_labels[winning_index]
-        value = matching_prefixes_list[winning_index]
-        return label, value
-
+        winning_item = winning_items[0]
+        token_label = winning_item[0]
+        value = matching_prefixes_dict[token_label]
+        return token_label, value
 
 #
 # Lexer
@@ -1181,6 +1175,11 @@ class Lexer(object):
                        on_ties=on_ties, ignore=ignore)
         return new_subclass
 
+    def undef_token(self, token_label):
+        """A convenience function to call the corresponding `undef_token` of
+        the current `TokenTable` instance associated with the Lexer."""
+        self.token_table.undef_token(token_label)
+
     def def_ignored_token(self, token_label, regex_string, on_ties=0):
         """A convenience function to define an ignored token without setting
         `ignore=True`.  This just calls `def_token` with the value set."""
@@ -1217,10 +1216,12 @@ class Lexer(object):
         end_tok = self.token_table.def_end_token(end_token_label)
         return begin_tok, end_tok
 
-    def undef_token(self, token_label):
-        """A convenience function to call the corresponding `undef_token` of
-        the current `TokenTable` instance associated with the Lexer."""
-        self.token_table.undef_token(token_label)
+    def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
+                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+"):
+        """Define the standard whitespace tokens for space and newline, setting
+        them as ignored tokens."""
+        self.def_ignored_token(space_label, space_regex)
+        self.def_ignored_token(newline_label, newline_regex)
 
     #
     # Some helper functions when using the Lexer class.
@@ -1400,16 +1401,10 @@ class Lexer(object):
             # === Ordinary execution state ==========================================
             # =======================================================================
             if self.token_generator_state == GenTokenState.ordinary:
-                # Get the matching prefixes and length-ranking information.
-                matching_prefixes_list, len_and_on_ties_list = \
-                           token_table._get_matched_prefixes_and_length_info(
-                                   self.program, self.prog_unprocessed)
-
                 # Find the token_label and token_value of the matching prefix
                 # which is longest (with ties broken by the on_ties values).
                 label_and_value = token_table._find_winning_token_label_and_value(
                                     self.program, self.prog_unprocessed,
-                                    matching_prefixes_list, len_and_on_ties_list,
                                     self.ERROR_MSG_TEXT_SNIPPET_SIZE)
                 token_label, token_value = label_and_value
 

@@ -280,6 +280,31 @@ def test_go_back():
     with raises(StopIteration):
         lex.next()
 
+def test_some_error_conditions():
+    lex = Lexer(default_begin_end_tokens=True)
+    lex.def_default_whitespace()
+
+    tokens = [
+        ("k_identifier", r"[a-zA-Z_](?:\w*)"),
+        ("k_plus", r"\+"),
+        ("k_egg", "egg"),
+        ]
+    lex.def_multi_tokens(tokens)
+    
+    # Multiple pattern match, need on_ties value error.
+    lex.set_text("x  + y + egg")
+    lex.next(4)
+    with raises(LexerException) as e:
+        assert lex.next().value == "egg"
+    assert str(e.value).startswith("There were multiple token-pattern")
+
+    # Undefined token.
+    lex.set_text("eggy; 4") # Matches identifier, because that is longer.
+    assert lex.next().value == "eggy"
+    with raises(LexerException) as e:
+        lex.next()
+    assert str(e.value).startswith("No matches in Lexer")
+
 def test_documentation_example():
 
     lex = Lexer()
