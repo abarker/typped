@@ -41,6 +41,7 @@ choice if speed is the most important factor.
 
    pratt_parsing_intro
    dispatching.rst
+   recursive_descent.rst
    calculator_example
    types_in_typped
    juxtaposition_operators

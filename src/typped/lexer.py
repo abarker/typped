@@ -96,15 +96,22 @@ The particular instances of identifiers, found in the lexed text with their
 actual string values, are represented by instances of the general class for
 identifiers.
 
+User-accessible methods of tokens.
+
+* `is_begin_token` -- true when tokens is a begin token
+* `is_end_token` -- true when tokens is a end token
+* `is_begin_or_end_token` -- true when tokens is a begin_or_end_token
+* `ignored_before` -- return tuple of all tokens ignored immediately before this one
+
 For a token named `t`, these attributes are available:
 
 * `t.token_label` -- the string label of the token (which was defined with it)
 * `t.value` -- the string value for the token, found in the lexed text
-* `t.ignored_before` -- a list of all the tokens ignored immediately before this one
-* `t.is_first` -- true when this is the first token in the text, false otherwise
+* `t.is_first` -- true iff this is the first non-begin token in the text
 * `t.parent` -- can be set to the parent in a tree; set by the lexer to `None`
 * `t.children` -- can be set to a list of children; set by the lexer to `[]`
-* `original_matched_string` -- the original text that was consumed for this token
+* `t.original_matched_string` -- the original text that was consumed for this token
+* `t.line_and_char` -- tuple of line number and character where the token started
 
 TODO, list other methods, too.
 
@@ -134,8 +141,6 @@ Some boolean-valued informational methods:
 Other attributes:
 
 * `token` -- the current token (the most recent one returned by `next`)
-* `line_number` -- the line number of the current token
-* `char_number` -- the character number of the current character
 * `all_tokens_count` -- num of tokens since text was set (begin and end not counted)
 * `default_helper_exception` -- the default exception for helpers like `match_next`
 
@@ -210,7 +215,7 @@ class TokenNode(object):
         any ignored text."""
         #ignored_strings = [ s.value for s in self.ignored_before_tokens ]
         #joined = "".join(ignored_strings) + self.value
-        #assert joined == self.original_matched_string
+        #assert joined == self.original_matched_string # A debugging test.
         return self.original_matched_string
 
     def ignored_before(self):
@@ -263,6 +268,10 @@ class TokenNode(object):
     def is_end_token(self):
         """Test whether this token is the end-token."""
         return self.token_label == self.token_table.end_token_label
+
+    def is_begin_or_end_token(self):
+        """Test whether this token is either the begin- or end-token."""
+        return self.is_begin_token() or self.is_end_token()
 
     #
     # Various representations.  Note a token can be considered a node or a subtree.
@@ -343,14 +352,13 @@ def basic_token_subclass_factory():
     class itself without conflicts.  For example, the `PrattParser` subclass
     adds head handler and tail handler methods which are specific to a given
     token label."""
-    # Note that is we instead used a metaclass to generate the token subclasses
-    # instead of a factory then it would be possible to define a __repr__ that
-    # controls how the token-representing classes themselves are printed (they
-    # are ugly now).  How much would this complicate things for users who wanted
-    # to create their own factory?  Kind of an advanced topic for many people.
-    # It they could simply declare a metaclass that would be OK, but might need
-    # args passed, etc.
-
+    # If we instead used a metaclass to generate the token subclasses instead
+    # of a factory then it would be possible to define a __repr__ that controls
+    # how the token-representing classes themselves are printed (they are ugly
+    # now).  How much would this complicate things for users who wanted to
+    # create their own factory?  Kind of an advanced topic for many people.  If
+    # they could simply declare a metaclass that would be OK, but might need
+    # args passed, etc.  See version in PrattParser module.
     class TokenSubclass(TokenNode):
         def __init__(self, value):
             super(TokenSubclass, self).__init__() # Call base class __init__.
@@ -413,7 +421,7 @@ class TokenTable(object):
         # Create a new token subclass for token_label and add some attributes.
         TokenSubclass = self.token_subclassing_fun()
         TokenSubclass.token_label = token_label
-        TokenSubclass.__name__ = "token--" + token_label # For debugging.
+        TokenSubclass.__name__ = "TokenClass_" + token_label # For debugging.
         # Store the newly-created subclass in the token_dict.
         if store_in_dict: self.token_subclass_dict[token_label] = TokenSubclass
         return TokenSubclass
@@ -493,9 +501,15 @@ class TokenTable(object):
         self.end_token_subclass = tok
         return tok
 
-    def _insert_pattern(self, regex_string):
-        """Insert the pattern in the list of regex patterns, after compiling it."""
-        # TODO prepare for using trie for simple patterns
+    def is_simple_regex(self, regex_string):
+        """Beginning of routine to test for simple regex patterns to put in trie.
+        only returns whether they are simple text strings for now."""
+        simple_regex = re.compile(r"[a-zA-Z0-9_\-\(]+", re.VERBOSE|re.UNICODE)
+        match = simple_regex.match(regex_string)
+        return match is not None
+
+        # SCRATCH BELOW
+
         # Note negative lookbehind assertion (?<!\\) for escape before
         # the strings which start Python regex special chars.
         # TODO move string below up to global space after testing.
@@ -503,7 +517,7 @@ class TokenTable(object):
                 r"""(
                         ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
                     |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
-                    )"""
+                    ))"""
         compiled_non_simple_regex_contains = re.compile(
                                   non_simple_regex_contains, re.VERBOSE|re.UNICODE)
         def is_simple_pattern(regex_string):
@@ -513,13 +527,19 @@ class TokenTable(object):
             #matched_string = regex_string[match_object.start():match_object.end()]
             #print(" substring", matched_string)
             return not bool(match_object)
-
         #if is_simple_pattern(regex_string):
         #    print("simple pattern", regex_string)
         #else:
         #    print("non-simple pattern", regex_string)
 
-        # below is actual code
+    def _insert_pattern(self, regex_string):
+        """Insert the pattern in the list of regex patterns, after compiling it."""
+        # TODO prepare for using trie for simple patterns
+        #if self.is_simple_regex(regex_string):
+        #    print("SIMPLE PATTERN", regex_string)
+        #else:
+        #    print("NON-SIMPLE PATTERN", regex_string)
+        # Actual current code below.
         compiled_regex = re.compile(regex_string, re.VERBOSE|re.MULTILINE|re.UNICODE)
         self.compiled_regexes.append(compiled_regex)
 
@@ -604,81 +624,131 @@ class TokenBuffer(object):
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
         self.max_peek = max_peek
+        # Any popleft operations are done explicitly, so maxlen=None.
+        self.token_buffer = collections.deque(maxlen=None)
+
+        # Indices are relative to current_offset, and current_offset is
+        # relative to reference_point.  A fixed-size deque can drop elements.
+        # The current_offset is not relative to 0 because then a saved one it
+        # would become invalid when items are popped off the left of the deque.
+        # The reference point is decremented for every deque element popped off
+        # the left, and at no other time.  This way, you can save the current
+        # offset and have it remain valid.
         self.current_offset = 0
-        self.token_buffer = collections.deque(maxlen=self.max_deque_size)
-
-    def __getitem__(self, index):
-        """Index the buffer with `index + self.current_offset`.  No negative
-        indices for now."""
-        if self.max_peek is not None and index > self.max_peek:
-            raise LexerException("User-set maximum peeking level of {0} was"
-                                 " exceeded.".format(self.max_peek))
-        while index + self.current_offset >= len(self.token_buffer):
-            self._append(self.token_getter_fun())
-        return self.token_buffer[index + self.current_offset]
-
-    def __setitem__(self, index, item):
-        while index + self.current_offset >= len(self.token_buffer):
-            self._append(None) # TODO kludge only defined for go_back; delete method later
-        self.token_buffer[index + self.current_offset] = item
-
-    def __len__(self):
-        return len(self.token_buffer) - self.current_offset
-
-    def _pop(self):
-        """Pop off the rightmost item and return it.  Moves the current
-        token backward if necessary."""
-        retval = self.token_buffer.pop()
-        if self.current_offset >= len(self.token_buffer):
-            self.current_offset = len(self.token_buffer) - 1
-        return retval
-
-    def _append(self, tok):
-        """Append to buffer and fix current index if necessary.  Users should not
-        call."""
-        if len(self.token_buffer) == self.max_deque_size:
-            self.current_offset -= 1
-            if self.current_offset < 0: raise LexerException("Error in TokenBuffer:"
-                    " Maximum buffer size is too small for the amount of peeking."
-                    " Current token was deleted.")
-        self.token_buffer.append(tok)
-
-    def _move_current_offset(self, delta):
-        """Move the current token by the offset `delta`, which can be any integer.
-        Positive numbers move forward and read new tokens if necessary.  Negative
-        numbers move backward (used in implementing pushback)."""
-        self.current_offset += delta
-        self._fill_to_current_offset()
+        self.reference_point = 0 # Arbitrary reference point.
 
     def init(self, begin_token):
+        """Initialize the token buffer, or clear an reset it.  Any saved
+        offsets are no longer valid, but no check is made for that."""
+        # Indices are relative to current_offset, and current_offset is
+        # relative to reference_point.  A fixed-size deque can drop elements.
+        # The current_offset is not relative to 0 because then a saved one it
+        # would become invalid when items are popped off the left of the deque.
+        # The reference point is decremented for every deque element popped off
+        # the left, and at no other time.  This way, you can save the current
+        # offset and have it remain valid.
         self.current_offset = 0
+        self.reference_point = 0
         self.token_buffer.clear()
         self._append(begin_token)
 
-    def num_tokens_current_to_end(self, exclude_begin_end=False):
+    def index_to_absolute(self, index):
+        """Convert an index into an absolute index into the current deque."""
+        return index + self.current_offset + self.reference_point
+
+    def offset_to_absolute(self, offset):
+        """Convert an offset into an absolute index into the current deque."""
+        return offset + self.reference_point
+
+    def get_state(self):
+        """Return a state that will allow the `go_back` or `push_back` to return
+        to it later."""
+        return self.offset_to_absolute(self.current_offset)
+
+    def state_to_offset(self, state):
+        """Return the offset into the current deque that corresponds to what was the
+        offset (absolute index to the current token) at the time when the state was
+        saved."""
+        return state - self.reference_point
+
+    def __getitem__(self, index):
+        """Index the buffer relative to the current offset.  Note that negative
+        indices go back in the buffer, i.e., they do not index from the end as
+        in ordinary Python indexing."""
+        # Slices are CURRENTLY NOT allowed.  What should they return?  How
+        # do you know where the zero point is?
+        #if isinstance(index, slice): # Handle slices recursively.
+        #    start = index.start
+        #    stop = index.stop
+        #    step = index.step
+        #    # The indices call returns the above three in a tuple.
+        #    return [self[i] for i in range(*index.indices(len(self)))]
+        if isinstance(index, int): # The ordinary case.
+            if self.max_peek is not None and index > self.max_peek:
+                raise LexerException("User-set maximum peeking level of {0} was"
+                                     " exceeded.".format(self.max_peek))
+            while self.index_to_absolute(index) >= len(self.token_buffer):
+                self._append(self.token_getter_fun())
+            return self.token_buffer[self.index_to_absolute(index)]
+        else:
+            raise TypeError("Invalid argument type in __getitem__ of TokenBuffer.")
+
+    #def __len__(self):
+    #    # HOW should this be defined, if at all??
+    #    return len(self.token_buffer) - self.current_offset
+
+    def num_saved_previous_tokens(self):
+        """Return the number of tokens before the current token that are saved."""
+        return self.offset_to_absolute(self.current_offset)
+
+    def num_tokens_after_current(self):
         """An informational method.  Returns the number of tokens from
         the current token to the end of the token buffer.  Some may have been
         read past the position of the current token due to peeks or
         pushbacks."""
         count = 0
-        for i in range(self.current_offset, len(self.token_buffer)):
-            t = self.token_buffer[i]
-            if exclude_begin_end and (t.is_begin_token() or t.is_end_token()):
-                continue
-            count += 1
-        return count
-        #return len(self.token_buffer) - 1 - self.current_offset
+        begin_point = self.offset_to_absolute(self.current_offset) + 1
+        return len(self.token_buffer) - begin_point
 
     def goto_next(self):
+        """The equivalent of `next` for the token buffer except that it will return
+        previously-buffered tokens if possible."""
         self.current_offset += 1
         self._fill_to_current_offset()
-        return self.token_buffer[self.current_offset]
+        return self[0]
+
+    #
+    # Internal utility methods below.
+    #
 
     def _fill_to_current_offset(self):
         """If the current offset points past the end of the token buffer then
         get tokens and append them until it is a valid index."""
-        while self.current_offset >= len(self.token_buffer):
+        while self.offset_to_absolute(self.current_offset) >= len(self.token_buffer):
             self._append(self.token_getter_fun())
+
+    def _pop(self):
+        """Users should not call.  Pop off the rightmost item and return it.  Moves
+        the current token backward if necessary."""
+        retval = self.token_buffer.pop()
+        if self.offset_to_absolute(self.current_offset) >= len(self.token_buffer):
+            self.current_offset -= 1
+        return retval
+
+    def _append(self, tok):
+        """Append to buffer and fix current index if necessary.  Users should not
+        call."""
+        self.token_buffer.append(tok)
+        if (self.max_deque_size is not None
+                and len(self.token_buffer) > self.max_deque_size):
+            self.reference_point -= 1
+            self.token_buffer.popleft() # Do an explicit popleft.
+            if self.offset_to_absolute(self.current_offset) < 0:
+                raise LexerException("Error in TokenBuffer:"
+                    " Maximum buffer size is too small for the amount of peeking."
+                    " Current token was deleted.")
+            assert len(self.token_buffer) == self.max_deque_size
+
 
 class GenTokenState:
     """The state of the token_generator program execution."""
@@ -740,10 +810,11 @@ class Lexer(object):
                                                  max_peek=max_peek_tokens,
                                                  max_deque_size=max_deque_size)
 
-        self.previous_tokens = collections.deque(maxlen=max_deque_size)
-
-        self.linenumber = 1
-        self.charnumber = 1
+        # These line and char numbers are for raw, unprocessed tokens, not the
+        # buffered ones.  Use the values set with tokens as the token attribute
+        # line_and_char (such as for the current token) for that info.
+        self.raw_linenumber = 1 # The line number currently being read.
+        self.upcoming_raw_charnumber = 1 # Char number of first char of upcoming token.
 
         self.all_token_count = 0
 
@@ -788,14 +859,13 @@ class Lexer(object):
         self.already_returned_end_token = False
         self._curr_token_is_first = False # Is curr token first non-ignored in text?
         self._returned_first_token = False
-        self.previous_tokens.clear()
         self.ignored_before_curr = [] # Tokens ignored just before current one.
 
         # Reset line, character, and token counts.  All counts include the buffer.
         if reset_linenumber:
-            self.linenumber = 1
+            self.raw_linenumber = 1
         if reset_charnumber:
-            self.charnumber = 1
+            self.upcoming_raw_charnumber = 1
         self.all_token_count = 0 # Count all actual tokens (not begin and end).
         self.non_ignored_token_count = 0 # Count non-ignored actual tokens.
 
@@ -820,19 +890,11 @@ class Lexer(object):
         two-token lookahead the buffer deque has the form:
             [<current_token>, <peek1>, <peek2>]
         """
-        # Put a begin-token sentinel in self.previous_tokens if it is empty.
         begin_tok = self.token_table.begin_token_subclass(None) # Get instance.
-        if not self.previous_tokens:
-            self.previous_tokens.append(begin_tok)
-
-        # Set up the buffer.
         tb = self.token_buffer
         tb.init(begin_tok) # Begin token set as current; first next() returns it.
-        #for i in range(self.NUM_LOOKAHEAD_TOKENS): # Fill with lookaheads.
-        #    new_token = self.unbuffered_token_getter() # Will generate all end-tokens at end.
-        #    tb.append(new_token)
         self.token = self.token_buffer[0]
-        assert tb[0].is_begin_token() # debug check, remove later
+        assert tb[0].is_begin_token() # DEBUG check, remove later
 
     #
     # Next and peek related methods
@@ -841,11 +903,12 @@ class Lexer(object):
     def next(self, num=1):
         """Return the next token, consuming from the token stream.  Also sets
         `self.token` to the return value.  Returns one end-token and raises
-        `StopIteration` on a `next` after that end-token.  If `num` is greater
-        than one a list of the tokens is returned (this list is cut short if
-        the first end-token is encountered, and so will never generate
-        `StopIteration`).  This method basically just adds buffering on top of
-        the lower-level routine `unbuffered_token_getter`."""
+        `StopIteration` on a `next` after that end-token.
+        
+        If `num` is greater than one a list of the tokens is returned.  This
+        list is cut short if the first end-token is encountered, so this
+        kind of `next` call will never generate `StopIteration`."""
+
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's next method when no text is set.")
@@ -869,9 +932,11 @@ class Lexer(object):
         if self.token.is_end_token():
             self.already_returned_end_token = True
         return self.token
+
     __next__ = next # For Python 3.
     
-    def __iter__(self): return self # Class provides its own __next__ method.
+    def __iter__(self):
+        return self # Class provides its own __next__ method.
 
     def peek(self, num_toks=1):
         """Peek ahead in the token stream without consuming any tokens.  The
@@ -883,7 +948,7 @@ class Lexer(object):
         
         Tokens are read into the buffer on-demand to satisfy any requested
         peek.  If `max_peek_tokens` is set then an exception will be raised on
-        attempts to peek farther than that.  """
+        attempts to peek farther than that."""
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's peek method when no text is set.")
@@ -893,124 +958,115 @@ class Lexer(object):
             raise BufferIndexError
         return retval
 
+    def _pop_tokens(self, n):
+        """Pop `n` tokens from the token buffer, resetting the slice indices in
+        `self.prog_unprocessed` and other state variables."""
+        popped_to_begin_token = False
+        current_token_is_first = False
+        for count in range(n):
+            token_buffer = self.token_buffer
+
+            if token_buffer[0].is_begin_token():
+                popped_to_begin_token = True
+                self.token = self.token_buffer[0]
+                return popped_to_begin_token, current_token_is_first
+
+            popped = token_buffer._pop()
+
+            if popped.is_end_token():
+                continue # No actual text was read for end tokens.
+
+            self.non_ignored_token_count -= 1
+            self.all_token_count -= (1 + len(popped.ignored_before()))
+
+            # Reset the line number information.
+            if popped.ignored_before():
+                line_and_char = popped.ignored_before()[0].line_and_char
+            else:
+                line_and_char = popped.line_and_char
+            self.raw_linenumber, self.upcoming_raw_charnumber = line_and_char
+
+            # Reset the slice indices into the program text.
+            self.prog_unprocessed[0] -= len(popped.original_matched_string)
+
+            if token_buffer[-1].is_begin_token():
+                current_token_is_first = True
+
+        self.token = self.token_buffer[0]
+        return popped_to_begin_token, current_token_is_first
+
     def go_back(self, num_toks=1, num_is_raw=False):
         """This method allows the lexer to go back in time by `num_toks`
-        tokens.  Going back one with `go_back(1)` or just `go_back()` results
-        in the current token being set to a re-scanned version of the previous
-        token.  The text being parsed is restored to the state before those
-        `num_toks` previous tokens were scanned, and the farthest one back is
-        immediately re-scanned.  Lookahead tokens in the buffer are also
-        re-scanned.  This operation is different from the usual pushback
-        operations because the program text is re-scanned, rather than simply
-        backing up to already-scanned tokens.
-        
-        Values of `num_toks` less than one apply to the current token and
-        loohahead tokens.  Calling `go_back(0)` re-scans the current token and
-        all tokens in the lookahead buffer; `go_back(-1)` re-scans only the
-        tokens in the buffer ahead of the current token.  Values greater than
-        one go farther back in the token stream.  Attempts to go back before
-        the beginning of the program text go back to the beginning and stop
-        there.
-        
+        tokens.  The call `go_back(num_to_pop)` will undo the effects of the
+        last `num_to_pop` calls to `next`.  This operation is different from
+        the usual pushback operations because the program text is re-scanned,
+        rather than simply backing up to already-scanned tokens.
+
+        Going back one with `go_back(1)` or just `go_back()` results in the
+        current token being set back to the previous token and also re-scanned
+        from the original text.  Calling `go_back(0)` just re-scans the current
+        token (and flushes any tokens in the lookahead buffer).  Values greater
+        than one go farther back in the token stream.  Attempts to go back
+        before the beginning of the program text go back to the beginning and
+        stop there.
+ 
+        This method returns the current token after any re-scanning.
+       
+        Values of `num_toks` less than one apply to saved loohahead tokens (if
+        any).  The call `go_back(-1)` flushes all lookahead tokens saved in the
+        buffer except the one immediately following the current token.
+       
         If `num_is_raw` is true then `num_toks` is interpreted as the actual
         number of tokens to go back, including any in the buffer (which are
         otherwise handled automatically).  This can be useful when looking at
         `lex.all_token_count` to determine how far to go back and undo
         something.
 
-        This method returns the current token after any re-scanning.
+        Going back with re-scanning can be necessary when token definitions
+        themselves change dynamically, such as by semantic actions.  For
+        example, a declaration of the string "my_fun" as a variable might
+        dynamically add a token for that new variable, which would then stop it
+        from matching a general identifier with a lower on_ties value (set to,
+        say, -1).  This kind of thing is also needed when swapping token
+        tables, such as in parsing a sublanguage with a different parser.
+        Since the sublanguage has a different collection of tokens the
+        lookahead buffer must be re-scanned based on those tokens."""
 
-        Note that this kind of backing up is different from the usual
-        `push_back` methods of lexers.  Those only push back parsed tokens, and
-        do not recreate the original text and re-scan it.  Re-scanning can be
-        necessary when token definitions themselves change dynamically, such as
-        by semantic actions.  For example, a declaration of the string "my_fun"
-        as a variable might dynamically add a token for that new variable,
-        which would then stop it from matching a general identifier with a
-        lower on_ties value (set to, say, -1).  This kind of thing is also
-        needed when swapping token tables, such as in parsing a sublanguage
-        with a different parser.  Since the sublanguage has a different
-        collection of tokens the lookahead buffer must be re-scanned based on
-        those tokens."""
-        # TODO rewrite parts of this to use the new TokenBuffer, and get rid
-        # of the deque previous_tokens entirely.
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's go_back method when no text is set.")
-
-        """
-        # REFACTOR PLAN, use this with below:
-        # Put in final place or one before to re-scan curr.
-        self.token_buffer.move_current_offset(delta)
-        # Pop off all saved beyond.
-        while self.token_buffer.num_tokens_current_to_end() > 0:
-            popped = self.token_buffer._pop()
-            # Do stuff below to popped.
-        """
 
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
 
-        #num_non_ends_in_buf = len([True for t in range(len(self.token_buffer))
-        #                                  if not self.token_buffer[t].is_end_token()])
-        #assert num_non_ends_in_buf == self.token_buffer.num_tokens_current_to_end(
-        #                                                       exclude_begin_end=True)
-        num_non_ends_in_buf = self.token_buffer.num_tokens_current_to_end(
-                                                          exclude_begin_end=True)
-        n = num_toks + num_non_ends_in_buf + 1
+        token_buffer = self.token_buffer
+
+        # For negative values just pop the required number off the end of token_buffer.
+        if num_toks < 0:
+            peekahead_num = abs(num_toks)
+            self._pop_tokens(token_buffer.num_tokens_after_current() - peekahead_num)
+            return self.token
+
+        # We will re-scan at least one token, so reset `already_returned_end_token`.
+        self.already_returned_end_token = False
+
+        num_buffered_after_current = token_buffer.num_tokens_after_current()
+        num_to_pop = num_toks + num_buffered_after_current + 1 # new curr is rescanned
 
         if num_is_raw:
             # Works with lex.all_token_count in production_rules, but why +2?
             # Setting max_peek_tokens doesn't affect it.  Clean up code.
-            n = num_toks + 2 # The added number doesn't matter except when it does...
+            num_to_pop = num_toks + 2 # The added number doesn't matter except when it does...
 
-        # NOTE that previous tokens is set in unbuffered_token_getter and has
-        # starting begin_token and every token ever returned by the function,
-        # *EXCEPT* only one end-token is saved to it when in the "only end
-        # tokens" state...
-        
-        # These look identical in some tests at least...
-        print("\nprevious_tokens is\n", self.previous_tokens)
-        print("\ntoken_buffer is\n", self.token_buffer.token_buffer)
+        popped_to_begin_token, current_token_is_first = self._pop_tokens(num_to_pop)
 
-        # Pop the tokens from self.previous_tokens, resetting self.prog_unprocessed.
-        popped_off_begin_token = False
-        current_token_is_first = False
-        count = 1 # Note count starts at one.
-        while True:
-            count += 1
-            if count > n:
-                break
-            popped = self.previous_tokens.pop()
-            if popped.is_begin_token():
-                popped_off_begin_token = True
-                break
-            if popped.is_end_token():
-                count -=  1 # end-tokens aren't actually read from the token stream.
-                continue
-            if popped.ignored_before():
-                (self.linenumber,
-                        self.charnumber) = popped.ignored_before()[0].line_and_char
-            else:
-                self.linenumber, self.charnumber = popped.line_and_char
-            self.non_ignored_token_count -= 1
-            self.all_token_count -= (1 + len(popped.ignored_before()))
-            self.prog_unprocessed[0] -= len(popped.original_matched_string)
-
-            if self.previous_tokens[-1].is_begin_token():
-                current_token_is_first = True
-
-        # Re-scan the necessary tokens in the token buffer.
-        if popped_off_begin_token:
-            self._initialize_token_buffer()
-        else:
-            for count in range(max(-num_toks, 0), len(self.token_buffer)):
-                self.token_buffer[count] = self.unbuffered_token_getter() # TODO better way?
+        # Re-scan to get the new current token.
+        if not popped_to_begin_token:
+            self.next()
 
         # Reset some state variables.
-        self.token = self.token_buffer[0]
-        if popped_off_begin_token:
+        if popped_to_begin_token:
             self.peek().is_first = True
             self._returned_first_token = False
             self._curr_token_is_first = False
@@ -1022,6 +1078,23 @@ class Lexer(object):
             self.already_returned_end_token = True
         else:
             self.already_returned_end_token = False
+
+        return self.token
+
+    def get_current_state(self):
+        """Get a lexer state that can be returned to with `go_back_to_state`.
+        States become invalid after the text is reset, but no check is made."""
+        return self.token_buffer.get_state()
+
+    def go_back_to_state(self, state):
+        """Return the lexer to the state `state` saved from a previous call to
+        `get_current_state`."""
+        index_to_go_back_to = self.token_buffer.state_to_offset(state)
+        num_to_go_back = self.token_buffer.current_offset - index_to_go_back_to
+        if num_to_go_back < 0:
+            self.next(-num_to_go_back)
+        else:
+           self.go_back(num_to_go_back)
         return self.token
 
     #
@@ -1061,19 +1134,14 @@ class Lexer(object):
 
     def last_n_tokens_original_text(self, n):
         """Returns the original text parsed by the last `n` tokens (back from
-        an including the current token).  This routine is mainly used to make
+        and including the current token).  This routine is mainly used to make
         error messages more helpful.  It uses the token attribute
-        `original_matched_string` and the lexer attribute `previous_tokens`
+        `original_matched_string` and the saved tokens in the token buffer.
         (which must be large enough for `n`)."""
-        # TODO: clean up and debug, still flaky... also better document the stuff it
-        # uses in the doc section.  Useful fun, though.  Could also print
-        # line numbers and stuff....
-        prev_tokens = []
-        for i in reversed(range(n-1, 0)): # from -1 down, TODO ugly and inefficient....
-            try:
-                prev_tokens.insert(0, self.previous_tokens[i])
-            except IndexError:
-                break
+        # TODO: Test this, code updated to use token_buffer class.
+        # Could also print line numbers and stuff....
+        n = min(n, self.token_buffer.num_saved_previous_tokens() + 1)
+        prev_tokens = [self.token_buffer[t] for t in range(-n+1, 1)]
         string_list = [s.original_matched_string for s in prev_tokens]
         full_string = "".join(string_list)
         return full_string
@@ -1294,6 +1362,7 @@ class Lexer(object):
         ignored_before_labels = []
         ignored_before_tokens = []
         original_matched_string = ""
+        token_table = self.token_table
 
         while True:
             self._curr_token_is_first = not self._returned_first_token
@@ -1310,82 +1379,85 @@ class Lexer(object):
             if self.token_generator_state == GenTokenState.ordinary:
                 # Get the matching prefixes and length-ranking information.
                 matching_prefixes_list, len_and_on_ties_list = \
-                           self.token_table._get_matched_prefixes_and_length_info(
+                           token_table._get_matched_prefixes_and_length_info(
                                    self.program, self.prog_unprocessed)
 
-                # Find the label and value of the matching prefix which is longest
-                # (with ties broken by the on_ties values).
-                label, value = self.token_table._find_winning_token_label_and_value(
+                # Find the token_label and token_value of the matching prefix
+                # which is longest (with ties broken by the on_ties values).
+                label_and_value = token_table._find_winning_token_label_and_value(
                                     self.program, self.prog_unprocessed,
                                     matching_prefixes_list, len_and_on_ties_list,
                                     self.ERROR_MSG_TEXT_SNIPPET_SIZE)
+                token_label, token_value = label_and_value
 
                 # Remove matched prefix of the self.prog_unprocessed argument after
                 # saving the matched prefix string.
                 original_matched_string += self.program[self.prog_unprocessed[0]
-                                                :self.prog_unprocessed[0]+len(value)]
-                self.prog_unprocessed[0] += len(value)
+                                            :self.prog_unprocessed[0]+len(token_value)]
+                self.prog_unprocessed[0] += len(token_value)
 
                 # Look up the class to represent the winning_index.
                 try:
-                    token_subclass_for_label = self.token_table.get_token_subclass(label)
+                    token_subclass_for_label = token_table.get_token_subclass(
+                                                                token_label)
                 except LexerException:
                     raise LexerException("Undefined key in token table for "
-                                         "label '{0}'.".format(label))
+                                         "token_label '{0}'.".format(token_label))
 
                 # Make an instance of the class to return (or at least to save
                 # in the token's ignored_before if ignored).
-                tci = token_subclass_for_label(value)
+                token_instance = token_subclass_for_label(token_value)
                 self.all_token_count += 1
 
-                # Save the line and char counts for the beginning of the token
-                # with the token, then update them to the beginning of the next
-                # token.  The Lexer class versions always hold the beginning of
-                # the next token to be read (into the last buffer slot, not as
-                # the current token); the versions stored with the tokens
-                # themselves hold the beginning of text when this routine
-                # scanned that token (including any ignored text before it).
-                tci.line_and_char = (self.linenumber, self.charnumber)
-                num_newlines = value.count("\n")
-                self.linenumber += num_newlines
+                # Save the line and char counts for the beginning text of the
+                # token with the token from the Lexer attributes.  Then update
+                # the Lexer attributes.  Remember that the Lexer class versions
+                # always refer to the beginning of the next token to be read
+                # (into the buffer, not as the current token).  The versions
+                # stored with the tokens themselves hold the beginning of text
+                # when this routine scanned that token (including any ignored
+                # text before it).
+                #
+                # Remember that we are looping and getting tokens which may turn
+                # out to be ignored tokens (tested just below this block).
+                token_instance.line_and_char = (
+                                 self.raw_linenumber, self.upcoming_raw_charnumber)
+                num_newlines = token_value.count("\n")
+                self.raw_linenumber += num_newlines
                 if num_newlines == 0:
-                    self.charnumber += len(value)
+                    self.upcoming_raw_charnumber += len(token_value)
                 else:
-                    last_newline = value.rfind("\n")
-                    self.charnumber = len(original_matched_strings) - (last_newline + 1) + 1
+                    last_newline = token_value.rfind("\n")
+                    self.upcoming_raw_charnumber = (
+                            len(token_value) - (last_newline + 1) + 1)
                 
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
                 # ------------------------------------------------------------------
-                if label in self.token_table.ignore_tokens:
-                    ignored_before_labels.append(label)
-                    ignored_before_tokens.append(tci)
+                if token_label in token_table.ignore_tokens:
+                    ignored_before_labels.append(token_label)
+                    ignored_before_tokens.append(token_instance)
                     continue
 
-                self.previous_tokens.append(tci)
                 self.non_ignored_token_count += 1
 
             # =======================================================================
             # === Return only end-tokens state ======================================
             # =======================================================================
             elif self.token_generator_state == GenTokenState.end:
-                token_subclass_for_end = self.token_table.get_token_subclass(
-                                                  self.token_table.end_token_label)
-                tci = token_subclass_for_end(None)
-                tci.line_and_char = (self.linenumber, self.charnumber)
-                # Only save a single end-token on previous_tokens list.
-                if (self.previous_tokens and not 
-                                self.previous_tokens[-1].is_end_token()):
-                    self.previous_tokens.append(tci)
+                token_subclass_for_end = token_table.get_token_subclass(
+                                                  token_table.end_token_label)
+                token_instance = token_subclass_for_end(None)
+                token_instance.line_and_char = (self.raw_linenumber, self.upcoming_raw_charnumber)
 
             # Got a token to return.  Set some attributes and return it.
-            tci.original_matched_string = original_matched_string
-            tci.ignored_before_tokens = tuple(ignored_before_tokens)
-            tci.all_token_count = self.all_token_count
-            tci.non_ignored_token_count = self.non_ignored_token_count
-            tci.is_first = self._curr_token_is_first
+            token_instance.original_matched_string = original_matched_string
+            token_instance.ignored_before_tokens = tuple(ignored_before_tokens)
+            token_instance.all_token_count = self.all_token_count
+            token_instance.non_ignored_token_count = self.non_ignored_token_count
+            token_instance.is_first = self._curr_token_is_first
 
-            return tci
+            return token_instance
 
 
 def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):

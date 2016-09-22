@@ -320,14 +320,75 @@ def token_subclass_factory():
     later be added to the class itself without conflicts.  This function
     returns a bare-bones subclass without any head or tail functions, etc."""
 
-    class TokenSubclass(TokenNode):
+    class TokenSubclassMeta(type):
+        """A trivial metaclass that will actually create the `TokenSubclass`
+        objects.  Since tokens are represented by classes this is necessary if
+        we want to change their `__repr__` or overload operators to work on
+        them."""
+        def __new__(meta, name, bases, dct):
+            new_class = super(TokenSubclassMeta, meta).__new__(meta, name, bases, dct)
+
+            # Below is ugly, but avoids mutual import problems.  Used as an
+            # easy way to define token addition so that it works in the
+            # grammars defined by the production_rules module.
+            from .production_rules import Tok, Root, Prec
+            new_class.Tok = Tok
+            new_class.Root = Root
+            new_class.Prec = Prec
+
+            return new_class
+
+        def __repr__(cls):
+            """The representation for tokens.  Tokens are commonly used in the
+            code but are classes which have an ugly `__repr__` when printed out.
+            In the metaclass we can define a better `__repr__`."""
+            string = "TokenClass_{0}".format(cls.token_label)
+            return string
+
+        #
+        # Representations.
+        #
+
+        def __add__(cls, other):
+            """Addition of two tokens is defined to simply return a tuple of
+            both tokens.  This is so raw tokens can be used in the operator
+            overloaded form of defining production rules for a grammar."""
+            return cls.Tok(cls) + other
+
+        def __radd__(cls, left_other):
+            """The right version of `__add__` above."""
+            return left_other + cls.Tok(cls)
+
+        def __or__(cls, other):
+            """The `|` symbol simply converts this object into an `ItemList`
+            and then calls `__or__` for those objects."""
+            return cls.Tok(cls) | other
+
+        def __ror__(cls, left_other):
+            """The right version of `__or__` above."""
+            return other | cls.Tok(cls)
+
+        def __invert__(cls):
+            """Define the `~` operator for production rule grammars (make root
+            of subtree)."""
+            return cls.Root(cls)
+
+        def __getitem__(cls, arg):
+            """Define the bracket indexing operator for production rule grammars
+            to set the precedence."""
+            return cls.Prec(cls, arg)
+
+
+    class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
+    #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
+    #class TokenSubclass(TokenNode):                               # No metaclass.
         handler_funs = {} # Handler functions, i.e., head and tail handlers.
         handler_funs[HEAD] = OrderedDict() # Head handlers sorted by priority.
         handler_funs[TAIL] = OrderedDict() # Tail handlers sorted by priority.
         preconditions_dict = {} # Registered preconditions for this kind of token.
         static_prec = 0 # The prec value for this kind of token, with default zero.
-        token_label = None # Set to the actual value later by create_token_subclass.
-        parser_instance = None # Set by a `PrattParser` method `def_token`.
+        token_label = None # Set to the actual value later, by create_token_subclass.
+        parser_instance = None # Set by the `PrattParser` method `def_token`.
 
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
@@ -831,147 +892,6 @@ def token_subclass_factory():
                 raise ParserException("Attempted to run an evaluation function for"
                         " token {0} but none was found.""".format(self))
             return self.type_sig.eval_fun(self) # Run the function saved with the instance.
-
-#        #
-#        # Some helper functions for use in handler functions.
-#        #
-#
-#        # Consider just moving all of these to the ordinary module space
-#        # and importing them into the typped package, etc.  Easy, just change
-#        # the self param to tok.  Invoke as match_next(tok,.... instead of
-#        # tok.match_next(...  Not that big a difference, but is it really
-#        # needed, etc???  User defined ones have more parity, at least.  But
-#        # you can still use in both precond funs (lex.token.match_next) as well
-#        # as in the handlers tok.match_next....
-#        # ------> can just define in helpers.py and ALSO copy them to this namespace
-#        # as, e.g.,
-#        #    match = helpers.match
-#        #
-#        # TODO UPDATE, all of these belong in the Lexer module!!!!!  Handlers
-#        # and preconds all have access to lex, and these routines ONLY use
-#        # things from the lexer.
-#
-#        def match_next(self, token_label_to_match, peeklevel=1,
-#                       raise_on_fail=False, raise_on_true=False, consume=True,
-#                       err_msg_tokens=3):
-#            """A utility function that tests whether the value of the next
-#            token label in `lex` equals a given token label, and consumes the
-#            token from the lexer if there is a match.  Returns a boolean.  The
-#            parameter `peeklevel` is passed to the peek function for how far to
-#            look; the default is one.
-#            
-#            If `raise_on_fail` set true then a `ParserException` will be raised
-#            if the match fails.  Similarly, `raise_on_true` raises an exception
-#            when a match is found.  If either one is set to a subclass of
-#            `Exception` then that exception will be called.
-#            
-#            If `consume` is false then no tokens will be consumed.  Otherwise a
-#            token will be consumed if and only if it matches.
-#            
-#            The parameter `err_msg_tokens` can be set to change how many tokens
-#            worth of text back the error messages report (as debugging
-#            information) when an exception is raised.  (The count does not
-#            include whitespace, but it is printed, too.)"""
-#            lex = self.token_table.lex
-#            retval = False
-#            if token_label_to_match == lex.peek(peeklevel).token_label:
-#                retval = True
-#            if consume and retval:
-#                lex.next() # Eat the token that was matched.
-#
-#            if retval and raise_on_true:
-#                exception = return_first_exception(raise_on_true, ParserException)
-#                raise exception(
-#                        "Function match_next (with peeklevel={0}) found unexpected "
-#                        "token {1}.  The text of the {3} tokens up to "
-#                        "the error is: {3}"
-#                        .format(peeklevel, str(lex.peek(peeklevel)), err_msg_tokens,
-#                            lex.last_n_tokens_original_text(err_msg_tokens)))
-#            if not retval and raise_on_fail:
-#                exception = return_first_exception(raise_on_fail, ParserException)
-#                raise exception(
-#                        "Function match_next (with peeklevel={0}) expected token "
-#                        "with label '{1}' but found token {2}.  The text parsed "
-#                        "from the tokens up to the error is: {3}"
-#                        .format(peeklevel, token_label_to_match,
-#                                str(lex.peek(peeklevel)),
-#                                lex.last_n_tokens_original_text(err_msg_tokens)))
-#            return retval
-#
-#        def in_ignored_tokens(self, token_label_to_match,
-#                              raise_on_fail=False, raise_on_true=False):
-#            """A utility function to test if a particular token label is among
-#            the tokens ignored before the current token.  Returns a boolean
-#            value.  Like `match_next`, this method can be set to raise an
-#            exception on success or failure."""
-#            lex = self.token_table.lex
-#            retval = False
-#            ignored_token_labels = [t.token_label for t in lex.peek().ignored_before_list]
-#            if token_label_to_match in ignored_token_labels:
-#                retval = True
-#
-#            if retval and raise_on_true:
-#                exception = return_first_exception(raise_on_true, ParserException)
-#                raise exception(
-#                        "Function in_ignored_tokens found unexpected token with "
-#                        "label '{0}' before the current token {1}."
-#                        .format(token_label_to_match, str(lex.token)))
-#            if not retval and raise_on_fail:
-#                exception = return_first_exception(raise_on_fail, ParserException)
-#                raise exception(
-#                        "Function in_ignored_tokens expected token with label "
-#                        "'{0}' before the current token {1}, but it was not found."
-#                        .format(token_label_to_match, str(lex.token)))
-#            return retval
-#
-#        def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
-#            """Boolean function to test if any tokens were ignored between current token
-#            and lookahead.  Like `match_next`, this method can be set to raise an
-#            exception on success or failure."""
-#            lex = self.token_table.lex
-#            retval = True
-#            if lex.peek().ignored_before():
-#                retval = False
-#
-#            if retval and raise_on_true:
-#                exception = return_first_exception(raise_on_true, ParserException)
-#                raise exception(
-#                        "Function no_ignored_after expected tokens between the current "
-#                        "token {0} and the following token {1}, but there were none."
-#                        .format(str(lex.token), str(lex.peek())))
-#            if not retval and raise_on_fail:
-#                exception = return_first_exception(raise_on_fail, ParserException)
-#                raise exception(
-#                        "Function no_ignored_after expected nothing between the "
-#                        "current token {0} and the following token {1}, but there "
-#                        "were ignored tokens."
-#                        .format(str(lex.token), str(lex.peek())))
-#            else:
-#                return False
-#            return retval
-#
-#        def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
-#            """Boolean function to test if any tokens were ignored between
-#            previous token and current token.  Like `match_next`, this method
-#            can be set to raise an exception on success or failure."""
-#            lex = self.token_table.lex
-#            retval = True
-#            if lex.token.ignored_before():
-#                retval = False
-#
-#            if retval and raise_on_true:
-#                exception = return_first_exception(raise_on_true, ParserException)
-#                raise exception(
-#                        "Function no_ignored_before expected ignored tokens before "
-#                        " the current token {0}, but none were found."
-#                        .format(str(lex.token)))
-#            if not retval and raise_on_fail:
-#                exception = return_first_exception(raise_on_fail, ParserException)
-#                raise exception(
-#                        "Function no_ignored_before expected no ignored tokens "
-#                        "before the current token {0}, but at least one was found."
-#                        .format(str(lex.token)))
-#            return retval
 
         #
         # The main recursive_parse function.

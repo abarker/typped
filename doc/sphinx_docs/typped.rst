@@ -10,6 +10,7 @@ Submodules
    typped.lexer
    typped.pratt_parser
    typped.pratt_types
+   typped.production_rules
    typped.regex_trie_dict
    typped.regex_trie_dict_lexer
    typped.regex_trie_dict_scanner

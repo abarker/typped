@@ -403,9 +403,12 @@ class TypeSig(object):
         return not self == sig
 
     def __repr__(self):
-        arglist = [t.short_repr() for t in self.arg_types]
-        arglist = ", ".join(arglist)
-        return "TypeSig({0}, [{1}])".format(self.val_type.short_repr(), arglist)
+        if isinstance(self.arg_types, TypeObject):
+            arglist = self.arg_types
+        else:
+            arglist = [t.short_repr() for t in self.arg_types]
+            arglist = "[" + ", ".join(arglist) + "]"
+        return "TypeSig({0}, {1})".format(self.val_type.short_repr(), arglist)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         return hash((self.val_type, self.arg_types))
@@ -426,6 +429,9 @@ def actual_matches_formal(actual, formal):
     Uses straight equality."""
     return actual == formal
 
+# TODO nice to have only one wildcard object, but may need __new__.
+NONE = (None,) # A representation for a type label of None, so == comparisons OK.
+
 class TypeObject(object):
     """Instances of this class represent types."""
 
@@ -433,8 +439,7 @@ class TypeObject(object):
         """Instantiate a type object or a wildcare object with `None` argument."""
         super(TypeObject, self).__init__() # Call base class __init__.
         if type_label is None:
-            # TODO nice to have only one wildcard objects, but may need __new__.
-            self.type_label = (None,) # Not None so comparisons with == not a problem.
+            self.type_label = NONE
             self.is_wildcard = True
         else:
             self.type_label = type_label
@@ -497,11 +502,11 @@ class TypeObject(object):
     #    return hash(self.type_label)
     def __repr__(self):
         str_label = self.type_label
-        if self.type_label == (None,): str_label = "None"
+        if self.type_label == NONE: str_label = "None"
         return "TypeObject({0})" .format(str_label)
     def short_repr(self):
         str_label = self.type_label
-        if self.type_label == (None,): str_label = "None"
+        if self.type_label == NONE: str_label = "None"
         return str_label
 
 #
