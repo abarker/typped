@@ -151,14 +151,14 @@ class TrieDict(collections.MutableMapping):
     def get(self, keySeq, default=None):
         """Return the data element stored with key keySeq, returning the default
         if the key is not in the dict."""
-        node = self.getNode(keySeq)
+        node = self.get_node(keySeq)
         if node == None or not node.isLastElemOfKey: return default
         else: return node.data
 
     def __getitem__(self, keySeq):
         """Same as get without the default value and using the bracket-indexing
         notation.  Raises a KeyError if the key is not stored."""
-        node = self.getNode(keySeq)
+        node = self.get_node(keySeq)
         if node == None or not node.isLastElemOfKey:
             raise KeyError("key "+keySeq+" is not in the TrieDict")
         else: return node.data
@@ -167,7 +167,7 @@ class TrieDict(collections.MutableMapping):
         """A boolean for whether the string is stored; doesn't handle anything else
         such as multiple matches or longest prefix match.  Leaves the tree and all
         saved data unaltered."""
-        node = self.getNode(keySeq)
+        node = self.get_node(keySeq)
         if node == None or node.isLastElemOfKey == False: return False
         else: return True
 
@@ -191,7 +191,7 @@ class TrieDict(collections.MutableMapping):
             return combined
 
         if self.numKeys != 0:
-            itemGen = self.getDfsGen(self.root, yieldOnMatch=True)
+            itemGen = self.get_dfs_gen(self.root, yieldOnMatch=True)
             for i in itemGen: yield (combineKeyElems(i), i[-1][1].data)
 
     def keys(self, asLists=False):
@@ -214,7 +214,7 @@ class TrieDict(collections.MutableMapping):
         """Return a list of all the values stored in the trie."""
         for item in self.iteritems(asLists=True): yield item[1]
 
-    def getNode(self, keySeq):
+    def get_node(self, keySeq):
         """Return the node indexed by using the sequence keySeq as the key.  Does
         not test whether isLastElemOfKey is True, so it also returns a node for any prefix
         of a key.  Returns None if there is no corresponding node.  This is
@@ -227,14 +227,14 @@ class TrieDict(collections.MutableMapping):
             else: node = node.children[elem]
         return node
 
-    def isPrefixOfKey(self, seq):
+    def is_prefix_of_key(self, seq):
         """Is the sequence seq a prefix of some key-sequence in the trie?
         Equality is considered a prefix."""
         if len(seq) == 0: return True
-        node = self.getNode(seq)
+        node = self.get_node(seq)
         return bool(node)
 
-    def someKeyIsPrefix(self, seq):
+    def some_key_is_prefix(self, seq):
         """ Very efficient determination of whether some key in the TrieDict
         is a prefix of the sequence seq.  Equality is considered a prefix."""
         if len(seq) == 0: return False
@@ -246,7 +246,7 @@ class TrieDict(collections.MutableMapping):
                 if node.isLastElemOfKey: return True
         return False
 
-    def numChildren(self, node):
+    def num_children(self, node):
         """The number of children at a node in the tree, i.e., the number of child
         nodes which are indexed by keys in its dict."""
         return len(node.children)
@@ -291,7 +291,7 @@ class TrieDict(collections.MutableMapping):
             node = nodeList[i]
             # The can't-kill conditions: break when such a node found, otherwide free
             # node.
-            if self.numChildren(node) > 1 or node.isLastElemOfKey or node == self.root:
+            if self.num_children(node) > 1 or node.isLastElemOfKey or node == self.root:
                 killNext = node        # the node to keep but kill one child
                 killElem = elemList[i] # the corresponding element to kill
                 break
@@ -300,19 +300,19 @@ class TrieDict(collections.MutableMapping):
 
         return
 
-    def getNextNode(self, queryElem, node): # TODO really not used, but could be, but overhead
+    def get_next_node(self, queryElem, node): # TODO really not used, but could be, but overhead
         """Return the next node in the trie from node when the key-query element
         queryElem is received.  This routine treats meta-characters as ordinary
         characters."""
         if queryElem in node.children: return node.children[queryElem]
         else: return None
 
-    def getDfsGen(self, subtreeRootNode, funToApply=None, includeRoot=False,
-                  yieldOnLeaves=True, yieldOnMatch=False, copies=True,
-                  stopAtElems=[],
-                  stopAtDepth=False, onlyFollowElems=[],
-                  sortChildren=False,
-                  subtreeRootElem=None, childFun=None):
+    def get_dfs_gen(self, subtreeRootNode, funToApply=None, includeRoot=False,
+                    yieldOnLeaves=True, yieldOnMatch=False, copies=True,
+                    stopAtElems=[],
+                    stopAtDepth=False, onlyFollowElems=[],
+                    sortChildren=False,
+                    subtreeRootElem=None, childFun=None):
         """Returns a generator which will do a depth-first traversal of the trie,
         starting at node subtreeRootNode.  On each call it returns a list of
         (nodeElem, node) pairs for each node on some path from the root to a leaf
@@ -353,7 +353,7 @@ class TrieDict(collections.MutableMapping):
         for example, in pattern-matches where the child dict is locally modified
         per state."""
 
-        def dfsRecursion(currNodeElem, currNode, depth):
+        def dfs_recursion(currNodeElem, currNode, depth):
             # Put the node on the running list of nodes (down current tree path).
             if depth > 0 or includeRoot:
                 if funToApply: nodeList.append(funToApply(currNodeElem, currNode))
@@ -379,7 +379,7 @@ class TrieDict(collections.MutableMapping):
                 if not yieldedAlready: yield yieldValue
             # Recurse for each child.
             for elem in children:
-                for value in dfsRecursion(elem, childDict[elem], depth+1):
+                for value in dfs_recursion(elem, childDict[elem], depth+1):
                     yield value
                 if nodeList: nodeList.pop() # each child adds one, so pop one
 
@@ -388,10 +388,10 @@ class TrieDict(collections.MutableMapping):
             maxDepth = stopAtDepth
             stopAtDepth = True # because 0 evals to False as a bool
 
-        return dfsRecursion(subtreeRootElem, subtreeRootNode, 0)
+        return dfs_recursion(subtreeRootElem, subtreeRootNode, 0)
 
 
-    def printTree(self, node=0, depth=0, separation=1, childFun=None):
+    def print_tree(self, node=0, depth=0, separation=1, childFun=None):
         """Print out a representation of the stored tree of keys.  Useful for
         debugging.  Call with default arguments to get the full tree.
         The variable separation can be increased to increase the space
@@ -399,7 +399,7 @@ class TrieDict(collections.MutableMapping):
         # TODO: for fun, and to test the getDfsGen, re-do this using it (set
         # the sortChildren flag True).
         if node == 0: node = self.root; print()
-        if self.numChildren(node) == 0:
+        if self.num_children(node) == 0:
             return True
         doIndent = False
         if childFun is not None: children = childFun(node).keys()
@@ -410,7 +410,7 @@ class TrieDict(collections.MutableMapping):
             if node.children[elem].isLastElemOfKey: sepStr = "+" + sepStr
             else: sepStr += " "
             print(elem+sepStr, end="")
-            doIndent = self.printTree(node.children[elem], depth+1,
+            doIndent = self.print_tree(node.children[elem], depth+1,
                                       separation=separation, childFun=childFun)
             sys.stdout.flush()
         if node == self.root: print("\n")
@@ -419,6 +419,7 @@ class TrieDict(collections.MutableMapping):
     #
     # Define a few aliases/synonyms for certain methods above.
     #
+
     """Synonym for delitem."""
     __delitem__ = delitem # Allows the syntax: del d[key] for a dict d.
 
@@ -431,6 +432,5 @@ class TrieDict(collections.MutableMapping):
 
     """Synonym for iterkeys."""
     __iter__ = iterkeys
-
 
 

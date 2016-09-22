@@ -56,7 +56,7 @@ def test_trieDictTokenizeMore():
     td["oneone"] = ("var2", 1); td["twotwo"] = ("var2", 2)
     td["threethree"] = ("var2", 3)
     td["fourfour"] = ("var2", 4); td["fivefive"] = ("var2", 5)
-    td.printTree()
+    td.print_tree()
     for st in bugString:
         tok.insertSeqElem(st)
     tok.assertEndOfSeq()
@@ -67,9 +67,9 @@ def test_trieDictTokenizeMore():
 
     # test delete all the way to root
     td["abigstring"] = True
-    td.printTree()
+    td.print_tree()
     del td["abigstring"]
-    td.printTree()
+    td.print_tree()
 
     """
    # check unsigned int recognition

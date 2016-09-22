@@ -61,7 +61,7 @@ def test_basicTrieDict():
     td.insert("money")
     td.insert("moneys")
     td.insert("moneypurse")
-    td.printTree()
+    td.print_tree()
     del td["moneys"]
     assert "moneys" not in td
     if not "money" in td:
@@ -71,17 +71,17 @@ def test_basicTrieDict():
     assert td["money"] == 55
     mappingInvariants(td)
 
-    # isPrefixOfKey
-    assert td.isPrefixOfKey("money")
-    assert td.isPrefixOfKey("mone")
-    assert td.isPrefixOfKey("m")
-    assert not td.isPrefixOfKey("ZxZ")
+    # is_prefix_of_key
+    assert td.is_prefix_of_key("money")
+    assert td.is_prefix_of_key("mone")
+    assert td.is_prefix_of_key("m")
+    assert not td.is_prefix_of_key("ZxZ")
 
-    # someKeyIsPrefix
-    assert td.someKeyIsPrefix("money")
-    assert not td.someKeyIsPrefix("mon")
+    # some_key_is_prefix
+    assert td.some_key_is_prefix("money")
+    assert not td.some_key_is_prefix("mon")
     td.insert("zzzz123456789")
-    assert not td.someKeyIsPrefix("zzzz12345678")
+    assert not td.some_key_is_prefix("zzzz12345678")
     assert len(td) == len(td.keys())
 
     # clear
@@ -91,7 +91,7 @@ def test_basicTrieDict():
     td["e"] = 4
     assert td["e"] == 4 and td["egg"] == 5
 
-    td.printTree() # will show up on errors
+    td.print_tree() # will show up on errors
 
 #
 # Random insertions and deletions.

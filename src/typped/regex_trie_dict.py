@@ -837,7 +837,7 @@ class RegexTrieDict(TrieDict):
         #print("\ndebug get_next_nodes_meta call, processing query char", queryElem)
         #print("*"*30)
         #for nd in nodeDataList:
-        #   self.printTree(childFun=nd.children)
+        #   self.print_tree(childFun=nd.children)
         #print("*"*30)
 
         if not ignoreValidity and not nodeDataList.is_valid_in(self):
