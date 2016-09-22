@@ -173,7 +173,9 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("../../test/test_lexer.py", pytest_args="-v")
+    pytest_helper.script_run(["../../test/test_lexer.py",
+                              "../../test/test_pratt_parser.py"],
+                              pytest_args="-v")
 
 import re
 import collections
@@ -369,147 +371,24 @@ def basic_token_subclass_factory():
 #
 # Token table.
 #
-
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
-                           "regex_string",
-                           "compiled_regex",
-                           "on_ties",
-                        ])
+                               "regex_string",
+                               "compiled_regex",
+                               "on_ties",
+                            ])
 
-class TokenTable(object):
-    """A symbol table holding subclasses of the `TokenNode` class for each token label
-    defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
-    class to save the subclasses for the kinds of tokens which have been defined for
-    it."""
-    def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory):
-        """Initialize the token table.  The parameter `token_subclass_factory_fun`
-        can be passed a function to be used to generate token subclasses,
-        taking a token label as an argument.  The default is
-        `basic_token_subclass_factory`."""
-        self.token_subclassing_fun = token_subclass_factory_fun
-        self.token_subclass_dict = {}
-        self.lex = None # The lexer currently associated with this token table.
-
-        self.begin_token_label = None
-        self.begin_token_subclass = None
-        self.end_token_label = None
-        self.end_token_subclass = None
-
+class RegexTrieHybridMatcher(object):
+    """A matcher class that stores pattern data and matches it."""
+    TokenPatternTuple = TokenPatternTuple # TODO move def above here
+    def __init__(self):
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.regex_data_dict = {} # Data for the regexes of tokens.
         self.regex_trie_dict = None # Simple patterns may be stored here.
 
-    def has_key(self, token_label):
-        """Test whether a token subclass for `token_label` has been stored."""
-        return token_label in self.token_subclass_dict
-
-    def get_token_subclass(self, token_label):
-        """Look up the subclasses of base class `TokenNode` corresponding to
-        `token_label` in the token table and return it.  Raises a
-        `LexerException` if no subclass is found for the token label."""
-        if token_label in self.token_subclass_dict:
-            TokenSubclass = self.token_subclass_dict[token_label]
-        else: raise LexerException("No token with label '{0}' is in the token table."
-                                   .format(token_label))
-        return TokenSubclass
-
-    def create_token_subclass(self, token_label, store_in_dict=True):
-        """Create a subclass for tokens with label `token_label` and store it
-        in the token table.  Return the new subclass.  Raises a `LexerException`
-        if a subclass for `token_label` has already been created.  If
-        `store_in_dict` is `False` then the token is not stored."""
-        if token_label in self.token_subclass_dict:
-            raise LexerException("In `create_token_subclass`, already created the"
-                    " token subclass for token_label '{0}'.".format(token_label))
-        # Create a new token subclass for token_label and add some attributes.
-        TokenSubclass = self.token_subclassing_fun()
-        TokenSubclass.token_label = token_label
-        TokenSubclass.__name__ = "TokenClass_" + token_label # For debugging.
-        # Store the newly-created subclass in the token_dict.
-        if store_in_dict: self.token_subclass_dict[token_label] = TokenSubclass
-        return TokenSubclass
-
-    def undef_token_subclass(self, token_label):
-        """Un-define the token with label token_label.  The `TokenNode` subclass
-        previously associated with that label is removed from the dictionary."""
-        try:
-            del self.token_subclass_dict[token_label]
-        except KeyError:
-            return # Not saved in dict, ignore.
-
-    def is_defined_token_label(self, token):
-        """Return true if `token` is currently defined as a token label."""
-        return token in self.regex_data_dict
-
-    def undef_token(self, token_label):
-        """Undefine the token corresponding to `token_label`."""
-        # Remove from the list of defined tokens and from the token table.
-        self.undef_token_subclass(token_label)
-        self.ignore_tokens.discard(token_label)
-        try:
-            del regex_data_dict[token_label]
-        except KeyError:
-            raise LexerException("Attempt to undefine token that was never defined.")
-
-    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """Define a token and the regex to recognize it.
-        
-        The label `token_label` is the label for the kind of token.
-        
-        The label `regex_string` is a Python regular expression defining the
-        text strings which match for the token.  If `regex_string` is set to
-        `None` then a dummy token will be created which is never searched for
-        in the lexed text.  To better catch errors it does not have a default
-        value, so setting it to `None` must be done explicitly.
-        
-        Setting `ignore=True` will cause all such tokens to be ignored (except
-        that they will be placed on the `ignored_before` list of the
-        non-ignored token that they precede).
-        
-        In case of ties for the longest match in scanning, the integer
-        `on_ties` values are used to break the ties.  If any two are still
-        equal an exception will be raised.
-        
-        Returns the new token subclass."""
-        if self.is_defined_token_label(token_label):
-            raise LexerException("A token with label '{0}' is already defined.  It "
-            "must be undefined before it can be redefined.".format(token_label))
-
-        if regex_string is not None:
-            regex_data = TokenPatternTuple(
-                                       regex_string, None, on_ties)
-            self._insert_pattern(token_label, regex_data)
-            if ignore:
-                self.ignore_tokens.add(token_label)
-
-        # Initialize and return a bare-bones, default token_subclass.
-        tok = self.create_token_subclass(token_label)
-        tok.token_table = self
-        return tok
-
-    def def_begin_token(self, begin_token_label):
-        """Define the begin-token.  The lexer's `def_begin_end_tokens` method
-        should usually be called instead."""
-        tok = self.def_token(begin_token_label, None)
-        self.begin_token_label = begin_token_label
-        self.begin_token_subclass = tok
-        return tok
-
-    def def_end_token(self, end_token_label):
-        """Define the end-token.  The `def_begin_end_tokens` method should usually
-        be called instead."""
-        tok = self.def_token(end_token_label, None)
-        self.end_token_label = end_token_label
-        self.end_token_subclass = tok
-        return tok
-
-    #
-    # Pattern saving and matching routines.
-    #
-
     def convert_simple_pattern(self, regex_string):
-        """Beginning of routine to test for simple regex patterns to put in trie.
-        only returns whether they are simple text strings for now."""
+        """Convet a simple pattern to a form that can be inserted into a
+        `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
+        complicated."""
         return None 
         # TODO the immediate below seems to work for some very simple patterns.
         # Test it some more.  Can put in Lexer test file!!!
@@ -543,8 +422,11 @@ class TokenTable(object):
         #else:
         #    print("non-simple pattern", regex_string)
 
-    def _insert_pattern(self, token_label, regex_data):
+    def _insert_pattern(self, token_label, regex_data, ignore):
         """Insert the pattern in the list of regex patterns, after compiling it."""
+        if ignore:
+            self.ignore_tokens.add(token_label)
+
         simple_pattern = self.convert_simple_pattern(regex_data.regex_string)
         if simple_pattern:
             print("got a simple one", regex_data)
@@ -632,6 +514,130 @@ class TokenTable(object):
         token_label = winning_item[0]
         value = matching_prefixes_dict[token_label]
         return token_label, value
+
+
+class TokenTable(object):
+    """A symbol table holding subclasses of the `TokenNode` class for each token label
+    defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
+    class to save the subclasses for the kinds of tokens which have been defined for
+    it."""
+    def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory):
+        """Initialize the token table.  The parameter `token_subclass_factory_fun`
+        can be passed a function to be used to generate token subclasses,
+        taking a token label as an argument.  The default is
+        `basic_token_subclass_factory`."""
+        self.token_subclassing_fun = token_subclass_factory_fun
+        self.token_subclass_dict = {}
+        self.lex = None # The lexer currently associated with this token table.
+
+        self.begin_token_label = None
+        self.begin_token_subclass = None
+        self.end_token_label = None
+        self.end_token_subclass = None
+
+        self.pattern_matcher = RegexTrieHybridMatcher()
+
+    def has_key(self, token_label):
+        """Test whether a token subclass for `token_label` has been stored."""
+        return token_label in self.token_subclass_dict
+
+    def get_token_subclass(self, token_label):
+        """Look up the subclasses of base class `TokenNode` corresponding to
+        `token_label` in the token table and return it.  Raises a
+        `LexerException` if no subclass is found for the token label."""
+        if token_label in self.token_subclass_dict:
+            TokenSubclass = self.token_subclass_dict[token_label]
+        else: raise LexerException("No token with label '{0}' is in the token table."
+                                   .format(token_label))
+        return TokenSubclass
+
+    def create_token_subclass(self, token_label, store_in_dict=True):
+        """Create a subclass for tokens with label `token_label` and store it
+        in the token table.  Return the new subclass.  Raises a `LexerException`
+        if a subclass for `token_label` has already been created.  If
+        `store_in_dict` is `False` then the token is not stored."""
+        if token_label in self.token_subclass_dict:
+            raise LexerException("In `create_token_subclass`, already created the"
+                    " token subclass for token_label '{0}'.".format(token_label))
+        # Create a new token subclass for token_label and add some attributes.
+        TokenSubclass = self.token_subclassing_fun()
+        TokenSubclass.token_label = token_label
+        TokenSubclass.__name__ = "TokenClass_" + token_label # For debugging.
+        # Store the newly-created subclass in the token_dict.
+        if store_in_dict:
+            self.token_subclass_dict[token_label] = TokenSubclass
+        return TokenSubclass
+
+    def undef_token_subclass(self, token_label):
+        """Un-define the token with label token_label.  The `TokenNode` subclass
+        previously associated with that label is removed from the dictionary."""
+        try:
+            del self.token_subclass_dict[token_label]
+        except KeyError:
+            return # Not saved in dict, ignore.
+
+    def is_defined_token_label(self, token):
+        """Return true if `token` is currently defined as a token label."""
+        return token in self.token_subclass_dict
+
+    def undef_token(self, token_label):
+        """Undefine the token corresponding to `token_label`."""
+        # Remove from the list of defined tokens and from the token table.
+        self.undef_token_subclass(token_label)
+        self.ignore_tokens.discard(token_label) # TODO pattern_matcher had ignore set now...
+        try:
+            del regex_data_dict[token_label]
+        except KeyError:
+            raise LexerException("Attempt to undefine token that was never defined.")
+
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
+        """Define a token and the regex to recognize it.
+        
+        The label `token_label` is the label for the kind of token.
+        
+        The label `regex_string` is a Python regular expression defining the
+        text strings which match for the token.  If `regex_string` is set to
+        `None` then a dummy token will be created which is never searched for
+        in the lexed text.  To better catch errors it does not have a default
+        value, so setting it to `None` must be done explicitly.
+        
+        Setting `ignore=True` will cause all such tokens to be ignored (except
+        that they will be placed on the `ignored_before` list of the
+        non-ignored token that they precede).
+        
+        In case of ties for the longest match in scanning, the integer
+        `on_ties` values are used to break the ties.  If any two are still
+        equal an exception will be raised.
+        
+        Returns the new token subclass."""
+        if self.is_defined_token_label(token_label):
+            raise LexerException("A token with label '{0}' is already defined.  It "
+            "must be undefined before it can be redefined.".format(token_label))
+
+        if regex_string is not None:
+            regex_data = TokenPatternTuple(regex_string, None, on_ties)
+            self.pattern_matcher._insert_pattern(token_label, regex_data, ignore)
+
+        # Initialize and return a bare-bones, default token_subclass.
+        tok = self.create_token_subclass(token_label)
+        tok.token_table = self
+        return tok
+
+    def def_begin_token(self, begin_token_label):
+        """Define the begin-token.  The lexer's `def_begin_end_tokens` method
+        should usually be called instead."""
+        tok = self.def_token(begin_token_label, None)
+        self.begin_token_label = begin_token_label
+        self.begin_token_subclass = tok
+        return tok
+
+    def def_end_token(self, end_token_label):
+        """Define the end-token.  The `def_begin_end_tokens` method should usually
+        be called instead."""
+        tok = self.def_token(end_token_label, None)
+        self.end_token_label = end_token_label
+        self.end_token_subclass = tok
+        return tok
 
 #
 # Lexer
@@ -1403,7 +1409,7 @@ class Lexer(object):
             if self.token_generator_state == GenTokenState.ordinary:
                 # Find the token_label and token_value of the matching prefix
                 # which is longest (with ties broken by the on_ties values).
-                label_and_value = token_table._find_winning_token_label_and_value(
+                label_and_value = token_table.pattern_matcher._find_winning_token_label_and_value(  # TODO pattern_matcher
                                     self.program, self.prog_unprocessed,
                                     self.ERROR_MSG_TEXT_SNIPPET_SIZE)
                 token_label, token_value = label_and_value
@@ -1452,7 +1458,7 @@ class Lexer(object):
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
                 # ------------------------------------------------------------------
-                if token_label in token_table.ignore_tokens:
+                if token_label in token_table.pattern_matcher.ignore_tokens: # TODO pattern_matcher
                     ignored_before_labels.append(token_label)
                     ignored_before_tokens.append(token_instance)
                     continue
