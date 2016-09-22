@@ -367,8 +367,16 @@ def basic_token_subclass_factory():
     return TokenSubclass
 
 #
-# Token subclass token table
+# Token table.
 #
+
+TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
+                           "token_label",
+                           "regex_string",
+                           "compiled_regex",
+                           "on_ties",
+                        ])
+
 
 class TokenTable(object):
     """A symbol table holding subclasses of the `TokenNode` class for each token label
@@ -389,6 +397,8 @@ class TokenTable(object):
         self.token_labels = [] # The list of token_labels.
         self.compiled_regexes = [] # The compiled regexes for recognizing tokens.
         self.on_ties = [] # List of int values for breaking equal-length match ties.
+        self.regex_data_list = [] # Data for the regexes of tokens.  TODO replace above 3
+
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.lex = None # The lexer currently associated with this token table.
         self.begin_token_label = None
@@ -474,13 +484,15 @@ class TokenTable(object):
         if self.is_defined_token_label(token_label):
             raise LexerException("A token with label '{0}' is already defined.  It "
             "must be undefined before it can be redefined.".format(token_label))
+
         if regex_string is not None:
-            self._insert_pattern(regex_string)
-            self.token_labels.append(token_label)
-            self.on_ties.append(on_ties)
+            regex_data = TokenPatternTuple(
+                            token_label, regex_string, None, on_ties)
+            self._insert_pattern(regex_data)
             if ignore:
                 self.ignore_tokens.add(token_label)
-        # Initialize with a bare-bones, default token_subclass.
+
+        # Initialize and return a bare-bones, default token_subclass.
         tok = self.create_token_subclass(token_label)
         tok.token_table = self
         return tok
@@ -501,11 +513,14 @@ class TokenTable(object):
         self.end_token_subclass = tok
         return tok
 
+    #
+    # Pattern saving and matching routines.
+    #
+
     def is_simple_regex(self, regex_string):
         """Beginning of routine to test for simple regex patterns to put in trie.
         only returns whether they are simple text strings for now."""
-        simple_regex = re.compile(r"[a-zA-Z0-9_\-\(]+", re.VERBOSE|re.UNICODE)
-        match = simple_regex.match(regex_string)
+        simple_regex = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
         return match is not None
 
         # SCRATCH BELOW
@@ -532,16 +547,29 @@ class TokenTable(object):
         #else:
         #    print("non-simple pattern", regex_string)
 
-    def _insert_pattern(self, regex_string):
+    def _insert_pattern(self, regex_data):
         """Insert the pattern in the list of regex patterns, after compiling it."""
         # TODO prepare for using trie for simple patterns
-        #if self.is_simple_regex(regex_string):
-        #    print("SIMPLE PATTERN", regex_string)
+        #if self.is_simple_regex(regex_data):
+        #    print("SIMPLE PATTERN", regex_data)
         #else:
-        #    print("NON-SIMPLE PATTERN", regex_string)
+        #    print("NON-SIMPLE PATTERN", regex_data)
         # Actual current code below.
-        compiled_regex = re.compile(regex_string, re.VERBOSE|re.MULTILINE|re.UNICODE)
-        self.compiled_regexes.append(compiled_regex)
+
+        compiled_regex = re.compile(regex_data.regex_string,
+                                    re.VERBOSE|re.MULTILINE|re.UNICODE)
+
+        self.compiled_regexes.append(compiled_regex)  # TODO replace these three lists
+        self.token_labels.append(regex_data.token_label)
+        self.on_ties.append(regex_data.on_ties)
+
+        # New format below, replace three lists above.
+        regex_data = TokenPatternTuple(regex_data.token_label,
+                                       regex_data.regex_string, 
+                                       compiled_regex,
+                                       regex_data.on_ties)
+        self.regex_data_list.append(regex_data)
+
 
     def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
         """A utility routine that does the actual string match on the prefix of
@@ -616,10 +644,11 @@ class TokenTable(object):
 #
 
 class TokenBuffer(object):
-    """An abstraction of the token buffer.  Basically a nicer wrapper over the
-    underlying deque.  Previous tokens in the same deque as the current and
-    lookahead tokens.  Allows different views into the buffer.  The default
-    indexing is relative to the current token, at `current_offset`."""
+    """An abstraction of the token buffer.  This is used internally by the
+    `Lexer` class and should usually not be accessed by users.  It is basically
+    a nice wrapper over an underlying deque.  Previous tokens are stored in
+    the same deque as the current and lookahead tokens.  The default indexing
+    is relative to the current token, at `current_offset`."""
     def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
@@ -629,41 +658,21 @@ class TokenBuffer(object):
 
         # Indices are relative to current_offset, and current_offset is
         # relative to reference_point.  A fixed-size deque can drop elements.
-        # The current_offset is not relative to 0 because then a saved one it
+        # The current_offset is not relative to 0 because then a saved one
         # would become invalid when items are popped off the left of the deque.
         # The reference point is decremented for every deque element popped off
-        # the left, and at no other time.  This way, you can save the current
-        # offset and have it remain valid.
+        # the left, and at no other time.  That way, the current offset can be
+        # saved and remain valid until the `TokenBuffer` is reset.
         self.current_offset = 0
-        self.reference_point = 0 # Arbitrary reference point.
+        self.reference_point = 0
 
     def init(self, begin_token):
         """Initialize the token buffer, or clear an reset it.  Any saved
         offsets are no longer valid, but no check is made for that."""
-        # Indices are relative to current_offset, and current_offset is
-        # relative to reference_point.  A fixed-size deque can drop elements.
-        # The current_offset is not relative to 0 because then a saved one it
-        # would become invalid when items are popped off the left of the deque.
-        # The reference point is decremented for every deque element popped off
-        # the left, and at no other time.  This way, you can save the current
-        # offset and have it remain valid.
         self.current_offset = 0
         self.reference_point = 0
         self.token_buffer.clear()
         self._append(begin_token)
-
-    def index_to_absolute(self, index):
-        """Convert an index into an absolute index into the current deque."""
-        return index + self.current_offset + self.reference_point
-
-    def offset_to_absolute(self, offset):
-        """Convert an offset into an absolute index into the current deque."""
-        return offset + self.reference_point
-
-    def get_state(self):
-        """Return a state that will allow the `go_back` or `push_back` to return
-        to it later."""
-        return self.offset_to_absolute(self.current_offset)
 
     def state_to_offset(self, state):
         """Return the offset into the current deque that corresponds to what was the
@@ -671,10 +680,15 @@ class TokenBuffer(object):
         saved."""
         return state - self.reference_point
 
+    def get_state(self):
+        """Return a state that will allow the `go_back` or `push_back` to return
+        to it later."""
+        return self._offset_to_absolute(self.current_offset)
+
     def __getitem__(self, index):
-        """Index the buffer relative to the current offset.  Note that negative
-        indices go back in the buffer, i.e., they do not index from the end as
-        in ordinary Python indexing."""
+        """Index the buffer relative to the current offset.  Zero is the
+        current token.  Negative indices go back in the buffer.  They do not
+        index from the end as in ordinary Python indexing."""
         # Slices are CURRENTLY NOT allowed.  What should they return?  How
         # do you know where the zero point is?
         #if isinstance(index, slice): # Handle slices recursively.
@@ -687,9 +701,9 @@ class TokenBuffer(object):
             if self.max_peek is not None and index > self.max_peek:
                 raise LexerException("User-set maximum peeking level of {0} was"
                                      " exceeded.".format(self.max_peek))
-            while self.index_to_absolute(index) >= len(self.token_buffer):
+            while self._index_to_absolute(index) >= len(self.token_buffer):
                 self._append(self.token_getter_fun())
-            return self.token_buffer[self.index_to_absolute(index)]
+            return self.token_buffer[self._index_to_absolute(index)]
         else:
             raise TypeError("Invalid argument type in __getitem__ of TokenBuffer.")
 
@@ -699,7 +713,7 @@ class TokenBuffer(object):
 
     def num_saved_previous_tokens(self):
         """Return the number of tokens before the current token that are saved."""
-        return self.offset_to_absolute(self.current_offset)
+        return self._offset_to_absolute(self.current_offset)
 
     def num_tokens_after_current(self):
         """An informational method.  Returns the number of tokens from
@@ -707,12 +721,13 @@ class TokenBuffer(object):
         read past the position of the current token due to peeks or
         pushbacks."""
         count = 0
-        begin_point = self.offset_to_absolute(self.current_offset) + 1
+        begin_point = self._offset_to_absolute(self.current_offset) + 1
         return len(self.token_buffer) - begin_point
 
     def goto_next(self):
         """The equivalent of `next` for the token buffer except that it will return
-        previously-buffered tokens if possible."""
+        previously-buffered tokens if possible.  The `Lexer` versions should
+        always be called by users, because it handles some other things, too."""
         self.current_offset += 1
         self._fill_to_current_offset()
         return self[0]
@@ -721,17 +736,25 @@ class TokenBuffer(object):
     # Internal utility methods below.
     #
 
+    def _index_to_absolute(self, index):
+        """Convert an index into an absolute index into the current deque."""
+        return index + self.current_offset + self.reference_point
+
+    def _offset_to_absolute(self, offset):
+        """Convert an offset into an absolute index into the current deque."""
+        return offset + self.reference_point
+
     def _fill_to_current_offset(self):
         """If the current offset points past the end of the token buffer then
         get tokens and append them until it is a valid index."""
-        while self.offset_to_absolute(self.current_offset) >= len(self.token_buffer):
+        while self._offset_to_absolute(self.current_offset) >= len(self.token_buffer):
             self._append(self.token_getter_fun())
 
     def _pop(self):
         """Users should not call.  Pop off the rightmost item and return it.  Moves
         the current token backward if necessary."""
         retval = self.token_buffer.pop()
-        if self.offset_to_absolute(self.current_offset) >= len(self.token_buffer):
+        if self._offset_to_absolute(self.current_offset) >= len(self.token_buffer):
             self.current_offset -= 1
         return retval
 
@@ -743,7 +766,7 @@ class TokenBuffer(object):
                 and len(self.token_buffer) > self.max_deque_size):
             self.reference_point -= 1
             self.token_buffer.popleft() # Do an explicit popleft.
-            if self.offset_to_absolute(self.current_offset) < 0:
+            if self._offset_to_absolute(self.current_offset) < 0:
                 raise LexerException("Error in TokenBuffer:"
                     " Maximum buffer size is too small for the amount of peeking."
                     " Current token was deleted.")
@@ -893,7 +916,7 @@ class Lexer(object):
         begin_tok = self.token_table.begin_token_subclass(None) # Get instance.
         tb = self.token_buffer
         tb.init(begin_tok) # Begin token set as current; first next() returns it.
-        self.token = self.token_buffer[0]
+        self.token = tb[0]
         assert tb[0].is_begin_token() # DEBUG check, remove later
 
     #
