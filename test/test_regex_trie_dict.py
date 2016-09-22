@@ -102,6 +102,7 @@ def test_basicRegexTrieDict():
     assert "money" in td
     td["money"] = 55
     assert td["money"] == 55
+    assert td.get_meta("money")[0] == 55
     mappingInvariants(td)
 
     # isPrefixOfKey
@@ -180,8 +181,9 @@ def test_basicTrieDictCharRegexpSequences():
     assert td.has_key_meta("waeaa")
 
     # wildcard after wildcard, as first and last
-    td.insert("\\[a\\]\\[a\\]")
+    td.insert("\\[a\\]\\[a\\]", "data_string")
     assert td.has_key_meta("aa")
+    assert td.get_meta("aa")[0] == "data_string"
     td.insert("a\\[ral\\]aa")
     td.insert("a\\[ral\\]")
     assert td.has_key_meta("aa")
@@ -264,9 +266,14 @@ def test_someRepetitionPrefixes():
     td = RegexTrieDict()
 
     # Repetitions with common prefix.
-    td.insert("\\*\\(eggsalad\\)")
+    td.insert("\\*\\(eggsalad\\)", "data_string")
     td.insert("\\*\\(egghead\\)")
+    assert td.has_key_meta("eggsalad")
     assert td.has_key_meta("eggsaladeggsalad")
+    assert td.get_meta("eggsalad")[0] == "data_string"
+    assert td.get_meta("eggsaladeggsalad")[0] == "data_string"
+    assert td.get_meta("egghead")[0] != "data_string"
+    assert td.get_meta("eggheadegghead")[0] != "data_string"
     assert not td.has_key_meta("eggsaladegghead")
 
     # Repetitions with wildcards with common prefix.

@@ -18,6 +18,7 @@ if __name__ == "__main__":
 import re
 import collections
 from .shared_settings_and_exceptions import LexerException
+from .regex_trie_dict import RegexTrieDict
 
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
                            "regex_string",
@@ -31,7 +32,7 @@ class RegexTrieHybridMatcher(object):
     def __init__(self):
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.regex_data_dict = {} # Data for the regexes of tokens.
-        self.regex_trie_dict = None # Simple patterns may be stored here.
+        self.regex_trie_dict = RegexTrieDict() # Simple patterns may be stored here.
 
     def insert_pattern(self, token_label, regex_string, on_ties, ignore):
         """Insert the pattern in the list of regex patterns, after compiling it."""
@@ -42,11 +43,16 @@ class RegexTrieHybridMatcher(object):
 
         if simple_pattern: # Put simple pattern in a trie.
             regex_data = TokenPatternTuple(regex_string, None, on_ties)
+            self.regex_trie_dict[simple_pattern] = regex_data
+
+            # TODO: get data from the RegexTrieDict in
+            # get_winning_token_label_and_value like this:
+            #        regex_data = td.get_meta(string, default=None)
+            # Be sure to modify the remove_pattern routine, too.
+
             print("got a simple one", regex_data)
             import sys
             sys.exit(0)
-            # TODO: Insert in self.regex_trie_dict, add search using it, too.
-            # Be sure to modify the remove_pattern routine, too.
 
         else: # Use Python regexes.
             compiled_regex = re.compile(regex_string,

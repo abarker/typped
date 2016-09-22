@@ -940,7 +940,7 @@ class RegexTrieDict(TrieDict):
                 # Handle begin-repetitions.
                 #
                 elif metaElem == self.repetition:
-                    print("debug processing repetition")
+                    #print("debug processing repetition")
                     # Add the repetition subtree leaves to the nextNodeDataList, and
                     # process them as end-repetition events (generating the loop
                     # back and the continuation.  Note that repetition generally
@@ -1045,7 +1045,7 @@ class RegexTrieDict(TrieDict):
                 # Handle beginning of an "or" group.
                 #
                 elif metaElem == self.lGroup:
-                    print("debug processing an 'or' group")
+                    #print("debug processing an 'or' group")
                     # TODO if we're not inside a loop or guaranteed to break out then
                     # we can just have a single state at each start point, and not
                     # set the children to single-children, either (consider)...
@@ -1078,8 +1078,8 @@ class RegexTrieDict(TrieDict):
                     # Iterate the generator, creating states for each section of each tree
                     # path.
                     for treePathToEndGroup in dfsGenOrGroupEnd:
-                        print("debug", [i[0] for i in treePathToEndGroup])
-                        print("debug, queryElem is", queryElem)
+                        #print("debug", [i[0] for i in treePathToEndGroup])
+                        #print("debug, queryElem is", queryElem)
                         # Do some error checks.
                         if len(treePathToEndGroup) <= 3: # root, esc, rGroup # TODO check
                             raise PatternMatchError("Illegal empty 'or' group "
@@ -1126,9 +1126,9 @@ class RegexTrieDict(TrieDict):
                 # Handle end of non-final end-section of an or-group (an orElem "|").
                 #
                 elif metaElem == self.orElem:
-                    print("debug processing non-final 'or' group section")
-                    print(
-                        "   debug nodeData.loopCounterStack is", nodeData.loopCounterStack)
+                    #print("debug processing non-final 'or' group section")
+                    #print(
+                    #    "   debug nodeData.loopCounterStack is", nodeData.loopCounterStack)
                     # Get a generator for all final rGroup elems at this point.  There
                     # should only be one, since the state was fixed to single-children
                     # when the 'or' was first processed.
@@ -1138,8 +1138,8 @@ class RegexTrieDict(TrieDict):
                                                             self.rGroup], firstParenLevel=0,
                                                         childFun=nodeData.children)
                     for count, treePath in enumerate(dfsGenOrSectionEnd):
-                        print("      debug treePathToEndSection in process 'or' elem",
-                              [t[0] for t in treePath])
+                        #print("      debug treePathToEndSection in process 'or' elem",
+                        #                                  [t[0] for t in treePath])
                         # Errors checked earlier, when lGroup of the 'or' was processed.
                         rGroupElem, rGroupNode = treePath[-1]
                         nodeDataCopy = nodeData.copy() # debug, unneeded?? xxx
@@ -1156,7 +1156,7 @@ class RegexTrieDict(TrieDict):
                 # Handle wildcards.
                 #
                 elif metaElem == self.lWildcard:
-                    print("debug processing wildcard")
+                    #print("debug processing wildcard")
                     # Generate all the subtree rWildcard nodes, checking that the
                     # pattern matches.
 
@@ -1254,7 +1254,7 @@ class RegexTrieDict(TrieDict):
         # that is killed should also be killed!  So then we just put the ID on a kill
         # list and at the end of the main routine we go through and remove those states.
 
-        print("debug in handleEndRepetition")
+        #print("debug in handleEndRepetition")
 
         if not (closeParenNodeData.loopbackStack and closeParenNodeData.loopCounterStack
                 and closeParenNodeData.loopBoundsStack):
@@ -1519,8 +1519,8 @@ def charPatternMatchTest(queryElem, pattList, rangeElem, escapeElem):
 def charRangeTest(charLower, charUpper, testChar):
     """Return True if testChar is in the range from char1 to char2, inclusive.
     Used in testing wildcard patterns in the default with character elements."""
-    print("debug in charRangeTest, comparing queryElem",
-          testChar, "with lower range", charLower)
+    #print("debug in charRangeTest, comparing queryElem",
+    #      testChar, "with lower range", charLower)
     if ord(charLower) > ord(charUpper):
         raise PatternMatchError("Second element in character range greater than lower.")
     return ord(charLower) <= ord(testChar) and ord(testChar) <= ord(charUpper)
