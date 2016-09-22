@@ -619,23 +619,23 @@ def test_someErrorConditions():
     # Test for invalidated tree search due to deletes during it.
     #
     td.insert("\\*\\(ff\\)xx")
-    nodeDataList = td.getNextNodesMeta("f", td.get_root_node_data_list())
+    nodeDataList = td.get_next_nodes_meta("f", td.get_root_node_data_list())
     with raises(ModifiedTrieError):
         del td["qqq"] # delete during search invalidates whole thing
-        nodeDataList = td.getNextNodesMeta("f", nodeDataList)
+        nodeDataList = td.get_next_nodes_meta("f", nodeDataList)
     # Test for invalidated tree search due to inserts during it.
     td.clear()
     td.insert("\\*\\(ff\\)xx")
-    nodeDataList = td.getNextNodesMeta("f", td.get_root_node_data_list())
+    nodeDataList = td.get_next_nodes_meta("f", td.get_root_node_data_list())
     with raises(ModifiedTrieError):
         td["qqq"] = 5 # insert during search invalidates whole thing
-        nodeDataList = td.getNextNodesMeta("f", nodeDataList)
+        nodeDataList = td.get_next_nodes_meta("f", nodeDataList)
     # Simple reassignment of a value should not affect the search.
     td.clear()
     td.insert("\\*\\(ff\\)xx")
-    nodeDataList = td.getNextNodesMeta("f", td.get_root_node_data_list())
+    nodeDataList = td.get_next_nodes_meta("f", td.get_root_node_data_list())
     td["\\*\\(ff\\)xx"] = 5 # value reassignment is OK
-    nodeDataList = td.getNextNodesMeta("f", nodeDataList)
+    nodeDataList = td.get_next_nodes_meta("f", nodeDataList)
     assert td["\\*\\(ff\\)xx"] == 5
 
 
@@ -738,10 +738,10 @@ def test_TrieDictWithNonStringSequences():
     td = RegexTrieDict()
 
     def listRangeTestFun(lowerLstElem, upperLstElem, lstElem):
-        return charRangeTest(lowerLstElem[0], upperLstElem[0], lstElem[0])
+        return char_range_test(lowerLstElem[0], upperLstElem[0], lstElem[0])
 
     def myPattMatchFun(queryElem, pattList, rangeElem, escapeElem):
-        return genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
+        return generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
                                        rangeTestFun=listRangeTestFun)
     td.define_meta_elems(escape=("\\"), repetition=("*"), lGroup=("("), rGroup=(")"),
                          lWildcard=("["), rWildcard=("]"), rangeElem=("-"),

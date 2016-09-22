@@ -102,9 +102,10 @@ class RegexTrieDictLexer(object):
                     if tokData.validToken == False:
                         raise Exception(
                             "Bad token '"+tokData.tokenString+"' in token stream.")
-                if ignore_whitespace and tokData.tokenString in self.whitespace: continue
+                if ignore_whitespace and tokData.tokenString in self.whitespace:
+                    continue
                 return tokData
-            else: # len(self.tokenDataDeque)==0, so need to insert some chars to gen. matches
+            else: # len(self.tokenDataDeque)==0, must insert some chars to gen. matches
                 if self.textStream.end_of_text_stream():
                     self.trieTok.assertEndOfSeq()
                     if len(self.tokenDataDeque) == 0:

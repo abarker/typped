@@ -278,10 +278,10 @@ class NodeStateData(object):
                  "loopBoundsStack", "boundNodeChildDict", "visitedRepNodeIdSet"]
 
     def __init__(self, *valList, **kwVals):
-        self.setVals(*valList, **kwVals)
+        self.set_vals(*valList, **kwVals)
         return
 
-    def setVals(self, *valList, **kwVals):
+    def set_vals(self, *valList, **kwVals):
         if valList: # either list or kwargs, not both
             if len(valList) != 7:
                 raise IndexError
@@ -306,7 +306,7 @@ class NodeStateData(object):
                              self.loopCounterStack[:], self.loopBoundsStack[:],
                              self.boundNodeChildDict.copy(), self.visitedRepNodeIdSet.copy())
 
-    def setChild(self, childElem, node=None):
+    def set_child(self, childElem, node=None):
         """Assign the node (default to self.node) to have single child childElem."""
         if node is None: node = self.node
         nodeId = id(node)
@@ -348,7 +348,7 @@ class NodeStateDataList(collections.MutableSequence):
         self.regexTrieDict = regexTrieDict
         return
 
-    def isValidIn(self, regexTrieDict):
+    def is_valid_in(self, regexTrieDict):
         """Test whether or not the state-data stored in a node data list is still
         valid in the current trie.  If any insertions or deletions have occurred
         since its creation this routine returns False, otherwise True."""
@@ -368,7 +368,7 @@ class NodeStateDataList(collections.MutableSequence):
 
     def append(self, item): return self.nodeDataList.append(item)
 
-    def appendChildNode(self, queryElem, nodeData, nodeIsEscape=None):
+    def append_child_node(self, queryElem, nodeData, nodeIsEscape=None):
         """A utility routine that appends a NodeStateData object for a child of
         the node in the one passed in.  The child is the one corresponding to the
         key queryElem.  All other data is kept the same.  Return True if anything
@@ -376,7 +376,7 @@ class NodeStateDataList(collections.MutableSequence):
         nodeIsEscape value of the nodeDataState is set to that value.  Note that
         if a NodeStateData instance is added outside of this loop (such as in
         processing wildcards) that routine must take care of any necessary
-        setChild calls for binding in repetition loops."""
+        set_child calls for binding in repetition loops."""
         # TODO add a copy=True flag to turn off when not needed, after debug
 
         childrenDict = nodeData.children()
@@ -390,11 +390,11 @@ class NodeStateDataList(collections.MutableSequence):
         # the first time through, and not for outer-level loops with max of
         # one repetition (which is how 'or' groups are treated).  The latter
         # optimization is not currently implemented.  (It doesn't hurt
-        # correctness to always run setChild, but a lot of unnecessary state
+        # correctness to always run set_child, but a lot of unnecessary state
         # data is then saved and copied.)
         if nodeData.loopbackStack:  # debug below test, put back later
             #if nodeData.loopCounterStack[-1] == 1 and len(childrenDict) > 1:
-            nodeDataCopy.setChild(queryElem) # fix to one child
+            nodeDataCopy.set_child(queryElem) # fix to one child
         else:
             nodeDataCopy.boundNodeChildDict = {} # can't loop back, free the memory
         nodeDataCopy.node = childrenDict[queryElem]
@@ -422,7 +422,6 @@ class MagicElem(object):
 # uses for same, if any)
 
 class RegexTrieDict(TrieDict):
-
     """Subclass of the TrieDict class which adds regex processing for patterns
     stored in the trie."""
 
@@ -435,29 +434,29 @@ class RegexTrieDict(TrieDict):
         self.nodeDataList = None # Used in sequential meta mode to persist states.
         self.define_meta_elems() # Set the meta-elems to their default definitions.
 
-    def testPatternSequence(self, keySeq, raiseErrors=False):
+    def test_pattern_sequence(self, keySeq, raiseErrors=False):
         """Runs some basic tests on pattern sequences.  This routine is always
-        called by the insert method, with raiseErrors=True.  Users can use it to
-        test patterns before inserting them.  By default the routine will just
-        return a boolean value specifying whether the string passes or not.  If
-        raiseErrors=True then the escape-processed version of keySeq is returned
-        (assuming no errors are raised).  Note that simply passing the tests is
-        no guarantee that the pattern is correct, just that it passes these
-        tests."""
+        called by the insert method, with `raiseErrors=True`.  Users can use it
+        to test patterns before inserting them.  By default the routine will
+        just return a boolean value specifying whether the string passes or
+        not.  If raiseErrors=True then the escape-processed version of keySeq
+        is returned (assuming no errors are raised).  Note that simply passing
+        the tests is no guarantee that the pattern is correct, just that it
+        passes these tests."""
 
-        def foundError(errorString, exception=PatternMatchError):
+        def found_error(errorString, exception=PatternMatchError):
             """Utility function to raise errors or return bool as appropriate."""
             if not raiseErrors: return False
             else: raise exception(errorString)
 
-        def getStringForKeySeq():
+        def get_string_for_key_seq():
             """Try to get a string representation for keySeq for more-helpful
             error messages."""
             try: errPatt = "\n   " + str(keySeq)
             except: errPatt = ""
             return errPatt
 
-        def testMatchedOpenClose(escapedKeyElemList, closeElem, noNest=False):
+        def test_matched_open_close(escapedKeyElemList, closeElem, noNest=False):
             """Simple test for mismatched open and close group parens."""
             if escapedKeyElemList[-1][2] != 0:
                 if not (escapedKeyElemList[-1][2] == 1 and
@@ -467,7 +466,7 @@ class RegexTrieDict(TrieDict):
                     return False
             return True
 
-        def testNoEmptyOpenClose(escapedKeyElemList):
+        def test_no_empty_open_close(escapedKeyElemList):
             """Simple test for open-group paren followed immediately by close-group.
             Any parLevel in escapedKeyElemList must have at least three elements."""
             lastParLevel = -1
@@ -486,31 +485,31 @@ class RegexTrieDict(TrieDict):
         #
 
         if len(keySeq) == 0:
-            foundError("The empty element is not a valid key.", exception=KeyError)
+            found_error("The empty element is not a valid key.", exception=KeyError)
 
         # Process the escapes counting open and close wildcard brackets.
-        escapedKeyElemList = processElemListForEscapes(keySeq, self.escape,
+        escapedKeyElemList = process_elem_list_for_escapes(keySeq, self.escape,
                                  openGroup=self.lWildcard, closeGroup=self.rWildcard)
 
-        if not testMatchedOpenClose(escapedKeyElemList, self.rWildcard, noNest=True):
-            foundError("Mismatched open and close wildcard brackets in pattern."
-                       + getStringForKeySeq())
+        if not test_matched_open_close(escapedKeyElemList, self.rWildcard, noNest=True):
+            found_error("Mismatched open and close wildcard brackets in pattern."
+                       + get_string_for_key_seq())
 
-        if not testNoEmptyOpenClose(escapedKeyElemList):
-            foundError("Empty open and close wildcard brackets in pattern."
-                       + getStringForKeySeq())
+        if not test_no_empty_open_close(escapedKeyElemList):
+            found_error("Empty open and close wildcard brackets in pattern."
+                       + get_string_for_key_seq())
 
         # Process the escapes counting open and close group parens.
-        escapedKeyElemList = processElemListForEscapes(keySeq, self.escape,
+        escapedKeyElemList = process_elem_list_for_escapes(keySeq, self.escape,
                                  openGroup=self.lGroup, closeGroup=self.rGroup)
 
-        if not testMatchedOpenClose(escapedKeyElemList, self.rGroup):
-            foundError("Mismatched open and close group elements in pattern."
-                       + getStringForKeySeq())
+        if not test_matched_open_close(escapedKeyElemList, self.rGroup):
+            found_error("Mismatched open and close group elements in pattern."
+                       + get_string_for_key_seq())
 
-        if not testNoEmptyOpenClose(escapedKeyElemList):
-            foundError("Empty open and close group elements in pattern."
-                       + getStringForKeySeq())
+        if not test_no_empty_open_close(escapedKeyElemList):
+            found_error("Empty open and close group elements in pattern."
+                       + get_string_for_key_seq())
 
         if raiseErrors: return escapedKeyElemList
         else: return True
@@ -523,7 +522,7 @@ class RegexTrieDict(TrieDict):
 
         if self.canonicalizeFun: keySeq = self.canonicalizeFun(keySeq)
 
-        escapedKeyElemList = self.testPatternSequence(keySeq, raiseErrors=True)
+        escapedKeyElemList = self.test_pattern_sequence(keySeq, raiseErrors=True)
 
         node = self.root
         for elem, escaped, _parenCount in escapedKeyElemList:
@@ -568,15 +567,15 @@ class RegexTrieDict(TrieDict):
         self.orElem = orElem
         self.canonicalizeFun = canonicalizeFun
         if wildcardPattMatchFun: self.wildcardPattMatchFun = wildcardPattMatchFun
-        else: self.wildcardPattMatchFun = charPatternMatchTest
+        else: self.wildcardPattMatchFun = char_pattern_match_test
         if elemToDigitFun: self.elemToDigitFun = elemToDigitFun
-        else: self.elemToDigitFun = charElemToInt
+        else: self.elemToDigitFun = char_elem_to_int
         self.escapeMetaElems = {
             repetition, lGroup, rGroup, lWildcard, rWildcard, rangeElem}
         return
 
 
-    def getDfsGen(self, subtreeRootNode, funToApply=None, includeRoot=False,
+    def get_dfs_gen(self, subtreeRootNode, funToApply=None, includeRoot=False,
                   yieldOnLeaves=True, yieldOnMatch=False, copies=True,
                   stopAtElems=[], stopAtEscapedElems=[],
                   stopAtDepth=False, onlyFollowElems=[],
@@ -634,7 +633,7 @@ class RegexTrieDict(TrieDict):
         for example, in pattern-matches where the child dict is locally modified
         per state."""
 
-        def dfsRecursion(currNodeElem, currNode, depth, isEscaped, parenCount):
+        def dfs_recursion(currNodeElem, currNode, depth, isEscaped, parenCount):
             # Put the node on the running list of nodes (down current tree path).
             if depth > 0 or includeRoot:
                 if funToApply: nodeList.append(funToApply(currNodeElem, currNode))
@@ -671,7 +670,7 @@ class RegexTrieDict(TrieDict):
             else: isEscaped = False
             # Recurse for each child.
             for elem in children:
-                for value in dfsRecursion(elem, childDict[elem], depth+1,
+                for value in dfs_recursion(elem, childDict[elem], depth+1,
                                           isEscaped, parenCount):
                     yield value
                 if nodeList: nodeList.pop() # each child adds one, so pop one
@@ -681,12 +680,12 @@ class RegexTrieDict(TrieDict):
             maxDepth = stopAtDepth
             stopAtDepth = True # because 0 evals to False as a bool
 
-        return dfsRecursion(subtreeRootElem, subtreeRootNode, 0, subtreeRootEscaped,
+        return dfs_recursion(subtreeRootElem, subtreeRootNode, 0, subtreeRootEscaped,
                             firstParenLevel)
 
     def get_root_node_data_list(self):
         """This routine returns the initial node data list, for the root node.
-        This list is used by getNextNodesMeta to save the state of the
+        This list is used by get_next_nodes_meta to save the state of the
         pattern-matching between iterations.  Multiple instances are allowed."""
         # The tuple of state-information on a NodeDataList is:
         #     (node, nodeIsEscape, loopbackStack, loopCounterStack, loopBoundsStack,
@@ -713,10 +712,10 @@ class RegexTrieDict(TrieDict):
         # self.nodeDataList = self.get_root_node_data_list()
         # 
         # for elem in keySeq:
-        #     self.nodeDataList = self.getNextNodesMeta(elem, self.nodeDataList)
+        #     self.nodeDataList = self.get_next_nodes_meta(elem, self.nodeDataList)
         #     if not self.nodeDataList: return 0 # no nodes, can't match
 
-        # tmpNodeDataList = self.getNextNodesMeta(self.magicElem, self.nodeDataList)
+        # tmpNodeDataList = self.get_next_nodes_meta(self.magicElem, self.nodeDataList)
         # matchedNodes = [nodeData for nodeData in tmpNodeDataList
         #                                       if nodeData[0].isLastElemOfKey]
         # return len(matchedNodes)
@@ -773,7 +772,7 @@ class RegexTrieDict(TrieDict):
     #     self.seqmeta_next_key_elem(elem)
 
     #     # Get any matches at the current length of inserted elements.
-    #     tmpNodeDataList = self.getNextNodesMeta(self.magicElem, self.nodeDataList)
+    #     tmpNodeDataList = self.get_next_nodes_meta(self.magicElem, self.nodeDataList)
 
     #     # If no more active patterns, we can return the longest found.
     #     if not tmpNodeDataList:
@@ -788,7 +787,7 @@ class RegexTrieDict(TrieDict):
     #     if matchedNodes: self.lastMatchedNodes = matchedNodes
     #     return False
 
-    def _skipNodeDataListEscapes(self, nodeDataList):
+    def _skip_node_data_list_escapes(self, nodeDataList):
         """This routines handles pattern-escapes in a list of node-data tuples.
         This routine is always called by processNodeData as the first step
         (unless it is called with skipEscapes=False).  For each node on
@@ -805,13 +804,13 @@ class RegexTrieDict(TrieDict):
                 # Note copies of the loop states are used.
                 nodeDataCopy = nodeData.copy() # TODO can skip copy when single child
                 nodeDataCopy.nodeIsEscape = True
-                escapedNodeDataList.appendChildNode(self.escape, nodeDataCopy)
+                escapedNodeDataList.append_child_node(self.escape, nodeDataCopy)
                 if len(nodeData.children()) == 1: continue # escape is only child
             escapedNodeDataList.append(nodeData) # copy the node over unchanged
         return escapedNodeDataList
 
 
-    def getNextNodesMeta(self, queryElem, nodeDataList, ignoreValidity=False):
+    def get_next_nodes_meta(self, queryElem, nodeDataList, ignoreValidity=False):
         """Return the list of next nodes for each node on currNodeList,
         interpreting any stored pattern-matching meta-elements, when the
         query-key element queryElem is received.  The nodeDataList should be a
@@ -835,13 +834,13 @@ class RegexTrieDict(TrieDict):
         unchanged.  Any others move forward to such a point.  Any well-defined
         pattern has such an endpoint."""
 
-        #print("\ndebug getNextNodesMeta call, processing query char", queryElem)
+        #print("\ndebug get_next_nodes_meta call, processing query char", queryElem)
         #print("*"*30)
         #for nd in nodeDataList:
         #   self.printTree(childFun=nd.children)
         #print("*"*30)
 
-        if not ignoreValidity and not nodeDataList.isValidIn(self):
+        if not ignoreValidity and not nodeDataList.is_valid_in(self):
             raise ModifiedTrieError("Invalid nodeDataList, trie has changed.")
 
         # If we are starting a magicElem search, save the current node with the
@@ -863,12 +862,12 @@ class RegexTrieDict(TrieDict):
 
         for nodeData in nodeDataList:
             # Process the nodeData
-            self.processNodeData(queryElem, nodeData, nextNodeDataList)
+            self.process_node_data(queryElem, nodeData, nextNodeDataList)
 
         return nextNodeDataList
 
 
-    def processNodeData(self, queryElem, nodeData, nextNodeDataList, skipEscapes=True):
+    def process_node_data(self, queryElem, nodeData, nextNodeDataList, skipEscapes=True):
         """Process the instance `nodeData`, usually from the `nodeDataList`.
         Put the results on `nextNodeDataList`.  This large routine does most of
         the work in the processing, and is called recursively when necessary.
@@ -880,9 +879,9 @@ class RegexTrieDict(TrieDict):
         #
 
         if skipEscapes:
-            nodeDataList = self._skipNodeDataListEscapes([nodeData])
+            nodeDataList = self._skip_node_data_list_escapes([nodeData])
             for nd in nodeDataList:
-                self.processNodeData(queryElem, nd, nextNodeDataList, skipEscapes=False)
+                self.process_node_data(queryElem, nd, nextNodeDataList, skipEscapes=False)
             return
 
         #
@@ -903,7 +902,7 @@ class RegexTrieDict(TrieDict):
                 pass
 
             elif queryElem in nodeData.children():
-                nextNodeDataList.appendChildNode(queryElem, nodeData,
+                nextNodeDataList.append_child_node(queryElem, nodeData,
                                                  nodeIsEscape=False)
 
         #
@@ -931,7 +930,7 @@ class RegexTrieDict(TrieDict):
                 if metaElem == self.escape:
                     if queryElem == self.escape:
                         print("got escaped escape, adding to trie as element")
-                        nextNodeDataList.appendChildNode(queryElem, nodeData,
+                        nextNodeDataList.append_child_node(queryElem, nodeData,
                                                          nodeIsEscape=False)
                     else: # An escaped escape just doesn't match, no new nodeData.
                         continue
@@ -940,187 +939,23 @@ class RegexTrieDict(TrieDict):
                 # Handle begin-repetitions.
                 #
                 elif metaElem == self.repetition:
-                    #print("debug processing repetition")
-                    # Add the repetition subtree leaves to the nextNodeDataList, and
-                    # process them as end-repetition events (generating the loop
-                    # back and the continuation.  Note that repetition generally
-                    # matches zero times, so the end of every repetition pattern is
-                    # a valid continuation point.  So we have to go out to the end
-                    # nodes and start states for those possibilities.  We only need
-                    # one new state for going through the characters inside the
-                    # repetition group, however, so after the first one the others
-                    # are processed with noLoop=True.
-
-                    # A repetition element must be followed by an open-group element on
-                    # each path following it.  Get a generator for those nodes.
-                    dfsGenOpen = self.getDfsGen(nodeData.children()[self.repetition],
-                                     includeRoot=True, copies=False,
-                                     stopAtEscapedElems=[self.lGroup],
-                                     childFun=nodeData.children)
-
-                    for treePathToOpenGroup in dfsGenOpen:
-                        # Check some error conditions.
-                        if len(treePathToOpenGroup) < 3: # root, esc, lGroup
-                            raise PatternMatchError(
-                                "No open-group following a repetition.")
-                        lGroupElem, lGroupNode = treePathToOpenGroup[-1]
-                        lGroupEsc, lGroupEscNode = treePathToOpenGroup[-2]
-                        #print("   debug treePathToOpenGroup", [ t[0] for t in
-                        #                                          treePathToOpenGroup])
-                        if lGroupElem != self.lGroup or lGroupEsc != self.escape:
-                            raise PatternMatchError(
-                                "No open-group element following a repetition element.")
-                        iterBounds = self.processRepetitionParams([t[0] for t in
-                                                                   treePathToOpenGroup[1:-2]])
-
-                        # If at least one iteration is required then we can avoid having
-                        # to find all the closing-group elements for the subtree and
-                        # launching new states for each one (they are the zero-repetition
-                        # states). We can just start a state and wait and later see which
-                        # ones ever reach their end-group loopback points.
-                        if iterBounds[0] >= 1: # At least one iteration is required.
-                            pass # TODO, just an optimization of what already works
-
-                        # Now, for each opening paren, get a generator for all the closing
-                        # parens corresponding to it.
-                        dfsGenClose = self.getDfsGen(lGroupNode, includeRoot=True,
-                                             copies=False,
-                                             stopIfParenLevelZero=[self.rGroup, self.orElem],
-                                             firstParenLevel=0, childFun=nodeData.children)
-                        setNoLoop = False # whether to only create a break-state, no loop-state
-                        for treePathToCloseGroup in dfsGenClose:
-                            # Do some error checks.
-                            if treePathToCloseGroup[-1][0] == self.orElem:
-                                raise PatternMatchError(
-                                    "Or element without opening paren.")
-                            if len(treePathToCloseGroup) <= 3: # root, esc, rGroup
-                                raise PatternMatchError("Illegal empty repetition group "
-                                                        "or no close-group for repetition.")
-                            rGroupElem, rGroupNode = treePathToCloseGroup[-1]
-                            rGroupEsc, rGroupEscNode = treePathToCloseGroup[-2]
-                            #print("      debug treePathToCloseGroup", [ t[0] for t in
-                            #                                      treePathToCloseGroup ])
-                            if rGroupElem != self.rGroup or rGroupEsc != self.escape:
-                                raise PatternMatchError(
-                                    "No close-group matching a repetition open-group.")
-
-                            #
-                            # Push the loopback node on the stack and treat as end repetition.
-                            #
-
-                            pushedNodeData = nodeData.copy()
-                            # Fix the children of nodes for original repetition and beginning
-                            # nodes skipped by dfs, for new state, in case nested
-                            # repetitions.
-                            pushedNodeData.setChild(
-                                self.repetition) # do before node reassign!
-                            for i in range(len(treePathToOpenGroup)-1):
-                                pushedNodeData.setChild( # elem of next, node of current
-                                    treePathToOpenGroup[i+1][0], node=treePathToOpenGroup[i][1])
-
-                            pushedNodeData.node = rGroupNode
-                            pushedNodeData.nodeIsEscape = False
-                            pushedNodeData.loopbackStack.append(lGroupNode)
-                            pushedNodeData.loopCounterStack.append(0)
-                            pushedNodeData.loopBoundsStack.append(iterBounds)
-                            pushedNodeData.visitedRepNodeIdSet.add(id(lGroupNode))
-
-                            # Process the new pushedNodeData as an end-repetition.
-                            self.handleEndRepetition(
-                                queryElem, pushedNodeData, nextNodeDataList,
-                                noLoop=setNoLoop)
-                            setNoLoop = True # We only need one new state at the beginning.
+                    self.handle_begin_repetitions(nodeData, queryElem, nextNodeDataList)
 
                 #
                 # Handle end-repetitions.
                 #
                 elif metaElem == self.rGroup:
                     nodeDataCopy = nodeData.copy() # debug, unnecessary? xxx
-                    nodeDataCopy.setChild(self.rGroup) # debug, unnecessary? xxx
+                    nodeDataCopy.set_child(self.rGroup) # debug, unnecessary? xxx
                     nodeDataCopy.node = nodeDataCopy.children()[self.rGroup]
-                    self.handleEndRepetition(queryElem, nodeDataCopy, nextNodeDataList,
+                    self.handle_end_repetitions(queryElem, nodeDataCopy, nextNodeDataList,
                                              refuseRevisits=True)
 
                 #
                 # Handle beginning of an "or" group.
                 #
                 elif metaElem == self.lGroup:
-                    #print("debug processing an 'or' group")
-                    # TODO if we're not inside a loop or guaranteed to break out then
-                    # we can just have a single state at each start point, and not
-                    # set the children to single-children, either (consider)...
-
-                    # Treat this entire 'or' group as a one-repetition loop.  This is
-                    # so we know what to do then final rGroup is encountered.  The actual
-                    # loopback point isn't required and is set to a dummy node.  The
-                    # continuation point will either be the next node in the tree when the final
-                    # rGroup element is processed as the end of a one-repetition loop,
-                    # or else it will be calculated when an orElem ("|") is encountered.
-
-                    # Make a copy of the nodeData state for this start-point.
-                    pushedNodeData = nodeData.copy()
-                    pushedNodeData.nodeIsEscape = False
-                    pushedNodeData.loopbackStack.append(
-                        TrieDictNode()) # dummy, popped later
-                    pushedNodeData.loopCounterStack.append(1)
-                    pushedNodeData.loopBoundsStack.append((1, 1))
-                    pushedNodeData.setChild(self.lGroup)
-
-                    # Get a generator generating each path to a corresponding close-group.
-                    # Note the current implementation is inefficient.
-                    currNode = pushedNodeData.children()[self.lGroup]
-                    dfsGenOrGroupEnd = self.getDfsGen(currNode, includeRoot=True,
-                                           copies=False, stopIfParenLevelZero=[self.rGroup],
-                                           firstParenLevel=-1,
-                                           childFun=pushedNodeData.children,
-                                           subtreeRootElem=self.lGroup)
-
-                    # Iterate the generator, creating states for each section of each tree
-                    # path.
-                    for treePathToEndGroup in dfsGenOrGroupEnd:
-                        #print("debug", [i[0] for i in treePathToEndGroup])
-                        #print("debug, queryElem is", queryElem)
-                        # Do some error checks.
-                        if len(treePathToEndGroup) <= 3: # root, esc, rGroup # TODO check
-                            raise PatternMatchError("Illegal empty 'or' group "
-                                                    "or no close-group for 'or'.")
-                        if (treePathToEndGroup[-2][0] != self.escape
-                           or treePathToEndGroup[-1][0] != self.rGroup):
-                            raise PatternMatchError(
-                                "No close-group matching an 'or' open-group.")
-
-                        # Fix all the nodes on the path to have one child (for these states).
-                        # We make a new copy for each path to the closing rGroup, though.
-                        pushedNodeDataCopy = pushedNodeData.copy()
-                        for i in range(len(treePathToEndGroup)-1):
-                            pushedNodeDataCopy.setChild( # elem of next, node of current
-                                treePathToEndGroup[i+1][0], node=treePathToEndGroup[i][1])
-
-                        # Find all the begin-section markers inside the 'or' group and start a
-                        # new state for each one (i.e., opening paren and all '|'
-                        # elements).
-                        escaped = True # The first lGroup is escaped.
-                        parenCount = 0
-                        for i in range(len(treePathToEndGroup)):
-                            elem, node = treePathToEndGroup[i]
-                            # TODO check that each one has at least something in it....
-                            if not escaped and elem == self.escape:
-                                escaped = True
-                                continue
-                            # Always escaped past here.
-                            if elem == self.lGroup: parenCount += 1
-                            elif elem == self.rGroup: parenCount -= 1
-                            # If not a valid open-group section then continue.
-                            if parenCount != 1 or (
-                                          elem != self.orElem and elem != self.lGroup):
-                                continue
-                            # Create a state for currNode (copy of general state) and
-                            # process it.
-                            orSectionBegin = pushedNodeDataCopy.copy()
-                            orSectionBegin.node = node
-                            self.processNodeData(
-                                queryElem, orSectionBegin, nextNodeDataList)
-                            escaped = False
+                    self.handle_beginning_of_or_group(nodeData, queryElem, nextNodeDataList)
 
                 #
                 # Handle end of non-final end-section of an or-group (an orElem "|").
@@ -1132,7 +967,7 @@ class RegexTrieDict(TrieDict):
                     # Get a generator for all final rGroup elems at this point.  There
                     # should only be one, since the state was fixed to single-children
                     # when the 'or' was first processed.
-                    dfsGenOrSectionEnd = self.getDfsGen(nodeData.children()[self.orElem],
+                    dfsGenOrSectionEnd = self.get_dfs_gen(nodeData.children()[self.orElem],
                                                         includeRoot=True, copies=False,
                                                         stopIfParenLevelZero=[
                                                             self.rGroup], firstParenLevel=0,
@@ -1143,8 +978,8 @@ class RegexTrieDict(TrieDict):
                         # Errors checked earlier, when lGroup of the 'or' was processed.
                         rGroupElem, rGroupNode = treePath[-1]
                         nodeDataCopy = nodeData.copy() # debug, unneeded?? xxx
-                        nodeDataCopy.setChild(self.orElem) # debug, unnecessary?? xxx
-                        self.handleEndRepetition(
+                        nodeDataCopy.set_child(self.orElem) # debug, unnecessary?? xxx
+                        self.handle_end_repetitions(
                             queryElem, nodeDataCopy, nextNodeDataList,
                             replaceNode=rGroupNode)
                         # When 'or' is set it should give all nodes for state
@@ -1160,50 +995,7 @@ class RegexTrieDict(TrieDict):
                     # Generate all the subtree rWildcard nodes, checking that the
                     # pattern matches.
 
-                    nodeData.visitedRepNodeIdSet = set() # got an actual elem, reset
-
-                    # Magic elem doesn't match any char; just put current node on
-                    # nextNodeDataList (so isLastElemOfKey can be checked).
-                    if id(queryElem) == id(self.magicElem):
-                        nextNodeDataList.append(nodeData) # just keep the node itself
-                        continue # process the next metaElem in the loop
-
-                    wildcardPattGen = self.getDfsGen(nodeData.children()[self.lWildcard],
-                                          includeRoot=True, copies=False,
-                                          childFun=nodeData.children,
-                                          stopAtEscapedElems=[self.rWildcard])
-
-                    for wildcardPatt in wildcardPattGen:
-                        # print("      debug wildcard patt", [ t[0] for t in wildcardPatt
-                        # ])
-                        if len(wildcardPatt) <= 3: # root, some char, esc, rWildcard
-                            raise PatternMatchError("No closing bracket for wildcard.")
-                        rWildcardElem, rWildcardNode = wildcardPatt[-1]
-                        escapeElem, escapeNode = wildcardPatt[-2]
-                        if (rWildcardElem != self.rWildcard or escapeElem != self.escape):
-                            raise PatternMatchError("No closing bracket for wildcard.")
-                        pattern = [p[0] for p in wildcardPatt[1:-2]]
-                        # If the character matches the wildcard pattern:
-                        # 1) Get a copy NodeStateData.
-                        # 2) In the NodeDataState, fix all the nodes on the path to the
-                        #    end-element to have one child (the new NodeStateData now
-                        #    represents just one pattern instance, not the full subtree).
-                        # 3) Append the node to nextNodeDataList.
-                        if self.wildcardPattMatchFun(queryElem, pattern,
-                                                     self.rangeElem, self.escape):
-                            nodeDataCopy = nodeData.copy()
-                            nodeDataCopy.setChild(self.lWildcard)
-
-                            # Fix the children on the wildcardPatt list to only have
-                            # one child.
-                            for i in range(len(wildcardPatt)-1):
-                                nodeDataCopy.setChild( # elem of next, node of current
-                                    wildcardPatt[i+1][0], node=wildcardPatt[i][1])
-
-                            # Set the other elements and append to nextNodeDataList.
-                            nodeDataCopy.node = rWildcardNode # stacks do not change
-                            nodeDataCopy.nodeIsEscape = False
-                            nextNodeDataList.append(nodeDataCopy)
+                    self.handle_wildcards(nodeData, queryElem, nextNodeDataList)
 
                 #
                 # Error condition otherwise.
@@ -1218,8 +1010,154 @@ class RegexTrieDict(TrieDict):
 
         return
 
+    def handle_wildcards(self, nodeData, queryElem, nextNodeDataList):
+        """Handle wildcard patterns in meta-processing the trie."""
+        #print("debug processing wildcard")
+        # Generate all the subtree rWildcard nodes, checking that the
+        # pattern matches.
 
-    def handleEndRepetition(self, queryElem, closeParenNodeData, nextNodeDataList,
+        nodeData.visitedRepNodeIdSet = set() # got an actual elem, reset
+
+        # Magic elem doesn't match any char; just put current node on
+        # nextNodeDataList (so isLastElemOfKey can be checked).
+        if id(queryElem) == id(self.magicElem):
+            nextNodeDataList.append(nodeData) # just keep the node itself
+            return #continue # process the next metaElem in the loop TODO
+
+        wildcardPattGen = self.get_dfs_gen(nodeData.children()[self.lWildcard],
+                              includeRoot=True, copies=False,
+                              childFun=nodeData.children,
+                              stopAtEscapedElems=[self.rWildcard])
+
+        for wildcardPatt in wildcardPattGen:
+            # print("      debug wildcard patt", [ t[0] for t in wildcardPatt
+            # ])
+            if len(wildcardPatt) <= 3: # root, some char, esc, rWildcard
+                raise PatternMatchError("No closing bracket for wildcard.")
+            rWildcardElem, rWildcardNode = wildcardPatt[-1]
+            escapeElem, escapeNode = wildcardPatt[-2]
+            if (rWildcardElem != self.rWildcard or escapeElem != self.escape):
+                raise PatternMatchError("No closing bracket for wildcard.")
+            pattern = [p[0] for p in wildcardPatt[1:-2]]
+            # If the character matches the wildcard pattern:
+            # 1) Get a copy NodeStateData.
+            # 2) In the NodeDataState, fix all the nodes on the path to the
+            #    end-element to have one child (the new NodeStateData now
+            #    represents just one pattern instance, not the full subtree).
+            # 3) Append the node to nextNodeDataList.
+            if self.wildcardPattMatchFun(queryElem, pattern,
+                                         self.rangeElem, self.escape):
+                nodeDataCopy = nodeData.copy()
+                nodeDataCopy.set_child(self.lWildcard)
+
+                # Fix the children on the wildcardPatt list to only have
+                # one child.
+                for i in range(len(wildcardPatt)-1):
+                    nodeDataCopy.set_child( # elem of next, node of current
+                        wildcardPatt[i+1][0], node=wildcardPatt[i][1])
+
+                # Set the other elements and append to nextNodeDataList.
+                nodeDataCopy.node = rWildcardNode # stacks do not change
+                nodeDataCopy.nodeIsEscape = False
+                nextNodeDataList.append(nodeDataCopy)
+
+    def handle_begin_repetitions(self, nodeData, queryElem, nextNodeDataList):
+        """Called when a begin-repetition node (i.e. for '*') is reached in the
+        trie, to handle the repetition."""
+        #print("debug processing repetition")
+        # Add the repetition subtree leaves to the nextNodeDataList, and
+        # process them as end-repetition events (generating the loop
+        # back and the continuation.  Note that repetition generally
+        # matches zero times, so the end of every repetition pattern is
+        # a valid continuation point.  So we have to go out to the end
+        # nodes and start states for those possibilities.  We only need
+        # one new state for going through the characters inside the
+        # repetition group, however, so after the first one the others
+        # are processed with noLoop=True.
+
+        # A repetition element must be followed by an open-group element on
+        # each path following it.  Get a generator for those nodes.  We only
+        # need one new state at the beginning.
+
+        dfsGenOpen = self.get_dfs_gen(nodeData.children()[self.repetition],
+                         includeRoot=True, copies=False,
+                         stopAtEscapedElems=[self.lGroup],
+                         childFun=nodeData.children)
+
+        for treePathToOpenGroup in dfsGenOpen:
+            # Check some error conditions.
+            if len(treePathToOpenGroup) < 3: # root, esc, lGroup
+                raise PatternMatchError(
+                    "No open-group following a repetition.")
+            lGroupElem, lGroupNode = treePathToOpenGroup[-1]
+            lGroupEsc, lGroupEscNode = treePathToOpenGroup[-2]
+            #print("   debug treePathToOpenGroup", [ t[0] for t in
+            #                                          treePathToOpenGroup])
+            if lGroupElem != self.lGroup or lGroupEsc != self.escape:
+                raise PatternMatchError(
+                    "No open-group element following a repetition element.")
+            iterBounds = self.process_repetition_params([t[0] for t in
+                                                       treePathToOpenGroup[1:-2]])
+
+            # If at least one iteration is required then we can avoid having
+            # to find all the closing-group elements for the subtree and
+            # launching new states for each one (they are the zero-repetition
+            # states). We can just start a state and wait and later see which
+            # ones ever reach their end-group loopback points.
+            if iterBounds[0] >= 1: # At least one iteration is required.
+                pass # TODO, just an optimization of what already works
+
+            # Now, for each opening paren, get a generator for all the closing
+            # parens corresponding to it.
+            dfsGenClose = self.get_dfs_gen(lGroupNode, includeRoot=True,
+                                 copies=False,
+                                 stopIfParenLevelZero=[self.rGroup, self.orElem],
+                                 firstParenLevel=0, childFun=nodeData.children)
+            setNoLoop = False # whether to only create a break-state, no loop-state
+            for treePathToCloseGroup in dfsGenClose:
+                # Do some error checks.
+                if treePathToCloseGroup[-1][0] == self.orElem:
+                    raise PatternMatchError(
+                        "Or element without opening paren.")
+                if len(treePathToCloseGroup) <= 3: # root, esc, rGroup
+                    raise PatternMatchError("Illegal empty repetition group "
+                                            "or no close-group for repetition.")
+                rGroupElem, rGroupNode = treePathToCloseGroup[-1]
+                rGroupEsc, rGroupEscNode = treePathToCloseGroup[-2]
+                #print("      debug treePathToCloseGroup", [ t[0] for t in
+                #                                      treePathToCloseGroup ])
+                if rGroupElem != self.rGroup or rGroupEsc != self.escape:
+                    raise PatternMatchError(
+                        "No close-group matching a repetition open-group.")
+
+                #
+                # Push the loopback node on the stack and treat as end repetition.
+                #
+
+                pushedNodeData = nodeData.copy()
+                # Fix the children of nodes for original repetition and beginning
+                # nodes skipped by dfs, for new state, in case nested
+                # repetitions.
+                pushedNodeData.set_child(
+                    self.repetition) # do before node reassign!
+                for i in range(len(treePathToOpenGroup)-1):
+                    pushedNodeData.set_child( # elem of next, node of current
+                        treePathToOpenGroup[i+1][0], node=treePathToOpenGroup[i][1])
+
+                pushedNodeData.node = rGroupNode
+                pushedNodeData.nodeIsEscape = False
+                pushedNodeData.loopbackStack.append(lGroupNode)
+                pushedNodeData.loopCounterStack.append(0)
+                pushedNodeData.loopBoundsStack.append(iterBounds)
+                pushedNodeData.visitedRepNodeIdSet.add(id(lGroupNode))
+
+                # Process the new pushedNodeData as an end-repetition.
+                self.handle_end_repetitions(queryElem, pushedNodeData,
+                                            nextNodeDataList, noLoop=setNoLoop)
+                setNoLoop = True # We only need one new state at the beginning.
+
+
+    def handle_end_repetitions(self, queryElem, closeParenNodeData, nextNodeDataList,
                             replaceNode=None, noLoop=False, noBreak=False,
                             refuseRevisits=False):
         """Handle reaching the close of a repetition group.  The closeParenNode
@@ -1349,15 +1287,15 @@ class RegexTrieDict(TrieDict):
         # literal pattern being matched to queryElem, so run processNodeData on the
         # computed nodes.
         for nodeData in nodeDataList:
-            self.processNodeData(queryElem, nodeData, nextNodeDataList)
+            self.process_node_data(queryElem, nodeData, nextNodeDataList)
 
         return
 
-    def processRepetitionParams(self, seq):
+    def process_repetition_params(self, seq):
         """Process the sequence between the begin-repetition and the open-group
         that necessarily follows it.  Return a tuple (minIter, maxIter), with
         -1 for infinite maxIter."""
-        tupleList = processElemListForEscapes(seq, self.escape)
+        tupleList = process_elem_list_for_escapes(seq, self.escape)
         val = 0 # The first value if only one, or the second otherwise.
         firstVal = 0 # The second value, if there is one.
         valSet = False
@@ -1380,6 +1318,85 @@ class RegexTrieDict(TrieDict):
                 valSet = True
         if not firstVal: return (val, -1)
         return (firstVal, val)
+
+    def handle_beginning_of_or_group(self, nodeData, queryElem, nextNodeDataList):
+        """Handle reaching the beginning of an "or" group in the trie."""
+        #print("debug processing an 'or' group")
+        # TODO if we're not inside a loop or guaranteed to break out then
+        # we can just have a single state at each start point, and not
+        # set the children to single-children, either (consider)...
+
+        # Treat this entire 'or' group as a one-repetition loop.  This is
+        # so we know what to do then final rGroup is encountered.  The actual
+        # loopback point isn't required and is set to a dummy node.  The
+        # continuation point will either be the next node in the tree when the final
+        # rGroup element is processed as the end of a one-repetition loop,
+        # or else it will be calculated when an orElem ("|") is encountered.
+
+        # Make a copy of the nodeData state for this start-point.
+        pushedNodeData = nodeData.copy()
+        pushedNodeData.nodeIsEscape = False
+        pushedNodeData.loopbackStack.append(
+            TrieDictNode()) # dummy, popped later
+        pushedNodeData.loopCounterStack.append(1)
+        pushedNodeData.loopBoundsStack.append((1, 1))
+        pushedNodeData.set_child(self.lGroup)
+
+        # Get a generator generating each path to a corresponding close-group.
+        # Note the current implementation is inefficient.
+        currNode = pushedNodeData.children()[self.lGroup]
+        dfsGenOrGroupEnd = self.get_dfs_gen(currNode, includeRoot=True,
+                               copies=False, stopIfParenLevelZero=[self.rGroup],
+                               firstParenLevel=-1,
+                               childFun=pushedNodeData.children,
+                               subtreeRootElem=self.lGroup)
+
+        # Iterate the generator, creating states for each section of each tree
+        # path.
+        for treePathToEndGroup in dfsGenOrGroupEnd:
+            #print("debug", [i[0] for i in treePathToEndGroup])
+            #print("debug, queryElem is", queryElem)
+            # Do some error checks.
+            if len(treePathToEndGroup) <= 3: # root, esc, rGroup # TODO check
+                raise PatternMatchError("Illegal empty 'or' group "
+                                        "or no close-group for 'or'.")
+            if (treePathToEndGroup[-2][0] != self.escape
+               or treePathToEndGroup[-1][0] != self.rGroup):
+                raise PatternMatchError(
+                    "No close-group matching an 'or' open-group.")
+
+            # Fix all the nodes on the path to have one child (for these states).
+            # We make a new copy for each path to the closing rGroup, though.
+            pushedNodeDataCopy = pushedNodeData.copy()
+            for i in range(len(treePathToEndGroup)-1):
+                pushedNodeDataCopy.set_child( # elem of next, node of current
+                    treePathToEndGroup[i+1][0], node=treePathToEndGroup[i][1])
+
+            # Find all the begin-section markers inside the 'or' group and start a
+            # new state for each one (i.e., opening paren and all '|'
+            # elements).
+            escaped = True # The first lGroup is escaped.
+            parenCount = 0
+            for i in range(len(treePathToEndGroup)):
+                elem, node = treePathToEndGroup[i]
+                # TODO check that each one has at least something in it....
+                if not escaped and elem == self.escape:
+                    escaped = True
+                    continue
+                # Always escaped past here.
+                if elem == self.lGroup: parenCount += 1
+                elif elem == self.rGroup: parenCount -= 1
+                # If not a valid open-group section then continue.
+                if parenCount != 1 or (
+                              elem != self.orElem and elem != self.lGroup):
+                    continue
+                # Create a state for currNode (copy of general state) and
+                # process it.
+                orSectionBegin = pushedNodeDataCopy.copy()
+                orSectionBegin.node = node
+                self.process_node_data(
+                    queryElem, orSectionBegin, nextNodeDataList)
+                escaped = False
 
     #
     # Define a few aliases/synonyms for certain methods above.
@@ -1413,7 +1430,7 @@ class Matcher(object):
 
         if not self.matchInProgress: self._set_to_root()
         # Update the list of node data states according to the element elem.
-        self.nodeDataList = self.rtd.getNextNodesMeta(elem, self.nodeDataList)
+        self.nodeDataList = self.rtd.get_next_nodes_meta(elem, self.nodeDataList)
         return
 
     def cannot_match(self, insert_magic=False):
@@ -1442,7 +1459,7 @@ class Matcher(object):
         are always treated as literal."""
         # See get method for comments on what's going on here.
         if not self.matchInProgress: self._set_to_root()
-        tmpNodeDataList = self.rtd.getNextNodesMeta(self.rtd.magicElem, self.nodeDataList)
+        tmpNodeDataList = self.rtd.get_next_nodes_meta(self.rtd.magicElem, self.nodeDataList)
         matchedNodes = [nodeData for nodeData in tmpNodeDataList
                                               if nodeData[0].isLastElemOfKey]
         return len(matchedNodes)
@@ -1464,7 +1481,8 @@ class Matcher(object):
         # queryElem below.  Get a temporary state after inserting the
         # magicElem, so that we don't mess up the persistent self.nodeDataList
         # for later searches.
-        tmpNodeDataList = self.rtd.getNextNodesMeta(self.rtd.magicElem, self.nodeDataList)
+        tmpNodeDataList = self.rtd.get_next_nodes_meta(
+                                       self.rtd.magicElem, self.nodeDataList)
         matchedNodes = [nodeData for nodeData in tmpNodeDataList
                                               if nodeData[0].isLastElemOfKey]
         if not matchedNodes:
@@ -1472,7 +1490,7 @@ class Matcher(object):
         return [n.node.data for n in matchedNodes]
 
 
-def charElemToInt(elem):
+def char_elem_to_int(elem):
     """This routine is set in defineMetaElems as the default value of
     elemToDigitFun, which converts elements to digit values.  Used in calculating
     repetition bounds.  It is the default setting for elemToDigitFun, when
@@ -1484,7 +1502,7 @@ def charElemToInt(elem):
     return intVal
 
 
-def charPatternMatchTest(queryElem, pattList, rangeElem, escapeElem):
+def char_pattern_match_test(queryElem, pattList, rangeElem, escapeElem):
     """This utility routine does a pattern-match for characters in the wildcard
     brackets.  It does depend on the elements being characters, since it calls
     a Python regexp.  This has the advantage of allowing all the
@@ -1494,10 +1512,10 @@ def charPatternMatchTest(queryElem, pattList, rangeElem, escapeElem):
     if not pattList:
         raise PatternMatchError("No pattern in wildcard brackets.")
 
-    # print("debug charPatternMatchTest, query elem is", queryElem, "pattList
+    # print("debug char_pattern_match_test, query elem is", queryElem, "pattList
     # is", pattList)
 
-    pattTupleList = processElemListForEscapes(pattList, escapeElem)
+    pattTupleList = process_elem_list_for_escapes(pattList, escapeElem)
     #print("debug elemList processed for escapes is", pattTupleList)
     pythonString = "^["
     firstChar = True
@@ -1511,23 +1529,23 @@ def charPatternMatchTest(queryElem, pattList, rangeElem, escapeElem):
         firstChar = False
     pythonString += "]$"
     retval = re.match(pythonString, queryElem)
-    # print("debug charPatternMatchTest, pythonString is", pythonString,
+    # print("debug char_pattern_match_test, pythonString is", pythonString,
     # "returning", bool(retval))
     return retval
 
 
-def charRangeTest(charLower, charUpper, testChar):
+def char_range_test(charLower, charUpper, testChar):
     """Return True if testChar is in the range from char1 to char2, inclusive.
     Used in testing wildcard patterns in the default with character elements."""
-    #print("debug in charRangeTest, comparing queryElem",
+    #print("debug in char_range_test, comparing queryElem",
     #      testChar, "with lower range", charLower)
     if ord(charLower) > ord(charUpper):
         raise PatternMatchError("Second element in character range greater than lower.")
     return ord(charLower) <= ord(testChar) and ord(testChar) <= ord(charUpper)
 
 
-def genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
-                            rangeTestFun=charRangeTest):
+def generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
+                            rangeTestFun=char_range_test):
     """This utility routine does a generic pattern-match in the wildcard
     brackets.  This routine is for general sequences of elements and does not
     depend on the elements being characters.  Only the function rangeTestFun
@@ -1537,7 +1555,7 @@ def genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
     for elements, use something like:
 
        def myPattMatchFun(queryElem, pattList, rangeElem, escapeElem):
-          return genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
+          return generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
                                          rangeTestFun=myRangeTestFun)
 
     Then in calling defineMetaElems define wildcardPattMatchFun=myPattMatchFun.
@@ -1547,7 +1565,7 @@ def genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
     if not pattList:
         raise PatternMatchError("No pattern in wildcard brackets.")
 
-    pattTupleList = processElemListForEscapes(pattList, escapeElem)
+    pattTupleList = process_elem_list_for_escapes(pattList, escapeElem)
     foundRangeElem = False
     stack = []
     for elem, escaped in pattTupleList:
@@ -1570,7 +1588,7 @@ def genericWildcardMatchFun(queryElem, pattList, rangeElem, escapeElem,
     return False
 
 
-def processElemListForEscapes(elemList, escapeChar, openGroup=None, closeGroup=None):
+def process_elem_list_for_escapes(elemList, escapeChar, openGroup=None, closeGroup=None):
     """A utility routine which takes a list of possibly-escaped elements as an
     argument and returns a list of two-tuples.  The first element of a two-tuple
     is the actual character, and the second a boolean for whether or not it is
