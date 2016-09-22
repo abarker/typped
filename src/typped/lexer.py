@@ -371,108 +371,55 @@ def basic_token_subclass_factory():
 #
 # Token table.
 #
-TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
+
+class RegexTrieHybridMatcher(object):
+    """A matcher class that stores pattern data and matches it."""
+    TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
                                "regex_string",
                                "compiled_regex",
                                "on_ties",
                             ])
 
-class RegexTrieHybridMatcher(object):
-    """A matcher class that stores pattern data and matches it."""
-    TokenPatternTuple = TokenPatternTuple # TODO move def above here
     def __init__(self):
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.regex_data_dict = {} # Data for the regexes of tokens.
         self.regex_trie_dict = None # Simple patterns may be stored here.
 
-    def convert_simple_pattern(self, regex_string):
-        """Convet a simple pattern to a form that can be inserted into a
-        `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
-        complicated."""
-        return None 
-        # TODO the immediate below seems to work for some very simple patterns.
-        # Test it some more.  Can put in Lexer test file!!!
-        # Insert it into tree.  Still need to modify the search, too.
-
-        simple_regex_patt = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
-        match = simple_regex_patt.match(regex_string)
-        if match is None: return None
-        return regex_string # No processing needed for very simple.
-
-        # SCRATCH BELOW
-
-        # Note negative lookbehind assertion (?<!\\) for escape before
-        # the strings which start Python regex special chars.
-        non_simple_regex_contains = \
-                r"""(
-                        ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
-                    |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
-                    ))"""
-        compiled_non_simple_regex_contains = re.compile(
-                                  non_simple_regex_contains, re.VERBOSE|re.UNICODE)
-        def is_simple_pattern(regex_string):
-            # Could be single-char in brackets!
-            # https://docs.python.org/2.0/ref/strings.html
-            match_object = compiled_non_simple_regex_contains.search(regex_string)
-            #matched_string = regex_string[match_object.start():match_object.end()]
-            #print(" substring", matched_string)
-            return not bool(match_object)
-        #if is_simple_pattern(regex_string):
-        #    print("simple pattern", regex_string)
-        #else:
-        #    print("non-simple pattern", regex_string)
-
-    def _insert_pattern(self, token_label, regex_data, ignore):
+    def insert_pattern(self, token_label, regex_string, on_ties, ignore):
         """Insert the pattern in the list of regex patterns, after compiling it."""
         if ignore:
             self.ignore_tokens.add(token_label)
 
-        simple_pattern = self.convert_simple_pattern(regex_data.regex_string)
-        if simple_pattern:
+        simple_pattern = self._convert_simple_pattern(regex_string)
+
+        if simple_pattern: # Put simple pattern in a trie.
+            regex_data = self.TokenPatternTuple(regex_string, None, on_ties)
             print("got a simple one", regex_data)
             import sys
             sys.exit(0)
             # TODO: Insert in self.regex_trie_dict, add search using it, too.
-        else:
-            compiled_regex = re.compile(regex_data.regex_string,
+            # Be sure to modify the remove_pattern routine, too.
+
+        else: # Use Python regexes.
+            compiled_regex = re.compile(regex_string,
                                     re.VERBOSE|re.MULTILINE|re.UNICODE)
-            regex_data = TokenPatternTuple(regex_data.regex_string, 
+            regex_data = self.TokenPatternTuple(regex_string, 
                                            compiled_regex,
-                                           regex_data.on_ties)
+                                           on_ties)
             self.regex_data_dict[token_label] = regex_data
 
+    def remove_pattern(self, token_label):
+        """Remove the pattern for the token corresponding to `token_label`."""
+        # Remove from the list of defined tokens and from the token table.
+        self.ignore_tokens.discard(token_label)
+        try:
+            del regex_data_dict[token_label]
+        except KeyError:
+            raise LexerException("Attempt to undefine pattern for token that"
+                                 " was never defined.")
 
-    def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
-        """A utility routine that does the actual string match on the prefix of
-        `self.program`.  Return the list of matching prefixes and a list of
-        (length, on_ties) data for ranking them."""
-        # Note that Python's finditer finds the *first* match group and stops.
-        # They are ordered by the order they occur in the regex.  It finds the
-        # longest match of any particular group, but stops when it finds a
-        # match of some group.  Instead of using that, this code loops over all
-        # the separate patterns to find the overall longest, breaking ties with
-        # on_ties values.
-        matching_prefixes_dict = {} # All the prefix strings that match some token.
-        len_and_on_ties_dict = {}
-        for token_label, (regex_str, compiled_regex, on_ties
-                                                ) in self.regex_data_dict.items():
-            match_object = compiled_regex.match(program, 
-                                      unprocessed_slice_indices[0],
-                                      unprocessed_slice_indices[1])
-            if match_object: 
-                matched_string = program[
-                                 match_object.start():match_object.end()]
-                matching_prefixes_dict[token_label] = matched_string
-                # Save info to compare matches by length, break ties if necessary.
-                len_on_ties_tuple = (len(matched_string), on_ties)
-                len_and_on_ties_dict[token_label] = len_on_ties_tuple
-            else: # Match returns None if nothing matches, not a MatchObject.
-                matching_prefixes_dict[token_label] = ""
-                len_and_on_ties_dict[token_label] = (0, on_ties)
-        return matching_prefixes_dict, len_and_on_ties_dict
-
-    def _find_winning_token_label_and_value(self, program, unprocessed_slice_indices,
-                                 ERROR_MSG_TEXT_SNIPPET_SIZE):
+    def get_winning_token_label_and_value(self, program, unprocessed_slice_indices,
+                                          ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
         longest and wins tie breaking.  Return the token token_label and value of the
         matching prefix.  The list arguments should be in correspondence with
@@ -514,6 +461,72 @@ class RegexTrieHybridMatcher(object):
         token_label = winning_item[0]
         value = matching_prefixes_dict[token_label]
         return token_label, value
+
+    def _get_matched_prefixes_and_length_info(self, program, unprocessed_slice_indices):
+        """A utility routine that does the actual string match on the prefix of
+        `self.program`.  Return the list of matching prefixes and a list of
+        (length, on_ties) data for ranking them."""
+        # Note that Python's finditer finds the *first* match group and stops.
+        # They are ordered by the order they occur in the regex.  It finds the
+        # longest match of any particular group, but stops when it finds a
+        # match of some group.  Instead of using that, this code loops over all
+        # the separate patterns to find the overall longest, breaking ties with
+        # on_ties values.
+        matching_prefixes_dict = {} # All the prefix strings that match some token.
+        len_and_on_ties_dict = {}
+        for token_label, (regex_str, compiled_regex, on_ties
+                                                ) in self.regex_data_dict.items():
+            match_object = compiled_regex.match(program, 
+                                      unprocessed_slice_indices[0],
+                                      unprocessed_slice_indices[1])
+            if match_object: 
+                matched_string = program[
+                                 match_object.start():match_object.end()]
+                matching_prefixes_dict[token_label] = matched_string
+                # Save info to compare matches by length, break ties if necessary.
+                len_on_ties_tuple = (len(matched_string), on_ties)
+                len_and_on_ties_dict[token_label] = len_on_ties_tuple
+            else: # Match returns None if nothing matches, not a MatchObject.
+                matching_prefixes_dict[token_label] = ""
+                len_and_on_ties_dict[token_label] = (0, on_ties)
+        return matching_prefixes_dict, len_and_on_ties_dict
+
+    def _convert_simple_pattern(self, regex_string):
+        """Convet a simple pattern to a form that can be inserted into a
+        `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
+        complicated."""
+        return None 
+        # TODO the immediate below seems to work for some very simple patterns.
+        # Test it some more.  Can put in Lexer test file!!!
+        # Insert it into tree.  Still need to modify the search, too.
+
+        simple_regex_patt = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
+        match = simple_regex_patt.match(regex_string)
+        if match is None: return None
+        return regex_string # No processing needed for very simple.
+
+        # SCRATCH BELOW
+
+        # Note negative lookbehind assertion (?<!\\) for escape before
+        # the strings which start Python regex special chars.
+        non_simple_regex_contains = \
+                r"""(
+                        ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
+                    |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
+                    ))"""
+        compiled_non_simple_regex_contains = re.compile(
+                                  non_simple_regex_contains, re.VERBOSE|re.UNICODE)
+        def is_simple_pattern(regex_string):
+            # Could be single-char in brackets!
+            # https://docs.python.org/2.0/ref/strings.html
+            match_object = compiled_non_simple_regex_contains.search(regex_string)
+            #matched_string = regex_string[match_object.start():match_object.end()]
+            #print(" substring", matched_string)
+            return not bool(match_object)
+        #if is_simple_pattern(regex_string):
+        #    print("simple pattern", regex_string)
+        #else:
+        #    print("non-simple pattern", regex_string)
 
 
 class TokenTable(object):
@@ -576,19 +589,15 @@ class TokenTable(object):
         except KeyError:
             return # Not saved in dict, ignore.
 
-    def is_defined_token_label(self, token):
-        """Return true if `token` is currently defined as a token label."""
-        return token in self.token_subclass_dict
+    def is_defined_token_label(self, token_label):
+        """Return true if `token_label` is currently defined as a token_label label."""
+        return token_label in self.token_subclass_dict
 
     def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
         # Remove from the list of defined tokens and from the token table.
         self.undef_token_subclass(token_label)
-        self.ignore_tokens.discard(token_label) # TODO pattern_matcher had ignore set now...
-        try:
-            del regex_data_dict[token_label]
-        except KeyError:
-            raise LexerException("Attempt to undefine token that was never defined.")
+        self.pattern_matcher.undef_pattern(token_label)
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.
@@ -615,8 +624,8 @@ class TokenTable(object):
             "must be undefined before it can be redefined.".format(token_label))
 
         if regex_string is not None:
-            regex_data = TokenPatternTuple(regex_string, None, on_ties)
-            self.pattern_matcher._insert_pattern(token_label, regex_data, ignore)
+            self.pattern_matcher.insert_pattern(token_label, regex_string,
+                                                 on_ties, ignore)
 
         # Initialize and return a bare-bones, default token_subclass.
         tok = self.create_token_subclass(token_label)
@@ -638,6 +647,19 @@ class TokenTable(object):
         self.end_token_label = end_token_label
         self.end_token_subclass = tok
         return tok
+
+    def get_winning_token_label_and_value(self, program, prog_unprocessed,
+                                          ERROR_MSG_TEXT_SNIPPET_SIZE):
+        """Return the next token label for the start of the current program
+        text, as in the string `program` and indexed by the numbers in
+        the tuple `prog_unprocessed`."""
+        return self.pattern_matcher.get_winning_token_label_and_value(
+                                              program, prog_unprocessed,
+                                              ERROR_MSG_TEXT_SNIPPET_SIZE)
+
+    def ignored_tokens(self):
+        """Return the set of ignored tokens."""
+        return self.pattern_matcher.ignore_tokens
 
 #
 # Lexer
@@ -1409,7 +1431,7 @@ class Lexer(object):
             if self.token_generator_state == GenTokenState.ordinary:
                 # Find the token_label and token_value of the matching prefix
                 # which is longest (with ties broken by the on_ties values).
-                label_and_value = token_table.pattern_matcher._find_winning_token_label_and_value(  # TODO pattern_matcher
+                label_and_value = token_table.get_winning_token_label_and_value(
                                     self.program, self.prog_unprocessed,
                                     self.ERROR_MSG_TEXT_SNIPPET_SIZE)
                 token_label, token_value = label_and_value
@@ -1458,7 +1480,7 @@ class Lexer(object):
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
                 # ------------------------------------------------------------------
-                if token_label in token_table.pattern_matcher.ignore_tokens: # TODO pattern_matcher
+                if token_label in token_table.ignored_tokens():
                     ignored_before_labels.append(token_label)
                     ignored_before_tokens.append(token_instance)
                     continue
@@ -1472,7 +1494,8 @@ class Lexer(object):
                 token_subclass_for_end = token_table.get_token_subclass(
                                                   token_table.end_token_label)
                 token_instance = token_subclass_for_end(None)
-                token_instance.line_and_char = (self.raw_linenumber, self.upcoming_raw_charnumber)
+                token_instance.line_and_char = (self.raw_linenumber,
+                                                self.upcoming_raw_charnumber)
 
             # Got a token to return.  Set some attributes and return it.
             token_instance.original_matched_string = original_matched_string
