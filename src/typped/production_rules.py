@@ -337,8 +337,6 @@ class Grammar(object):
         # (as an arg to def_production_rule).
         raise NotImplementedError("Not implemented.")
 
-# TODO make sure all overloads use raise_if_not if they can
-
 class Item(object):
     """Class representing the basic elements that make up the cases of the
     production rules."""
@@ -452,10 +450,12 @@ class Item(object):
 
     def __invert__(self):
         """Overload the prefix operator '~'."""
+        # TODO, raise_if_not doesn't work yet for unary operators.
         return Root(self)
 
     def __lt__(self, other):
         """Overload `<` from the left operand.  Reflected for '>'."""
+        raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
         return handle_overloaded_lt_comparison(self, other)
 
 class ItemList(object):
@@ -524,6 +524,7 @@ class ItemList(object):
 
     def __iadd__(self, other):
         """Overload `+=` operation."""
+        raise_if_not([Item, ItemList], [TokenNode], left_other, self, "+")
         self.data_list += ItemList(other).data_list
         return self    
 
@@ -538,16 +539,13 @@ class ItemList(object):
         return CaseList(left_other) | CaseList(self)
 
     def __lt__(self, other):
+        raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
         """Overload `<` from the left operand.  Reflected for '>'."""
         return handle_overloaded_lt_comparison(self, other)
 
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
 
-# TODO: can catch many unbalanced by checking `CaseList.args_to_lt_saved==False` in
-# all the overloaded ops like + and |.  Also check in conversions to CaseList to
-# catch at the very end (compile) if everything converted to that.... In fact, why not
-# just do that?
 
 class CaseList(object):
     """A list of `Case` objects.  Note, though, that a single Item or ItemList can
@@ -556,8 +554,10 @@ class CaseList(object):
         """Take an arbitrary number of `ItemList` arguments and make a `CaseList`
         out of them.  Arguments can include `Item` instances and `TokenNode`
         subclasses."""
-        # TODO: fix and uncomment this bug check after rest works, move vars to up above.
-        #if args_to_lt_saved:
+        # TODO: fix and uncomment this bug check after rest works.  Need to turn
+        # off checking when doing operations inside < processing... Can't take
+        # keyword arg with *args, at least not older Python, so maybe **kwargs.
+        #if saved_comparison_args:
         #    raise ParserGrammarRuleException("Error converting to CaseList:"
         #            " intermediate arguments to '<' are still saved.  Check"
         #            " for unbalanced '<' and '>' symbols.")
@@ -631,6 +631,7 @@ class CaseList(object):
         return CaseList(left_other, self)
 
     def __lt__(self, other):
+        raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
         """Overload `<` from the left operand.  Reflected for '>'."""
         return handle_overloaded_lt_comparison(self, other)
 
@@ -696,130 +697,28 @@ def Pratt(pstate=None, type_sig=None):
 
 def Optional(*args):
     # Usually just one argument
-    item_list = ItemList(*args)
-    item_list[0].modifiers.insert(0, "Optional(")
-    item_list[-1].modifiers.append(")")
-    return item_list
+    itemlist = ItemList(*args)
+    itemlist[0].modifiers.insert(0, "Optional(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
 
 def OneOrMore(*args):
     # Usually just one argument
-    item_list = ItemList(*args)
-    item_list[0].modifiers.insert(0, "OneOrMore(")
-    item_list[-1].modifiers.append(")")
-    return item_list
+    itemlist = ItemList(*args)
+    itemlist[0].modifiers.insert(0, "OneOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
 
 def ZeroOrMore(*args):
     # Usually just one argument
-    item_list = ItemList(*args)
-    item_list[0].modifiers.insert(0, "ZeroOrMore(")
-    item_list[-1].modifiers.append(")")
-    return item_list
+    itemlist = ItemList(*args)
+    itemlist[0].modifiers.insert(0, "ZeroOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
 
 def AnyOf(*args):
     # Maybe, give you a choice of possibilities from several.
     pass
-
-##
-## Handle overloading of '<' and '>' for expressions like: _<"string">_
-##
-#
-#args_to_lt_saved = False
-#args_to_lt = []
-#args_to_gt = []
-#
-## TODO TODO try implementing in the simpler "save all to one list"
-## way described up in the top docstring text.
-#
-#def handle_overloaded_lt_comparison(calling_instance, other):
-#    """Overload `<` from the left operand.  Reflected for the right operand."""
-#    # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
-#    global args_to_lt, args_to_gt
-#    if not args_to_lt: # Must be the < case not the > case.
-#        print("called < in", calling_instance.__class__.__name__)
-#        raise_if_not([str], [], other, calling_instance, "<")
-#
-#        # See if the previous > operator saved any arguments which need to be used.
-#        # If not, free the lock.
-#        if args_to_gt:
-#            recovered_args_from_gt = args_to_gt
-#            args_to_gt = []
-#            #print("recovered these args from gt:", recovered_args_from_gt)
-#            # Keep lock; need to process the saved args from gt.
-#        else:
-#            recovered_args_from_gt = []
-#            lock.acquire() # === THREAD LOCK =========
-#
-#        # Save the arguments for the closing > operator to use.
-#        args_to_lt += recovered_args_from_gt + [calling_instance, Rule(other)]
-#        # TODO below is less info, maybe better... still out of order...
-#        # args_to_lt = recovered_args_from_gt + [calling_instance, Rule(other)]
-#
-#        print("    saving", args_to_lt)
-#        return True # Always the l.h.s. of an "and" with the real value.
-#
-#    else:
-#        print("called > in", calling_instance.__class__.__name__)
-#        raise_if_not([str], [], other, calling_instance, ">")
-#        raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
-#        #print("   recovering saved args", args_to_lt)
-#        print("   new 'calling_instance' value is:", calling_instance)
-#        if not args_to_lt:
-#            raise ParserGrammarRuleException("No saved arguments for '>'."
-#                    " Missing a matching '<' before it?")
-#       
-#        # Save the arguments for the next < operator to use, but only if the
-#        # calling ItemList or CaseList on the right ends in a dummy Item (need
-#        # to save iff that is the case.  If not, release the lock and delete
-#        # the saved args_to_gt info.
-#        if not (isinstance(calling_instance, Item) or 
-#                isinstance(calling_instance, ItemList) or
-#                isinstance(calling_instance, CaseList)):
-#            raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
-#                    "or CaseList. It is {0}.".format(calling_instance))
-#
-#        if isinstance(calling_instance, ItemList):
-#            print("\n\nItemList end thing is:", calling_instance[-1])
-#            print("Its kind_of_item is", calling_instance[-1].kind_of_item, "\n\n")
-#
-#        if (#(isinstance(calling_instance, Item) and
-#            #                calling_instance.kind_of_item == "dummy") or
-#                (isinstance(calling_instance, ItemList) and
-#                            calling_instance[-1].kind_of_item == "dummy")
-#                or (isinstance(calling_instance, CaseList) and
-#                            calling_instance[-1][-1].kind_of_item == "dummy")):
-#            print("\n\nAPPENDING args_to_gt\n\n")
-#            args_to_gt += args_to_lt + [Rule(other), calling_instance]
-#        else:
-#            # TODO this is never called????  Only APPENDING shows up...
-#            print("\n\nCLEARING args_to_gt\n\n")
-#            args_to_gt = [] 
-#
-#        # Recover the arguments that the preceeding < operator saved.
-#        recovered_args_from_lt = args_to_lt
-#        args_to_lt = [] # Must be done so we know next comparison is <.
-#
-#        if not args_to_gt:
-#            lock.release() # === THREAD UNLOCK ========
-#
-#        args_to_combine = recovered_args_from_lt + [Rule(other), calling_instance]
-#        retval = combine_comparison_overload_pieces(*args_to_combine)
-#        print("   returning:", retval)
-#        return retval # The real value.
-#
-#def combine_comparison_overload_pieces(*args):
-#    # First convert left and right to CaseList.
-#    #left_case = CaseList(left_piece, ignore_lt_saved=True)
-#    #right_case = CaseList(right_piece, ignore_lt_saved=True)
-#    #del left_case[-1][-1] # Dummy Item for `_`
-#    #del right_case[0][0] # Dummy Item for `_`
-#    #middle_itemlist = left_case[-1] + ItemList(rule) + right_case[0]
-#    #middle_itemlist = CaseList(rule)
-#    #print("   args in combine are ============>", args)
-#    #del left_case[-1]
-#    #del right_case[0]
-#    retval = CaseList(*args, ignore_lt_saved=True)
-#    #print("   combined caselist is ====>", retval)
-#    return retval
 
 #
 # Handle overloading of '<' and '>' for expressions like: _<"string">_
