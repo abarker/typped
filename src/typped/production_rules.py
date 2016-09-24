@@ -106,6 +106,10 @@ We want something like this::
           | _<"egg">_ + k_minus + _<"egg">_
           )
 
+The symbol `_` is assumed to be a reference to a special dummy item.  If that
+symbol is not usable for some reason then some letter can be used, say
+`o<"wff">o`.  Or just use the `Rule` function instead.
+
 We know that the operators will always appear in the form
 `DummyItem<str>DummyItem`, where `DummyItem` is a special kind of item, and
 `str` is the string name for a production rule.  We can end up with these cases
@@ -122,21 +126,17 @@ and the reflection of each case:
     * CaseList < str > CaseList
 
 Because the comparison operators have the lowest precedence, they will be the
-last thing evaluated and will split the final `CaseList` like if someone
-arbitrarily cut up a string of balanced parentheses.  It is always possible to
+last thing evaluated and will split the final `CaseList` (like if someone
+arbitrarily cut up a string of balanced parentheses).  It is always possible to
 uniquely reassemble such a collection of sublists, and the comparison operators
 essentially need to do that.
 
 In order for this to work the comparison operators need to be defined for all
-three of the classes above.  The comparison operators need to convert the
-string in the middle into the `Item` for an rule and then reassemble the three
-objects in the correct way.  We know, though, that the rightmost `DummyItem` in
-the left object needs to join the leftmost `DummyItem` in the right object and
-be replaced by the `Item` for a rule corresponding to the string.
-
-Note that all non-dummy arguments can be promoted to `CaseList` to reduce the
-number of special cases.  So the methods of all classes but `CaseList` can
-simply promote their arguments and return the comparison of those items.
+three of the classes above.  They need to convert the string in the middle into
+the `Item` for an rule and then reassemble the three objects in the correct
+way.  We know, for example, that the rightmost `DummyItem` in the left object
+needs to join the leftmost `DummyItem` in the right object and be replaced by
+the `Item` for a rule corresponding to the string.
 
 There is another potential problem with the comparisons: It is well-known
 that comparison operators cannot in general be overloaded to work as
@@ -150,22 +150,29 @@ The general case fails because `x<y>z` is always equivalent to `x<y and y>z`
 with `y` only evaluated once.  The `and` operation is equivalent to `if x is
 false, then x, else y` with short-circuiting when `x` is false.  If `x` is
 false, then, `y` is never processed or looked at.  But if `x` is always false
-then non-chained comparisons are broken.  We don't care about the boolean
-values at all, though, so the first comparison can always be true.  We only
-want to join things together and return the combination.
+then non-chained comparisons are broken.  We, however, don't care about the
+boolean values at all in this context.  So the l.h.s. comparisons can always be
+true.  We only need to join things together and return the combination.
 
 In this case, since the middle object is a string and the ordering of
-operations is fixed, we only need to define the `<` operation, since the `>`
+operations is fixed.  Only the `<` operation needs to be defined, since the `>`
 object will also use that.  (The string type does not have `>` defined for the
 type so the reflection will be used, see
 https://docs.python.org/2/reference/datamodel.html).
 
-So the first comparison saves its arguments to a fixed location, then the next
-comparison fetches that value and can use that (and its own arguments) to get
-all three parts.  It then reassembles them and returns the result.
+The algorithm, then works as follows.  The first `<` operator gets a thread
+lock and writes its arguments to a global module variable.  The following `>`
+appends its arguments to the same list (leaving out duplicates).  This
+continues until the `>` operator only has a single dummy `Item` (the symbol
+`_`) as its right argument.  In that case the saved data is read, the save
+location is cleared, the thread lock is released, and the data is returned.
 
-TODO ======> See file in my scratch directory, last case.  This WORKS.  Not
-too complicated to code (more complicated to explain).
+The rule above for detecting the last `>` in a production expression works
+because the `>` symbol has the lowest precedence of any of the operators.
+So the rightmost one (say in `_<"wff">_`) *must* have `_` as its r.h.s.
+argument.  In every other case the r.h.s. is not an individual `Item`,
+since the smallest case is something like `_<"wff">_+_<"wff">_`.  The
+middle `_+_` is evaluated to produce an `ItemList`, which is not an `Item`.
 
 Modifiers for items
 -------------------
@@ -252,10 +259,13 @@ if __name__ == "__main__":
     pytest_helper.script_run(self_test=True, pytest_args="-v")
 
 import sys
-from .shared_settings_and_exceptions import ParserException, is_subclass_of
+import threading
+from .shared_settings_and_exceptions import ParserException, is_subclass_of, is_class
 
 from .pratt_types import TypeSig, TypeObject, NONE
 from .lexer import TokenNode
+
+lock = threading.Lock() # Only used for intermediate operations in overloaded < and >.
 
 class Grammar(object):
     """An object representing a context-free grammar.  It consists of
@@ -320,11 +330,13 @@ class Grammar(object):
         # (as an arg to def_production_rule).
         raise NotImplementedError("Not implemented.")
 
+# TODO make sure all overloads use raise_if_not if they can
+
 class Item(object):
     """Class representing the basic elements that make up the cases of the
     production rules."""
     
-    def __init__(self, value=None):
+    def __init__(self, value=None, allow_str=False):
         """The list `item_list` should be a list of production labels, tokens,
         type signatures, and integer operator precedence values.
         
@@ -359,7 +371,8 @@ class Item(object):
 
         if value is None: # A dummy Item.
             self.kind_of_item = "dummy"
-        elif isinstance(value, str): # A string production rule label.
+        elif isinstance(value, str):
+            # A string production rule label, unless the Tok function resets it.
             self.kind_of_item = "production"
         elif is_subclass_of(value, TokenNode): # A token.
             self.kind_of_item = "token"
@@ -395,7 +408,6 @@ class Item(object):
             if isinstance(self.type_sig.arg_types, TypeObject):
                 arg_list = self.type_sig.arg_types.type_label
                 if arg_list == NONE: arg_list = "None"
-                print("only one", arg_list)
             else:
                 arg_list = [t.type_label if t.type_label != NONE
                                          else "None" for t in arg_list]
@@ -412,104 +424,191 @@ class Item(object):
         return string
 
     def __add__(self, right_other):
-        return ItemList(self, right_other)
+        """Overload `+` from the left operand."""
+        raise_if_not([Item, ItemList], [TokenNode], right_other, self, "+")
+        return ItemList(self) + ItemList(right_other)
 
     def __radd__(self, left_other):
-        return ItemList(left_other, self)
+        """Overload `+` from the right operand."""
+        raise_if_not([Item, ItemList], [TokenNode], left_other, self, "+")
+        return ItemList(left_other) + ItemList(self)
 
     def __or__(self, right_other):
-        return CaseList(ItemList(self), ItemList(right_other))
+        """Overload `|` from the left operand."""
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], right_other, self, "|")
+        return CaseList(self) | CaseList(right_other)
 
     def __ror__(self, left_other):
-        return CaseList(ItemList(left_other), ItemList(self))
+        """Overload `|` from the right operand."""
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], left_other, self, "|")
+        return CaseList(left_other) | CaseList(self)
 
     def __invert__(self):
+        """Overload the prefix operator '~'."""
         return Root(self)
+
+    def __lt__(self, other):
+        """Overload `<` from the left operand.  Reflected for '>'."""
+        return handle_overloaded_lt_comparison(self, other)
 
 class ItemList(object):
     """A list of `Item` instances."""
     def __init__(self, *args):
-        item_list = []
+        """Initialize an `ItemList` with one or more items.  The arguments
+        can include `Item` instances, `ItemList` instances, and `TokenNode`
+        subclasses."""
+        self.item_list = []
         for a in args:
-            if isinstance(a, Item):
-                item_list.append(a)
+            if is_subclass_of(a, TokenNode):
+                self.item_list.append(Item(a))
+            elif isinstance(a, Item):
+                self.item_list.append(a)
             elif isinstance(a, ItemList):
-                item_list.extend(a.item_list)
+                self.item_list.extend(a.item_list)
             else:
-                item_list.append(Item(a)) # Assume can be made an item.
-        self.item_list = item_list
+                raise ParserGrammarRuleException("Unknown type in initializer to"
+                        " ItemList class.  Object is: {0}.".format(a))
+
+    def append(self, item):
+        """Append an item to the list."""
+        self.item_list.append(item)
 
     def __getitem__(self, index):
+        """Index an element of the `ItemList`.  Negative indices are implemented,
+        but slices are not."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
         return self.item_list[index]
+
+    def __setitem__(self, index, value):
+        """Set an element of the `ItemList`.  Negative indices are implemented,
+        but slices are not."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        self.item_list[index] = value
 
     def __len__(self):
         return len(self.item_list)
 
+    def __delitem__(self, index):
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        del self.item_list[index]
+
     def __add__(self, right_other):
+        raise_if_not([Item, ItemList], [TokenNode], right_other, self, "+")
+        """Overload `+` from the left operand."""
+        if not isinstance(right_other, ItemList):
+            return self + ItemList(right_other)
         return ItemList(self, right_other)
 
     def __radd__(self, left_other):
+        raise_if_not([Item, ItemList], [TokenNode], left_other, self, "+")
+        """Overload `+` from the right operand."""
+        if not isinstance(left_other, ItemList):
+            return ItemList(left_other) + self
         return ItemList(left_other, self)
 
     def __or__(self, right_other):
-        if isinstance(right_other, Item):
-            return CaseList(self, ItemList(right_other))
-        elif isinstance(right_other, ItemList):
-            return CaseList(self, right_other)
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], right_other, self, "|")
+        """Overload `|` from the left operand."""
+        return CaseList(self) | CaseList(right_other)
 
     def __ror__(self, left_other):
-        if isinstance(left_other, Item):
-            return CaseList(ItemList(left_other), self)
-        elif isinstance(left_other, ItemList):
-            return CaseList(left_other, self)
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], left_other, self, "|")
+        """Overload `|` from the right operand."""
+        return CaseList(left_other) | CaseList(self)
+
+    def __lt__(self, other):
+        """Overload `<` from the left operand.  Reflected for '>'."""
+        return handle_overloaded_lt_comparison(self, other)
 
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.item_list]))
 
+# TODO: can catch many unbalanced by checking `CaseList.args_to_lt_saved==False` in
+# all the overloaded ops like + and |.  Also check in conversions to CaseList to
+# catch at the very end (compile) if everything converted to that.... In fact, why not
+# just do that?
+
 class CaseList(object):
     """A list of `Case` objects.  Note, though, that a single Item or ItemList can
     also be a case (when there are no "or" operations to form the case)."""
-    def __init__(self, *args):
+    def __init__(self, *args, ignore_lt_saved=False):
         """Take an arbitrary number of `ItemList` arguments and make a `CaseList`
-        out of them."""
+        out of them.  Arguments can include `Item` instances and `TokenNode`
+        subclasses."""
+        # TODO: uncomment this bug check after rest works, move vars to up above.
+        #if args_to_lt_saved and not ignore_lt_saved:
+        #    raise ParserGrammarRuleException("Error converting to CaseList:"
+        #            " intermediate arguments to '<' are still saved.  Check"
+        #            " for unbalanced '<' and '>' symbols.")
         self.list_of_item_lists = []
         for a in args:
-            if isinstance(a, CaseList):
-                self.list_of_items.extend(a)
+            if is_subclass_of(a, TokenNode):
+                self.list_of_item_lists.append(ItemList(a))
+            elif isinstance(a, Item):
+                self.list_of_item_lists.append(ItemList(a))
             elif isinstance(a, ItemList):
                 self.list_of_item_lists.append(a)
+            elif isinstance(a, CaseList):
+                self.list_of_item_lists.extend(a)
             else:
-                self.list_of_item_lists.append(ItemList(a))
+                raise ParserGrammarRuleException("Unknown type in initializer to"
+                        " CaseList class.  Object is: {0}.".format(a))
+
+    def append(self, item):
+        """Append an item to the list."""
+        self.item_list.append(item)
 
     def __getitem__(self, index):
+        """Index and element of the `ItemList`.  Negative indices are implemented,
+        but slices are not."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
         return self.list_of_item_lists[index]
+
+    def __setitem__(self, index, value):
+        """Set an element of the `ItemList`.  Negative indices are implemented,
+        but slices are not."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        self.list_of_item_lists[index] = value
 
     def __len__(self):
         return len(self.list_of_item_lists)
 
-    def __repr__(self):
-        return "CaseList({0})".format(", ".join([str(i) for i in self.list_of_item_lists]))
+    def __delitem__(self, index):
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        del self.list_of_item_lists[index]
+
+    def __add__(self, right_other):
+        raise_if_not([], [], right_other, self, "+") # Error to add CaseLists.
+
+    def __radd__(self, left_other):
+        raise_if_not([], [], left_other, self, "+") # Error to add CaseLists.
 
     def __or__(self, right_other):
-        # Could probably just make a CaseList out of everything now, since the
-        # __init__ handles all the cases.
-        if isinstance(right_other, Item):
-            return self | ItemList(right_other)
-        elif isinstance(right_other, ItemList):
+        """Overload `|` from the left operand."""
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], right_other, self, "|")
+        if not isinstance(right_other, CaseList):
             return self | CaseList(right_other)
-        elif isinstance(right_other, CaseList):
-            self.list_of_item_lists.extend(right_other.list_of_item_lists)
-            return self
+        return CaseList(self, right_other)
 
     def __ror__(self, left_other):
-        if isinstance(left_other, Item):
-            return ItemList(left_other) | self
-        elif isinstance(left_other, ItemList):
+        """Overload `|` from the right operand."""
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], left_other, self, "|")
+        if not isinstance(left_other, CaseList):
             return CaseList(left_other) | self
-        elif isinstance(left_other, CaseList):
-            left_other.list_of_item_lists.extend(self.list_of_item_lists)
-            self.list_of_item_lists = left_other.list_of_item_lists
-            return self
+        return CaseList(left_other, self)
+
+    def __lt__(self, other):
+        """Overload `<` from the left operand.  Reflected for '>'."""
+        return handle_overloaded_lt_comparison(self, other)
+
+    def __repr__(self):
+        return "CaseList({0})".format(", ".join([str(i) for i in self.list_of_item_lists]))
 
 def Rule(production_rule_label):
     """Return an `Item` to represent the rule with the string label
@@ -521,9 +620,12 @@ def Rule(production_rule_label):
 
 def Tok(token):
     """Turn a token into an item.  Used before overloading defined on tokens."""
-    # TODO: later allow token labels, too.  Just return a token item with an
-    # extra attribute such as is_token_label.  The compile can look up.
-    item = Item(token)
+    # TODO: when compile handles these it needs to turn string values into
+    # the actual tokens by looking them up.
+    if not (isinstance(token, str) or is_subclass_of(token, TokenNode)):
+        raise ParserGrammarRuleException("Bad argument {0} passed to the"
+                " Tok function.".format(token))
+    item = Item(token, allow_str=True)
     item.kind_of_item = "token" # Not needed.
     return item
 
@@ -586,6 +688,226 @@ def AnyOf(*args):
     # Maybe, give you a choice of possibilities from several.
     pass
 
+##
+## Handle overloading of '<' and '>' for expressions like: _<"string">_
+##
+#
+#args_to_lt_saved = False
+#args_to_lt = []
+#args_to_gt = []
+#
+## TODO TODO try implementing in the simpler "save all to one list"
+## way described up in the top docstring text.
+#
+#def handle_overloaded_lt_comparison(calling_instance, other):
+#    """Overload `<` from the left operand.  Reflected for the right operand."""
+#    # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
+#    global args_to_lt, args_to_gt
+#    if not args_to_lt: # Must be the < case not the > case.
+#        print("called < in", calling_instance.__class__.__name__)
+#        raise_if_not([str], [], other, calling_instance, "<")
+#
+#        # See if the previous > operator saved any arguments which need to be used.
+#        # If not, free the lock.
+#        if args_to_gt:
+#            recovered_args_from_gt = args_to_gt
+#            args_to_gt = []
+#            #print("recovered these args from gt:", recovered_args_from_gt)
+#            # Keep lock; need to process the saved args from gt.
+#        else:
+#            recovered_args_from_gt = []
+#            lock.acquire() # === THREAD LOCK =========
+#
+#        # Save the arguments for the closing > operator to use.
+#        args_to_lt += recovered_args_from_gt + [calling_instance, Rule(other)]
+#        # TODO below is less info, maybe better... still out of order...
+#        # args_to_lt = recovered_args_from_gt + [calling_instance, Rule(other)]
+#
+#        print("    saving", args_to_lt)
+#        return True # Always the l.h.s. of an "and" with the real value.
+#
+#    else:
+#        print("called > in", calling_instance.__class__.__name__)
+#        raise_if_not([str], [], other, calling_instance, ">")
+#        raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
+#        #print("   recovering saved args", args_to_lt)
+#        print("   new 'calling_instance' value is:", calling_instance)
+#        if not args_to_lt:
+#            raise ParserGrammarRuleException("No saved arguments for '>'."
+#                    " Missing a matching '<' before it?")
+#       
+#        # Save the arguments for the next < operator to use, but only if the
+#        # calling ItemList or CaseList on the right ends in a dummy Item (need
+#        # to save iff that is the case.  If not, release the lock and delete
+#        # the saved args_to_gt info.
+#        if not (isinstance(calling_instance, Item) or 
+#                isinstance(calling_instance, ItemList) or
+#                isinstance(calling_instance, CaseList)):
+#            raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
+#                    "or CaseList. It is {0}.".format(calling_instance))
+#
+#        if isinstance(calling_instance, ItemList):
+#            print("\n\nItemList end thing is:", calling_instance[-1])
+#            print("Its kind_of_item is", calling_instance[-1].kind_of_item, "\n\n")
+#
+#        if (#(isinstance(calling_instance, Item) and
+#            #                calling_instance.kind_of_item == "dummy") or
+#                (isinstance(calling_instance, ItemList) and
+#                            calling_instance[-1].kind_of_item == "dummy")
+#                or (isinstance(calling_instance, CaseList) and
+#                            calling_instance[-1][-1].kind_of_item == "dummy")):
+#            print("\n\nAPPENDING args_to_gt\n\n")
+#            args_to_gt += args_to_lt + [Rule(other), calling_instance]
+#        else:
+#            # TODO this is never called????  Only APPENDING shows up...
+#            print("\n\nCLEARING args_to_gt\n\n")
+#            args_to_gt = [] 
+#
+#        # Recover the arguments that the preceeding < operator saved.
+#        recovered_args_from_lt = args_to_lt
+#        args_to_lt = [] # Must be done so we know next comparison is <.
+#
+#        if not args_to_gt:
+#            lock.release() # === THREAD UNLOCK ========
+#
+#        args_to_combine = recovered_args_from_lt + [Rule(other), calling_instance]
+#        retval = combine_comparison_overload_pieces(*args_to_combine)
+#        print("   returning:", retval)
+#        return retval # The real value.
+#
+#def combine_comparison_overload_pieces(*args):
+#    # First convert left and right to CaseList.
+#    #left_case = CaseList(left_piece, ignore_lt_saved=True)
+#    #right_case = CaseList(right_piece, ignore_lt_saved=True)
+#    #del left_case[-1][-1] # Dummy Item for `_`
+#    #del right_case[0][0] # Dummy Item for `_`
+#    #middle_itemlist = left_case[-1] + ItemList(rule) + right_case[0]
+#    #middle_itemlist = CaseList(rule)
+#    #print("   args in combine are ============>", args)
+#    #del left_case[-1]
+#    #del right_case[0]
+#    retval = CaseList(*args, ignore_lt_saved=True)
+#    #print("   combined caselist is ====>", retval)
+#    return retval
+
+#
+# Handle overloading of '<' and '>' for expressions like: _<"string">_
+#
+
+inside_matched_pair = False
+saved_comparison_args = []
+locked = False
+
+def handle_overloaded_lt_comparison(calling_instance, other):
+    """Overload `<` from the left operand.  Reflected for the right operand."""
+    # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
+    global inside_matched_pair, saved_comparison_args, locked
+
+    if not inside_matched_pair: # Must be the < case not the > case.
+        print("\ncalled < in", calling_instance.__class__.__name__)
+        # === THREAD LOCK =========
+        if not locked:
+            lock.acquire()
+            locked = True
+        inside_matched_pair = True
+        raise_if_not([str], [], other, calling_instance, "<")
+
+        # Save the arguments for the closing > operator to use.
+        saved_comparison_args += [calling_instance, Rule(other)]
+
+        print("    saving", saved_comparison_args)
+        return True # Always the l.h.s. of an "and" with the real value.
+
+    else: # not inside_matched_pair
+        print("\ncalled > in", calling_instance.__class__.__name__)
+        inside_matched_pair = False # Must be done so we know next comparison is <.
+        raise_if_not([str], [], other, calling_instance, ">")
+        raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
+        print("   new 'calling_instance' value is:", calling_instance)
+      
+        # Save the arguments for the next < operator to use, but only if the
+        # calling ItemList or CaseList on the right ends in a dummy Item (need
+        # to save iff that is the case.  If not, release the lock and delete
+        # the saved saved_comparison_args info.
+        if not (isinstance(calling_instance, Item) or 
+                isinstance(calling_instance, ItemList) or
+                isinstance(calling_instance, CaseList)):
+            raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
+                    "or CaseList. It is {0}.".format(calling_instance))
+
+        if ((isinstance(calling_instance, ItemList) and
+                            calling_instance[-1].kind_of_item == "dummy")
+                or (isinstance(calling_instance, CaseList) and
+                            calling_instance[-1][-1].kind_of_item == "dummy")):
+            print("\n\nAPPENDING saved_comparison_args\n\n")
+            #saved_comparison_args += [Rule(other), calling_instance]
+            saved_comparison_args += [calling_instance]
+            recovered_args = []
+            return True
+        else:
+            print("\n\nCLEARING saved_comparison_args\n\n")
+            #recovered_args = saved_comparison_args + [Rule(other), calling_instance]
+            recovered_args = saved_comparison_args + [calling_instance]
+            saved_comparison_args = []
+            if locked:
+                locked = False
+                lock.release() # === THREAD UNLOCK ========
+            return combine_comparison_overload_pieces(*recovered_args)
+
+def combine_comparison_overload_pieces(*args):
+    caselist = CaseList(*args, ignore_lt_saved=True) # Converts all to ItemList.
+    return caselist
+    i = -1
+    while True: 
+        i += 1
+        print("\n====> caselist is:\n   ", caselist, "\n")
+        if i == len(caselist):
+            break
+        if caselist[i][-1].kind_of_item == "dummy":
+            # Remove the dummy items.
+            del caselist[i][-1]
+            caselist[i] = caselist[i] + caselist[i+1]
+
+            for j in range(i, len(caselist)):
+                if caselist[j][0].kind_of_item == "dummy":
+                    del caselist[j][0]
+                    caselist[i] = caselist[i] + caselist[j]
+                    break
+                caselist[i] = caselist[i] + caselist[j]
+
+            for j in reversed(range(1,j+1)):
+                del caselist[i+j]
+            # Resume the loop.
+            i -= 1
+            continue
+    return caselist
+
+#
+# Utility functions.
+#
+
+def raise_if_not(instanceof_list, issubclass_list, operand, calling_instance,
+                 operator_string):
+    """Error-checking routine called from overloaded operators.  If `operand`
+    is not an instance a class in `instanceof_list` or a subclass of a class in
+    `issubclass_list` then raise a `ParserGrammarRuleException` with a helpful
+    error message."""
+    if any([isinstance(operand, classname) for classname in instanceof_list]):
+        return
+    if any([is_subclass_of(operand, classname) for classname in issubclass_list]):
+        return
+    if is_class(operand):
+        operand_string = "class " + operand.__name__
+    else:
+        operand_string = "instances of class " + operand.__class__.__name__
+    print("calling instance is", calling_instance)
+    raise ParserGrammarRuleException("Overloading of operator '{0}' is not"
+            " defined between {1} and instances of class {2}.  The two"
+            " operands are {3} and {4}."
+            .format(operator_string, operand_string, 
+                    calling_instance.__class__.__name__,
+                    calling_instance, operand))
+
 #
 # Exceptions.
 #
@@ -593,6 +915,8 @@ def AnyOf(*args):
 class ParserGrammarRuleException(ParserException):
     """Exception raised by grammar classes."""
     pass
+
+# TODO: time for separate test file.
 
 #
 # Tests.
@@ -673,9 +997,9 @@ def test_basic_expression_grammar():
     print()
     print()
     simple_example = parser.parse("4*4", pstate="expression").tree_repr(3)
-    print(simple_example)
+    print("simple_example:", simple_example)
     simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    print(simple_string_rep_example)
+    print("simple_string_rep_example", simple_string_rep_example)
     assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
                          "<k_null-string,'term'>(<k_null-string,'factor'>("
                          "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
@@ -699,18 +1023,48 @@ def test_overload_expression_grammar():
 
     tok_str = Tok(k_number)
     assert tok_str.kind_of_item == "token"
-    print(str(  Tok(k_number)[4]  ))
-    print(str(  k_number[10] + Rule("factor")  ))
-    print(str(  Tok(k_number) + Sig(Rule("factor"), none_sig) | Rule("term")  ))
-    print(str(  Tok(k_number) + ~Rule("factor") | Root(Rule("term")) | ~Pratt() | k_number  ))
-    print(str(  k_number | k_number | Root(Rule("term")) | Pratt()  ))
-    print(str(  k_number + k_number | k_number | Root(Rule("term")) | ~k_plus  ))
+    print("1", str(  Tok(k_number)[4]  ))
+    print("2", str(  Tok(k_number)[4]  ))
+    print("3", str(  k_number[10] + Rule("factor")  ))
+    print("4", str(  Tok(k_number) + Sig(Rule("factor"), none_sig) | Rule("term")  ))
+    print("5", str(  Tok(k_number) + ~Rule("factor") | Root(Rule("term")) | ~Pratt() | k_number  ))
+    print("6", str(  k_number | k_number | Root(Rule("term")) | Pratt()  ))
+    print("7", str(  k_number + k_number | k_number | Root(Rule("term")) | ~k_plus  ))
 
     wff = ( Rule("wff") + ~k_plus[10] + Rule("wff")
           | Rule("wff") + ~k_ast[20]  + Rule("wff")
           | Optional(Rule("wff") + Optional(k_plus + k_plus))
           )
     print(str(wff))
+
+    _ = Item()
+
+    print()
+    print("======================")
+    #print("printing CaseList(_<right1) value:", CaseList(_<"right1")) # ERROR test
+    #print("\nprinting _<right1>_ value:", _<"right1">_, "\n")
+
+    # BELOW case -1 works without the rightmost "right1" rule (case -2), but not with it.
+    # It is dropping the left part.  The next-to-last > still needs to save it,
+    # but currently doesn't (how to turn off if it does??)
+    #
+    # With no | the things seem to work OK (what has been tested).  They delete
+    # info on the closing > and no info is saved for > if 
+    print("\nprinting combo-2:", _<"combo-2">_+_<"left1">_ + _<"left2">_ + Rule("rule2.5") + Rule("rule2.6") + _<"left3">_ + _<"left4">_ + _<"left5">_, "\n")
+    print("\nprinting combo-1:", _<"left1">_ + _<"left2">_ + Rule("rule2.5") \
+            + Rule("rule2.6") + _<"left3">_ + _<"left4">_ 
+            | k_number + _<"right1">_, "\n")
+
+    #print("\nprinting combo0:", CaseList(Rule("left")) | _<"right1">_)
+    #print("\nprinting combo0.5:", CaseList(Rule("left")) | _<"right1">_ + Rule("right2"))
+    #print("\nprinting combo1:", CaseList(Rule("left"))
+    #       | _<"right1">_ + _<"right2">_, "\n")
+    #print("\nprinting combo1.5:", CaseList(Rule("left"))
+    #        | _<"right1">_ + _<"right2">_ + _<"right3">_, "\n")
+    #print("\nprinting combo1.6:", CaseList(Rule("left"))
+    #        | _<"right1">_ + _<"right2">_ + _<"right3">_
+    #        | k_number + _<"far_right">_, "\n")
+    #print("\nprinting combo2:", CaseList(Rule("left")) | _<"right">_)
 
     fail()
 
