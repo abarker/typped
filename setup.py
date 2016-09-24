@@ -29,9 +29,9 @@ setup(
     #description="A typped Pratt parser which employs dispatching of handler functions.",
     description="A parser.", # TODO switch
     #url="https://github.com/pypa/sampleproject",
-    keywords=["parser"],
-    #keywords=["parser", "pratt", "typed language"],
-    install_requires=["wheel", "pytest>=2.0"],
+    keywords=["parser", "Pratt", "grammar", "language", "syntax", "syntax tree",
+              "BNF", "EBNF", "typped"],
+    install_requires=["pytest-helper", "pytest>=2.0"],
 
     license="MIT",
     classifiers=[
@@ -40,7 +40,7 @@ setup(
         #   3 - Alpha
         #   4 - Beta
         #   5 - Production/Stable
-        "Development Status :: 4 - Beta",
+        "Development Status :: 3 - Alpha",
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: Unix',
