@@ -59,8 +59,16 @@ Function    Arguments                   Shortcut
 Overloaded operator API
 -----------------------
 
-The basic objects that make up rule definitions are `Item` objects,
-`ItemList` objects, and `CaseList` objects.
+The basic objects that make up rule definitions are `Item` objects, `ItemList`
+objects, and `CaseList` objects.  The latter two are just list-like objects
+with most of the list operations overloaded.  The one major difference is in
+the constructor.  They both take an arbitrary number of arguments, and make all
+elements of the list after converting them to the appropriate type.  An
+`ItemList` only holds `Item` instances, and a `CaseList` only holds `ItemList`
+instances.  One difference from ordinary lists is that when an `ItemList` is
+passed another `ItemList` in its initializer it just extends the list with the
+elements of that list (and similarly for `CaseList`).  So these lists do not
+nest.
 
 Overloads for `Item` objects are:
 
@@ -457,43 +465,49 @@ class ItemList(object):
         """Initialize an `ItemList` with one or more items.  The arguments
         can include `Item` instances, `ItemList` instances, and `TokenNode`
         subclasses."""
-        self.item_list = []
+        self.data_list = []
         for a in args:
             if is_subclass_of(a, TokenNode):
-                self.item_list.append(Item(a))
+                self.data_list.append(Item(a))
             elif isinstance(a, Item):
-                self.item_list.append(a)
+                self.data_list.append(a)
             elif isinstance(a, ItemList):
-                self.item_list.extend(a.item_list)
+                self.data_list.extend(a.data_list)
             else:
                 raise ParserGrammarRuleException("Unknown type in initializer to"
                         " ItemList class.  Object is: {0}.".format(a))
 
     def append(self, item):
         """Append an item to the list."""
-        self.item_list.append(item)
+        self.data_list.append(item) # What if not an item?
+
+    def insert(self, index, item):
+        """Insert an item."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        self.data_list.insert(index, data_item) # What if not an item?
 
     def __getitem__(self, index):
         """Index an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        return self.item_list[index]
+        return self.data_list[index]
 
     def __setitem__(self, index, value):
         """Set an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.item_list[index] = value
+        self.data_list[index] = value
 
     def __len__(self):
-        return len(self.item_list)
+        return len(self.data_list)
 
     def __delitem__(self, index):
         if index < 0: # Handle negative indices.
             index += len(self)
-        del self.item_list[index]
+        del self.data_list[index]
 
     def __add__(self, right_other):
         raise_if_not([Item, ItemList], [TokenNode], right_other, self, "+")
@@ -508,6 +522,11 @@ class ItemList(object):
         if not isinstance(left_other, ItemList):
             return ItemList(left_other) + self
         return ItemList(left_other, self)
+
+    def __iadd__(self, other):
+        """Overload `+=` operation."""
+        self.data_list += ItemList(other).data_list
+        return self    
 
     def __or__(self, right_other):
         raise_if_not([Item, ItemList, CaseList], [TokenNode], right_other, self, "|")
@@ -524,7 +543,7 @@ class ItemList(object):
         return handle_overloaded_lt_comparison(self, other)
 
     def __repr__(self):
-        return "ItemList({0})".format(", ".join([str(i) for i in self.item_list]))
+        return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
 
 # TODO: can catch many unbalanced by checking `CaseList.args_to_lt_saved==False` in
 # all the overloaded ops like + and |.  Also check in conversions to CaseList to
@@ -534,25 +553,25 @@ class ItemList(object):
 class CaseList(object):
     """A list of `Case` objects.  Note, though, that a single Item or ItemList can
     also be a case (when there are no "or" operations to form the case)."""
-    def __init__(self, *args, ignore_lt_saved=False):
+    def __init__(self, *args):
         """Take an arbitrary number of `ItemList` arguments and make a `CaseList`
         out of them.  Arguments can include `Item` instances and `TokenNode`
         subclasses."""
-        # TODO: uncomment this bug check after rest works, move vars to up above.
-        #if args_to_lt_saved and not ignore_lt_saved:
+        # TODO: fix and uncomment this bug check after rest works, move vars to up above.
+        #if args_to_lt_saved:
         #    raise ParserGrammarRuleException("Error converting to CaseList:"
         #            " intermediate arguments to '<' are still saved.  Check"
         #            " for unbalanced '<' and '>' symbols.")
-        self.list_of_item_lists = []
+        self.data_list = []
         for a in args:
             if is_subclass_of(a, TokenNode):
-                self.list_of_item_lists.append(ItemList(a))
+                self.data_list.append(ItemList(a))
             elif isinstance(a, Item):
-                self.list_of_item_lists.append(ItemList(a))
+                self.data_list.append(ItemList(a))
             elif isinstance(a, ItemList):
-                self.list_of_item_lists.append(a)
+                self.data_list.append(a)
             elif isinstance(a, CaseList):
-                self.list_of_item_lists.extend(a)
+                self.data_list.extend(a)
             else:
                 raise ParserGrammarRuleException("Unknown type in initializer to"
                         " CaseList class.  Object is: {0}.".format(a))
@@ -561,33 +580,42 @@ class CaseList(object):
         """Append an item to the list."""
         self.item_list.append(item)
 
+    def insert(self, index, item):
+        """Insert an item."""
+        if index < 0: # Handle negative indices.
+            index += len(self)
+        self.data_list.insert(index, data_item)
+
     def __getitem__(self, index):
         """Index and element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        return self.list_of_item_lists[index]
+        return self.data_list[index]
 
     def __setitem__(self, index, value):
         """Set an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.list_of_item_lists[index] = value
+        self.data_list[index] = value
 
     def __len__(self):
-        return len(self.list_of_item_lists)
+        return len(self.data_list)
 
     def __delitem__(self, index):
         if index < 0: # Handle negative indices.
             index += len(self)
-        del self.list_of_item_lists[index]
+        del self.data_list[index]
 
     def __add__(self, right_other):
         raise_if_not([], [], right_other, self, "+") # Error to add CaseLists.
 
     def __radd__(self, left_other):
         raise_if_not([], [], left_other, self, "+") # Error to add CaseLists.
+
+    def __iadd__(self, other):
+        raise_if_not([], [], other, self, "+=") # Error to add CaseLists.
 
     def __or__(self, right_other):
         """Overload `|` from the left operand."""
@@ -608,7 +636,11 @@ class CaseList(object):
         return handle_overloaded_lt_comparison(self, other)
 
     def __repr__(self):
-        return "CaseList({0})".format(", ".join([str(i) for i in self.list_of_item_lists]))
+        return "CaseList({0})".format(", ".join([str(i) for i in self.data_list]))
+
+def add_caselists(c1, c2):
+    """Not overloaded in the class, but this function will add caselists."""
+    return CaseList(c1, c2)
 
 def Rule(production_rule_label):
     """Return an `Item` to represent the rule with the string label
@@ -666,22 +698,22 @@ def Pratt(pstate=None, type_sig=None):
 def Optional(*args):
     # Usually just one argument
     item_list = ItemList(*args)
-    item_list.item_list[0].modifiers.insert(0, "Optional(")
-    item_list.item_list[-1].modifiers.append(")")
+    item_list[0].modifiers.insert(0, "Optional(")
+    item_list[-1].modifiers.append(")")
     return item_list
 
 def OneOrMore(*args):
     # Usually just one argument
     item_list = ItemList(*args)
-    item_list.item_list[0].modifiers.insert(0, "OneOrMore(")
-    item_list.item_list[-1].modifiers.append(")")
+    item_list[0].modifiers.insert(0, "OneOrMore(")
+    item_list[-1].modifiers.append(")")
     return item_list
 
 def ZeroOrMore(*args):
     # Usually just one argument
     item_list = ItemList(*args)
-    item_list.item_list[0].modifiers.insert(0, "ZeroOrMore(")
-    item_list.item_list[-1].modifiers.append(")")
+    item_list[0].modifiers.insert(0, "ZeroOrMore(")
+    item_list[-1].modifiers.append(")")
     return item_list
 
 def AnyOf(*args):
@@ -855,7 +887,7 @@ def handle_overloaded_lt_comparison(calling_instance, other):
             return combine_comparison_overload_pieces(*recovered_args)
 
 def combine_comparison_overload_pieces(*args):
-    caselist = CaseList(*args, ignore_lt_saved=True) # Converts all to ItemList.
+    caselist = CaseList(*args) # Converts all to ItemList.
     return caselist
     i = -1
     while True: 
@@ -886,27 +918,37 @@ def combine_comparison_overload_pieces(*args):
 # Utility functions.
 #
 
-def raise_if_not(instanceof_list, issubclass_list, operand, calling_instance,
-                 operator_string):
-    """Error-checking routine called from overloaded operators.  If `operand`
+def raise_if_not(instanceof_list, issubclass_list, operand_or_arg, calling_instance,
+                 operator_or_method_string, kind="op"):
+    """Error-checking routine called from overloaded operators.  If `operand_or_arg`
     is not an instance a class in `instanceof_list` or a subclass of a class in
     `issubclass_list` then raise a `ParserGrammarRuleException` with a helpful
-    error message."""
-    if any([isinstance(operand, classname) for classname in instanceof_list]):
+    error message.
+    
+    If `kind` is `"op"` the message is for an operator.  If it is `"method"`
+    then the message is for a method."""
+    if any([isinstance(operand_or_arg, classname) for classname in instanceof_list]):
         return
-    if any([is_subclass_of(operand, classname) for classname in issubclass_list]):
+    if any([is_subclass_of(operand_or_arg, classname) for classname in issubclass_list]):
         return
-    if is_class(operand):
-        operand_string = "class " + operand.__name__
+    if is_class(operand_or_arg):
+        operand_string = "class " + operand_or_arg.__name__
     else:
-        operand_string = "instances of class " + operand.__class__.__name__
-    print("calling instance is", calling_instance)
-    raise ParserGrammarRuleException("Overloading of operator '{0}' is not"
-            " defined between {1} and instances of class {2}.  The two"
-            " operands are {3} and {4}."
-            .format(operator_string, operand_string, 
-                    calling_instance.__class__.__name__,
-                    calling_instance, operand))
+        operand_string = "instances of class " + operand_or_arg.__class__.__name__
+    if kind == "op":
+        raise ParserGrammarRuleException("Overloading of operator '{0}' is not"
+                " defined between {1} and instances of class {2}.  The two"
+                " operands are {3} and {4}."
+                .format(operator_or_method_string, operand_string, 
+                        calling_instance.__class__.__name__,
+                        calling_instance, operand_or_arg))
+    elif kind == "method": # TODO this isn't tested.
+        raise ParserGrammarRuleException("Method '{0}' of {1} is not"
+                " defined for arguments that are {1}."
+                .format(operator_or_method_string,
+                        calling_instance.__class__.__name__, operand_string))
+    else:
+        raise ParserGrammarRuleException("Bad flag to raise_if_not.")
 
 #
 # Exceptions.
