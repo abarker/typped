@@ -32,7 +32,7 @@ def def_expression_tokens_and_literals(parser):
     k_rpar = parser.def_token("k_rpar", r"\)")
 
     # Numbers.
-    k_number = parser.def_token("k_number", r"[0-9]+")
+    k_number = parser.def_token("k_number", r"[1-9][0-9]*")
 
     #
     # Define the literals (terminals).
@@ -129,20 +129,21 @@ def test_basic_expression_grammar():
     g.compile("expression", parser, locals())
 
     #parser.pstate_stack = ["expression"]
-    print()
-    print()
-    simple_example = parser.parse("4*4", pstate="expression").tree_repr(3)
-    print("simple_example:", simple_example)
-    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    print("simple_string_rep_example", simple_string_rep_example)
-    
-    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
-                         "<k_null-string,'term'>(<k_null-string,'factor'>("
-                         "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
-                         "<k_number,'4'>)))")
+    #parser.top_level_production = True # Document if keep...
 
-    # TODO below parse fails.  It should parse as follows:
+    print()
+    print()
+    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
+    print("simple_string_rep_example:")
+    print(simple_string_rep_example)
+    
+    #simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
+    #assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
+    #                     "<k_null-string,'term'>(<k_null-string,'factor'>("
+    #                     "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
+    #                     "<k_number,'4'>)))")
+
+    # TODO below parse fails.  Stops after first (.  It should parse as follows:
     # expression
     #     term
     #        factor            # First two fail, third succeeds.
@@ -161,8 +162,9 @@ def test_basic_expression_grammar():
     #           k_rpar, )
     #  Success.
     another_example = "5 * (444 + 32)"
+    print(another_example, "\n")
     another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
-    print(another_example, "\n\n", another_example_result)
+    print(another_example_result)
     fail()
 
 def test_overload_expression_grammar():

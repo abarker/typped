@@ -1269,6 +1269,9 @@ class PrattParser(object):
         if overload_on_ret_types:
             self.overload_on_arg_types = True
 
+        self.pstate_stack = [] # Stack of production rules used in grammar parsing.
+        self.top_level_production = False # If true, force prod. rule to consume all.
+
     #
     # Methods defining tokens.
     #
@@ -1789,12 +1792,13 @@ class PrattParser(object):
         # TODO: let the start state know it is the start state, so when
         # it is the *first* call of the start state it can make sure
         # that the end of the text has been reached.
-        print("\nDefining production rule for rule with label:", rule_label)
+        print("\nRegistering production rule with label:", rule_label)
         if not self.null_string_token_subclass:
             self.def_null_string_token() # Define null-string if necessary.
 
         caselist = grammar[rule_label]
         print("\nThe caselist for the rule is", caselist)
+
         first_case = caselist[0]
         first_item_of_first_case = first_case[0]
 
@@ -1803,10 +1807,11 @@ class PrattParser(object):
         # special-case handling in later code.
         null_token = self.null_string_token_subclass
         if first_item_of_first_case.kind_of_item == "token":
-            # Register handler with the preconditioned case[0] token.
+            # Register handler with a precondition on the case[0] token.
             # --> Here and elsewhere, assuming the token_label and pstate uniquely
             # identify in both cases, but may need more preconds (later). Todo
             peek_token = first_item_of_first_case.value
+            print("XXXXXXXXXX registering peek token of", peek_token)
             self.def_first_case_start_handlers(rule_label, null_token, caselist,
                                                         peek_token.token_label)
         elif first_item_of_first_case.kind_of_item == "production":
@@ -1823,12 +1828,18 @@ class PrattParser(object):
                        #ast_label=None):
 
         """Define the head and tail handlers for the null-string token that is
-        first called for the production.  with label `pstate_label`.  These
-        handlers handle all the cases of the production, backtracking on
-        failure and trying the next case, etc.  They act very much like the
-        usual recursive descent function for parsing a production rule, except
-        that to make a recursive call they push a production state on the stack
-        `pstate_stack` and call `recursive_parse`.
+        called to parse a production rule (i.e., called when precondition that
+        the state label `rule_label` is on the top of the `pstate_stack` is
+        satisfied).
+        
+        These handlers handle all the cases of the production rule,
+        backtracking on failure and trying the next case, etc.  They act very
+        much like the usual recursive descent function for parsing a production
+        rule, except that to make a recursive call to handle a sub-production
+        they push that production label onto the `pstate_stack` and then call
+        `recursive_parse`.  Then the handler for that production will be
+        called, doing a search over its cases, etc., returning the value to the
+        calling level.
 
         The label of the starting state is assumed to have initially been
         pushed on the `pstate_stack` attribute of the parser whenever
@@ -1856,30 +1867,38 @@ class PrattParser(object):
             # cases as heads; same with tails.
             pstate_stack = tok.parser_instance.pstate_stack
             first_call_of_start_state = False
-            if len(pstate_stack) == 1: # Detect if this is the start state.
-                first_call_of_start_state = True
 
             # TODO Save the rule that parsed the token.  Document that value
             # of null-string token (was None) is set to rule_label.  Pass
             # value up in modifications where full tree not shown.
             tok.value = rule_label
-            
+
+            if not hasattr(tok.parser_instance, "debug_indent_add"):
+                tok.parser_instance.debug_indent_add = 0 # NOT used yet
             def indent(): # DEBUG fun
-                return " " * (len(pstate_stack)-1) * 4
+                return " " * (tok.parser_instance.debug_indent_add + len(pstate_stack)-1) * 3
 
             num_cases = len(caselist)
             last_case = False
+
             print()
-            print(indent() + "Running head handler for token", tok)
-            print(indent() + "stack is", pstate_stack)
+            print(indent() + "=======> Running head handler for token", tok)
+            print(indent() + "stack is", pstate_stack, "\n")
+
             lex_token_count = lex.all_token_count
             lex_saved_begin_state = lex.get_current_state()
             lex_peek_label = lex.peek().token_label # ONLY saved for backtrack check
+
+            # TODO: this really needs to recurse to handle calls to other productions.
+            # It cannot just handle here because the backtracking on the sub-productions
+            # will not work.  At the least need a stack of saved states to go with
+            # the pstate stack.
 
             # Loop through the cases until the first succeeds or all fail.
             for case_count, case in enumerate(caselist):
                 print()
                 print(indent() + "Handling case number", case_count, "of", rule_label)
+                print(indent() + "Case is:", case)
                 assert lex.peek().token_label == lex_peek_label
                 tok.children = [] # Reset the children of this null-state token.
                 if case_count == num_cases - 1:
@@ -1888,6 +1907,7 @@ class PrattParser(object):
                 # Loop through the items testing for match; backtrack on exception.
                 try: 
                     for item in case:
+                        print("\n" + indent() + "Handling case item in loop:", item)
 
                         # Item is a Token.
                         if item.kind_of_item == "token":
@@ -1895,11 +1915,11 @@ class PrattParser(object):
                             item_token_label = item_token.token_label
                             if not lex.match_next(item_token_label, consume=False):
                                 print()
-                                print(indent() + "FAIL token match for",
+                                print(indent() + "FAIL token match for expected",
                                         item_token_label)
-                                print(indent() + "actual token is", lex.peek())
+                                print(indent() + "the actual token is", lex.peek())
                                 raise BranchFail("Expected token not found.")
-                            print(indent() + "matched token", item_token_label)
+                            print(indent() + "SUCCESS token match for", item_token_label)
 
                             # Actual tree nodes must be processed by literal handler.
                             # Todo: document/improve this stuff, nice to push known label
@@ -1919,17 +1939,19 @@ class PrattParser(object):
                         # Production is the case item.
                         elif item.kind_of_item == "production":
                             item_rule_label = item.value
+                            print(indent() + "Handling a production, pushing state:",
+                                                     item_rule_label)
                             pstate_stack.append(item_rule_label)
                             try:
                                 next_subexp = tok.recursive_parse(0)
                             except (BranchFail, CalledEndTokenHandler):
-                                print(indent() + "FAIL production")
+                                print(indent() + "FAIL production rule recursion.")
                                 raise
                             finally:
                                 pstate_stack.pop()
                             #tok.append_children(next_subexp) # Keep rule toks in tree.
-                            print(indent() + "Simply appending children",
-                                              next_subexp.children)
+                            print(indent() + "SUCCESS in production rule recursion.")
+                            print(indent() + "Appending children:", next_subexp.children)
                             tok.append_children(next_subexp) # No subrule toks.
 
                         # Unknown case item.
@@ -1937,25 +1959,25 @@ class PrattParser(object):
                             print(indent() + "unrecognized item is", item)
                             raise ParserException("No item recognized.")
 
-                    # We know tok is a null-string token.  If only one child, then
-                    # just return that and leave null-string tokens out of the tree.
                     assert tok.token_label == "k_null-string" # DEBUG
                     print(indent() + "Returning tok with children", tok.children)
                     print()
-                    #tok.process_and_check_node(head_handler)
+                    tok.process_and_check_node(head_handler)
 
-                    # In case some conditions cause parsing to not finish but
-                    # appear to work, check for end-token.  Note that this
-                    # rules out multi-expression mode.
-                    if first_call_of_start_state and not lex.peek().is_end_token():
+                    # If parser.top_level_production is set, check that all
+                    # the tokens were consumed from the lexer.
+                    if (tok.parser_instance.top_level_production
+                            and len(tok.parser_instance.pstate_stack) == 1
+                            and not lex.peek().is_end_token()):
                         raise BranchFail("Parsing did not reach end of expression.")
                     return tok
 
-                except (BranchFail, CalledEndTokenHandler):
-                    # Backtrack, need to push back all tokens read.
-                    #print()
-                    #print(indent() + "============> backtracking")
-                    new_lex_token_count = lex.all_token_count
+                except (BranchFail, CalledEndTokenHandler) as e:
+                    # Backtrack; need to restore to previous saved state.
+                    #print() # DEBUG
+                    print(indent() + "============> backtracking at token", tok)
+                    print(indent() + "\nFAIL is:\n", tok.tree_repr(indent=indent()))
+                    print(indent() + "Exception is:", e)
                     lex.go_back_to_state(lex_saved_begin_state)
                     if last_case: # Give up, all cases failed.
                         raise BranchFail("All rule cases failed.")
@@ -2018,6 +2040,8 @@ class PrattParser(object):
         is set then the value will be pushed as the initial state on the production
         rule stack `pstate_stack`."""
 
+        print("\n======================> New call to parse <===================\n")
+
         if pstate:
             self.pstate_stack = [pstate] # For parsing production rule grammars.
         parse_tree_list = [] # For multi-expression.
@@ -2043,9 +2067,11 @@ class PrattParser(object):
                     " the text.  Parsing stopped with tokens still in the lexer."
                     " No syntax element was recognized. The last-parsed token had"
                     " label '{0}' and value '{1}'.  Parsing stopped before a token"
-                    " in the lexer with label '{2}' and value '{3}'."
+                    " in the lexer with label '{2}' and value '{3}'.  The partial"
+                    " result returned is:\n{4}"
                     .format(self.lex.token.token_label, self.lex.token.value, 
-                            self.lex.peek().token_label, self.lex.peek().value))
+                            self.lex.peek().token_label, self.lex.peek().value,
+                            output.tree_repr()))
 
         if self.multi_expression:
             return parse_tree_list

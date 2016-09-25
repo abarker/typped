@@ -300,10 +300,11 @@ and popping states.
 by the lexer.  It pushes the state `term` and calls `recursive_parse(20,
 processed_left`.
 
-6. The head-handler for `term` calls `recursive_parse(0)`, which fetches the token
-`y`.
+6. The head-handler for `term` calls `recursive_parse(0)`, which fetches the
+token `y`.
 
-7. HERE IS INTERESTING PART, iron out above and figure out how to make it work...
+7. HERE IS INTERESTING PART, iron out above and figure out how to make it
+work...
 
 So the expression `x + y * z` will be evalated as `x + (y*z)`.
 
