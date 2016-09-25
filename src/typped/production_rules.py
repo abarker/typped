@@ -63,6 +63,13 @@ grammar is called (passed the start state and a locals dict).  These r.h.s.
 strings **must** be identical to the l.h.s. Python variable names for the rules
 (since they are looked up in the locals dict).
 
+The order in which cases are defined within a production's "or" sections does
+matter, at least for ambiguous grammars and to avoid or minimize backtracking.
+The order of the cases is the order in which the algorithm will test the cases.
+The first successful parse is returned.  The current algorithm is a basic
+backtracking search algorithm.  In the future, lookahead tokens could be
+incorporated (via preconditions) to make LL(1) and similar grammars efficient.
+
 TODO: Make this a table????
 
 The kinds of items that are supported are:
@@ -370,7 +377,7 @@ class Grammar(object):
         self.parser = parser
         self.start_rule_label = start_rule_label
         self.locals_dict = locals_dict
-        self._process_rule(start_rule_label, register)
+        self._process_rule(start_rule_label)
         self.processing_in_progress = set()
         print("\nThe final dict is\n")
         for name, caselist in self.production_rules.items():
@@ -378,7 +385,7 @@ class Grammar(object):
         print()
 
         if register:
-            for label, rule in self.production_rules:
+            for label, rule in self.production_rules.items():
                 self.parser.def_production_rule(label, self)
 
     def _process_rule(self, rule_label):

@@ -107,19 +107,19 @@ def test_basic_expression_grammar():
 
     g = Grammar()
 
-    factor = ( k_number
-             | k_lpar + Rule("expression") + k_rpar
-             )
+    expression = ( Rule("term") + Tok("k_plus") + Rule("term")
+                 | Rule("term") + k_minus + Rule("term")
+                 | Rule("term")
+                 )
 
     term = ( Rule("factor") + k_ast + Rule("factor")
            | Rule("factor") + k_fslash + Rule("factor")
            | Rule("factor")
            )
 
-    expression = ( Rule("term") + Tok("k_plus") + Rule("term")
-                 | Rule("term") + k_minus + Rule("term")
-                 | Rule("term")
-                 )
+    factor = ( k_number
+             | k_lpar + Rule("expression") + k_rpar
+             )
 
     #
     # Parse some expressions.
@@ -127,8 +127,6 @@ def test_basic_expression_grammar():
 
     print(locals())
     g.compile("expression", parser, locals())
-    fail()
-    return # TODO parsing not yet defined for new format.....
 
     #parser.pstate_stack = ["expression"]
     print()
@@ -137,11 +135,35 @@ def test_basic_expression_grammar():
     print("simple_example:", simple_example)
     simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
     print("simple_string_rep_example", simple_string_rep_example)
+    
+    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
     assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
                          "<k_null-string,'term'>(<k_null-string,'factor'>("
                          "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
                          "<k_number,'4'>)))")
-    #fail()
+
+    # TODO below parse fails.  It should parse as follows:
+    # expression
+    #     term
+    #        factor            # First two fail, third succeeds.
+    #           k_number, 5
+    #     k_plus
+    #     term
+    #        factor            # First two fail, third succeeds.
+    #           k_lpar, (         # First fail, second succeeds.
+    #           expression
+    #              term        # First two fail, third succeeds.
+    #                 factor
+    #                    k_number, 444
+    #                 k_ast, *
+    #                 factor
+    #                    k_number, 32
+    #           k_rpar, )
+    #  Success.
+    another_example = "5 * (444 + 32)"
+    another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
+    print(another_example, "\n\n", another_example_result)
+    fail()
 
 def test_overload_expression_grammar():
     skip()
