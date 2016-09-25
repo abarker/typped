@@ -1,23 +1,67 @@
 # -*- coding: utf-8 -*-
 """
 
+TODO: A production rule is usually what I have been calling a case.  A
+CaseList is a list of production rules all with the same l.h.s.
+
+TODO: some simple example grammars:
+    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
+    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+
+TODO: to add more overloads, use * for `ZeroOrMore`.  Precedence high enough
+    to probably not be too much problem, if a good idea at all.  Functions
+    probably better, this is pushing it too far.
+        _<"wff">_*_   vs, OneOrMore(_<"wff">_)
+        Rule("wff")*_
+        k_number*_
+
+    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+    Better: from Wikipedia EBNF page,
+        3 * k_number
+    should be three k_number tokens.  Easy to do.  It applies to groups
+    with parens 3*(k_number + k_comma) for free (as long as ItemList can
+    handle it).  Need to consider, though, how parens will affect _<"x">_
+    when those subgroups are processed...
+
+    Also from above page, { } is repeat symbol.  Easy to handle, too, just
+    let it form a set and have + extract from the set!!!!
+
+    Brackets for optional.  Remember that brackets are lists.  So just
+        [k_comma]  vs.  Optional(k_comma)
+    Just define the operations to turn lists into Optional things.
+
+    Maybe postfix minus for one or more (actually defined in some standard,
+    don't recall exactly).
+        _<"wff">_-_
+        Rule("wff")-_
+        k_number-_
+
 Terminology:
 
 * **Production rules** are also called **productions** or just **rules**.
+  They are the individual rewrite rules such as `<expression> ::= <term>`
+  in BNF.
 
-* Production rules with the same l.h.s. or separated by the "or" symbol on a
-  line are called different **cases** of the production.
+* Production rules with the the same l.h.s. symbol 
+  are called different **cases** of the production.  An alternative notation is
+  to separate different cases by the "or" symbol `|`.  The latter form of
+  definition is currently *required* in by this module.
 
-* The separate symbol elements within a case are called the **items** of that case.
+* The separate symbol elements within a case are called the **items** of that
+  case.
+
+While each case of a l.h.s. symbol (nonterminal) is technically a production
+rule itself, in this module the terms production and rule are generally used to
+refer to the collection of all the cases having the same l.h.s. symbol.
 
 The order in which the production rules are written does not matter.  So rules
 can be written top-down if that is easier to read, even though some of the
 productions rules being called have not yet been defined.  This is achieved by
-allowing the use of string labels in the r.h.s. of production rules.  These
-strings are resolved later in when the `compile` method of the grammar is
-called (passed the start state and a locals dict).  These strings **must** be
-the same as the l.h.s. variable names for the rules since they are looked up in
-the locals dict.
+the use of string labels for production names in the r.h.s. of production
+rules.  These strings are resolved later in when the `compile` method of the
+grammar is called (passed the start state and a locals dict).  These r.h.s.
+strings **must** be identical to the l.h.s. Python variable names for the rules
+(since they are looked up in the locals dict).
 
 TODO: Make this a table????
 
@@ -283,8 +327,9 @@ class Grammar(object):
         self.delimiter = Item(None) # Could be static but Item would need moving.
         self.parser = None
         self.production_rules = {}
+        self.processing_in_progress = set() # Save rules to avoid infinite recurse.
 
-    def add_production_case(self, rule_label, case_item_list):
+    def old_add_production_case(self, rule_label, case_item_list):
         """Add a production rule to the grammar.  A `case_item_list` is
         an ordered list of `Item` instances or things that can
         be converted to one.  The order that they are added is the
@@ -298,13 +343,83 @@ class Grammar(object):
         else:
             self.production_rules[rule_label] = [case_item_list]
 
-    def compile(self, parser, locals_dict=None):
+    def add_production_case(self, rule_label, caselist):
+        """Add a production rule to the grammar.  A `case_item_list` is
+        an ordered list of `Item` instances or things that can
+        be converted to one.  The order that they are added is the
+        order that they will be evaluated in."""
+        # TODO not used by _process now...
+        print("case item list", case_item_list)
+        if rule_label in self.production_rules:
+            self.production_rules[rule_label].append(case_item_list)
+        else:
+            raise ParserGrammarRuleException("All cases must be currently"
+                    " be added through the `compile` function with all"
+                    " cases present.")
+
+    def compile(self, start_rule_label, parser, locals_dict, register=True):
         """Create the Pratt parser handlers in `parser` to parse the current
-        grammar."""
+        grammar.
+        
+        If `register` is true the rules are registered with the `PrattParser`
+        instance `parser` to enable it to parse the grammar."""
+
+        print("call to compile")
+        self.production_rules = {} # Reset all the rules.
+        self.processing_in_progress = set()
         self.parser = parser
-        for label, production in self.production_rules.items():
-            print("\nregister production", production)
-            parser.def_production_rule(label, self)
+        self.start_rule_label = start_rule_label
+        self.locals_dict = locals_dict
+        self._process_rule(start_rule_label, register)
+        self.processing_in_progress = set()
+        print("\nThe final dict is\n")
+        for name, caselist in self.production_rules.items():
+            print("   {0} = {1}".format(name, caselist))
+        print()
+
+        if register:
+            for label, rule in self.production_rules:
+                self.parser.def_production_rule(label, self)
+
+    def _process_rule(self, rule_label):
+        """Recursively process rules, converting string labels into their
+        definitions from the locals dict, and looking up the tokens that go
+        with token labels."""
+        self.processing_in_progress.add(rule_label)
+        try:
+            locals_rule = self.locals_dict[rule_label]
+        except AttributeError:
+            raise ParserGrammarRuleException("The rule \"{0}\" was not found"
+                    " in the locals dict that was passed to the compile method"
+                    " of the `Grammar` class.".format(rule_label))
+        locals_rule = CaseList(*locals_rule)
+        print("label of rule being processed is", rule_label)
+        print("processing this rule from locals():\n   ", locals_rule)
+
+        processed_caselist = CaseList()
+        for itemlist in locals_rule:
+            new_itemlist = ItemList()
+            for item in itemlist:
+                if item.kind_of_item == "token":
+                    if isinstance(item.value, str):
+                        item.value = self.parser.get_token(item.value)
+                elif item.kind_of_item == "production":
+                    recursion_rule_label = item.value
+                    if recursion_rule_label in self.processing_in_progress:
+                        pass # Rule is currently being processed.
+                    elif recursion_rule_label in self.production_rules:
+                        pass
+                    else:
+                        self._process_rule(recursion_rule_label)
+                new_itemlist.append(item)
+            processed_caselist.append(new_itemlist)
+
+        processed_caselist.grammar_object = self
+        processed_caselist.parser = self.parser
+        processed_caselist.rule_label = rule_label
+        self.production_rules[rule_label] = processed_caselist
+
+        return processed_caselist
 
     def uncompile(self):
         """Undo the effect of the `compile` command.  Can be used for dynamic
@@ -333,8 +448,7 @@ class Grammar(object):
         # grammar to find the tokens for, say LL(1) grammars which can be used
         # to avoid the backtracking by using a lookahead.  They are relayed
         # back up the CFG tree after a recursive search down.  After they are
-        # found they can be passed to the Pratt null-string handler function
-        # (as an arg to def_production_rule).
+        # found they can be passed to the Pratt null-string handler function.
         raise NotImplementedError("Not implemented.")
 
 class Item(object):
@@ -399,7 +513,11 @@ class Item(object):
 
     def __repr__(self):
         if self.kind_of_item == "token":
-            string = "Tok({0})".format(self.value.token_label)
+            if isinstance(self.value, str):
+                token_label = self.value
+            else:
+                token_label = self.value.token_label
+            string = "Tok({0})".format(token_label)
         elif self.kind_of_item == "production":
             string = "<{0}>".format(self.value)
         elif self.kind_of_item == "pratt_call":
@@ -577,7 +695,7 @@ class CaseList(object):
 
     def append(self, item):
         """Append an item to the list."""
-        self.item_list.append(item)
+        self.data_list.append(item)
 
     def insert(self, index, item):
         """Insert an item."""

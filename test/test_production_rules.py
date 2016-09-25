@@ -51,7 +51,7 @@ def def_expression_tokens_and_literals(parser):
     pytest_helper.locals_to_globals()
 
 def test_basic_expression_grammar():
-    #skip()
+    skip()
 
     parser = PrattParser()
     parser.def_default_whitespace()
@@ -95,8 +95,56 @@ def test_basic_expression_grammar():
                          "<k_number,'4'>)))")
     #fail()
 
+def test_basic_expression_grammar():
+    parser = PrattParser()
+    parser.def_default_whitespace()
+
+    def_expression_tokens_and_literals(parser)
+
+    #
+    # Define the grammar.
+    #
+
+    g = Grammar()
+
+    factor = ( k_number
+             | k_lpar + Rule("expression") + k_rpar
+             )
+
+    term = ( Rule("factor") + k_ast + Rule("factor")
+           | Rule("factor") + k_fslash + Rule("factor")
+           | Rule("factor")
+           )
+
+    expression = ( Rule("term") + Tok("k_plus") + Rule("term")
+                 | Rule("term") + k_minus + Rule("term")
+                 | Rule("term")
+                 )
+
+    #
+    # Parse some expressions.
+    #
+
+    print(locals())
+    g.compile("expression", parser, locals())
+    fail()
+    return # TODO parsing not yet defined for new format.....
+
+    #parser.pstate_stack = ["expression"]
+    print()
+    print()
+    simple_example = parser.parse("4*4", pstate="expression").tree_repr(3)
+    print("simple_example:", simple_example)
+    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
+    print("simple_string_rep_example", simple_string_rep_example)
+    assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
+                         "<k_null-string,'term'>(<k_null-string,'factor'>("
+                         "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
+                         "<k_number,'4'>)))")
+    #fail()
+
 def test_overload_expression_grammar():
-    #skip()
+    skip()
     parser = PrattParser()
     parser.def_default_whitespace()
 

@@ -1440,8 +1440,14 @@ class PrattParser(object):
             token_table.undef_token(token_label)
 
     #
-    # Methods to modify tokens.
+    # Methods to access and modify tokens.
     #
+
+    def get_token(self, token_label):
+        """Return the token with the label `token_label`.  The reverse
+        operation, getting a label from a token instance, can be done by
+        looking at the `token_label` attribute of the token."""
+        return self.token_table.get_token_subclass(token_label)
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
                        precond_label=None, precond_fun=None,
@@ -1780,6 +1786,8 @@ class PrattParser(object):
     def def_production_rule(self, rule_label, grammar):
         """Define a production rule with the label `rule_label` as defined in
         the `Grammar` object `grammar`."""
+        # TODO: The NEW grammar format is now passed in.  Each rule is a
+        # CaseList if ItemList instances (containing Item instances).
         print("\nDefining production rule for rule with label:", rule_label)
         if not self.null_string_token_subclass:
             self.def_null_string_token() # Define null-string if necessary.
