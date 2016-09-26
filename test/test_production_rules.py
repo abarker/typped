@@ -10,7 +10,7 @@ import pytest_helper
 
 if __name__ == "__main__":
     # No test file for now, just run the parser's tests.
-    pytest_helper.script_run(self_test=True, pytest_args="-v")
+    pytest_helper.script_run(self_test=True, pytest_args="-vv")
 
 pytest_helper.autoimport()
 
@@ -51,51 +51,6 @@ def def_expression_tokens_and_literals(parser):
     pytest_helper.locals_to_globals()
 
 def test_basic_expression_grammar():
-    skip()
-
-    parser = PrattParser()
-    parser.def_default_whitespace()
-
-    def_expression_tokens_and_literals(parser)
-
-    #
-    # Define the grammar.
-    #
-
-    g = Grammar()
-
-    g.add_production_case("factor", [k_number])
-    g.add_production_case("factor", [k_lpar, Rule("expression"), k_rpar])
-
-    g.add_production_case("term", [Rule("factor"), k_ast, Rule("factor")])
-    g.add_production_case("term", [Rule("factor"), k_fslash, Rule("factor")])
-    g.add_production_case("term", [Rule("factor")])
-
-
-    g.add_production_case("expression", [Rule("term"), k_plus, Rule("term")])
-    g.add_production_case("expression", [Rule("term"), k_minus, Rule("term")])
-    g.add_production_case("expression", [Rule("term")])
-
-    #
-    # Parse some expressions.
-    #
-
-    g.compile(parser)
-
-    #parser.pstate_stack = ["expression"]
-    print()
-    print()
-    simple_example = parser.parse("4*4", pstate="expression").tree_repr(3)
-    print("simple_example:", simple_example)
-    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    print("simple_string_rep_example", simple_string_rep_example)
-    assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
-                         "<k_null-string,'term'>(<k_null-string,'factor'>("
-                         "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
-                         "<k_number,'4'>)))")
-    #fail()
-
-def test_basic_expression_grammar():
     parser = PrattParser()
     parser.def_default_whitespace()
 
@@ -117,58 +72,134 @@ def test_basic_expression_grammar():
            | Rule("factor")
            )
 
-    # TODO below succeeds when True, fails when False!!!  Seems like it should
-    # not matter.  When `recursive_parse` is called after pushing "factor" onto
-    # the stack, there will only be one kind of token ahead in the lexer.  The
-    # peek precondition should uniquely pick one....
-    #
-    # Only one is even checked for in preconditions handling.  Might be a bug
-    # there.  Depending on which is selected, that one is tested but the other
-    # is not.  Both should be tested, one should fail.
-    num_first = False
-    if num_first:
-        factor = ( k_number
-                 | k_lpar + Rule("expression") + k_rpar
-                 )
-    else:
-        factor = ( k_lpar + Rule("expression") + k_rpar
-                 | k_number
-                 )
+    factor = ( k_number
+             | k_lpar + Rule("expression") + k_rpar
+             )
+
+    assert str(expression) == ('CaseList(ItemList(Rule("term"), '
+                                                'Tok("k_plus"), '
+                                                'Rule("term")), '
+                                       'ItemList(Rule("term"), '
+                                                'Tok("k_minus"), '
+                                                'Rule("term")), '
+                                       'ItemList(Rule("term")))')
+
+    assert str(term) == ('CaseList(ItemList(Rule("factor"), '
+                                           'Tok("k_ast"), '
+                                           'Rule("factor")), '
+                                 'ItemList(Rule("factor"), '
+                                           'Tok("k_fslash"), '
+                                           'Rule("factor")), '
+                                 'ItemList(Rule("factor")))')
+
+    assert str(factor) == ('CaseList(ItemList(Tok("k_number")), '
+                                    'ItemList(Tok("k_lpar"), '
+                                             'Rule("expression"), '
+                                             'Tok("k_rpar")))')
+
+
 
     #
     # Parse some expressions.
     #
 
-    print(locals())
     g.compile("expression", parser, locals())
 
     #parser.pstate_stack = ["expression"]
-    #parser.top_level_production = True # Document if keep...
+    #parser.top_level_production
 
-    print()
-    print()
-    simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    print("simple_string_rep_example:")
-    print(simple_string_rep_example)
-    
-    #simple_string_rep_example = parser.parse("4*4", pstate="expression").string_tree_repr()
-    #assert str(simple_string_rep_example) == ("<k_null-string,'expression'>("
-    #                     "<k_null-string,'term'>(<k_null-string,'factor'>("
-    #                     "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
-    #                     "<k_number,'4'>)))")
+    simple_example1_parse = parser.parse(
+                                "4*4", pstate="expression").string_tree_repr()
 
-    another_example = "5 * (444 + 32)"
-    print(another_example, "\n")
-    another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
-    print(another_example_result)
+    assert simple_example1_parse == ("<k_null-string,'expression'>("
+                                        "<k_null-string,'term'>("
+                                             "<k_null-string,'factor'>("
+                                                 "<k_number,'4'>),"
+                                             "<k_ast,'*'>,"
+                                             "<k_null-string,'factor'>("
+                                                 "<k_number,'4'>)))")
 
+    simple_example2 = "5 * (444 + 32)"
+    simple_example2_parse = parser.parse(
+                         simple_example2, pstate="expression").tree_repr(indent=7)
 
-    another_example = "(5 + 99) * 388"
-    print(another_example, "\n")
-    another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
-    print(another_example_result)
+    assert simple_example2_parse == (
+    """\
+       <k_null-string,'expression'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_number,'5'>
+               <k_ast,'*'>
+               <k_null-string,'factor'>
+                   <k_lpar,'('>
+                   <k_null-string,'expression'>
+                       <k_null-string,'term'>
+                           <k_null-string,'factor'>
+                               <k_number,'444'>
+                       <k_plus,'+'>
+                       <k_null-string,'term'>
+                           <k_null-string,'factor'>
+                               <k_number,'32'>
+                   <k_rpar,')'>\n""")
 
-    fail()
+    simple_example3 = "(5 + 99) * 388"
+    simple_example3_parse = parser.parse(
+                         simple_example3, pstate="expression").tree_repr(indent=7)
+
+    assert simple_example3_parse == (
+    """\
+       <k_null-string,'expression'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_lpar,'('>
+                   <k_null-string,'expression'>
+                       <k_null-string,'term'>
+                           <k_null-string,'factor'>
+                               <k_number,'5'>
+                       <k_plus,'+'>
+                       <k_null-string,'term'>
+                           <k_null-string,'factor'>
+                               <k_number,'99'>
+                   <k_rpar,')'>
+               <k_ast,'*'>
+               <k_null-string,'factor'>
+                   <k_number,'388'>\n""")
+
+    simple_example4 = "5 + 99 * 388"
+    simple_example4_parse = parser.parse(
+                         simple_example4, pstate="expression").tree_repr(indent=7)
+
+    assert simple_example4_parse == (
+    """\
+       <k_null-string,'expression'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_number,'5'>
+           <k_plus,'+'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_number,'99'>
+               <k_ast,'*'>
+               <k_null-string,'factor'>
+                   <k_number,'388'>\n""")
+
+    simple_example5 = "5 * 7 - 388"
+    simple_example5_parse = parser.parse(
+                         simple_example5, pstate="expression").tree_repr(indent=7)
+
+    assert simple_example5_parse == (
+    """\
+       <k_null-string,'expression'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_number,'5'>
+               <k_ast,'*'>
+               <k_null-string,'factor'>
+                   <k_number,'7'>
+           <k_minus,'-'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_number,'388'>\n""")
 
 def test_overload_expression_grammar():
     skip()

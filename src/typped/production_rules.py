@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 
-TODO: A production rule is usually what I have been calling a case.  A
-CaseList is a list of production rules all with the same l.h.s.
-
 TODO: some simple example grammars:
     https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
     https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
@@ -11,6 +8,10 @@ TODO: some simple example grammars:
 TODO: to add more overloads, use * for `ZeroOrMore`.  Precedence high enough
     to probably not be too much problem, if a good idea at all.  Functions
     probably better, this is pushing it too far.
+
+        3 * _<"wff">_    # parses fine!
+
+        # Not as good, not EBNF:
         _<"wff">_*_   vs, OneOrMore(_<"wff">_)
         Rule("wff")*_
         k_number*_
@@ -49,7 +50,34 @@ TODO: to add more overloads, use * for `ZeroOrMore`.  Precedence high enough
         Rule("wff")-_
         k_number-_
 
-Terminology:
+TODO: Define EPSILON item for epsilon production.  Should be easy (I hope).
+
+TODO: ~ should really be "not" on a token for lookahead...
+
+TODO: nice to have a notation for ignoring a thing in the grammar (such as some
+parens, etc.)  Maybe just Hide(...) wrapper?
+
+Introduction
+------------
+
+Similar projects which parse a Python grammar using recursive descent (though
+without the underlying Pratt parser) are:
+
+* **pyparsing** -- Uses Python overloading to define the grammar, similar to
+  this module.
+  http://pyparsing.wikispaces.com/home
+
+* **Parsimonius** -- Passed a string containing the EBNF of the grammar.
+  https://github.com/erikrose/parsimonious
+
+* **Parsley** -- Passed a string containing the EBNF of the grammar.
+  https://github.com/python-parsley/parsley/
+
+* **yeanpypa** -- Uses Python overloading, similar to this module.
+  https://github.com/DerNamenlose/yeanpypa
+
+Terminology
+-----------
 
 * **Production rules** are also called **productions** or just **rules**.
   They are the individual rewrite rules such as `<expression> ::= <term>`
@@ -62,6 +90,11 @@ Terminology:
 
 * The separate symbol elements within a case are called the **items** of that
   case.
+
+TODO, maybe:  It a mutual left recursion is going to repeat it will presumably
+do so in n recursive calls, where n is the number of productions.  After n
+calls with no token consumed, can assume failure.  This assumes no side
+effects.  
 
 While each case of a l.h.s. symbol (nonterminal) is technically a production
 rule itself, in this module the terms production and rule are generally used to
@@ -79,7 +112,14 @@ strings **must** be identical to the l.h.s. Python variable names for the rules
 The order in which cases are defined within a production's "or" sections does
 matter, at least for ambiguous grammars and to avoid or minimize backtracking.
 The order of the cases is the order in which the algorithm will test the cases.
-The first successful parse is returned.  The current algorithm is a basic
+The first successful parse is returned.  So the grammar is really a **parsing
+expression grammar (PEG)** rather than a **context-free grammar (CFG)** which
+can be ambiguous.  PEGs also allow "and" and "not" predicates.  The grammar
+implemented in this module still uses the `|` operator for "or", though, rather
+than the `/` operator.
+https://en.wikipedia.org/wiki/Parsing_expression_grammar
+
+The current algorithm is a basic
 backtracking search algorithm.  In the future, lookahead tokens could be
 incorporated (via preconditions) to make LL(1) and similar grammars efficient.
 
@@ -334,6 +374,41 @@ work...
 
 So the expression `x + y * z` will be evalated as `x + (y*z)`.
 
+Optimizing the grammar
+----------------------
+
+In order to optimize the parsing of a recursive descent grammar, many
+grammars allow the use of **predictive parsing**, which requires no
+backtracking.  Even when predictive parsing is not possible, often
+partial predictive parsing can make the algorithm more efficient
+(falling back to backtracking search only when necessary).
+
+To use a predicive parse you need to generate a **first set** for
+each non-terminal (i.e., recursive rule call) in the grammar.  Call
+this `first_set(nonterminal)`.
+
+When epsilon productions are allowed a **follow set** acts similarly to
+a first set.
+
+See:
+
+http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
+http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html
+
+Consider packrat parsing:
+https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars
+
+Grammar transformation
+----------------------
+
+Not implemented.  Just an idea for now, but you could do any number of
+grammar transformations on the rules of a `Grammar` object.
+
+One possibility is to remove at least trivial left recursion.  Just change the
+ordering of any obvious left recursive cases.  In a more complicated
+transformation you could do **left factoring** on the grammar to remove the
+left recursion.
+
 """
 
 from __future__ import print_function, division, absolute_import
@@ -488,6 +563,10 @@ class Grammar(object):
 
     def _recurse_on_grammar_tree(self, rule_label, max_depth, curr_depth=0):
         """Recursively walk the grammar tree.  Limit depth to `depth`."""
+        #
+        # See algorithm on this page:
+        # http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
+        #
         rule = self.production_rules[rule_label]
         for item in rule:
             if item.kind_of_item == "production":
@@ -616,7 +695,7 @@ class Item(object):
     def __invert__(self):
         """Overload the prefix operator '~'."""
         # TODO, raise_if_not doesn't work yet for unary operators.
-        return Root(self)
+        return Not(self)
 
     def __lt__(self, other):
         """Overload `<` from the left operand.  Reflected for '>'."""
@@ -837,8 +916,7 @@ def Tok(token):
 
 def Root(item_init_arg, prec=None):
     """A function to designate that the token for the item should made into the
-    root of the resulting parse subtree, if possible.  The prefix operator `~`
-    is defined as a synonym.  Can only wrap an item."""
+    root of the resulting parse subtree, if possible."""
     # This can only be called once per case, and can only take one `Item` argument.
     item = Item(item_init_arg)
     item.root = True
@@ -887,6 +965,15 @@ def ZeroOrMore(*args):
     # Usually just one argument
     itemlist = ItemList(*args)
     itemlist[0].modifiers.insert(0, "ZeroOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+def Not(token):
+    """The token cannot appear or the case fails."""
+    itemlist = ItemList(token)
+    if not all(i.kind_of_item == "token" for i in itemlist):
+        raise ParserGrammarRuleException("Only tokens can appear inside Not(...).")
+    itemlist[0].modifiers.insert(0, "Not(")
     itemlist[-1].modifiers.append(")")
     return itemlist
 

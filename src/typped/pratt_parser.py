@@ -212,7 +212,9 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
+    pytest_helper.script_run(["../../test/test_pratt_parser.py",
+                              "../../test/test_production_rules.py"],
+                              pytest_args="-v")
 
 import types
 import copy
@@ -331,9 +333,9 @@ def token_subclass_factory():
             # Below is ugly, but avoids mutual import problems.  Used as an
             # easy way to define token addition so that it works in the
             # grammars defined by the production_rules module.
-            from .production_rules import Tok, Root, Prec
+            from .production_rules import Tok, Not, Prec
             new_class.Tok = Tok
-            new_class.Root = Root
+            new_class.Not = Not
             new_class.Prec = Prec
 
             return new_class
@@ -371,7 +373,7 @@ def token_subclass_factory():
         def __invert__(cls):
             """Define the `~` operator for production rule grammars (make root
             of subtree)."""
-            return cls.Root(cls)
+            return cls.Not(cls)
 
         def __getitem__(cls, arg):
             """Define the bracket indexing operator for production rule grammars
@@ -1799,13 +1801,13 @@ class PrattParser(object):
     def def_production_rule(self, rule_label, grammar):
         """Define a production rule with the label `rule_label` as defined in
         the `Grammar` object `grammar`."""
-        print("\nRegistering production rule with label:", rule_label)
+        #print("\nRegistering production rule with label:", rule_label)
         if not self.null_string_token_subclass:
             self.def_null_string_token() # Define null-string if necessary.
 
         caselist = grammar[rule_label]
         caselist = list(caselist) # Only need ordinary Python lists here.
-        print("\nThe caselist for the rule is", caselist)
+        #print("\nThe caselist for the rule is", caselist)
 
         # So to initially process a caselist:
         # 1. Go through and for each curr_case, collect all the other cases that start with
@@ -1821,7 +1823,7 @@ class PrattParser(object):
             # Repeatedly cycle through caselist, comparing first case to later ones, 
             # saving common-start ones and then deleting all that were saved on that
             # cycle from caselist.
-            print("PPPPPPPPPPPPP caselist at top of while =", caselist)
+            #print("PPPPPPPPPPPPP caselist at top of while =", caselist)
             first_saved = False
             first_case = caselist[0]
             first_item = first_case[0]
@@ -1833,7 +1835,7 @@ class PrattParser(object):
                 # some preconditioned lookahead, but may not be more efficient.
                 first_item_token_label = first_item_val.token_label
                 if not first_saved:
-                    print("WWWWWW appending (first) token case", first_case)
+                    #print("WWWWWW appending (first) token case", first_case)
                     token_start_cases[first_item_token_label].append(first_case)
                     first_saved = True
                 for i, curr_case in enumerate(caselist[1:]):
@@ -1844,18 +1846,18 @@ class PrattParser(object):
                         continue
                     # We know now that both are starting case-items are tokens.
                     curr_first_token_label = curr_first_item_val.token_label
-                    print("YYYYYY token case in while, first token is", first_item_token_label)
-                    print("YYYYYY token case in while, curr token is", curr_first_token_label)
+                    #print("YYYYYY token case in while, first token is", first_item_token_label)
+                    #print("YYYYYY token case in while, curr token is", curr_first_token_label)
                     # The token labels must also be the same.
                     if (curr_first_token_label == first_item_token_label):
-                        print("WWWWWW appending (later) token case", curr_case)
+                        #print("WWWWWW appending (later) token case", curr_case)
                         token_start_cases[first_item_token_label].append(curr_case)
                         del_list.append(i)
                     else:
                         continue # Each different kind of token gets its own handler.
             elif first_item_kind == "production":
                 if not first_saved:
-                    print("WWWWWW appending rule case", first_case)
+                    #print("WWWWWW appending rule case", first_case)
                     rule_start_cases.append(first_case)
                     first_saved = True
                 for i, curr_case in enumerate(caselist[1:]):
@@ -1867,7 +1869,7 @@ class PrattParser(object):
                     # We know now that both are starting case-items are productions.
                     # LATER these can be given precomputed lookahead preconditions.
                     token_label = first_item_val
-                    print("WWWWWW appending rule case", first_case)
+                    #print("WWWWWW appending rule case", first_case)
                     rule_start_cases.append(curr_case)
                     del_list.append(i)
             else:
@@ -1878,8 +1880,8 @@ class PrattParser(object):
             for i in reversed(del_list):
                 del caselist[i]
 
-        print("\nThe token start cases are", token_start_cases)
-        print("The rule start cases are", rule_start_cases, "\n")
+        #print("\nThe token start cases are", token_start_cases)
+        #print("The rule start cases are", rule_start_cases, "\n")
 
         # Register null-string handlers for each unique first item of some case.
         # All rules currently treated as non-unique.
@@ -1888,17 +1890,17 @@ class PrattParser(object):
         # Use null-string with a peek in front of actual tokens, also, to avoid
         # special-curr_case handling in later code.
         for token_label, caselist in token_start_cases.items():
-            print("ZZZZZZZZZZ just before registering token, caselist =", caselist)
+            #print("ZZZZZZZZZZ just before registering token, caselist =", caselist)
             # Register handler with a precondition on the token label.
             # --> Here and elsewhere, assuming the token_label and pstate uniquely
             # identify in both cases, but may need more preconds (later). Todo
-            print("XXXXXXXXXX registering peek token of", token_label)
+            #print("XXXXXXXXXX registering peek token of", token_label)
             if caselist:
                 self.def_first_case_start_handlers(rule_label, null_token,
                                                          caselist, token_label)
 
         caselist = rule_start_cases # All rules currently handled the same.
-        print("ZZZZZZZZZZ just before registering rule, caselist =", caselist)
+        #print("ZZZZZZZZZZ just before registering rule, caselist =", caselist)
         # Register handler with the null-string token preconditioned on
         # rule_label being on the top of the pstate_stack.
         if caselist:
@@ -1932,17 +1934,17 @@ class PrattParser(object):
         # unless something has been consumed from the lexer (curtailment,
         # but no memoization, see e.g. Frost et. al 2007).
 
-        print("case list passed to first case start is", caselist)
+        #print("case list passed to first case start is", caselist)
         def preconditions(lex, lookbehind, peek_token_label=peek_token_label):
             """This function is only registered and used if `peek_token_label`
             is not `None`."""
             pstate_stack = lex.token_table.parser_instance.pstate_stack
             if pstate_stack[-1] != rule_label:
                 return False
-            #print("QQQQQQQQQQQQQQ testing precondition token hit on", peek_token_label)
+            ##print("QQQQQQQQQQQQQQ testing precondition token hit on", peek_token_label)
             if peek_token_label and lex.peek().token_label != peek_token_label:
                 return False
-            #print("QQQQQQQQQQQQQQ got a precondition token hit on", peek_token_label)
+            ##print("QQQQQQQQQQQQQQ got a precondition token hit on", peek_token_label)
             return True
         # This label NEEDS to be different for each rule AND for each peek
         # token label.  Otherwise, the routine can fail.  The conditions can
@@ -1974,10 +1976,10 @@ class PrattParser(object):
             num_cases = len(caselist)
             last_case = False
 
-            print()
-            print(indent() + "=======> Running head handler for token", tok)
-            print(indent() + "stack is:", pstate_stack, "\n")
-            print(indent() + "caselist passed in is:", caselist, "\n")
+            #print()
+            #print(indent() + "=======> Running head handler for token", tok)
+            #print(indent() + "stack is:", pstate_stack, "\n")
+            #print(indent() + "caselist passed in is:", caselist, "\n")
 
             lex_token_count = lex.all_token_count
             lex_saved_begin_state = lex.get_current_state()
@@ -1990,9 +1992,9 @@ class PrattParser(object):
 
             # Loop through the cases until the first succeeds or all fail.
             for case_count, case in enumerate(caselist):
-                print()
-                print(indent() + "Handling case number", case_count, "of", rule_label)
-                print(indent() + "Case is:", case)
+                #print()
+                #print(indent() + "Handling case number", case_count, "of", rule_label)
+                #print(indent() + "Case is:", case)
                 assert lex.peek().token_label == lex_peek_label
                 tok.children = [] # Reset the children of this null-state token.
                 if case_count == num_cases - 1:
@@ -2001,19 +2003,19 @@ class PrattParser(object):
                 # Loop through the items testing for match; backtrack on exception.
                 try: 
                     for item in case:
-                        print("\n" + indent() + "Handling case item in loop:", item)
+                        #print("\n" + indent() + "Handling case item in loop:", item)
 
                         # Item is a Token.
                         if item.kind_of_item == "token":
                             item_token = item.value
                             item_token_label = item_token.token_label
                             if not lex.match_next(item_token_label, consume=False):
-                                print()
-                                print(indent() + "FAIL token match for expected",
-                                        item_token_label)
-                                print(indent() + "the actual token is", lex.peek())
+                                #print()
+                                #print(indent() + "FAIL token match for expected",
+                                #        item_token_label)
+                                #print(indent() + "the actual token is", lex.peek())
                                 raise BranchFail("Expected token not found.")
-                            print(indent() + "SUCCESS token match for", item_token_label)
+                            #print(indent() + "SUCCESS token match for", item_token_label)
 
                             # Actual tree nodes must be processed by literal handler.
                             # Todo: document/improve this stuff, nice to push known label
@@ -2021,7 +2023,7 @@ class PrattParser(object):
                             next_tok = tok.recursive_parse(0) # Get the token.
                             pstate_stack.pop()
 
-                            print(indent()+"==> next_tok subexpr is", next_tok)
+                            #print(indent()+"==> next_tok subexpr is", next_tok)
                             if next_tok.children:
                                 raise ParserException("In parsing the rule {0} a call"
                                         " to recursive_parse returned a subexpression"
@@ -2033,29 +2035,29 @@ class PrattParser(object):
                         # Production is the case item.
                         elif item.kind_of_item == "production":
                             item_rule_label = item.value
-                            print(indent() + "Handling a production, pushing state:",
-                                                     item_rule_label)
+                            #print(indent() + "Handling a production, pushing state:",
+                            #                         item_rule_label)
                             pstate_stack.append(item_rule_label)
                             try:
                                 next_subexp = tok.recursive_parse(0)
                             except (BranchFail, CalledEndTokenHandler):
-                                print(indent() + "FAIL production rule recursion.")
+                                #print(indent() + "FAIL production rule recursion.")
                                 raise
                             finally:
                                 pstate_stack.pop()
                             #tok.append_children(next_subexp) # Keep rule toks in tree.
-                            print(indent() + "SUCCESS in production rule recursion.")
-                            print(indent() + "Appending children:", next_subexp.children)
+                            #print(indent() + "SUCCESS in production rule recursion.")
+                            #print(indent() + "Appending children:", next_subexp.children)
                             tok.append_children(next_subexp) # No subrule toks.
 
                         # Unknown case item.
                         else:
-                            print(indent() + "unrecognized item is", item)
+                            #print(indent() + "unrecognized item is", item)
                             raise ParserException("No item recognized.")
 
                     assert tok.token_label == "k_null-string" # DEBUG
-                    print(indent() + "Returning tok with children", tok.children)
-                    print()
+                    #print(indent() + "Returning tok with children", tok.children)
+                    #print()
                     tok.process_and_check_node(head_handler)
 
                     # If parser.top_level_production is set, check that all
@@ -2068,10 +2070,10 @@ class PrattParser(object):
 
                 except (BranchFail, CalledEndTokenHandler) as e:
                     # Backtrack; need to restore to previous saved state.
-                    #print() # DEBUG
-                    print(indent() + "============> backtracking at token", tok)
-                    print(indent() + "\nFAIL is:\n", tok.tree_repr(indent=indent()))
-                    print(indent() + "Exception is:", e)
+                    ##print() # DEBUG
+                    #print(indent() + "============> backtracking at token", tok)
+                    #print(indent() + "\nFAIL is:\n", tok.tree_repr(indent=indent()))
+                    #print(indent() + "Exception is:", e)
                     lex.go_back_to_state(lex_saved_begin_state)
                     if last_case: # Give up, all cases failed.
                         raise BranchFail("All rule cases failed.")
@@ -2086,7 +2088,7 @@ class PrattParser(object):
             raise ParserException("ERROR: No tail functions defined yet for"
                     " null-string tokens.")
             pstate_stack = tok.parser_instance.pstate_stack
-            print("---> Running tail handler for token", tok, "stack is", pstate_stack)
+            #print("---> Running tail handler for token", tok, "stack is", pstate_stack)
             pstate_stack.append("pstate_label")
             # Get the next subexpression, relaying the precedence.
             processed = tok.recursive_parse(tok.subexp_prec,
@@ -2134,7 +2136,7 @@ class PrattParser(object):
         is set then the value will be pushed as the initial state on the production
         rule stack `pstate_stack`."""
 
-        print("\n======================> New call to parse <===================\n")
+        #print("\n======================> New call to parse <===================\n")
 
         if pstate:
             self.pstate_stack = [pstate] # For parsing production rule grammars.

@@ -96,7 +96,10 @@ To use overloading it is important that the preconditions functions are *the
 same*, i.e., that they have the same label.  Handler functions which are
 registered using the *same* preconditions function are treated as being
 overloaded if their type signatures differ.  If the preconditions differ then
-it will be taken as a redefinition of the handler for the token label.
+it will be taken as a redefinition of the handler for the token label.  (If the
+preconditions truly differ then overloading is not needed; overloading is for
+constructs that parse the same but are resolved into different things based on
+the actual type signature.)
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
