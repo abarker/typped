@@ -346,7 +346,7 @@ def token_subclass_factory():
             return string
 
         #
-        # Representations.
+        # Representations.  These overloads work with the production_rules module.
         #
 
         def __add__(cls, other):
@@ -1272,6 +1272,16 @@ class PrattParser(object):
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
 
+        # Below is ugly, but avoids mutual import problems.  These classes from
+        # the production_rules module are needed for processing productions.
+        # TODO: could move that code back into the production_rules module, but
+        # then the interface to this module might be a little strange...
+        from .production_rules import Item, ItemList, CaseList
+        self.Item = Item
+        self.ItemList = ItemList
+        self.CaseList = CaseList
+
+
     #
     # Methods defining tokens.
     #
@@ -1797,29 +1807,105 @@ class PrattParser(object):
             self.def_null_string_token() # Define null-string if necessary.
 
         caselist = grammar[rule_label]
+        caselist = list(caselist) # Only need ordinary Python lists here.
         print("\nThe caselist for the rule is", caselist)
 
-        first_case = caselist[0]
-        first_item_of_first_case = first_case[0]
+        # So to initially process a caselist:
+        # 1. Go through and for each curr_case, collect all the other cases that start with
+        #    the same thing.  All prod rule starts are same thing (LATER preconds can
+        #    be used to make them separate, too)
+        # 2. The handler for that thing must be passed the reduced caselist, of only
+        #    those cases.
 
-        # Register null-string handlers for the first item of the first case.
-        # Use null-string with a peek in front of actual tokens, also, to avoid
-        # special-case handling in later code.
+        token_start_cases = defaultdict(list) # Cases starting with a token.
+        rule_start_cases = [] # Cases starting with a rule.
+
+        while caselist:
+            # Repeatedly cycle through caselist, comparing first case to later ones, 
+            # saving common-start ones and then deleting all that were saved on that
+            # cycle from caselist.
+            print("PPPPPPPPPPPPP caselist at top of while =", caselist)
+            first_saved = False
+            first_case = caselist[0]
+            first_item = first_case[0]
+            first_item_val = first_item.value
+            first_item_kind = first_item.kind_of_item
+            del_list = [0] # Cases to delete; they are saved on another list.
+            if first_item_kind == "token":
+                # Note that *sequences* of tokens could also be handled with
+                # some preconditioned lookahead, but may not be more efficient.
+                first_item_token_label = first_item_val.token_label
+                if not first_saved:
+                    print("WWWWWW appending (first) token case", first_case)
+                    token_start_cases[first_item_token_label].append(first_case)
+                    first_saved = True
+                for i, curr_case in enumerate(caselist[1:]):
+                    curr_first_item = curr_case[0]
+                    curr_first_item_val = curr_first_item.value
+                    curr_first_item_kind = curr_first_item.kind_of_item
+                    if curr_first_item_kind != "token":
+                        continue
+                    # We know now that both are starting case-items are tokens.
+                    curr_first_token_label = curr_first_item_val.token_label
+                    print("YYYYYY token case in while, first token is", first_item_token_label)
+                    print("YYYYYY token case in while, curr token is", curr_first_token_label)
+                    # The token labels must also be the same.
+                    if (curr_first_token_label == first_item_token_label):
+                        print("WWWWWW appending (later) token case", curr_case)
+                        token_start_cases[first_item_token_label].append(curr_case)
+                        del_list.append(i)
+                    else:
+                        continue # Each different kind of token gets its own handler.
+            elif first_item_kind == "production":
+                if not first_saved:
+                    print("WWWWWW appending rule case", first_case)
+                    rule_start_cases.append(first_case)
+                    first_saved = True
+                for i, curr_case in enumerate(caselist[1:]):
+                    curr_first_item = curr_case[0]
+                    curr_first_item_val = curr_first_item.value
+                    curr_first_item_kind = curr_first_item.kind_of_item
+                    if curr_first_item_kind != "production":
+                        continue
+                    # We know now that both are starting case-items are productions.
+                    # LATER these can be given precomputed lookahead preconditions.
+                    token_label = first_item_val
+                    print("WWWWWW appending rule case", first_case)
+                    rule_start_cases.append(curr_case)
+                    del_list.append(i)
+            else:
+                raise ParserException("Unrecognized kind of item in CaseList"
+                        "processed by def_production_rule.  The item is"
+                        "{0}.".format(curr_first_item))
+
+            for i in reversed(del_list):
+                del caselist[i]
+
+        print("\nThe token start cases are", token_start_cases)
+        print("The rule start cases are", rule_start_cases, "\n")
+
+        # Register null-string handlers for each unique first item of some case.
+        # All rules currently treated as non-unique.
         null_token = self.null_string_token_subclass
-        if first_item_of_first_case.kind_of_item == "token":
-            # Register handler with a precondition on the case[0] token.
+
+        # Use null-string with a peek in front of actual tokens, also, to avoid
+        # special-curr_case handling in later code.
+        for token_label, caselist in token_start_cases.items():
+            print("ZZZZZZZZZZ just before registering token, caselist =", caselist)
+            # Register handler with a precondition on the token label.
             # --> Here and elsewhere, assuming the token_label and pstate uniquely
             # identify in both cases, but may need more preconds (later). Todo
-            peek_token = first_item_of_first_case.value
-            print("XXXXXXXXXX registering peek token of", peek_token)
-            self.def_first_case_start_handlers(rule_label, null_token, caselist,
-                                                        peek_token.token_label)
-        elif first_item_of_first_case.kind_of_item == "production":
-            # Register handler with the preconditioned null-string token.
+            print("XXXXXXXXXX registering peek token of", token_label)
+            if caselist:
+                self.def_first_case_start_handlers(rule_label, null_token,
+                                                         caselist, token_label)
+
+        caselist = rule_start_cases # All rules currently handled the same.
+        print("ZZZZZZZZZZ just before registering rule, caselist =", caselist)
+        # Register handler with the null-string token preconditioned on
+        # rule_label being on the top of the pstate_stack.
+        if caselist:
             self.def_first_case_start_handlers(rule_label, null_token, caselist)
-        else: # Add TypeSig case later.
-            raise ParserException("First item of first case of rule \"{0}\" was"
-                    " not recognized.".format(rule_label))
 
     def def_first_case_start_handlers(self, rule_label, null_token, caselist,
                                                        peek_token_label=None):
@@ -1851,8 +1937,10 @@ class PrattParser(object):
 
         print("case list passed to first case start is", caselist)
         def preconditions(lex, lookbehind):
+            #print("QQQQQQQQQQQQQQ testing precondition token hit on", peek_token_label)
             if peek_token_label and lex.peek().token_label != peek_token_label:
                 return False
+            #print("QQQQQQQQQQQQQQ got a precondition token hit on", peek_token_label)
             pstate_stack = lex.token_table.parser_instance.pstate_stack
             return pstate_stack[-1] == rule_label
         precond_label = "precond for production {0}".format(rule_label)
@@ -1883,7 +1971,8 @@ class PrattParser(object):
 
             print()
             print(indent() + "=======> Running head handler for token", tok)
-            print(indent() + "stack is", pstate_stack, "\n")
+            print(indent() + "stack is:", pstate_stack, "\n")
+            print(indent() + "caselist passed in is:", caselist, "\n")
 
             lex_token_count = lex.all_token_count
             lex_saved_begin_state = lex.get_current_state()

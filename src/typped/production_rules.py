@@ -112,43 +112,56 @@ Overloaded operator API
 
 The basic objects that make up rule definitions are `Item` objects, `ItemList`
 objects, and `CaseList` objects.  The latter two are just list-like objects
-with most of the list operations overloaded.  The one major difference is in
-the constructor.  They both take an arbitrary number of arguments, and make all
-elements of the list after converting them to the appropriate type.  An
-`ItemList` only holds `Item` instances, and a `CaseList` only holds `ItemList`
-instances.  One difference from ordinary lists is that when an `ItemList` is
-passed another `ItemList` in its initializer it just extends the list with the
-elements of that list (and similarly for `CaseList`).  So these lists do not
-nest.
+with most of the list operations overloaded.  An `ItemList` only holds `Item`
+instances, and a `CaseList` only holds `ItemList` instances.  These objects
+do not nest, and so they have some important differences from ordinary Python
+lists.
 
-Overloads for `Item` objects are:
+The `ItemList` and `CaseList` classes are basically designed for concatenation
+operations, since that is what is used to build up production rule expressions.
+In their constructors they they both take an arbitrary number of arguments.
+All the arguments are converted to elements of the single type that they hold.
+The new instance then initially contains all those converted arguments as
+elements.  When an `ItemList` is passed another `ItemList` in its initializer
+argument list it just takes the elements within that list and puts them on its
+list.  The `CaseList` class works similarly.
 
-   * `+` to produce an `ItemList`
-   * `|` to convert both arguments to `ItemList` and return a `CaseList`
+So the initializers basically form the concatenation of all the passed-in
+arguments, after converting to the one type that the list-like object holds.
+The addition and "or" operations are essentially shorthand for putting both
+operands on an initializer list of the appropriate return type.
 
-Overloads for `ItemList` objects are:
+Addition of `Item` or `ItemList` instances with `+` always returns an
+`ItemList`.  The operation is the same as if the operands had both been on the
+initializer list for `ItemList`.
 
-   * `+` to produce another `ItemList` simply combining the items
-   * `|` to convert both arguments to `ItemList` and return a `CaseList`
-
-Overloads for `CaseList` objects are:
-
-   * `|` to convert both arguments to `CaseList` and then combine the items.
+The "or" operation `|` on `Item`, `ItemList`, or `CaseList` instances always
+returns a `CaseList`.  Again, it is the same as if the operands had been
+arguments to the initializer of a `CaseList`.
 
 The `+` and `|` operators are defined for tokens in the `PrattParser` module to
-simply return a tuple of the tokens.  That is sufficient, since all operations
-other than addition 
+behave in the same way as the `Item` instances.  This allows the use of the
+tokens directly, without having to convert them into `Item` instances (via the
+`Tok` function).
 
-The `+` operator has a higher precedence than the `|` operator.  So all the
-additions within a case will always be carried out before any "or" operations.
-So each argument to `|` will be either a single `Item` or a single `ItemList`.
+Since the `+` operator has a higher precedence than the `|` operator, all the
+additions within a case will always be carried-out before any "or" operations.
+So each argument to `|` will be either a single token, a single `Item` or a
+single `ItemList`.
 
-Note that the resulting r.h.s. object which is set to the l.h.s. variable name
-for a production rule can be a single `Item`, a single `ItemList`, a
-`CaseList`, a `TokenNode` or a tuple of `TokenNodes`.  The `compile` method
-converts them all into `CaseList` objects.  (It would be possible to overload
-the `<<=` operator and use it instead of `=` to automatically do the
-conversion, but that does not seem worth the extra notation.)
+Operations such as `append` and `insert` are defined for these list-like
+classes.  They convert their argument to the correct type for the container and
+then do the expected thing.  Indexing of these list-like objects is also
+supported, including negative indices but currently not slices.
+
+Note that after a full expression containing these objects and operators is
+evaluated the resulting r.h.s. object (which is set to the l.h.s. variable name
+for a production rule) can be 1) a single token, 2) a single `Item`, 3) a
+single `ItemList`, or 4) a `CaseList`.  The `compile` method of a `Grammar`
+instance will always convert the value into a `CaseList` instance.  (It would
+be possible to overload the `<<=` operator and use it instead of `=` to
+automatically do the conversion, but that does not seem worth the extra
+notation and boilerplate.)
 
 A convenient synonym for the `Rule` function
 --------------------------------------------
@@ -507,9 +520,10 @@ class Item(object):
             raise ParserGrammarRuleException("Unrecognized case item: {0}"
                                              .format(value))
 
-    def __getitem__(self, arg):
-        """Use bracket-indexing as a shortcut for the `Prec` function."""
-        return Prec(self, arg)
+    #def __getitem__(self, arg):
+    #    # No longer used; lists with [...] will be optional sections.
+    #    """Use bracket-indexing as a shortcut for the `Prec` function."""
+    #    return Prec(self, arg)
 
     def __call__(self, type_sig):
         """Use function call as a synonym for the `Sig` function."""
@@ -525,9 +539,9 @@ class Item(object):
                 token_label = self.value
             else:
                 token_label = self.value.token_label
-            string = "Tok({0})".format(token_label)
+            string = "Tok(\"{0}\")".format(token_label)
         elif self.kind_of_item == "production":
-            string = "<{0}>".format(self.value)
+            string = "Rule(\"{0}\")".format(self.value)
         elif self.kind_of_item == "pratt_call":
             string = "Pratt(\"{0}\")".format(self.value)
         else:
@@ -638,7 +652,7 @@ class ItemList(object):
         raise_if_not([Item, ItemList], [TokenNode], right_other, self, "+")
         """Overload `+` from the left operand."""
         if not isinstance(right_other, ItemList):
-            return self + ItemList(right_other)
+            return self + ItemList(right_other) # TODO prob unnecessary, doesn't __init__ do it?
         return ItemList(self, right_other)
 
     def __radd__(self, left_other):
@@ -732,6 +746,15 @@ class CaseList(object):
         if index < 0: # Handle negative indices.
             index += len(self)
         del self.data_list[index]
+
+    def add(self, other):
+        """Add a `CaseList` to some other object, which must be convertable to
+        a `CaseList`.  This method is purposely not overloaded with the operator
+        `+` because that operator is used in the production rule strings for
+        `ItemList` objects, but in that context is an error if applied to
+        `CaseList` objects."""
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], other, self, "+")
+        return CaseList(self, other)
 
     def __add__(self, right_other):
         raise_if_not([], [], right_other, self, "+") # Error to add CaseLists.

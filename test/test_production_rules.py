@@ -117,6 +117,26 @@ def test_basic_expression_grammar():
            | Rule("factor")
            )
 
+    # TODO ALL cases which start with a token must have the token registered if
+    # `recursive_parse` is to be used to recursively process it....
+    # Here only k_number is registered, so recursive_parse does not work for
+    # k_lpar; it is treated as a literal and parsing stops!!!
+    #
+    # What if we register each token-starting thing, and it is expected to
+    # handle 
+
+    # The loop handles ONLY cases which start with non-token.
+
+    # Things that start with token, though, have to handle each case that
+    # starts with that token.
+
+    # So to initially process a caselist:
+    # 1. Go through and for each case, collect all the other cases that start with
+    #    the same thing.  All prod rule starts are same thing (LATER preconds can
+    #    be used to make them separate, too)
+    # 2. The handler for that thing must be passed the reduced caselist, of only
+    #    those cases.
+
     factor = ( k_number
              | k_lpar + Rule("expression") + k_rpar
              )
@@ -184,16 +204,16 @@ def test_overload_expression_grammar():
 
     tok_str = Tok(k_number)
     assert tok_str.kind_of_item == "token"
-    print("1", str(  Tok(k_number)[4]  ))
-    print("2", str(  Tok(k_number)[4]  ))
-    print("3", str(  k_number[10] + Rule("factor")  ))
+    print("1", str(  Tok(k_number)  ))
+    print("2", str(  Tok(k_number)  ))
+    print("3", str(  k_number + Rule("factor")  ))
     print("4", str(  Tok(k_number) + Sig(Rule("factor"), none_sig) | Rule("term")  ))
     print("5", str(  Tok(k_number) + ~Rule("factor") | Root(Rule("term")) | ~Pratt() | k_number  ))
     print("6", str(  k_number | k_number | Root(Rule("term")) | Pratt()  ))
     print("7", str(  k_number + k_number | k_number | Root(Rule("term")) | ~k_plus  ))
 
-    wff = ( Rule("wff") + ~k_plus[10] + Rule("wff")
-          | Rule("wff") + ~k_ast[20]  + Rule("wff")
+    wff = ( Rule("wff") + ~k_plus + Rule("wff")
+          | Rule("wff") + ~k_ast  + Rule("wff")
           | Optional(Rule("wff") + Optional(k_plus + k_plus))
           )
     print(str(wff))
