@@ -101,8 +101,7 @@ User-accessible methods of tokens.
 * `is_begin_token` -- true when tokens is a begin token
 * `is_end_token` -- true when tokens is a end token
 * `is_begin_or_end_token` -- true when tokens is a begin_or_end_token
-* `ignored_before` -- return tuple of all tokens ignored immediately before this one
-
+* `ignored_before_labels` -- just the token labels of the tokens ignored before
 For a token named `t`, these attributes are available:
 
 * `t.token_label` -- the string label of the token (which was defined with it)
@@ -112,6 +111,7 @@ For a token named `t`, these attributes are available:
 * `t.children` -- can be set to a list of children; set by the lexer to `[]`
 * `t.original_matched_string` -- the original text that was consumed for this token
 * `t.line_and_char` -- tuple of line number and character where the token started
+* `ignored_before` -- return tuple of all tokens ignored immediately before this one
 
 TODO, list other methods, too.
 

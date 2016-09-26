@@ -7,7 +7,7 @@ The grammar
 -----------
 
 The basic grammar in EBNF is:
-
+::
     <wff> = <atomic_formula>
           | 'not' <wff>
           | '(' <wff> ')'
@@ -15,13 +15,13 @@ The basic grammar in EBNF is:
           | <quantifier_expr> <wff>
           | <wff_subst_function>
 
+    <atomic_formula> = <predicate_name> '(' <term_list> ')'
+
     <term> = '(' <term> ')'
            | <function_eval>
            | <variable_name>
            | <constant_name>
            | <term_subst_function>
-
-    <atomic_formula> = <predicate_name> '(' <term_list> ')'
 
     <function_eval> = <standard_function_eval>
                     # Note parens on operators here; precedence rules allow removal.
@@ -82,6 +82,7 @@ to parse.
 
   The operator precedences are as follows, with the chosen numerical values to the
   right.
+  ::
 
         highest
                ( )                        implicit in grammar
@@ -114,7 +115,7 @@ visually separating and grouping parts of formulas.  Unfortunately they
 complicate the handling of quantifiers.
 
 All of these are valid quantifier expressions:
-
+::
     * AxEy <wff>
     * (Ax)(Ey) <wff>
     * (Ax,y)Ez,w <wff>

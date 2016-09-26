@@ -1635,18 +1635,21 @@ class PrattParser(object):
                               val_type=val_type, arg_types=arg_types,
                               eval_fun=eval_fun, ast_label=ast_label)
 
-    def def_prefix_op(self, operator_token_label, prec,
-                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
+    def def_prefix_op(self, operator_token_label, prec, precond_label=None,
+                      precond_fun=None, val_type=None, arg_types=None,
+                      eval_fun=None, ast_label=None):
         """Define a prefix operator.  Note that head handlers do not have
-        precedences, only tail handlers.  With respect to the looping in
-        `recursive_parse` it wouldn't make a difference.  But, within the head
+        precedences, only tail handlers.  (With respect to the looping in
+        `recursive_parse` it wouldn't make a difference.)  But, within the head
         handler, the call to `recursive_parse` can be made with a nonzero
-        precedence.  This allows setting a precedence for prefix operators."""
+        precedence.  This allows setting a precedence to determine the argument
+        expressions that the prefix operators grabs up (or doesn't)."""
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler)
             return tok
         return self.modify_token_subclass(operator_token_label, head=head_handler,
+                            precond_label=precond_label, precond_fun=precond_fun,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                             ast_label=ast_label)
 
