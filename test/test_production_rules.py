@@ -117,29 +117,23 @@ def test_basic_expression_grammar():
            | Rule("factor")
            )
 
-    # TODO ALL cases which start with a token must have the token registered if
-    # `recursive_parse` is to be used to recursively process it....
-    # Here only k_number is registered, so recursive_parse does not work for
-    # k_lpar; it is treated as a literal and parsing stops!!!
+    # TODO below succeeds when True, fails when False!!!  Seems like it should
+    # not matter.  When `recursive_parse` is called after pushing "factor" onto
+    # the stack, there will only be one kind of token ahead in the lexer.  The
+    # peek precondition should uniquely pick one....
     #
-    # What if we register each token-starting thing, and it is expected to
-    # handle 
-
-    # The loop handles ONLY cases which start with non-token.
-
-    # Things that start with token, though, have to handle each case that
-    # starts with that token.
-
-    # So to initially process a caselist:
-    # 1. Go through and for each case, collect all the other cases that start with
-    #    the same thing.  All prod rule starts are same thing (LATER preconds can
-    #    be used to make them separate, too)
-    # 2. The handler for that thing must be passed the reduced caselist, of only
-    #    those cases.
-
-    factor = ( k_number
-             | k_lpar + Rule("expression") + k_rpar
-             )
+    # Only one is even checked for in preconditions handling.  Might be a bug
+    # there.  Depending on which is selected, that one is tested but the other
+    # is not.  Both should be tested, one should fail.
+    num_first = False
+    if num_first:
+        factor = ( k_number
+                 | k_lpar + Rule("expression") + k_rpar
+                 )
+    else:
+        factor = ( k_lpar + Rule("expression") + k_rpar
+                 | k_number
+                 )
 
     #
     # Parse some expressions.
@@ -163,28 +157,17 @@ def test_basic_expression_grammar():
     #                     "<k_number,'4'>),<k_ast,'*'>,<k_null-string,'factor'>("
     #                     "<k_number,'4'>)))")
 
-    # TODO below parse fails.  Stops after first (.  It should parse as follows:
-    # expression
-    #     term
-    #        factor            # First two fail, third succeeds.
-    #           k_number, 5
-    #     k_plus
-    #     term
-    #        factor            # First two fail, third succeeds.
-    #           k_lpar, (         # First fail, second succeeds.
-    #           expression
-    #              term        # First two fail, third succeeds.
-    #                 factor
-    #                    k_number, 444
-    #                 k_ast, *
-    #                 factor
-    #                    k_number, 32
-    #           k_rpar, )
-    #  Success.
     another_example = "5 * (444 + 32)"
     print(another_example, "\n")
     another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
     print(another_example_result)
+
+
+    another_example = "(5 + 99) * 388"
+    print(another_example, "\n")
+    another_example_result = parser.parse(another_example, pstate="expression").tree_repr()
+    print(another_example_result)
+
     fail()
 
 def test_overload_expression_grammar():

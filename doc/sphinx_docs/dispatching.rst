@@ -79,14 +79,24 @@ is important, then, to have a clear definition of when two functions are
 considered equal.
 
 In order to avoid problems in determining when functions are identical, every
-preconditions function (or use of a preconditions function) **must** be assigned
-a unique label.  These functions are then registered in a dict using methods of
-the `TokenTable` class.
+preconditions function (or use of a preconditions function) **must** be
+assigned a label.  These functions are then registered in a dict using methods
+of the `TokenTable` class.  If you want the functions to be considered
+identical, use the *same* label.  If you want the functions to be considered
+different, use a *different* label.  **This can be very important in defining
+general parser methods and can cause subtle problems if it is not done
+correctly.**
 
-These preconditions labels **define** identity or non-identity between
-preconditions functions.  Handler functions registered using the same
-preconditions function are treated as being overloaded if their type signatures
-differ; otherwise it is taken as a redefinition.
+The preconditions labels **define** identity or non-identity between
+preconditions functions.  Sometimes you want the preconditions to be considered
+identical, and sometimes you want them to be considered to be different (especially
+when they make use of closure variables or other external scope variables).
+
+To use overloading it is important that the preconditions functions are *the
+same*, i.e., that they have the same label.  Handler functions which are
+registered using the *same* preconditions function are treated as being
+overloaded if their type signatures differ.  If the preconditions differ then
+it will be taken as a redefinition of the handler for the token label.
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------

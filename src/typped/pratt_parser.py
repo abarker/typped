@@ -1799,9 +1799,6 @@ class PrattParser(object):
     def def_production_rule(self, rule_label, grammar):
         """Define a production rule with the label `rule_label` as defined in
         the `Grammar` object `grammar`."""
-        # TODO: let the start state know it is the start state, so when
-        # it is the *first* call of the start state it can make sure
-        # that the end of the text has been reached.
         print("\nRegistering production rule with label:", rule_label)
         if not self.null_string_token_subclass:
             self.def_null_string_token() # Define null-string if necessary.
@@ -1936,14 +1933,22 @@ class PrattParser(object):
         # but no memoization, see e.g. Frost et. al 2007).
 
         print("case list passed to first case start is", caselist)
-        def preconditions(lex, lookbehind):
+        def preconditions(lex, lookbehind, peek_token_label=peek_token_label):
+            """This function is only registered and used if `peek_token_label`
+            is not `None`."""
+            pstate_stack = lex.token_table.parser_instance.pstate_stack
+            if pstate_stack[-1] != rule_label:
+                return False
             #print("QQQQQQQQQQQQQQ testing precondition token hit on", peek_token_label)
             if peek_token_label and lex.peek().token_label != peek_token_label:
                 return False
             #print("QQQQQQQQQQQQQQ got a precondition token hit on", peek_token_label)
-            pstate_stack = lex.token_table.parser_instance.pstate_stack
-            return pstate_stack[-1] == rule_label
-        precond_label = "precond for production {0}".format(rule_label)
+            return True
+        # This label NEEDS to be different for each rule AND for each peek
+        # token label.  Otherwise, the routine can fail.  The conditions can
+        # be considered identical to previously-defined ones, and overwrite them.
+        precond_label = ("precond for production {0} peek {1}"
+                                        .format(rule_label, peek_token_label))
 
         def head_handler(tok, lex):
             """The head handler assigned to the first token of the first case for

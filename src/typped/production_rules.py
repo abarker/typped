@@ -25,12 +25,25 @@ TODO: to add more overloads, use * for `ZeroOrMore`.  Precedence high enough
 
     Also from above page, { } is repeat symbol.  Easy to handle, too, just
     let it form a set and have + extract from the set!!!!
+    The | operation is the union.  Should work except when two identical
+    ones are on opposite sides of | symbol.  Then they crush to one
+    and there is no way to tell.  Left-to-right eval won't save you
+    if the first thing is {k_number} | {k_number} ...
+
+    Note that raw strings cannot be allowed in the rule expressions because
+    "s" + "s" is define and "s" | "s" is not.
 
     Brackets for optional.  Remember that brackets are lists.  So just
         [k_comma]  vs.  Optional(k_comma)
     Just define the operations to turn lists into Optional things.
+    BUT fails in same ways that commas in tuples fails: you cannot
+    add two lists, and | is not defined for lists.  So, at the least,
+    they cannot be at the end of a case that is followed by another
+    that starts with a [ or a {.  Maybe better to use
+       _[k_comma]
+    which has the annoying _ but otherwise should work fine...
 
-    Maybe postfix minus for one or more (actually defined in some standard,
+    Maybe postfix minus for something (actually defined in some standard,
     don't recall exactly).
         _<"wff">_-_
         Rule("wff")-_
@@ -461,7 +474,7 @@ class Grammar(object):
         """For use with the 'in' keyword, like testing keys in a dict."""
         return self.production_label in production_rules
 
-    def optimize_grammar_tree(self):
+    def _optimize_grammar_tree(self):
         """Do a search of the grammar tree and find lookahead tokens to
         make the parsing more efficient. Called from the `compile` method.
         NOT IMPLEMENTED."""
@@ -471,6 +484,18 @@ class Grammar(object):
         # back up the CFG tree after a recursive search down.  After they are
         # found they can be passed to the Pratt null-string handler function.
         raise NotImplementedError("Not implemented.")
+        self._recurse_on_grammar_tree(self.start_rule_label, num_productions)
+
+    def _recurse_on_grammar_tree(self, rule_label, max_depth, curr_depth=0):
+        """Recursively walk the grammar tree.  Limit depth to `depth`."""
+        rule = self.production_rules[rule_label]
+        for item in rule:
+            if item.kind_of_item == "production":
+                if curr_depth <= max_depth:
+                    subrule_label = item.value
+                    recurse_val = self._recurse_on_grammar_tree(
+                                     subrule_label, max_depth, curr_depth+1)
+        return retval
 
 class Item(object):
     """Class representing the basic elements that make up the cases of the
