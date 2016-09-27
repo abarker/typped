@@ -232,7 +232,7 @@ def test_overload_expression_grammar():
           )
     print(str(wff))
 
-    _ = Item()
+    _ = pp.UNDERSCORE
 
     print()
     print("======================")

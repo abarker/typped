@@ -1802,7 +1802,7 @@ class PrattParser(object):
     # are called from?
 
     def def_production_rule(self, rule_label, grammar):
-        """Define a production rule with the label `rule_label` as defined in
+        """Register production rule cases with the label `rule_label`, as defined in
         the `Grammar` object `grammar`."""
         #print("\nRegistering production rule with label:", rule_label)
         if not self.null_string_token_subclass:
@@ -1858,7 +1858,7 @@ class PrattParser(object):
                         del_list.append(i)
                     else:
                         continue # Each different kind of token gets its own handler.
-            elif first_item_kind == "production":
+            elif first_item_kind == "nonterminal":
                 if not first_saved:
                     #print("WWWWWW appending rule case", first_case)
                     rule_start_cases.append(first_case)
@@ -1867,9 +1867,9 @@ class PrattParser(object):
                     curr_first_item = curr_case[0]
                     curr_first_item_val = curr_first_item.value
                     curr_first_item_kind = curr_first_item.kind_of_item
-                    if curr_first_item_kind != "production":
+                    if curr_first_item_kind != "nonterminal":
                         continue
-                    # We know now that both are starting case-items are productions.
+                    # We know now that both are starting case-items are nonterminals.
                     # LATER these can be given precomputed lookahead preconditions.
                     token_label = first_item_val
                     #print("WWWWWW appending rule case", first_case)
@@ -1877,8 +1877,8 @@ class PrattParser(object):
                     del_list.append(i)
             else:
                 raise ParserException("Unrecognized kind of item in CaseList"
-                        "processed by def_production_rule.  The item is"
-                        "{0}.".format(curr_first_item))
+                        "processed by def_production_rule.  The item is: "
+                        "{0}.".format(first_item))
 
             for i in reversed(del_list):
                 del caselist[i]
@@ -2035,8 +2035,8 @@ class PrattParser(object):
                                         .format(rule_label, item_token_label, next_tok))
                             tok.append_children(next_tok) # Make the token a child.
 
-                        # Production is the case item.
-                        elif item.kind_of_item == "production":
+                        # Case item is a nonterminal (recursive call to other rules).
+                        elif item.kind_of_item == "nonterminal":
                             item_rule_label = item.value
                             #print(indent() + "Handling a production, pushing state:",
                             #                         item_rule_label)

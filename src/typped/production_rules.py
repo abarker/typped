@@ -1,67 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 
-TODO: some simple example grammars:
-    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
-    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
-
-TODO: to add more overloads, use * for `ZeroOrMore`.  Precedence high enough
-    to probably not be too much problem, if a good idea at all.  Functions
-    probably better, this is pushing it too far.
-
-        3 * _<"wff">_    # parses fine!
-
-        # Not as good, not EBNF:
-        _<"wff">_*_   vs, OneOrMore(_<"wff">_)
-        Rule("wff")*_
-        k_number*_
-
-    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
-    Better: from Wikipedia EBNF page,
-        3 * k_number
-    should be three k_number tokens.  Easy to do.  It applies to groups
-    with parens 3*(k_number + k_comma) for free (as long as ItemList can
-    handle it).  Need to consider, though, how parens will affect _<"x">_
-    when those subgroups are processed...
-
-    Also from above page, { } is repeat symbol.  Easy to handle, too, just
-    let it form a set and have + extract from the set!!!!
-    The | operation is the union.  Should work except when two identical
-    ones are on opposite sides of | symbol.  Then they crush to one
-    and there is no way to tell.  Left-to-right eval won't save you
-    if the first thing is {k_number} | {k_number} ...
-
-    Note that raw strings cannot be allowed in the rule expressions because
-    "s" + "s" is define and "s" | "s" is not.
-
-    Brackets for optional.  Remember that brackets are lists.  So just
-        [k_comma]  vs.  Optional(k_comma)
-    Just define the operations to turn lists into Optional things.
-    BUT fails in same ways that commas in tuples fails: you cannot
-    add two lists, and | is not defined for lists.  So, at the least,
-    they cannot be at the end of a case that is followed by another
-    that starts with a [ or a {.  Maybe better to use
-       _[k_comma]
-    which has the annoying _ but otherwise should work fine...
-
-    Maybe postfix minus for something (actually defined in some standard,
-    don't recall exactly).
-        _<"wff">_-_
-        Rule("wff")-_
-        k_number-_
-
-TODO: Define EPSILON item for epsilon production.  Should be easy (I hope).
-
-TODO: ~ should really be "not" on a token for lookahead...
-
-TODO: nice to have a notation for ignoring a thing in the grammar (such as some
-parens, etc.)  Maybe just Hide(...) wrapper?
-
 Introduction
 ------------
 
+This module implements a nice frontend for parsing grammars using EBNF-like
+Python expressions.  The backend is the recursive-descent parsing capabilities
+of the `PrattParser` class, implemented using precondition functions and
+null-string token handlers.
+
 Similar projects which parse a Python grammar using recursive descent (though
-without the underlying Pratt parser) are:
+without the underlying Pratt parser and calls to it) are:
 
 * **pyparsing** -- Uses Python overloading to define the grammar, similar to
   this module.
@@ -80,49 +29,89 @@ Terminology
 -----------
 
 * **Production rules** are also called **productions** or just **rules**.
-  They are the individual rewrite rules such as `<expression> ::= <term>`
-  in BNF.
+  They are the individual rewrite rules such as `<expression> ::= <term>` in
+  BNF.  The symbols on the l.h.s. of productions (which can also appear in the
+  r.h.s.) are called **nonterminal symbols**.  The other possible symbols on
+  the r.h.s. are **terminal symbols** or the special **epsilon symbol**.
 
-* Production rules with the the same l.h.s. symbol 
-  are called different **cases** of the production.  An alternative notation is
-  to separate different cases by the "or" symbol `|`.  The latter form of
-  definition is currently *required* in by this module.
+* Production rules with the the same l.h.s. nonterminal symbol will be
+  called different **cases** of the nonterminal symbol.  An alternative
+  notation is to define multiple cases in one expression by using "or" symbol
+  `|`.  This latter form of definition is currently *required* by this module.
+  That is, all the cases of rules defining a nonterminal must be occur in one
+  expression, using `|` if there are multiple cases.
 
-* The separate symbol elements within a case are called the **items** of that
-  case.
+* The separate symbol elements within a case will be collectively called the
+  **items** of that case.  They include terminal symbols, nonterminal symbols,
+  and possibly the epsilon symbol.  In this module there are no explicit
+  terminal symbols.  Instead, terminals are either tokens (defined for and
+  parsed from the lexer) or consecutive sequences of tokens.  Several
+  grammatical constructs are possible to modify the meaning of the items in a
+  production rule, which will be discussed later.
 
-TODO, maybe:  It a mutual left recursion is going to repeat it will presumably
-do so in n recursive calls, where n is the number of productions.  After n
-calls with no token consumed, can assume failure.  This assumes no side
-effects.  
+TODO: start using caselist as a term.
 
-While each case of a l.h.s. symbol (nonterminal) is technically a production
-rule itself, in this module the terms production and rule are generally used to
-refer to the collection of all the cases having the same l.h.s. symbol.
+Although each case of a rule defining a nonterminal is technically a production
+rule itself, in this module the terms "production" and "rule" generally refer
+to collections of all the cases having the same l.h.s. symbol.  As mentioned
+above, all the cases must be defined in the same expression.
 
 The order in which the production rules are written does not matter.  So rules
 can be written top-down if that is easier to read, even though some of the
 productions rules being called have not yet been defined.  This is achieved by
 the use of string labels for production names in the r.h.s. of production
-rules.  These strings are resolved later in when the `compile` method of the
+rules.  These strings are resolved later when the `compile` method of the
 grammar is called (passed the start state and a locals dict).  These r.h.s.
 strings **must** be identical to the l.h.s. Python variable names for the rules
 (since they are looked up in the locals dict).
 
-The order in which cases are defined within a production's "or" sections does
+The order in which cases are defined within a production's "or" sections *does*
 matter, at least for ambiguous grammars and to avoid or minimize backtracking.
 The order of the cases is the order in which the algorithm will test the cases.
 The first successful parse is returned.  So the grammar is really a **parsing
-expression grammar (PEG)** rather than a **context-free grammar (CFG)** which
+expression grammar (PEG)** rather than a **context-free grammar (CFG)**, which
 can be ambiguous.  PEGs also allow "and" and "not" predicates.  The grammar
 implemented in this module still uses the `|` operator for "or", though, rather
 than the `/` operator.
 https://en.wikipedia.org/wiki/Parsing_expression_grammar
 
-The current algorithm is a basic
-backtracking search algorithm.  In the future, lookahead tokens could be
-incorporated (via preconditions) to make LL(1) and similar grammars efficient.
+Implementation
+--------------
 
+.. note::
+
+    This module is a work-in-progress.  As of now the syntactic Python
+    interface mostly all works, but not all of the features have been coded
+    into the backend algorithms.  Currently it does basic BNF types of things,
+    but not many EBNF extensions.  See the test file cases for examples.  Here
+    is a summary of what is implemented and what is not yet implemented.
+
+    Implemented::
+
+       Backtracking recursive descent search.
+       Rule
+       Tok
+
+    Not yet implemented::
+
+       Prec and precedences in productions
+       Sig type handling
+       Pratt calls to the Pratt parser
+       Optional
+       OneOrMore
+       ZeroOrMore
+       Not
+       AnyOf
+       Hide
+       Repeat(n, itemlist), exactly n repeats
+       overload * as in `3 * k_rpar` for Repeat
+       RepeatAtLeast(n, itemlist), n or more repeats
+       overload ** as in `3 ** k_rpar` for RepeatAtLeast
+       LL(1) optimization
+       epsilon production handling
+       Undo compile in Grammar class.
+
+       
 TODO: Make this a table????
 
 The kinds of items that are supported are:
@@ -216,6 +205,28 @@ be possible to overload the `<<=` operator and use it instead of `=` to
 automatically do the conversion, but that does not seem worth the extra
 notation and boilerplate.)
 
+TODO: 
+
+    Update: Implement this: Use `3 * k_digit` for exactly 3, and `3 ** k_digit`
+    for three or more.  Then ZeroOrMore is `0**k_digit` and OneOrMore is
+    `1**k_digit`.  The `**` operator can be read as `OrMore`.  Both have high
+    precedence, shouldn't be a problem!!!  The extra asterisk "adds more" to
+    the expression.  Also, `Not` is `0*k_comma`.
+
+    * `*` = "occurrences of"
+    * `**` = "or more occurrences of"
+
+    Applies to groups in parens for free; the + operators turn the all
+    into an ItemList.
+
+    Implement as `Repeat(n, itemlist)` and `RepeatAtLeast(n, itemlist)`.
+
+    Note, though, that 3*_<"wff">_ will grab the 3*_, which must return
+    something that works.
+
+    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+
+
 A convenient synonym for the `Rule` function
 --------------------------------------------
 
@@ -299,6 +310,57 @@ argument.  In every other case the r.h.s. is not an individual `Item`,
 since the smallest case is something like `_<"wff">_+_<"wff">_`.  The
 middle `_+_` is evaluated to produce an `ItemList`, which is not an `Item`.
 
+Rejected overloads
+------------------
+
+TODO: delete this or move to some footnote or something.
+
+**Comma-separated lists for items**
+   Instead of combining items with `+`, one could consider combining them with
+   `,` by using the definition of tuples.  Then `lhs = k_number, Rule("wff")`
+   would set lhs to a tuple.  Unfortunately, `|` is not defined for lists.
+   So each production rule would need to be defined on a separate line.
+
+**Raw strings**
+    Raw strings cannot be allowed in the rule expressions because `"s" + "s"`
+    is defined as concatenation, which would lead to conflict with the current
+    use of the `+` operator.  Also, `"s" | "s"` is not defined, which would
+    cause special cases needing wrappers.
+
+**Optional with `[...]`**
+
+    Remember that brackets are lists.  So `[k_comma]` could be considered for
+    `Optional(k_comma)` This fails in similar ways that commas in tuples
+    fail: adding two lists gives the wrong thing, and `|` is not defined for lists.
+    A possible alternative would be to use `_[k_comma]`.  This would work by overloading
+    indexing on the `_` item, but it has the annoying underscore.  Without `{...}`
+    to go with it it doesn't seem too attractive.
+
+**Repeat with `{...}`**
+
+   Usually in EBNF `{...}` is the repeat symbol.  It seems like it would be
+   possible to overload the set initialization braces to do this, since the `|`
+   operation is union.  But the `+` operator is not defined, leading to
+   special cases requiring the wrapper-function `ZeroOrMore`.
+   
+   As far as `|` being union, you just have to make sure that `Item` instances
+   always compare unequal by defining `__bool__` for them.  But it is not just
+   `Item` instances that would need to be redefined if undecorated tokens are
+   allowed in the expressions.  The `Item` class is special-purpose and is only
+   used for these expressions.  Tokens are general-purpose, though, and are
+   used in many contexts.  Such a change to their behavior could lead to many
+   unexpected consequences.
+   
+   Another deal-breaker here is expressions like `lhs = k_digit | k_digit`
+   which cannot be converted into `Item` instances and which collapse down into
+   `lhs = k_digit` in an undetectable way.  Maybe that works, since they *are*
+   identical, and any time you add another item you end up with `ItemList`
+   instances.  It is at least cause to be wary.
+
+   Since the `*` and `**` operators work well and serve as shorcuts for
+   `OneOrMore`, `Optional`, and `ZeroOrMore` the questionable overloads above
+   are not used.  
+
 Modifiers for items
 -------------------
 
@@ -377,6 +439,9 @@ So the expression `x + y * z` will be evalated as `x + (y*z)`.
 Optimizing the grammar
 ----------------------
 
+predictive parsing
+~~~~~~~~~~~~~~~~~~
+
 In order to optimize the parsing of a recursive descent grammar, many
 grammars allow the use of **predictive parsing**, which requires no
 backtracking.  Even when predictive parsing is not possible, often
@@ -395,21 +460,30 @@ See:
 http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
 http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html
 
-Consider packrat parsing:
+Maybe also consider packrat parsing:
 https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars
 
-Grammar transformation
-----------------------
+grammar transformations
+~~~~~~~~~~~~~~~~~~~~~~~
 
 Not implemented.  Just an idea for now, but you could do any number of
 grammar transformations on the rules of a `Grammar` object.
 
 One possibility is to remove at least trivial left recursion.  Just change the
-ordering of any obvious left recursive cases.  In a more complicated
-transformation you could do **left factoring** on the grammar to remove the
-left recursion.
+ordering of any obvious left recursive cases.
+
+In a more complicated transformation you could do **left factoring** on the
+grammar to remove the left recursion.
+
+Consider curtailment of left recursion, too.  If it is going to repeat will it
+repeat in n levels, where that is the number of rules?  What is the limit, etc.
+See some of those articles and maybe do a simple thing.
 
 """
+
+# TODO: some simple example grammars for use in tests:
+#    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
+#    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 
 from __future__ import print_function, division, absolute_import
 import pytest_helper
@@ -435,36 +509,22 @@ class Grammar(object):
     def __init__(self):
         self.delimiter = Item(None) # Could be static but Item would need moving.
         self.parser = None
-        self.production_rules = {}
-        self.processing_in_progress = set() # Save rules to avoid infinite recurse.
+        self.production_caselists = {}
+        self.processing_in_progress = set() # To avoid infinite recurse in compile.
 
-    def old_add_production_case(self, rule_label, case_item_list):
-        """Add a production rule to the grammar.  A `case_item_list` is
-        an ordered list of `Item` instances or things that can
-        be converted to one.  The order that they are added is the
-        order that they will be evaluated in."""
-        print("case item list", case_item_list)
-        case_item_list = ItemList(*case_item_list)
-        case_item_list.rule_label = rule_label
-
-        if rule_label in self.production_rules:
-            self.production_rules[rule_label].append(case_item_list)
-        else:
-            self.production_rules[rule_label] = [case_item_list]
-
-    def add_production_case(self, rule_label, caselist):
-        """Add a production rule to the grammar.  A `case_item_list` is
-        an ordered list of `Item` instances or things that can
-        be converted to one.  The order that they are added is the
-        order that they will be evaluated in."""
-        # TODO not used by _process now...
-        print("case item list", case_item_list)
-        if rule_label in self.production_rules:
-            self.production_rules[rule_label].append(case_item_list)
-        else:
-            raise ParserGrammarRuleException("All cases must be currently"
-                    " be added through the `compile` function with all"
-                    " cases present.")
+    #def add_production_case(self, rule_label, caselist):
+    #    """Add a production rule to the grammar.  A `case_item_list` is
+    #    an ordered list of `Item` instances or things that can
+    #    be converted to one.  The order that they are added is the
+    #    order that they will be evaluated in."""
+    #    # TODO not used by _process now...
+    #    print("case item list", case_item_list)
+    #    if rule_label in self.production_caselists:
+    #        self.production_caselists[rule_label].append(case_item_list)
+    #    else:
+    #        raise ParserGrammarRuleException("All cases must be currently"
+    #                " be added through the `compile` function with all"
+    #                " cases present.")
 
     def compile(self, start_rule_label, parser, locals_dict, register=True):
         """Create the Pratt parser handlers in `parser` to parse the current
@@ -472,9 +532,11 @@ class Grammar(object):
         
         If `register` is true the rules are registered with the `PrattParser`
         instance `parser` to enable it to parse the grammar."""
+        # TODO document must be reachable from start state.  Also, make sure
+        # we don't accidentally re-register something.
 
         print("call to compile")
-        self.production_rules = {} # Reset all the rules.
+        self.production_caselists = {} # Reset all the rules.
         self.processing_in_progress = set()
         self.parser = parser
         self.start_rule_label = start_rule_label
@@ -482,12 +544,12 @@ class Grammar(object):
         self._process_rule(start_rule_label)
         self.processing_in_progress = set()
         print("\nThe final dict is\n")
-        for name, caselist in self.production_rules.items():
+        for name, caselist in self.production_caselists.items():
             print("   {0} = {1}".format(name, caselist))
         print()
 
         if register:
-            for label, rule in self.production_rules.items():
+            for label, rule in self.production_caselists.items():
                 self.parser.def_production_rule(label, self)
 
     def _process_rule(self, rule_label):
@@ -512,11 +574,11 @@ class Grammar(object):
                 if item.kind_of_item == "token":
                     if isinstance(item.value, str):
                         item.value = self.parser.get_token(item.value)
-                elif item.kind_of_item == "production":
+                elif item.kind_of_item == "nonterminal":
                     recursion_rule_label = item.value
                     if recursion_rule_label in self.processing_in_progress:
                         pass # Rule is currently being processed.
-                    elif recursion_rule_label in self.production_rules:
+                    elif recursion_rule_label in self.production_caselists:
                         pass
                     else:
                         self._process_rule(recursion_rule_label)
@@ -526,7 +588,7 @@ class Grammar(object):
         processed_caselist.grammar_object = self
         processed_caselist.parser = self.parser
         processed_caselist.rule_label = rule_label
-        self.production_rules[rule_label] = processed_caselist
+        self.production_caselists[rule_label] = processed_caselist
 
         return processed_caselist
 
@@ -538,12 +600,12 @@ class Grammar(object):
     def __iter__(self, rule_label):
         """Generator to iteratively return the cases in production rule
         `rule_label`"""
-        for rule in self.production_rules[rule_label]:
+        for rule in self.production_caselists[rule_label]:
             yield rule
 
     def __getitem__(self, production_label):
         """Access like a dict to get production rules from their labels."""
-        return self.production_rules[production_label]
+        return self.production_caselists[production_label]
 
     def __contains__(self, production_label):
         """For use with the 'in' keyword, like testing keys in a dict."""
@@ -561,26 +623,69 @@ class Grammar(object):
         raise NotImplementedError("Not implemented.")
         self._recurse_on_grammar_tree(self.start_rule_label, num_productions)
 
-    def _recurse_on_grammar_tree(self, rule_label, max_depth, curr_depth=0):
-        """Recursively walk the grammar tree.  Limit depth to `depth`."""
+    def _set_first_and_follow_sets(self):
+        """Set the first and follow sets for every case of every nonterminal."""
+        for rule_label, caselist in self.production_caselists.items():
+            for rule in caselist:
+                self._recursive_set_first_sets(rule_label, rule)
+        # TODO do follow sets separately, if done at all.
+
+    def _recursive_set_first_sets(self, rule_label, rule):
+        """Recursively compute the first set for each rule and store it with that
+        rule object."""
         #
         # See algorithm on this page:
         # http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
         #
-        rule = self.production_rules[rule_label]
+        # Note that epsilon is neither a terminal nor a nonterminal.  Terminals
+        # cannot expand to epsilon.
+        if rule.first_set and rule.follow_set:
+            return rule
+
+        rule.first_set = set()
+        rule.expands_to_epsilon = False
+        rule.first_item_not_epsilon_expanding = None
+
+        if rule[0].kind_of_item == "epsilon": # Handle epsilon production.
+            pass # TODO, also raise exception if len not one, return.
+
         for item in rule:
-            if item.kind_of_item == "production":
-                if curr_depth <= max_depth:
-                    subrule_label = item.value
-                    recurse_val = self._recurse_on_grammar_tree(
-                                     subrule_label, max_depth, curr_depth+1)
-        return retval
+            if item.kind_of_item == "nonterminal":
+                # Recursively set the attributes of the subrule.
+                subrule_label = item.value
+                if subrule_label != rule_label:
+                    subrule = self._set_first_and_follow_sets(subrule_label)
+                else:
+                    continue
+
+                # Expand the first set with subrule's first set.
+                rule.first_set |= subrule.first_set 
+
+                # Handle epsilon stuff.
+                if subrule.expands_to_epsilon:
+                    rule.expands_to_epsilon = True
+                if (not subrule.expands_to_epsilon
+                        and rule.first_item_not_epsilon_expanding is None):
+                    rule.first_item_not_epsilon_expanding = item
+
+            else: # terminal (i.e., token)
+                rule.first_set.add(item) # TODO should be token group....
+                if rule.first_item_not_epsilon_expanding is None:
+                    rule.first_item_not_epsilon_expanding = item
+
+        # Include epsilon-based first items.
+        if rule.first_item_not_epsilon_expanding is None:
+            rule.first_set.add(EPSILON)
+        else:
+            rule.first_set |= rule.first_item_not_epsilon_expanding
+
+        return rule
 
 class Item(object):
     """Class representing the basic elements that make up the cases of the
     production rules."""
     
-    def __init__(self, value=None, allow_str=False):
+    def __init__(self, value=None):
         """The list `item_list` should be a list of production labels, tokens,
         type signatures, and integer operator precedence values.
         
@@ -594,8 +699,6 @@ class Item(object):
         Passing a value of `None` creates a dummy `Item` instance which is only
         used for overloading purposes (to define the `delimiter` attribute
         of `Grammar`)."""
-        # TODO: implement the root and prec stuff in the parser.
-
         if isinstance(value, Item): # Already was an Item, just copy attrs.
             self.value = value.value
             self.root = value.root
@@ -613,21 +716,25 @@ class Item(object):
         self.type_sig = None
         self.modifiers = [] # Things like "Optional(" and ")" added by funs.
 
-        if value is None: # A dummy Item.
+        # TODO: modify to let ANY value be passed in and set to value.  Also
+        # allow a `kind` argument, and just set that, too.  THEN let the
+        # wrappers just pass in what they want.  Below is obsolete...  Raw
+        # items are never used (docs don't even tell users how to create them).
+        if value is None: # A dummy Item; must be set to something else to be used.
             self.kind_of_item = "dummy"
         elif isinstance(value, str):
             # A string production rule label, unless the Tok function resets it.
-            self.kind_of_item = "production"
+            self.kind_of_item = "nonterminal"
         elif is_subclass_of(value, TokenNode): # A token.
             self.kind_of_item = "token"
         else:
             raise ParserGrammarRuleException("Unrecognized case item: {0}"
                                              .format(value))
 
-    #def __getitem__(self, arg):
-    #    # No longer used; lists with [...] will be optional sections.
-    #    """Use bracket-indexing as a shortcut for the `Prec` function."""
-    #    return Prec(self, arg)
+    def __getitem__(self, arg):
+        # No longer used; lists with [...] will be optional sections.
+        """Use bracket-indexing as a shortcut for the `Prec` function."""
+        return Prec(self, arg)
 
     def __call__(self, type_sig):
         """Use function call as a synonym for the `Sig` function."""
@@ -638,18 +745,17 @@ class Item(object):
         return Sig(self, arg)
 
     def __repr__(self):
+        string = "Item({0})".format(self.value)
         if self.kind_of_item == "token":
             if isinstance(self.value, str):
                 token_label = self.value
             else:
                 token_label = self.value.token_label
             string = "Tok(\"{0}\")".format(token_label)
-        elif self.kind_of_item == "production":
+        elif self.kind_of_item == "nonterminal":
             string = "Rule(\"{0}\")".format(self.value)
         elif self.kind_of_item == "pratt_call":
             string = "Pratt(\"{0}\")".format(self.value)
-        else:
-            string = "Item({0})".format(self.value)
         if self.type_sig:
             val = self.type_sig.val_type.type_label
             if val == NONE: val = "None"
@@ -666,7 +772,7 @@ class Item(object):
         if self.prec:
             string += "[{0}]".format(self.prec)
         if self.root:
-            string = "~" + string
+            string = "Root({0})".format(string)
         for m in self.modifiers:
             if m == ")": string += m
             else: string = m + string
@@ -790,7 +896,6 @@ class ItemList(object):
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
 
-
 class CaseList(object):
     """A list of `Case` objects.  Note, though, that a single Item or ItemList can
     also be a case (when there are no "or" operations to form the case)."""
@@ -891,26 +996,38 @@ class CaseList(object):
     def __repr__(self):
         return "CaseList({0})".format(", ".join([str(i) for i in self.data_list]))
 
-def add_caselists(c1, c2):
-    """Not overloaded in the class, but this function will add caselists."""
-    return CaseList(c1, c2)
+#
+# Define some special items.
+#
+
+EPSILON = Item() # For an epsilon production, item expands to empty string.
+EPSILON.kind_of_item == "epsilon"
+
+DOLLAR = Item() # Dollar sign, matches end of text, i.e., end-token.
+DOLLAR.kind_of_item = "dollar"
+
+UNDERSCORE = Item()
+UNDERSCORE.kind_of_item = "underscore"
+
+#
+# Define wrapper functions.
+#
 
 def Rule(production_rule_label):
     """Return an `Item` to represent the rule with the string label
     `production_rule_label`."""
     # Only one string arg allowed.
     item = Item(production_rule_label)
-    item.kind_of_item = "production"
+    item.kind_of_item = "nonterminal"
     return item
 
 def Tok(token):
-    """Turn a token into an item.  Used before overloading defined on tokens."""
-    # TODO: when compile handles these it needs to turn string values into
-    # the actual tokens by looking them up.
+    """Turn a token into an item.  Used before overloading defined on tokens.
+    Can be passed a token object or a string token label."""
     if not (isinstance(token, str) or is_subclass_of(token, TokenNode)):
         raise ParserGrammarRuleException("Bad argument {0} passed to the"
                 " Tok function.".format(token))
-    item = Item(token, allow_str=True)
+    item = Item(token)
     item.kind_of_item = "token" # Not needed.
     return item
 
@@ -981,6 +1098,11 @@ def AnyOf(*args):
     # Maybe, give you a choice of possibilities from several.
     pass
 
+def Hide(itemlist):
+    """Do not show the items in the final tree.  For example, parentheses can
+    be ignored in function argument lists."""
+    raise NotImplementedError("Not yet implemented.")
+
 #
 # Handle overloading of '<' and '>' for expressions like: _<"string">_
 #
@@ -1027,9 +1149,9 @@ def handle_overloaded_lt_comparison(calling_instance, other):
                     "or CaseList. It is {0}.".format(calling_instance))
 
         if ((isinstance(calling_instance, ItemList) and
-                            calling_instance[-1].kind_of_item == "dummy")
+                            calling_instance[-1].kind_of_item == "underscore")
                 or (isinstance(calling_instance, CaseList) and
-                            calling_instance[-1][-1].kind_of_item == "dummy")):
+                            calling_instance[-1][-1].kind_of_item == "underscore")):
             print("\n\nAPPENDING saved_comparison_args\n\n")
             #saved_comparison_args += [Rule(other), calling_instance]
             saved_comparison_args += [calling_instance]
@@ -1054,13 +1176,13 @@ def combine_comparison_overload_pieces(*args):
         print("\n====> caselist is:\n   ", caselist, "\n")
         if i == len(caselist):
             break
-        if caselist[i][-1].kind_of_item == "dummy":
+        if caselist[i][-1].kind_of_item == "underscore":
             # Remove the dummy items.
             del caselist[i][-1]
             caselist[i] = caselist[i] + caselist[i+1]
 
             for j in range(i, len(caselist)):
-                if caselist[j][0].kind_of_item == "dummy":
+                if caselist[j][0].kind_of_item == "underscore":
                     del caselist[j][0]
                     caselist[i] = caselist[i] + caselist[j]
                     break
