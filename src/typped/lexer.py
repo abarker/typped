@@ -160,10 +160,6 @@ Code
 
 """
 
-# TODO: why not consider a peek-on-demand lexer, that only peeks when it needs
-# to?  Then users get whatever they ask for or really need.  You could still
-# set a max_peek value to approximate the old way, with a default of infinity.
-
 # TODO: consider adding a method to return the processed part and the unprocessed
 # part of the orginal text.  Shouldn't be too hard when up-to-speed on the Lexer
 # workings (just calculate the right slices into self.program).  Slight complication
@@ -208,8 +204,6 @@ class TokenNode(object):
         """Initialize the TokenNode."""
         self.ignored_before = [] # Values ignored by lexer just before.
         self.value = None # The actual parsed text string for the token.
-        # TODO: consider defining children in parser code, BUT is general
-        # enough that including it here is probably helpful........
         self.children = [] # Args to functions are their children in parse tree.
         self.parent = None # The parent in a tree of nodes.
 
@@ -547,8 +541,8 @@ class TokenBuffer(object):
 
     def __getitem__(self, index):
         """Index the buffer relative to the current offset.  Zero is the
-        current token.  Negative indices go back in the buffer.  They do not
-        index from the end as in ordinary Python indexing."""
+        current token.  Negative indices go back in the buffer.  They **do not**
+        index from the end of the buffer, as with ordinary Python indexing."""
         # Slices are CURRENTLY NOT allowed.  What should they return?  How
         # do you know where the zero point is?
         #if isinstance(index, slice): # Handle slices recursively.
@@ -562,7 +556,9 @@ class TokenBuffer(object):
                 raise LexerException("User-set maximum peeking level of {0} was"
                                      " exceeded.".format(self.max_peek))
             while self._index_to_absolute(index) >= len(self.token_buffer):
-                self._append(self.token_getter_fun())
+                if self.token_buffer[-1].is_end_token():
+                    return self.token_buffer[-1]
+                self._append()
             return self.token_buffer[self._index_to_absolute(index)]
         else:
             raise TypeError("Invalid argument type in __getitem__ of TokenBuffer.")
@@ -580,35 +576,70 @@ class TokenBuffer(object):
         the current token to the end of the token buffer.  Some may have been
         read past the position of the current token due to peeks or
         pushbacks."""
-        count = 0
         begin_point = self._offset_to_absolute(self.current_offset) + 1
         return len(self.token_buffer) - begin_point
 
-    def goto_next(self):
-        """The equivalent of `next` for the token buffer except that it will return
-        previously-buffered tokens if possible.  The `Lexer` versions should
-        always be called by users, because it handles some other things, too."""
-        self.current_offset += 1
-        self._fill_to_current_offset()
+    def move_forward(self, num_toks=1):
+        """Move the current token (i.e., the offset) forward by one.  This is
+        the token buffer's equivalent of `next`, except that it returns
+        previously-buffered tokens if possible.  The `Lexer` method `next`
+        should always be called by users of that class, because it also handles
+        some other things.
+        
+        Attempts to move past the first end-token leave the current offset at
+        the first end-token.  No new tokens are added to the buffer.  The
+        end-token is returned."""
+        for i in range(num_toks):
+            if self[0].is_end_token():
+                break
+            self.current_offset += 1
+            self._fill_to_current_offset()
         return self[0]
+
+    def move_back(self, num_toks=1):
+        """Move the current token (i.e., offset) back `num_toks` tokens.  Will
+        always stop at the begin-token.  Users should check the condition if it
+        matters.  If the move attempts to move back to before the
+        currently-saved tokens, but the begin-token is no longer saved, then a
+        `LexerException` is raised."""
+        self.current_offset -= num_toks
+        absolute_index = self._offset_to_absolute(self.current_offset)
+        if absolute_index < 0:
+            self.current_offset += abs(absolute_index)
+            curr_token = self[0]
+            if not curr_token.is_begin_token():
+                raise LexerException("Not enough saved tokens to move back to the"
+                                     " begin-token in the `move_back` method.")
+        else:
+            curr_token = self[0]
+        return curr_token
 
     #
     # Internal utility methods below.
     #
 
     def _index_to_absolute(self, index):
-        """Convert an index into an absolute index into the current deque."""
+        """Convert an index into an absolute index into the current deque.
+        Note that any changes to the current offset or to the reference
+        point (the latter via _append) will invalidate the absolute reference.
+        In those cases it will need to be re-calculated."""
         return index + self.current_offset + self.reference_point
 
     def _offset_to_absolute(self, offset):
-        """Convert an offset into an absolute index into the current deque."""
+        """Convert an offset into an absolute index into the current deque.
+        Note that calls to `_append` can modify the reference point and
+        invalidate the absolute index.  Needs to be re-calculated after
+        such a call."""
         return offset + self.reference_point
 
     def _fill_to_current_offset(self):
         """If the current offset points past the end of the token buffer then
-        get tokens and append them until it is a valid index."""
+        get tokens and append them until it is a valid index.  Note this
+        calls `_append`.  If the current offset is past the first end token
+        in the text then the current offset point is reset to the first end
+        token.  Only one end token is ever stored in the buffer."""
         while self._offset_to_absolute(self.current_offset) >= len(self.token_buffer):
-            self._append(self.token_getter_fun())
+            self._append() # Note this call can change self.reference_point.
 
     def _pop(self):
         """Users should not call.  Pop off the rightmost item and return it.  Moves
@@ -618,9 +649,20 @@ class TokenBuffer(object):
             self.current_offset -= 1
         return retval
 
-    def _append(self, tok):
+    def _append(self, tok=None):
         """Append to buffer and fix current index if necessary.  Users should not
-        call."""
+        call.  If `tok` is not set then the token to append is obtained from the 
+        `token_getter_fun` function.
+        
+        Note that this is the **only** method that ever gets tokens directly
+        from the token getter function."""
+        # TODO: should this fill with end tokens, or stop at the first end token?
+        if tok is None:
+            tok = self.token_getter_fun()
+            # TODO: below causes a FAIL with go_back hanging... probably __getitem__
+            # calling but not compensating for this behavior...
+            if tok.is_end_token() and self.token_buffer[-1].is_end_token():
+                return tok
         self.token_buffer.append(tok)
         if (self.max_deque_size is not None
                 and len(self.token_buffer) > self.max_deque_size):
@@ -811,7 +853,7 @@ class Lexer(object):
 
         # Handle ordinary case.
         tb = self.token_buffer
-        self.token = tb.goto_next()
+        self.token = tb.move_forward()
         if self.token.is_end_token():
             self.already_returned_end_token = True
         return self.token
@@ -841,9 +883,39 @@ class Lexer(object):
             raise BufferIndexError
         return retval
 
+    def move_back(self, num_toks=1, num_is_raw=False):
+        """Move the current token back in the token stream.  This is similar
+        to `go_back` but tokens are not rescanned.  The current position is
+        just moved within the token buffer.  This is more efficient
+        but it assumes that there have been no modifications, additions,
+        or deletions to the token definitions.  If the parser is guaranteed
+        to be static with respect to the tokens then this is the routine to
+        use.  Otherwise, use `go_back`.
+        
+        The optional parameter `num_toks` is the number of tokens to move
+        back.  Negative numbers move forward, consuming more tokens if
+        necessary.  Moving forward will always stop before consuming a second
+        end-token (which would raise `StopIteration` if done in `next`)."""
+        # TODO: Implement.  Shouldn't be too hard, but it might need to modify
+        # some of the Lexer attributes.  Remember, though, that the line and
+        # char number in the lexer class are for the latest *unbuffered* token.
+        #
+        # TODO use the token buffer's move_forward and move_back methods;
+        # finish implementing them...
+        if not self.text_is_set:
+            raise LexerException(
+                    "Attempt to call lexer's go_back method when no text is set.")
+        if self.token_generator_state == GenTokenState.uninitialized:
+            raise LexerException("The token generator has not been initialized "
+                  "or has reached `StopIteration` by reading past the end-token.")
+
+        token_buffer = self.token_buffer
+
+        
+
     def _pop_tokens(self, n):
         """Pop `n` tokens from the token buffer, resetting the slice indices in
-        `self.prog_unprocessed` and other state variables."""
+        `self.prog_unprocessed` and other state variables.  Used by `go_back`."""
         popped_to_begin_token = False
         current_token_is_first = False
         for count in range(n):
@@ -918,7 +990,6 @@ class Lexer(object):
         if not self.text_is_set:
             raise LexerException(
                     "Attempt to call lexer's go_back method when no text is set.")
-
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
@@ -1012,8 +1083,7 @@ class Lexer(object):
 
     def is_defined_token_label(self, token_label):
         """Return true if `token` is currently defined as a token label."""
-        # TODO: maybe should be a version in token_table that is called from here.
-        return token_label in self.token_table.token_labels
+        return self.token_table.is_defined_token_label()
 
     def last_n_tokens_original_text(self, n):
         """Returns the original text parsed by the last `n` tokens (back from
@@ -1236,20 +1306,21 @@ class Lexer(object):
         the token subclasses should have been defined and stored in the the
         `TokenTable`.  Regexes defined for tokens are repeatedly matched at the
         beinning of the string `program`.  When a winning_index is found it is
-        stripped off the beginning of the unprocessed slice of `program` and
-        the generator waits for the next call.  For each winning_index the
-        token subclass is looked up in the `TokenTable` object and an instance
-        of that subclass is yielded to represent the token.  Every token
-        processed is represented by a unique new instance of the appropriate
-        subclass of `TokenNode`.
+        stripped off the beginning of the unprocessed slice of `program`.  For
+        each winning_index the token subclass is looked up in the `TokenTable`
+        object and an instance of that subclass is returned to represent the
+        token.  Every token processed is represented by a unique new instance
+        of the appropriate subclass of `TokenNode`.
         
-        This generator has two states which can be set class-globally to alter
-        the state of the generator.  The states are `GenTokenState.ordinary`
-        for ordinary scanning execution, and `GenTokenState.end` when all the
-        tokens have been read and the generator keeps returning nothing but end
-        tokens.  The end state is normally entered when the program text
-        becomes empty.  If that variable is later is set to have text again the
-        state switches back to ordinary."""
+        This generator has two states which can be set instance-globally to
+        alter the state of the generator.  The states are
+        `GenTokenState.ordinary` for ordinary scanning execution, and
+        `GenTokenState.end` when all the tokens have been read.  In the
+        `GenTokenState.end` state the method returns nothing but end tokens.
+        The end state is normally entered when the program text becomes empty.
+        If that variable is later is set to have text again the state switches
+        back to ordinary.  (The lexer's `next` routine handles any raising of
+        `StopIteration`.)"""
         ignored_before_labels = []
         ignored_before_tokens = []
         original_matched_string = ""
@@ -1277,8 +1348,8 @@ class Lexer(object):
 
                 # Remove matched prefix of the self.prog_unprocessed argument after
                 # saving the matched prefix string.
-                original_matched_string += self.program[self.prog_unprocessed[0]
-                                            :self.prog_unprocessed[0]+len(token_value)]
+                original_matched_string += self.program[self.prog_unprocessed[0]:
+                                        self.prog_unprocessed[0]+len(token_value)]
                 self.prog_unprocessed[0] += len(token_value)
 
                 # Look up the class to represent the winning_index.

@@ -28,52 +28,56 @@ without the underlying Pratt parser and calls to it) are:
 Terminology
 -----------
 
-* **Production rules** are also called **productions** or just **rules**.
-  They are the individual rewrite rules such as `<expression> ::= <term>` in
-  BNF.  The symbols on the l.h.s. of productions (which can also appear in the
-  r.h.s.) are called **nonterminal symbols**.  The other possible symbols on
-  the r.h.s. are **terminal symbols** or the special **epsilon symbol**.
+TODO: start using caselist as a term.
+
+* **Production rules** are also called **productions**, **parsing rules**,
+  or just **rules**.  They are the individual rewrite rules such as
+  `<expression> ::= <term>` in a BNF grammar.  The symbols on the l.h.s. of
+  productions (which can also appear in the r.h.s.) are called **nonterminal
+  symbols**.  The r.h.s of a production is called the **parsing expression**.
+  The other possible symbols on the r.h.s. are **terminal symbols** or the
+  special **epsilon symbol**.
 
 * Production rules with the the same l.h.s. nonterminal symbol will be
   called different **cases** of the nonterminal symbol.  An alternative
   notation is to define multiple cases in one expression by using "or" symbol
   `|`.  This latter form of definition is currently *required* by this module.
   That is, all the cases of rules defining a nonterminal must be occur in one
-  expression, using `|` if there are multiple cases.
+  expression, using `|` if there are multiple cases.  The ordered list of all
+  the rule cases for a nonterminal will be called the **caselist** for the
+  nonterminal.
 
 * The separate symbol elements within a case will be collectively called the
   **items** of that case.  They include terminal symbols, nonterminal symbols,
   and possibly the epsilon symbol.  In this module there are no explicit
   terminal symbols.  Instead, terminals are either tokens (defined for and
-  parsed from the lexer) or consecutive sequences of tokens.  Several
+  parsed from the lexer) or else consecutive sequences of tokens.  Several
   grammatical constructs are possible to modify the meaning of the items in a
   production rule, which will be discussed later.
 
-TODO: start using caselist as a term.
+The order in which the caselists of production rules are written does not
+matter.  So they can be written top-down starting with the starting
+nonterminal, or any other convenient way.  Some of the nonterminals in the
+r.h.s. of the caselists may not have been defined yet, but they are written as
+string labels and are resolved later when the `compile` method of the grammar
+is called (passed the start nonterminal and a locals dict).  These r.h.s.
+strings for nonterminals **must be identical** to the l.h.s. Python variable
+names for the nonterminals (since they are looked up in the locals dict).
 
-Although each case of a rule defining a nonterminal is technically a production
-rule itself, in this module the terms "production" and "rule" generally refer
-to collections of all the cases having the same l.h.s. symbol.  As mentioned
-above, all the cases must be defined in the same expression.
+The order in which the cases of a nonterminal are defined within a caselist
+*does* matter, at least for ambiguous grammars and to avoid or minimize
+backtracking.  The order of the cases is the order in which the algorithm will
+test the cases.  The first successful parse is returned.  In this sense the
+grammar is similar to a **parsing expression grammar (PEG)** rather than a
+**context-free grammar (CFG)**, which can be ambiguous.  (PEGs also allow "and"
+and "not" predicates which do not consume any input.)
 
-The order in which the production rules are written does not matter.  So rules
-can be written top-down if that is easier to read, even though some of the
-productions rules being called have not yet been defined.  This is achieved by
-the use of string labels for production names in the r.h.s. of production
-rules.  These strings are resolved later when the `compile` method of the
-grammar is called (passed the start state and a locals dict).  These r.h.s.
-strings **must** be identical to the l.h.s. Python variable names for the rules
-(since they are looked up in the locals dict).
-
-The order in which cases are defined within a production's "or" sections *does*
-matter, at least for ambiguous grammars and to avoid or minimize backtracking.
-The order of the cases is the order in which the algorithm will test the cases.
-The first successful parse is returned.  So the grammar is really a **parsing
-expression grammar (PEG)** rather than a **context-free grammar (CFG)**, which
-can be ambiguous.  PEGs also allow "and" and "not" predicates.  The grammar
-implemented in this module still uses the `|` operator for "or", though, rather
-than the `/` operator.
 https://en.wikipedia.org/wiki/Parsing_expression_grammar
+
+TODO: note that on page above a PEG essentially allows parsing expressions to
+contain other parsing expressions, as in `Sum ← Product (('+' / '-') Product)*`
+It does a backtracking until one succeeds or all fail.  Essentially an inlining
+of the cases for a sub-rule.  Can ignore, but consider if easily doable.
 
 Implementation
 --------------
@@ -1095,7 +1099,8 @@ def Not(token):
     return itemlist
 
 def AnyOf(*args):
-    # Maybe, give you a choice of possibilities from several.
+    # Maybe, give you a choice of possibilities from several.  Same as "Or" but
+    # maybe a little more descriptive.
     pass
 
 def Hide(itemlist):
