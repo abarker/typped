@@ -111,7 +111,7 @@ For a token named `t`, these attributes are available:
 * `t.children` -- can be set to a list of children; set by the lexer to `[]`
 * `t.original_matched_string` -- the original text that was consumed for this token
 * `t.line_and_char` -- tuple of line number and character where the token started
-* `ignored_before` -- return tuple of all tokens ignored immediately before this one
+* `ignored_before` -- a tuple of all tokens ignored immediately before this one
 
 TODO, list other methods, too.
 
@@ -130,8 +130,9 @@ General methods:
 Helper methods:
 
 * `match_next` -- matches the specified token, with various options
-
-TODO mention rest of helpers....
+* `in_ignored_tokens` -- test if some specified token is ignored after the current one
+* `no_ignored_after` -- true if no ignored tokens immediately follow current token
+* `no_ignored_before` -- true if no ignored tokens immediately preceed current token
 
 Some boolean-valued informational methods:
 
@@ -178,7 +179,7 @@ if __name__ == "__main__":
                               pytest_args="-v")
 
 import collections
-from .regex_trie_hybrid_matcher import RegexTrieHybridMatcher
+from .matcher_regex_trie_hybrid import RegexTrieHybridMatcher
 from .shared_settings_and_exceptions import LexerException, return_first_exception
 
 #
@@ -193,7 +194,7 @@ class TokenNode(object):
     The attribute `token_label` is the string token label for the kind of token
     represented by an instance.  The attribute `value` is set to the actual
     string value in the lexed text which matched the regex of the token.  The
-    attribute `ignored_before_tokens` is a list of all tokens ignored just
+    attribute `ignored_before` is a tuple of all tokens ignored just
     before the lexer got this token.
     
     The attribute `children` is a list of the child nodes, and `parent` is the
@@ -205,7 +206,7 @@ class TokenNode(object):
 
     def __init__(self):
         """Initialize the TokenNode."""
-        self.ignored_before_tokens = [] # Values ignored by lexer just before.
+        self.ignored_before = [] # Values ignored by lexer just before.
         self.value = None # The actual parsed text string for the token.
         # TODO: consider defining children in parser code, BUT is general
         # enough that including it here is probably helpful........
@@ -215,22 +216,15 @@ class TokenNode(object):
     def original_text(self):
         """Return the original text that was read in lexing the token, including
         any ignored text."""
-        #ignored_strings = [ s.value for s in self.ignored_before_tokens ]
+        #ignored_strings = [ s.value for s in self.ignored_before ]
         #joined = "".join(ignored_strings) + self.value
         #assert joined == self.original_matched_string # A debugging test.
         return self.original_matched_string
 
-    def ignored_before(self):
-        """Return the list of tokens which were ignored just before this token.
-        This can be used, for example, to make sure that there is whitespace
-        between two tokens which require whitespace between them.  It can also
-        be used to find the level of indentation before a token."""
-        return self.ignored_before_tokens
-
     def ignored_before_labels(self):
         """Return the list of token labels of tokens which were ignored just
         before this token."""
-        return [t.token_label for t in self.ignored_before_tokens]
+        return [t.token_label for t in self.ignored_before]
 
     def append_children(self, *token_nodes):
         """Append all the arguments as children, also setting their parent to self."""
@@ -492,12 +486,12 @@ class TokenTable(object):
         self.end_token_subclass = tok
         return tok
 
-    def get_winning_token_label_and_value(self, program, prog_unprocessed,
+    def get_next_token_label_and_value(self, program, prog_unprocessed,
                                           ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Return the next token label for the start of the current program
         text, as in the string `program` and indexed by the numbers in
         the tuple `prog_unprocessed`."""
-        return self.pattern_matcher.get_winning_token_label_and_value(
+        return self.pattern_matcher.get_next_token_label_and_value(
                                               program, prog_unprocessed,
                                               ERROR_MSG_TEXT_SNIPPET_SIZE)
 
@@ -866,11 +860,11 @@ class Lexer(object):
                 continue # No actual text was read for end tokens.
 
             self.non_ignored_token_count -= 1
-            self.all_token_count -= (1 + len(popped.ignored_before()))
+            self.all_token_count -= (1 + len(popped.ignored_before))
 
             # Reset the line number information.
-            if popped.ignored_before():
-                line_and_char = popped.ignored_before()[0].line_and_char
+            if popped.ignored_before:
+                line_and_char = popped.ignored_before[0].line_and_char
             else:
                 line_and_char = popped.line_and_char
             self.raw_linenumber, self.upcoming_raw_charnumber = line_and_char
@@ -1009,7 +1003,7 @@ class Lexer(object):
         things like syntactic whitespace requirements, along with
         `curr_token_is_first`. This list is also set as the attribute
         `ignored_before_tokens` on all returned tokens."""
-        return self.token.ignored_before_tokens
+        return self.token.ignored_before
 
     def curr_token_is_end(self):
         """True if `self.token` (the last one returned by the `next` method) is
@@ -1148,6 +1142,7 @@ class Lexer(object):
                             self.last_n_tokens_original_text(err_msg_tokens)))
         return retval
 
+    # TODO document these utilities......
     def in_ignored_tokens(self, token_label_to_match,
                           raise_on_fail=False, raise_on_true=False):
         """A utility function to test if a particular token label is among
@@ -1155,7 +1150,7 @@ class Lexer(object):
         value.  Like `match_next`, this method can be set to raise an
         exception on success or failure."""
         retval = False
-        ignored_token_labels = [t.token_label for t in self.peek().ignored_before_list]
+        ignored_token_labels = [t.token_label for t in self.peek().ignored_before]
         if token_label_to_match in ignored_token_labels:
             retval = True
 
@@ -1180,7 +1175,7 @@ class Lexer(object):
         and lookahead.  Like `match_next`, this method can be set to raise an
         exception on success or failure."""
         retval = True
-        if self.peek().ignored_before():
+        if self.peek().ignored_before:
             retval = False
 
         if retval and raise_on_true:
@@ -1207,7 +1202,7 @@ class Lexer(object):
         previous token and current token.  Like `match_next`, this method
         can be set to raise an exception on success or failure."""
         retval = True
-        if self.token.ignored_before():
+        if self.token.ignored_before:
             retval = False
 
         if retval and raise_on_true:
@@ -1275,7 +1270,7 @@ class Lexer(object):
             if self.token_generator_state == GenTokenState.ordinary:
                 # Find the token_label and token_value of the matching prefix
                 # which is longest (with ties broken by the on_ties values).
-                label_and_value = token_table.get_winning_token_label_and_value(
+                label_and_value = token_table.get_next_token_label_and_value(
                                     self.program, self.prog_unprocessed,
                                     self.ERROR_MSG_TEXT_SNIPPET_SIZE)
                 token_label, token_value = label_and_value
@@ -1343,7 +1338,7 @@ class Lexer(object):
 
             # Got a token to return.  Set some attributes and return it.
             token_instance.original_matched_string = original_matched_string
-            token_instance.ignored_before_tokens = tuple(ignored_before_tokens)
+            token_instance.ignored_before = tuple(ignored_before_tokens)
             token_instance.all_token_count = self.all_token_count
             token_instance.non_ignored_token_count = self.non_ignored_token_count
             token_instance.is_first = self._curr_token_is_first

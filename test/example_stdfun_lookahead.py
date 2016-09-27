@@ -42,7 +42,7 @@ def define_parser_subclass():
             def preconditions(lex, lookbehind):
                 # Note that helper functions like `match_next` could also be used.
                 peek_tok = lex.peek()
-                if peek_tok.ignored_before(): return False
+                if peek_tok.ignored_before: return False
                 if peek_tok.token_label != lpar_token_label: return False
                 return True
             precond_label = "lpar after, no whitespace between" # Some unique label.

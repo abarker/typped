@@ -19,10 +19,14 @@ from typped.shared_settings_and_exceptions import ParserException
 #
 
 
-
-
 #
 # Predefined preconditions functions.
 #
+
+
+#
+# Boolean-valued functions useful inside preconditions functions.
+#
+
 
 

@@ -69,7 +69,7 @@ def test_basic_stuff():
     t = lex.next() # y
     assert t.is_first == False
     assert t.token_label == "identifier"
-    assert len(t.ignored_before()) == 1
+    assert len(t.ignored_before) == 1
 
     t = lex.next() # end
 

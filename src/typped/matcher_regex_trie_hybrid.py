@@ -4,6 +4,12 @@
 A matcher for a `TokenTable` that uses a hybrid of Python regex processing for
 complicated patterns and a `RegexTrieDict` for simple patterns.
 
+A matcher needs to have the following methods:
+
+* `insert_pattern` -- insert a labeled regex pattern into the matcher
+* `remove_pattern` -- remove an inserted pattern
+* `get_next_token_label_and_value` -- return the label and value of the next match
+
 """
 
 from __future__ import print_function, division, absolute_import
@@ -46,7 +52,7 @@ class RegexTrieHybridMatcher(object):
             self.regex_trie_dict[simple_pattern] = regex_data
 
             # TODO: get data from the RegexTrieDict in
-            # get_winning_token_label_and_value like this:
+            # get_next_token_label_and_value like this:
             #        regex_data = td.get_meta(string, default=None)
             # Be sure to modify the remove_pattern routine, too.
 
@@ -72,7 +78,7 @@ class RegexTrieHybridMatcher(object):
             raise LexerException("Attempt to undefine pattern for token that"
                                  " was never defined.")
 
-    def get_winning_token_label_and_value(self, program, unprocessed_slice_indices,
+    def get_next_token_label_and_value(self, program, unprocessed_slice_indices,
                                           ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
         longest and wins tie breaking.  Return the token token_label and value of the

@@ -1707,7 +1707,7 @@ class PrattParser(object):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""
             peek_tok = lex.peek()
-            if peek_tok.ignored_before(): return False
+            if peek_tok.ignored_before: return False
             if peek_tok.token_label != lpar_token_label: return False
             return True
         precond_label = "lpar after, no whitespace between" # Should be a unique label.
