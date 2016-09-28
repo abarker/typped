@@ -175,7 +175,7 @@ if __name__ == "__main__":
                               pytest_args="-v")
 
 import collections
-from .matcher_regex_trie_hybrid import RegexTrieHybridMatcher
+from .matcher_python_regex import MatcherPythonRegex
 from .shared_settings_and_exceptions import LexerException, return_first_exception
 
 #
@@ -366,7 +366,7 @@ class TokenTable(object):
     class to save the subclasses for the kinds of tokens which have been defined for
     it."""
     def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory,
-                       pattern_matcher_class=RegexTrieHybridMatcher):
+                       pattern_matcher_class=MatcherPythonRegex):
         """Initialize the token table.  The parameter `token_subclass_factory_fun`
         can be passed a function to be used to generate token subclasses,
         taking a token label as an argument.  The default is
