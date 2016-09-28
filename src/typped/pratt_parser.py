@@ -334,9 +334,17 @@ def token_subclass_factory():
             # easy way to define token addition so that it works in the
             # grammars defined by the production_rules module.
             from .production_rules import Tok, Not, Prec
-            new_class.Tok = Tok
-            new_class.Not = Not
-            new_class.Prec = Prec
+            # These are saved in a dict below because if they are made
+            # attributes then Python 2 complains about "TypeError: unbound
+            # method Tok() must be called with TokenClass_k_lpar instance as
+            # first argument (got TokenSubclassMeta instance instead)".
+            #new_class.Tok = Tok
+            #new_class.Not = Not
+            #new_class.Prec = Prec
+            new_class.prod_rule_funs = {}
+            new_class.prod_rule_funs["Tok"] = Tok
+            new_class.prod_rule_funs["Not"] = Not
+            new_class.prod_rule_funs["Prec"] = Prec
 
             return new_class
 
@@ -355,30 +363,30 @@ def token_subclass_factory():
             """Addition of two tokens is defined to simply return a tuple of
             both tokens.  This is so raw tokens can be used in the operator
             overloaded form of defining production rules for a grammar."""
-            return cls.Tok(cls) + other
+            return cls.prod_rule_funs["Tok"](cls) + other
 
         def __radd__(cls, left_other):
             """The right version of `__add__` above."""
-            return left_other + cls.Tok(cls)
+            return left_other + cls.prod_rule_funs["Tok"](cls)
 
         def __or__(cls, other):
             """The `|` symbol simply converts this object into an `ItemList`
             and then calls `__or__` for those objects."""
-            return cls.Tok(cls) | other
+            return cls.prod_rule_funs["Tok"](cls) | other
 
         def __ror__(cls, left_other):
             """The right version of `__or__` above."""
-            return other | cls.Tok(cls)
+            return other | cls.prod_rule_funs["Tok"](cls)
 
         def __invert__(cls):
             """Define the `~` operator for production rule grammars (make root
             of subtree)."""
-            return cls.Not(cls)
+            return cls.prod_rule_funs["Not"](cls)
 
         def __getitem__(cls, arg):
             """Define the bracket indexing operator for production rule grammars
             to set the precedence."""
-            return cls.Prec(cls, arg)
+            return cls.prod_rule_funs["Prec"](cls, arg)
 
 
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
@@ -484,6 +492,34 @@ def token_subclass_factory():
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
+            # Todo: Consider this possible optimization.  Instead of using just
+            # head_or_tail to hash the handler funs, what about a tuple of
+            # several common conditions:
+            #    (head_or_tail, peek_token_label, pstate_stack_top)
+            # Then you need to check for those values and the None values,
+            # so three hashes:
+            #    (head_or_tail, None, pstate_stack_top)
+            #    (head_or_tail, peek_token_label, None)
+            #    (head_or_tail, None, None)
+            #
+            # Then in `lookup_handler_fun` sequentially go through all three
+            # sorted sublists from the beginning, by priority, running the
+            # precond funs.  Almost like a real `case` statement.  To get the
+            # optimized version you would need to specially register that the
+            # token uses the precondition, and give a value for it to look for.
+            # Probably should pass precond assertions list to the
+            # modify_token_subclass routine (maybe something like
+            # `precond_optimize_assert=(None,None,"wff")`).  Also, you still
+            # need a precond function itself, at least for the unique name, but
+            # can leave off testing the asserted conditions.
+            #
+            # Note that the fallback behavior is the same as before (very
+            # slight performance penalty).
+            #
+            # Be sure to also update the unregister method.
+            #
+            # This could speed things up significantly when a lot of tokens use
+            # the commonly-used preconds.
 
             # Get and save any previous type sig data (for overloaded sigs
             # corresponding to a single precond_label).
@@ -541,10 +577,10 @@ def token_subclass_factory():
             sorted_handler_dict = cls.handler_funs[head_or_tail]
 
             # Make sure we don't get multiple definitions with the same priority
-            # when the new one is inserted.  Note that we may not want to do this
-            # at all, or just give warning.  See case of preconds for quantifiers
-            # in logic example which use mutually exclusive handlers, same priority.
-            # TODO
+            # when the new one is inserted.  Note that WE MAY NOT WANT TO DO THIS
+            # AT ALL, or just give a warning.  See case of preconds for quantifiers
+            # in logic example which use mutually exclusive handlers and have the
+            # same priority.  TODO: Consider removing FALSE flag and code below.
             pre_check_for_same_priority = False # Make attribute or pass in or delete all.
             if pre_check_for_same_priority:
                 for p_label, data_item in sorted_handler_dict.items():
@@ -900,28 +936,36 @@ def token_subclass_factory():
         #
 
         def get_jop_token_instance(self, lex, processed_left, lookbehind, subexp_prec):
-            """Returns an instance of the jop token if one should be inferred in the
+            """Returns an instance of the jop token iff one should be inferred in the
             current context; otherwise returns `None`."""
             parser_instance = self.parser_instance
-            # Not if jop undefined.
+
+            # Not if jop token is undefined for the parser.
             if not parser_instance.jop_token_subclass:
                 return None
+
             # Not if at end of expression.
             if lex.peek().is_end_token():
                 return None
+
             # Not if the ignored token for jop is set but not present.
             if parser_instance.jop_ignored_token_label and (
                           parser_instance.jop_ignored_token_label 
                           not in lex.peek().ignored_before_labels()): 
                 return None
 
-            # Infer a jop, but only if 1) its prec would satisfy the while loop
+            # Now infer a jop, but only if 1) its prec would satisfy the while loop
             # in `recursive_parse` as an ordinary token, 2) the next token has
             # a head handler defined in the conditions when the jop will need
             # to run its head handler, and 3) the next token similarly has no
             # tail handler in the context.
             if parser_instance.jop_token_subclass.prec() > subexp_prec:
                 # Provisionally infer a jop; create a subclass instance for its token.
+                #
+                # Todo: Maybe for jop and null-string tokens define methods
+                # get_jop_token_instance() which gets the token but calls the
+                # lexer to dress it up more like a "real" token, with ignored_before
+                # and line numbers, etc. (without putting it in the buffer, of course).
                 jop_instance = parser_instance.jop_token_subclass(None)
 
                 # This is a little inefficient (since it uses a `go_back` call)
@@ -1068,18 +1112,18 @@ def token_subclass_factory():
             generally not be set.  They are only used by certain null-string
             tokens tail-handlers so they can relay their call as a tail-handler
             to the actual token (which does the real work)."""
-            # NOTE that with a good, efficient pushback function the modifiable
+            # Note that with a good, efficient pushback function the modifiable
             # prec for different handler functions might be doable: just do a
             # next then evaluate the prec, then pushback.
 
-            # NOTE it is tempting to define a jop and null-string token
-            # instance and only use it when necessary (and replace it only when
-            # used).  But, some things need to be considered.  What if new head
-            # handlers are dynamically registered?  Is there any special
-            # attribute or other thing that is assigned on creation which
-            # changes?  (Either way, should probably add extra things like line
-            # numbers to mimic ordinary tokens.) Note that currently you only
-            # really pay the creation cost if you actually use the
+            # Note: It is tempting to define a jop and null-string token
+            # instance, save it, and only use it when necessary (and replace it
+            # only when used).  But, some things need to be considered.  What
+            # if new head handlers are dynamically registered?  Is there any
+            # special attribute or other thing that is assigned on creation
+            # which changes?  (Either way, should probably add extra things
+            # like line numbers to mimic ordinary tokens.) Note that currently
+            # you only really pay the creation cost if you actually use the
             # corresponding feature, but you incur it more than necessary.
 
             # Set some convenience variables (the lexer and parser instances).
@@ -1406,8 +1450,8 @@ class PrattParser(object):
         operator.  The `ignored_token_label` parameter is the label of an
         ignored token which must be present for a jop to be inferred.  Some
         already-defined token is required; usually it will be a token for spaces
-        and tabs."""
-        # TODO: update docs above, ignored_token_label now not always used....
+        and tabs.  If set to `None` then no ignored space at all is required
+        (i.e., the tokens can be right next to each other)."""
         return self.def_token_master(jop_token_label,
                                      ignored_token_label=ignored_token_label,
                                      token_kind="jop")
@@ -1801,26 +1845,41 @@ class PrattParser(object):
     # to pass it in explicitly if possible.  Is it always available where these
     # are called from?
 
-    def def_production_rule(self, rule_label, grammar):
-        """Register production rule cases with the label `rule_label`, as defined in
-        the `Grammar` object `grammar`."""
-        #print("\nRegistering production rule with label:", rule_label)
+    def def_production_rule(self, nonterm_label, grammar):
+        """Register production rule cases for the nonterminal `nonterm_label`,
+        as defined in the `Grammar` object `grammar`.
+        
+        To initially process a caselist this algorithm is run.  It partitions
+        the caselist for the `nonterm_label` nonterminal into separate caselists.
+
+        1. Look up the caselist for `nonterm_label` in the grammar object.
+
+        2. Loop over the caselist, removing and making a sub-caselist out of
+        the case at the start of the caselist combined with all the other cases
+        that start with the same thing.  (All production rule starts are currently
+        considered the same, but when the first-set is computed then they will be
+        grouped with others having the same first-set.)
+
+        3. For each partial caselist created above, call
+        `def_first_case_start_handlers` with that caselist.
+        
+        """
+        # TODO: maybe move this routine back into production_rules module.
+        # It is really just preprocessing, and this module is too large.
+        # The one use of self can be pushed down to called routine instead.
+        # Wait until more mature, though, since linked changes still to be
+        # made.
+
+        #print("\nRegistering production rule with label:", nonterm_label)
         if not self.null_string_token_subclass:
             self.def_null_string_token() # Define null-string if necessary.
 
-        caselist = grammar[rule_label]
+        caselist = grammar[nonterm_label]
         caselist = list(caselist) # Only need ordinary Python lists here.
         #print("\nThe caselist for the rule is", caselist)
 
-        # So to initially process a caselist:
-        # 1. Go through and for each curr_case, collect all the other cases that start with
-        #    the same thing.  All prod rule starts are same thing (LATER preconds can
-        #    be used to make them separate, too)
-        # 2. The handler for that thing must be passed the reduced caselist, of only
-        #    those cases.
-
         token_start_cases = defaultdict(list) # Cases starting with a token.
-        rule_start_cases = [] # Cases starting with a rule.
+        nonterm_start_cases = [] # Cases starting with a nonterminal.
 
         while caselist:
             # Repeatedly cycle through caselist, comparing first case to later ones, 
@@ -1861,7 +1920,7 @@ class PrattParser(object):
             elif first_item_kind == "nonterminal":
                 if not first_saved:
                     #print("WWWWWW appending rule case", first_case)
-                    rule_start_cases.append(first_case)
+                    nonterm_start_cases.append(first_case)
                     first_saved = True
                 for i, curr_case in enumerate(caselist[1:]):
                     curr_first_item = curr_case[0]
@@ -1873,7 +1932,7 @@ class PrattParser(object):
                     # LATER these can be given precomputed lookahead preconditions.
                     token_label = first_item_val
                     #print("WWWWWW appending rule case", first_case)
-                    rule_start_cases.append(curr_case)
+                    nonterm_start_cases.append(curr_case)
                     del_list.append(i)
             else:
                 raise ParserException("Unrecognized kind of item in CaseList"
@@ -1884,7 +1943,7 @@ class PrattParser(object):
                 del caselist[i]
 
         #print("\nThe token start cases are", token_start_cases)
-        #print("The rule start cases are", rule_start_cases, "\n")
+        #print("The rule start cases are", nonterm_start_cases, "\n")
 
         # Register null-string handlers for each unique first item of some case.
         # All rules currently treated as non-unique.
@@ -1899,17 +1958,17 @@ class PrattParser(object):
             # identify in both cases, but may need more preconds (later). Todo
             #print("XXXXXXXXXX registering peek token of", token_label)
             if caselist:
-                self.def_first_case_start_handlers(rule_label, null_token,
+                self.def_first_case_start_handlers(nonterm_label, null_token,
                                                          caselist, token_label)
 
-        caselist = rule_start_cases # All rules currently handled the same.
+        caselist = nonterm_start_cases # All rules currently handled the same.
         #print("ZZZZZZZZZZ just before registering rule, caselist =", caselist)
         # Register handler with the null-string token preconditioned on
-        # rule_label being on the top of the pstate_stack.
+        # nonterm_label being on the top of the pstate_stack.
         if caselist:
-            self.def_first_case_start_handlers(rule_label, null_token, caselist)
+            self.def_first_case_start_handlers(nonterm_label, null_token, caselist)
 
-    def def_first_case_start_handlers(self, rule_label, null_token, caselist,
+    def def_first_case_start_handlers(self, nonterm_label, null_token, caselist,
                                                        peek_token_label=None):
                        # Below not used yet.... need to know cases of production...
                        #val_type=None, arg_types=None, eval_fun=None,
@@ -1917,19 +1976,19 @@ class PrattParser(object):
 
         """Define the head and tail handlers for the null-string token that is
         called to parse a production rule (i.e., called when precondition that
-        the state label `rule_label` is on the top of the `pstate_stack` is
+        the state label `nonterm_label` is on the top of the `pstate_stack` is
         satisfied).
         
-        These handlers handle all the cases of the production rule,
-        backtracking on failure and trying the next case, etc.  They act very
-        much like the usual recursive descent function for parsing a production
-        rule, except that to make a recursive call to handle a sub-production
-        they push that production label onto the `pstate_stack` and then call
-        `recursive_parse`.  Then the handler for that production will be
-        called, doing a search over its cases, etc., returning the value to the
-        calling level.
+        These handlers handle all the production rule cases of the caselist for
+        the nonterminal, backtracking on failure and trying the next case, etc.
+        They act very much like the usual recursive descent function for
+        parsing a production rule, except that to make a recursive call to
+        handle a sub-production they push that production label onto the
+        `pstate_stack` and then call `recursive_parse`.  Then the handler for
+        that production will be called, doing a search over its cases, etc.,
+        returning the value to the calling level.
 
-        The label of the starting state is assumed to have initially been
+        The label of the starting nonterminal is assumed to have initially been
         pushed on the `pstate_stack` attribute of the parser whenever
         productions are being used."""
         # Todo: later consider limiting the depth of the recursions by not
@@ -1942,22 +2001,23 @@ class PrattParser(object):
             """This function is only registered and used if `peek_token_label`
             is not `None`."""
             pstate_stack = lex.token_table.parser_instance.pstate_stack
-            if pstate_stack[-1] != rule_label:
+            if pstate_stack[-1] != nonterm_label:
                 return False
             ##print("QQQQQQQQQQQQQQ testing precondition token hit on", peek_token_label)
             if peek_token_label and lex.peek().token_label != peek_token_label:
                 return False
             ##print("QQQQQQQQQQQQQQ got a precondition token hit on", peek_token_label)
             return True
-        # This label NEEDS to be different for each rule AND for each peek
-        # token label.  Otherwise, the routine can fail.  The conditions can
-        # be considered identical to previously-defined ones, and overwrite them.
+        # The label below label NEEDS to be different for each nonterminal AND for
+        # each peek token label.  Otherwise, the routine can fail because the
+        # conditions can be wrongly considered identical to previously-defined
+        # ones, and overwrite them (found and fixed such a bug, hard to track).
         precond_label = ("precond for production {0} peek {1}"
-                                        .format(rule_label, peek_token_label))
+                                        .format(nonterm_label, peek_token_label))
 
         def head_handler(tok, lex):
             """The head handler assigned to the first token of the first case for
-            a production rule.  It tries all the other cases if it fails."""
+            a caselist.  It tries all the other cases if it fails."""
             # The "called as head vs. tail" thing won't matter, because
             # productions are always called as the whole case, by the
             # production label.  So, all cases will have the *same* method of
@@ -1966,15 +2026,14 @@ class PrattParser(object):
             pstate_stack = tok.parser_instance.pstate_stack
             first_call_of_start_state = False
 
-            # TODO Save the rule that parsed the token.  Document that value
-            # of null-string token (was None) is set to rule_label.  Pass
-            # value up in modifications where full tree not shown.
-            tok.value = rule_label
+            # TODO Save the label of the nonterminal that parsed the token.
+            # Document that value of null-string token (was None) is set to
+            # nonterm_label.  Pass value up in modifications where full tree
+            # not shown.
+            tok.value = nonterm_label
 
-            if not hasattr(tok.parser_instance, "debug_indent_add"):
-                tok.parser_instance.debug_indent_add = 0 # NOT used yet
-            def indent(): # DEBUG fun
-                return " " * (tok.parser_instance.debug_indent_add + len(pstate_stack)-1) * 3
+            #def indent(): # DEBUG fun
+            #    return " " * ((len(pstate_stack)-1) * 3)
 
             num_cases = len(caselist)
             last_case = False
@@ -1988,15 +2047,10 @@ class PrattParser(object):
             lex_saved_begin_state = lex.get_current_state()
             lex_peek_label = lex.peek().token_label # ONLY saved for backtrack check
 
-            # TODO: this really needs to recurse to handle calls to other productions.
-            # It cannot just handle here because the backtracking on the sub-productions
-            # will not work.  At the least need a stack of saved states to go with
-            # the pstate stack.
-
             # Loop through the cases until the first succeeds or all fail.
             for case_count, case in enumerate(caselist):
                 #print()
-                #print(indent() + "Handling case number", case_count, "of", rule_label)
+                #print(indent() + "Handling case number", case_count, "of", nonterm_label)
                 #print(indent() + "Case is:", case)
                 assert lex.peek().token_label == lex_peek_label
                 tok.children = [] # Reset the children of this null-state token.
@@ -2028,19 +2082,21 @@ class PrattParser(object):
 
                             #print(indent()+"==> next_tok subexpr is", next_tok)
                             if next_tok.children:
-                                raise ParserException("In parsing the rule {0} a call"
-                                        " to recursive_parse returned a subexpression"
-                                        " tree rather than the expected single token"
-                                        " with label {1}.  Subexpression was {2}"
-                                        .format(rule_label, item_token_label, next_tok))
+                                raise ParserException("In parsing the nonterminal {0}"
+                                        " a call to recursive_parse returned a"
+                                        " subexpression tree rather than the expected"
+                                        " single token with label {1}.  Subexpression"
+                                        " was {2}"
+                                        .format(nonterm_label, item_token_label,
+                                                                          next_tok))
                             tok.append_children(next_tok) # Make the token a child.
 
-                        # Case item is a nonterminal (recursive call to other rules).
+                        # Case item is a nonterminal (i.e., recursive call).
                         elif item.kind_of_item == "nonterminal":
-                            item_rule_label = item.value
+                            item_nonterm_label = item.value
                             #print(indent() + "Handling a production, pushing state:",
-                            #                         item_rule_label)
-                            pstate_stack.append(item_rule_label)
+                            #                         item_nonterm_label)
+                            pstate_stack.append(item_nonterm_label)
                             try:
                                 next_subexp = tok.recursive_parse(0)
                             except (BranchFail, CalledEndTokenHandler):
@@ -2051,7 +2107,7 @@ class PrattParser(object):
                             #tok.append_children(next_subexp) # Keep rule toks in tree.
                             #print(indent() + "SUCCESS in production rule recursion.")
                             #print(indent() + "Appending children:", next_subexp.children)
-                            tok.append_children(next_subexp) # No subrule toks.
+                            tok.append_children(next_subexp)
 
                         # Unknown case item.
                         else:
@@ -2083,22 +2139,21 @@ class PrattParser(object):
 
         def tail_handler(tok, lex, left):
             """Just push the state, relay the call, and pop afterwards."""
-            # TODO: maybe just give head handler a default arg, and bind
-            # as partial function for head vs. tail..... mostly the same.
+            # TODO: since routines head and tail are the same, maybe just define a
+            # generic handler but look at a closure variable or bind the var as
+            # a partial function for head vs. tail.....
             #
-            # Note that we presumably want *this* token as the subtree root.
-            # Push the new state onto the pstate_stack.
+            # TODO Below not used or implemented at all yet, just a copied-over stub.
+            #
+            # Note that for tail-handler that we presumably want *this* token as the
+            # subtree root.
             raise ParserException("ERROR: No tail functions defined yet for"
                     " null-string tokens.")
             pstate_stack = tok.parser_instance.pstate_stack
-            #print("---> Running tail handler for token", tok, "stack is", pstate_stack)
             pstate_stack.append("pstate_label")
-            # Get the next subexpression, relaying the precedence.
             processed = tok.recursive_parse(tok.subexp_prec,
                                 processed_left=left, lookbehind=tok.lookbehind)
-            # Pop the state off the pstate_stack.
             pstate_stack.pop()
-
             return processed
 
         # Register the handler for the first item of the first case.

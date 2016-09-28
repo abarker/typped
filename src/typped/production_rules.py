@@ -506,9 +506,9 @@ from .lexer import TokenNode
 lock = threading.Lock() # Only used for intermediate operations in overloaded < and >.
 
 class Grammar(object):
-    """An object representing a context-free grammar.  It consists of
-    production rules, which in turn are made up of different cases of that
-    rule."""
+    """An object representing a context-free grammar.  It is basically a
+    dict of caselists indexed by nonterminal labels.  Provides various
+    methods for processing the caselists."""
 
     def __init__(self):
         self.delimiter = Item(None) # Could be static but Item would need moving.
@@ -516,36 +516,22 @@ class Grammar(object):
         self.production_caselists = {}
         self.processing_in_progress = set() # To avoid infinite recurse in compile.
 
-    #def add_production_case(self, rule_label, caselist):
-    #    """Add a production rule to the grammar.  A `case_item_list` is
-    #    an ordered list of `Item` instances or things that can
-    #    be converted to one.  The order that they are added is the
-    #    order that they will be evaluated in."""
-    #    # TODO not used by _process now...
-    #    print("case item list", case_item_list)
-    #    if rule_label in self.production_caselists:
-    #        self.production_caselists[rule_label].append(case_item_list)
-    #    else:
-    #        raise ParserGrammarRuleException("All cases must be currently"
-    #                " be added through the `compile` function with all"
-    #                " cases present.")
-
-    def compile(self, start_rule_label, parser, locals_dict, register=True):
+    def compile(self, start_nonterm_label, parser, locals_dict, register=True):
         """Create the Pratt parser handlers in `parser` to parse the current
         grammar.
         
         If `register` is true the rules are registered with the `PrattParser`
         instance `parser` to enable it to parse the grammar."""
-        # TODO document must be reachable from start state.  Also, make sure
-        # we don't accidentally re-register something.
+        # TODO document rules must be reachable from start state to get registered.
+        # Also, make sure we don't accidentally re-register something.
 
-        print("call to compile")
-        self.production_caselists = {} # Reset all the rules.
+        #print("call to compile")
+        self.production_caselists = {} # Reset all the caselists.
         self.processing_in_progress = set()
         self.parser = parser
-        self.start_rule_label = start_rule_label
+        self.start_nonterm_label = start_nonterm_label
         self.locals_dict = locals_dict
-        self._process_rule(start_rule_label)
+        self._process_nonterm_caselist(start_nonterm_label)
         self.processing_in_progress = set()
         print("\nThe final dict is\n")
         for name, caselist in self.production_caselists.items():
@@ -553,46 +539,46 @@ class Grammar(object):
         print()
 
         if register:
-            for label, rule in self.production_caselists.items():
+            for label, caselist in self.production_caselists.items():
                 self.parser.def_production_rule(label, self)
 
-    def _process_rule(self, rule_label):
+    def _process_nonterm_caselist(self, nonterm_label):
         """Recursively process rules, converting string labels into their
         definitions from the locals dict, and looking up the tokens that go
         with token labels."""
-        self.processing_in_progress.add(rule_label)
+        self.processing_in_progress.add(nonterm_label)
         try:
-            locals_rule = self.locals_dict[rule_label]
+            locals_caselist = self.locals_dict[nonterm_label]
         except AttributeError:
             raise ParserGrammarRuleException("The rule \"{0}\" was not found"
                     " in the locals dict that was passed to the compile method"
-                    " of the `Grammar` class.".format(rule_label))
-        locals_rule = CaseList(*locals_rule)
-        print("label of rule being processed is", rule_label)
-        print("processing this rule from locals():\n   ", locals_rule)
+                    " of the `Grammar` class.".format(nonterm_label))
+        locals_caselist = CaseList(*locals_caselist)
+        print("label of caselist being processed is", nonterm_label)
+        print("processing this caselist from locals():\n   ", locals_caselist)
 
         processed_caselist = CaseList()
-        for itemlist in locals_rule:
+        for itemlist in locals_caselist:
             new_itemlist = ItemList()
             for item in itemlist:
                 if item.kind_of_item == "token":
                     if isinstance(item.value, str):
                         item.value = self.parser.get_token(item.value)
                 elif item.kind_of_item == "nonterminal":
-                    recursion_rule_label = item.value
-                    if recursion_rule_label in self.processing_in_progress:
-                        pass # Rule is currently being processed.
-                    elif recursion_rule_label in self.production_caselists:
+                    recursion_nonterm_label = item.value
+                    if recursion_nonterm_label in self.processing_in_progress:
+                        pass # Nonterminal is currently being processed.
+                    elif recursion_nonterm_label in self.production_caselists:
                         pass
                     else:
-                        self._process_rule(recursion_rule_label)
+                        self._process_nonterm_caselist(recursion_nonterm_label)
                 new_itemlist.append(item)
             processed_caselist.append(new_itemlist)
 
         processed_caselist.grammar_object = self
         processed_caselist.parser = self.parser
-        processed_caselist.rule_label = rule_label
-        self.production_caselists[rule_label] = processed_caselist
+        processed_caselist.nonterm_label = nonterm_label
+        self.production_caselists[nonterm_label] = processed_caselist
 
         return processed_caselist
 
@@ -601,19 +587,19 @@ class Grammar(object):
         grammars, but NOT IMPLEMENTED YET."""
         raise NotImplementedError("Not yet implemented")
 
-    def __iter__(self, rule_label):
-        """Generator to iteratively return the cases in production rule
-        `rule_label`"""
-        for rule in self.production_caselists[rule_label]:
-            yield rule
+    #def __iter__(self, rule_label):
+    #    """Generator to iteratively return the cases in production rule
+    #    `rule_label`"""
+    #    for rule in self.production_caselists[rule_label]:
+    #        yield rule
 
     def __getitem__(self, production_label):
         """Access like a dict to get production rules from their labels."""
         return self.production_caselists[production_label]
 
-    def __contains__(self, production_label):
+    def __contains__(self, nonterm_label):
         """For use with the 'in' keyword, like testing keys in a dict."""
-        return self.production_label in production_rules
+        return nonterm_label in self.production_caselists
 
     def _optimize_grammar_tree(self):
         """Do a search of the grammar tree and find lookahead tokens to
@@ -625,16 +611,16 @@ class Grammar(object):
         # back up the CFG tree after a recursive search down.  After they are
         # found they can be passed to the Pratt null-string handler function.
         raise NotImplementedError("Not implemented.")
-        self._recurse_on_grammar_tree(self.start_rule_label, num_productions)
+        self._recurse_on_grammar_tree(self.start_nonterm_label, num_productions)
 
     def _set_first_and_follow_sets(self):
         """Set the first and follow sets for every case of every nonterminal."""
-        for rule_label, caselist in self.production_caselists.items():
+        for nonterm_label, caselist in self.production_caselists.items():
             for rule in caselist:
-                self._recursive_set_first_sets(rule_label, rule)
+                self._recursive_set_first_sets(nonterm_label, rule)
         # TODO do follow sets separately, if done at all.
 
-    def _recursive_set_first_sets(self, rule_label, rule):
+    def _recursive_set_first_sets(self, nonterm_label, rule):
         """Recursively compute the first set for each rule and store it with that
         rule object."""
         #
@@ -656,9 +642,9 @@ class Grammar(object):
         for item in rule:
             if item.kind_of_item == "nonterminal":
                 # Recursively set the attributes of the subrule.
-                subrule_label = item.value
-                if subrule_label != rule_label:
-                    subrule = self._set_first_and_follow_sets(subrule_label)
+                subrule_nonterm = item.value
+                if subrule_nonterm != nonterm_label:
+                    subrule = self._set_first_and_follow_sets(subrule_nonterm)
                 else:
                     continue
 
@@ -727,7 +713,7 @@ class Item(object):
         if value is None: # A dummy Item; must be set to something else to be used.
             self.kind_of_item = "dummy"
         elif isinstance(value, str):
-            # A string production rule label, unless the Tok function resets it.
+            # A string nonterminal label, unless the Tok function resets it.
             self.kind_of_item = "nonterminal"
         elif is_subclass_of(value, TokenNode): # A token.
             self.kind_of_item = "token"
@@ -1017,11 +1003,13 @@ UNDERSCORE.kind_of_item = "underscore"
 # Define wrapper functions.
 #
 
-def Rule(production_rule_label):
-    """Return an `Item` to represent the rule with the string label
-    `production_rule_label`."""
+def Rule(nonterm_label):
+    """Return an `Item` to represent the nonterminal with the string label
+    `nonterm_label`."""
+    # TODO: Consider if using the name Rule is better than the longer but more
+    # descriptive name NonTerm.
     # Only one string arg allowed.
-    item = Item(production_rule_label)
+    item = Item(nonterm_label)
     item.kind_of_item = "nonterminal"
     return item
 

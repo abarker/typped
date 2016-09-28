@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
 pytest_helper.autoimport()
 
-from typped import *
+from typped import * # Assumes pip install, local for devel work.
 
 def def_expression_tokens_and_literals(parser):
     #
