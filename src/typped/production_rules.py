@@ -28,8 +28,6 @@ without the underlying Pratt parser and calls to it) are:
 Terminology
 -----------
 
-TODO: start using caselist as a term.
-
 * **Production rules** are also called **productions**, **parsing rules**,
   or just **rules**.  They are the individual rewrite rules such as
   `<expression> ::= <term>` in a BNF grammar.  The symbols on the l.h.s. of
@@ -175,39 +173,50 @@ list.  The `CaseList` class works similarly.
 So the initializers basically form the concatenation of all the passed-in
 arguments, after converting to the one type that the list-like object holds.
 The addition and "or" operations are essentially shorthand for putting both
-operands on an initializer list of the appropriate return type.
+operands on an initializer list of the appropriate return type.  Appending
+to a list gives the in-place result of adding the list and that item.
 
-Addition of `Item` or `ItemList` instances with `+` always returns an
-`ItemList`.  The operation is the same as if the operands had both been on the
-initializer list for `ItemList`.
+Summary of the operations:
 
-The "or" operation `|` on `Item`, `ItemList`, or `CaseList` instances always
-returns a `CaseList`.  Again, it is the same as if the operands had been
-arguments to the initializer of a `CaseList`.
+* **Addition**: Two `Item` and/or `ItemList` instances can be combined
+  with `+`, which always returns an `ItemList`.  The operation is the same as
+  if the operands had both been on the initializer list for `ItemList`.  The
+  `+=` operator is also defined.  The addition operator is not defined for
+  `CaseList` objects in order to possibly catch some syntax errors in
+  expressions (although there are ordinary `add` and `iadd` methods).
 
-The `+` and `|` operators are defined for tokens in the `PrattParser` module to
-behave in the same way as the `Item` instances.  This allows the use of the
-tokens directly, without having to convert them into `Item` instances (via the
-`Tok` function).
+* **Case joining**: The "or" operation `|` is defined for `Item`,
+  `ItemList`, or `CaseList` instances.  It always returns a `CaseList`.  The
+  operands are joined together as if they had been arguments to the initializer
+  of a `CaseList`.
 
-Since the `+` operator has a higher precedence than the `|` operator, all the
-additions within a case will always be carried-out before any "or" operations.
-So each argument to `|` will be either a single token, a single `Item` or a
-single `ItemList`.
+* **Tokens in expressions**: The `+` and `|` operators are defined for tokens
+  (in the `PrattParser` module) to behave in the same way as for `Item`
+  instances.  This allows the use of the tokens directly, without having to
+  convert them into `Item` instances by wrapping them in the `Tok` function.
 
-Operations such as `append` and `insert` are defined for these list-like
-classes.  They convert their argument to the correct type for the container and
-then do the expected thing.  Indexing of these list-like objects is also
-supported, including negative indices but currently not slices.
+* **Other list-like operations**: The methods `append` and
+  `insert` are defined for these list-like classes.  They convert their
+  argument to the correct type for the container and then append it to the list
+  in-place.  Indexing of these list-like objects is also supported, including
+  negative indices but currently not slices.  This allows them to be iterated
+  over.  They also have a `len`, so they can be tested for emptiness.
 
-Note that after a full expression containing these objects and operators is
-evaluated the resulting r.h.s. object (which is set to the l.h.s. variable name
-for a production rule) can be 1) a single token, 2) a single `Item`, 3) a
-single `ItemList`, or 4) a `CaseList`.  The `compile` method of a `Grammar`
-instance will always convert the value into a `CaseList` instance.  (It would
-be possible to overload the `<<=` operator and use it instead of `=` to
-automatically do the conversion, but that does not seem worth the extra
-notation and boilerplate.)
+.. note::
+
+   Since the `+` operator has a higher precedence than the `|` operator, all
+   the additions within a case will always be carried-out before any "or"
+   operations.  So each argument to `|` will be either a single token, a single
+   `Item` or a single `ItemList`.
+
+   Note that after a full expression containing these objects and operators is
+   evaluated the resulting r.h.s. object (which is set to the l.h.s. variable
+   name for a production rule) can be 1) a single token, 2) a single `Item`, 3)
+   a single `ItemList`, or 4) a `CaseList`.  The `compile` method of a
+   `Grammar` instance will always convert the value into a `CaseList` instance.
+   (It would be possible to overload the `<<=` operator and use it instead of
+   `=` to automatically do the conversion, but that does not seem worth the
+   extra notation and boilerplate.)
 
 TODO: 
 
@@ -489,6 +498,11 @@ See some of those articles and maybe do a simple thing.
 #    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
 #    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 
+# TODO: Make the call to external parser a user-settable thing (just as a
+# module var, since developers not users would do it) and this becomes a
+# general EBNF-like-Python-expression definition and parsing module.
+# Most does not depend on the final parser.
+
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
@@ -519,11 +533,20 @@ class Grammar(object):
     def compile(self, start_nonterm_label, parser, locals_dict, register=True):
         """Create the Pratt parser handlers in `parser` to parse the current
         grammar.
+
+        The `start_nonterm_label` is the starting nonterminal.  Only rules
+        which are reachable from the rule cases for this starting nonterminal
+        will be processed.
+        
+        The `parser` is a `PrattParser` instance.
+        
+        The `locals_dict` should be passed `locals=locals()`.  If you also need
+        globals then you have to merge the `locals()` and `globals()` dicts
+        (with locals overwriting) and pass that dict instead.
         
         If `register` is true the rules are registered with the `PrattParser`
         instance `parser` to enable it to parse the grammar."""
-        # TODO document rules must be reachable from start state to get registered.
-        # Also, make sure we don't accidentally re-register something.
+        # TODO: Make sure we don't accidentally re-register something.
 
         #print("call to compile")
         self.production_caselists = {} # Reset all the caselists.
@@ -611,7 +634,6 @@ class Grammar(object):
         # back up the CFG tree after a recursive search down.  After they are
         # found they can be passed to the Pratt null-string handler function.
         raise NotImplementedError("Not implemented.")
-        self._recurse_on_grammar_tree(self.start_nonterm_label, num_productions)
 
     def _set_first_and_follow_sets(self):
         """Set the first and follow sets for every case of every nonterminal."""
@@ -732,7 +754,7 @@ class Item(object):
         # passed to type_sig... since it will always be one.  But if it is
         # already one, then just use that (check isinstance).
         self.type_sig = type_sig
-        return Sig(self, arg)
+        return Sig(self, type_sig)
 
     def __repr__(self):
         string = "Item({0})".format(self.value)
@@ -788,6 +810,15 @@ class Item(object):
         raise_if_not([Item, ItemList, CaseList], [TokenNode], left_other, self, "|")
         return CaseList(left_other) | CaseList(self)
 
+    def __rmul__(self, left_other):
+        """The expression `n*item` for an int `n` is "n occurrences of" `item`."""
+        return OccurrencesOf(left_other, self)
+
+    def __rpow__(self, left_other):
+        """The expression `n**token` for an int `n` is "n or more occurrences of"
+        `token`."""
+        return OrMoreOccurrencesOf(left_other, self)
+
     def __invert__(self):
         """Overload the prefix operator '~'."""
         # TODO, raise_if_not doesn't work yet for unary operators.
@@ -797,6 +828,9 @@ class Item(object):
         """Overload `<` from the left operand.  Reflected for '>'."""
         raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
         return handle_overloaded_lt_comparison(self, other)
+
+# TODO really need a TokenList that works like an Item and can go on an
+# itemlist.  They are the terminals, after all.  Also: 2 * (k_lpar + k_lpar)
 
 class ItemList(object):
     """A list of `Item` instances."""
@@ -818,13 +852,13 @@ class ItemList(object):
 
     def append(self, item):
         """Append an item to the list."""
-        self.data_list.append(item) # What if not an item?
+        self.data_list.append(Item(item))
 
     def insert(self, index, item):
         """Insert an item."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.data_list.insert(index, data_item) # What if not an item?
+        self.data_list.insert(index, Item(item))
 
     def __getitem__(self, index):
         """Index an element of the `ItemList`.  Negative indices are implemented,
@@ -838,7 +872,7 @@ class ItemList(object):
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.data_list[index] = value
+        self.data_list[index] = Item(value)
 
     def __len__(self):
         return len(self.data_list)
@@ -851,22 +885,18 @@ class ItemList(object):
     def __add__(self, right_other):
         raise_if_not([Item, ItemList], [TokenNode], right_other, self, "+")
         """Overload `+` from the left operand."""
-        if not isinstance(right_other, ItemList):
-            return self + ItemList(right_other) # TODO prob unnecessary, doesn't __init__ do it?
         return ItemList(self, right_other)
 
     def __radd__(self, left_other):
         raise_if_not([Item, ItemList], [TokenNode], left_other, self, "+")
         """Overload `+` from the right operand."""
-        if not isinstance(left_other, ItemList):
-            return ItemList(left_other) + self
         return ItemList(left_other, self)
 
     def __iadd__(self, other):
         """Overload `+=` operation."""
-        raise_if_not([Item, ItemList], [TokenNode], left_other, self, "+")
+        raise_if_not([Item, ItemList], [TokenNode], other, self, "+")
         self.data_list += ItemList(other).data_list
-        return self    
+        return self
 
     def __or__(self, right_other):
         raise_if_not([Item, ItemList, CaseList], [TokenNode], right_other, self, "|")
@@ -877,6 +907,16 @@ class ItemList(object):
         raise_if_not([Item, ItemList, CaseList], [TokenNode], left_other, self, "|")
         """Overload `|` from the right operand."""
         return CaseList(left_other) | CaseList(self)
+
+    def __rmul__(self, left_other):
+        """The expression `n*itemlist` for an int `n` is "n occurrences of"
+        `itemlist`."""
+        return OccurrencesOf(left_other, self)
+
+    def __rpow__(self, left_other):
+        """The expression `n**token` for an int `n` is "n or more occurrences of"
+        `token`."""
+        return OrMoreOccurrencesOf(left_other, self)
 
     def __lt__(self, other):
         raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
@@ -916,13 +956,13 @@ class CaseList(object):
 
     def append(self, item):
         """Append an item to the list."""
-        self.data_list.append(item)
+        self.data_list.append(ItemList(item))
 
     def insert(self, index, item):
         """Insert an item."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.data_list.insert(index, data_item)
+        self.data_list.insert(index, ItemList(item))
 
     def __getitem__(self, index):
         """Index and element of the `ItemList`.  Negative indices are implemented,
@@ -936,7 +976,7 @@ class CaseList(object):
         but slices are not."""
         if index < 0: # Handle negative indices.
             index += len(self)
-        self.data_list[index] = value
+        self.data_list[index] = ItemList(value)
 
     def __len__(self):
         return len(self.data_list)
@@ -952,8 +992,16 @@ class CaseList(object):
         `+` because that operator is used in the production rule strings for
         `ItemList` objects, but in that context is an error if applied to
         `CaseList` objects."""
+        # Note this doesn't add in-place.  Returns a new one.
         raise_if_not([Item, ItemList, CaseList], [TokenNode], other, self, "+")
         return CaseList(self, other)
+
+    def iadd(self, other):
+        """Add a `CaseList` to some other object, in place.  Like `add` but in-place."""
+        # Note this doesn't add in-place.  Returns a new one.
+        raise_if_not([Item, ItemList, CaseList], [TokenNode], other, self, "+")
+        self.data_list += CaseList(other).data_list
+        return self
 
     def __add__(self, right_other):
         raise_if_not([], [], right_other, self, "+") # Error to add CaseLists.
@@ -977,6 +1025,16 @@ class CaseList(object):
         if not isinstance(left_other, CaseList):
             return CaseList(left_other) | self
         return CaseList(left_other, self)
+
+    def __rmul__(self, left_other):
+        """The expression `n*caselist` for an int `n` is "n occurrences of"
+        `caselist`."""
+        return OccurrencesOf(left_other, self)
+
+    def __rpow__(self, left_other):
+        """The expression `n**token` for an int `n` is "n or more occurrences of"
+        `token`."""
+        return OrMoreOccurrencesOf(left_other, self)
 
     def __lt__(self, other):
         raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
@@ -1020,7 +1078,7 @@ def Tok(token):
         raise ParserGrammarRuleException("Bad argument {0} passed to the"
                 " Tok function.".format(token))
     item = Item(token)
-    item.kind_of_item = "token" # Not needed.
+    item.kind_of_item = "token"
     return item
 
 def Root(item_init_arg, prec=None):
@@ -1056,24 +1114,49 @@ def Pratt(pstate=None, type_sig=None):
     item.pstate = pstate
     return item
 
-def Optional(*args):
-    # Usually just one argument
-    itemlist = ItemList(*args)
+def Optional(arg):
+    itemlist = ItemList(arg)
     itemlist[0].modifiers.insert(0, "Optional(")
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-def OneOrMore(*args):
-    # Usually just one argument
-    itemlist = ItemList(*args)
+def OneOrMore(arg):
+    # Same as 1 ** arg.
+    itemlist = ItemList(arg)
     itemlist[0].modifiers.insert(0, "OneOrMore(")
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-def ZeroOrMore(*args):
-    # Usually just one argument
-    itemlist = ItemList(*args)
+def ZeroOrMore(arg):
+    # Same as 0 ** arg.
+    itemlist = ItemList(arg)
     itemlist[0].modifiers.insert(0, "ZeroOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+# TODO: consider if arg * 3 and arg ** 3 would be better, since then
+# you do not have a problem with 3 * 2 ** arg == 6 ** arg (because
+# left arg is always a token, Item or ItemList.
+#
+# But then it reads "arg repeat 3" or "arg repeat at least 3"
+#
+# BUT still have arg * 3 ** 2 == arg * 9
+#
+# So just warn them.  It is Python language, after all, and you can put
+# in any expression.
+#
+# Also consider arg // 3 for "repeat at most", but precedence is
+# different from ** so caution is warranted...
+
+def OccurrencesOf(n, arg):
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "OccurrencesOf({0},".format(n))
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+def OrMoreOccurrencesOf():
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "OrMoreOccurrencesOf({0},".format(n))
     itemlist[-1].modifiers.append(")")
     return itemlist
 
@@ -1101,16 +1184,95 @@ def Hide(itemlist):
 #
 
 inside_matched_pair = False
-saved_comparison_args = []
+saved_comparison_args = CaseList()
 locked = False
 
+# REMEMBER these need to work inside Optional(tok + _<"wff">_) kinds of parens,
+# and get the added modifier lists right.
+
+def combine_saved_args(saved_comparison_args, calling_instance, rule_item):
+    """Recombine the pieces of saved articles which were split up by the low
+    precedence of the comparison operators.
+    
+    The parameter `saved_comparison_args` is always a `CaseList`.  It
+    saves the partial expression to the left of the < operator.
+
+    The `calling_instance` can be an `Item`, an `ItemList`, or a `CaseList`.
+    It is the partial expression to the right of the > operator.  It always
+    has underscore as the leftmost and rightmost item except when it is
+    the last operand of the comparison chain.
+    
+    The `rule_item` parameter is always an `Item` representing a `Rule` call
+    (i.e., it is a nonterminal).
+    
+    Only `ItemList` types are ever joined, since the comparisons always split
+    lists of items.  Item lists next to each other and ending and beginning
+    with underscore join as one itemlist, and join their caselists, too.  If
+    inside a `CaseList` they join inside the `CaseList`.
+    """
+    print("\n======= beginning combine =========")
+    print_indented_caselist("\nsaved_comparison_args:", saved_comparison_args)
+    print("\ncalling_instance:\n", calling_instance, sep="")
+    print("\nrule_item:\n", rule_item, sep="")
+    if isinstance(calling_instance, Item):
+        #assert not saved_comparison_args # Only case where calling_instance is an Item.
+        #retval = CaseList(rule_item + calling_instance)
+        if not saved_comparison_args:
+            retval = CaseList(rule_item)
+        else:
+            saved_comparison_args[-1] += calling_instance
+            saved_comparison_args[-1] += rule_item
+            retval = saved_comparison_args
+    elif isinstance(calling_instance, ItemList):
+        #del saved_comparison_args[-1] # Was underscore.
+        #del calling_instance[0] # Was underscore.
+        #if calling_instance[-1].kind_of_item == "underscore":
+        #    del calling_instance[-1] # Was underscore.
+        if not saved_comparison_args:
+            saved_comparison_args = CaseList(calling_instance + rule_item)
+        else:
+            saved_comparison_args[-1] += calling_instance
+            saved_comparison_args[-1] += rule_item
+            #saved_comparison_args.add(calling_instance)
+        retval = saved_comparison_args
+        #retval = CaseList(saved_comparison_args, calling_instance, rule_item)
+    elif isinstance(calling_instance, CaseList):
+        #del calling_instance[0][0]
+        #if not calling_instance[0]: del calling_instance[0]
+        #if calling_instance[-1][-1].kind_of_item == "underscore":
+        #    del calling_instance[-1][-1] # Was underscore.
+        left = calling_instance[0]
+        del calling_instance[0]
+        #saved_comparison_args[-1] += rule_item
+        saved_comparison_args[-1] += left
+        for case in calling_instance:
+            saved_comparison_args.append(case)
+        saved_comparison_args[-1] += rule_item
+        retval = saved_comparison_args
+    #saved_comparison_args[-1] += rule_item
+    print_indented_caselist("\nmodified_comparison_args:", retval)
+    print("\n======= done with combine =========")
+    return retval
+
 def handle_overloaded_lt_comparison(calling_instance, other):
-    """Overload `<` from the left operand.  Reflected for the right operand."""
+    """Overload `<` from the left operand.  Reflected for the right operand.
+
+    Note that the difficulty that must be overcome is that chained comparison
+    operators are always evaluated with "and" between the pairs, with the
+    middle ones evaluated only once.  If the first n-1 are all true then
+    the return value is the n-1 comparison's result.  This must return the
+    whole result for the chain.
+    
+    The < operations concatenate their left and right operands into a common
+    location before returning `True`.  The final > operator in the sequence
+    then returns this saved value and clears the save list (also releasing the
+    thread lock).
+    """
     # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
     global inside_matched_pair, saved_comparison_args, locked
 
     if not inside_matched_pair: # Must be the < case not the > case.
-        print("\ncalled < in", calling_instance.__class__.__name__)
+        #print("\ncalled < in", calling_instance.__class__.__name__)
         # === THREAD LOCK =========
         if not locked:
             lock.acquire()
@@ -1118,75 +1280,71 @@ def handle_overloaded_lt_comparison(calling_instance, other):
         inside_matched_pair = True
         raise_if_not([str], [], other, calling_instance, "<")
 
-        # Save the arguments for the closing > operator to use.
-        saved_comparison_args += [calling_instance, Rule(other)]
+        # Save the arguments for the final, closing > operator in the chain to
+        # use.  Note that this is the ONLY place where things are added to
+        # saved_comparison_args.
+        saved_comparison_args = combine_saved_args(saved_comparison_args, calling_instance, Rule(other))
+        #saved_comparison_args += [Rule(other)]
 
-        print("    saving", saved_comparison_args)
+        #print("    saving", saved_comparison_args)
         return True # Always the l.h.s. of an "and" with the real value.
 
-    else: # not inside_matched_pair
-        print("\ncalled > in", calling_instance.__class__.__name__)
+    else: # We are already inside a matched pair of < and > operators.
+        #print("\ncalled > in", calling_instance.__class__.__name__)
         inside_matched_pair = False # Must be done so we know next comparison is <.
         raise_if_not([str], [], other, calling_instance, ">")
         raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
-        print("   new 'calling_instance' value is:", calling_instance)
+        #print("   new 'calling_instance' value is:", calling_instance)
       
         # Save the arguments for the next < operator to use, but only if the
         # calling ItemList or CaseList on the right ends in a dummy Item (need
         # to save iff that is the case.  If not, release the lock and delete
-        # the saved saved_comparison_args info.
-        if not (isinstance(calling_instance, Item) or 
+        # the saved saved_comparison_args info since at the end of expression.
+        if not (isinstance(calling_instance, Item) or # Just an error check.
                 isinstance(calling_instance, ItemList) or
                 isinstance(calling_instance, CaseList)):
             raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
                     "or CaseList. It is {0}.".format(calling_instance))
+        # Error check above.
 
-        if ((isinstance(calling_instance, ItemList) and
-                            calling_instance[-1].kind_of_item == "underscore")
-                or (isinstance(calling_instance, CaseList) and
-                            calling_instance[-1][-1].kind_of_item == "underscore")):
-            print("\n\nAPPENDING saved_comparison_args\n\n")
-            #saved_comparison_args += [Rule(other), calling_instance]
-            saved_comparison_args += [calling_instance]
-            recovered_args = []
+        if (isinstance(calling_instance, ItemList) and
+                           calling_instance[-1].kind_of_item == "underscore"):
             return True
-        else:
-            print("\n\nCLEARING saved_comparison_args\n\n")
+
+        elif (isinstance(calling_instance, CaseList) and
+                           calling_instance[-1][-1].kind_of_item == "underscore"):
+            return True
+
+        elif (isinstance(calling_instance, Item)
+                and calling_instance.kind_of_item == "underscore"):
+            # Is the closing underscore Item, alone.  We know this is the end
+            # of the chained comparison sequence, so return the real value.
+            #print("\n\nCLEARING saved_comparison_args\n\n")
             #recovered_args = saved_comparison_args + [Rule(other), calling_instance]
-            recovered_args = saved_comparison_args + [calling_instance]
-            saved_comparison_args = []
+            recovered_args = saved_comparison_args #+ [calling_instance]
+            saved_comparison_args = CaseList()
             if locked:
                 locked = False
                 lock.release() # === THREAD UNLOCK ========
-            return combine_comparison_overload_pieces(*recovered_args)
+            #return combine_comparison_overload_pieces(*recovered_args)
+            print_indented_caselist("recovered args", recovered_args)
+            #return recovered_args
+            # TODO use below later..
+            caselist_stripped_of_underscores = CaseList()
+            for case in recovered_args:
+                print("case being stripped is", case)
+                stripped_case = ItemList()
+                for item in case:
+                    if item.kind_of_item != "underscore":
+                        stripped_case += item
+                caselist_stripped_of_underscores.append(stripped_case)
+            print_indented_caselist("stripped is:", caselist_stripped_of_underscores)
+            return caselist_stripped_of_underscores
 
-def combine_comparison_overload_pieces(*args):
-    caselist = CaseList(*args) # Converts all to ItemList.
-    return caselist
-    i = -1
-    while True: 
-        i += 1
-        print("\n====> caselist is:\n   ", caselist, "\n")
-        if i == len(caselist):
-            break
-        if caselist[i][-1].kind_of_item == "underscore":
-            # Remove the dummy items.
-            del caselist[i][-1]
-            caselist[i] = caselist[i] + caselist[i+1]
 
-            for j in range(i, len(caselist)):
-                if caselist[j][0].kind_of_item == "underscore":
-                    del caselist[j][0]
-                    caselist[i] = caselist[i] + caselist[j]
-                    break
-                caselist[i] = caselist[i] + caselist[j]
-
-            for j in reversed(range(1,j+1)):
-                del caselist[i+j]
-            # Resume the loop.
-            i -= 1
-            continue
-    return caselist
+        else:
+            raise ParserGrammarRuleException(
+                                "No closing underscore in Rule shortcut.")
 
 #
 # Utility functions.
@@ -1200,7 +1358,8 @@ def raise_if_not(instanceof_list, issubclass_list, operand_or_arg, calling_insta
     error message.
     
     If `kind` is `"op"` the message is for an operator.  If it is `"method"`
-    then the message is for a method."""
+    then the message is for a method.
+    """
     if any([isinstance(operand_or_arg, classname) for classname in instanceof_list]):
         return
     if any([is_subclass_of(operand_or_arg, classname) for classname in issubclass_list]):
@@ -1223,6 +1382,18 @@ def raise_if_not(instanceof_list, issubclass_list, operand_or_arg, calling_insta
                         calling_instance.__class__.__name__, operand_string))
     else:
         raise ParserGrammarRuleException("Bad flag to raise_if_not.")
+
+def print_indented_caselist(string_before, caselist):
+    """Print routine for debugging."""
+    string = string_before + "\nCaselist(\n"
+    string2 = ""
+    for case in caselist:
+        string2 += " "*3 + str(case) + ",\n"
+    if string2:
+        string += string2[:-2] + "\n)" # Lose last comma, close paren.
+    else:
+        string += ")"
+    print(string)
 
 #
 # Exceptions.

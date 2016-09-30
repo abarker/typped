@@ -31,9 +31,6 @@ import re
 import collections
 from .shared_settings_and_exceptions import LexerException
 
-# TODO: can just have two separate matchers, and then have another
-# matcher to use both to combine.  Then can test separate ones, too.
-
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
                            "regex_string",
                            "compiled_regex",

@@ -324,16 +324,17 @@ def token_subclass_factory():
 
     class TokenSubclassMeta(type):
         """A trivial metaclass that will actually create the `TokenSubclass`
-        objects.  Since tokens are represented by classes this is necessary if
-        we want to change their `__repr__` or overload operators to work on
-        them."""
+        objects.  Since tokens are represented by classes this is necessary in
+        order to change their `__repr__` (the defalt one is ugly for tokens)
+        or to overload operators to work for token operands."""
         def __new__(meta, name, bases, dct):
             new_class = super(TokenSubclassMeta, meta).__new__(meta, name, bases, dct)
 
             # Below is ugly, but avoids mutual import problems.  Used as an
             # easy way to define token addition so that it works in the
             # grammars defined by the production_rules module.
-            from .production_rules import Tok, Not, Prec
+            from .production_rules import (Tok, Not, Prec,
+                                           OccurrencesOf, OrMoreOccurrencesOf)
             # These are saved in a dict below because if they are made
             # attributes then Python 2 complains about "TypeError: unbound
             # method Tok() must be called with TokenClass_k_lpar instance as
@@ -345,6 +346,8 @@ def token_subclass_factory():
             new_class.prod_rule_funs["Tok"] = Tok
             new_class.prod_rule_funs["Not"] = Not
             new_class.prod_rule_funs["Prec"] = Prec
+            new_class.prod_rule_funs["OccurrencesOf"] = OccurrencesOf
+            new_class.prod_rule_funs["OrMoreOccurrencesOf"] = OrMoreOccurrencesOf
 
             return new_class
 
@@ -358,6 +361,15 @@ def token_subclass_factory():
         #
         # Representations.  These overloads work with the production_rules module.
         #
+
+        # TODO: Could have a flag to turn off overloads, maybe... tokens know
+        # their parser_instance at runtime, so they can look at instance.  If
+        # Grammar is passed a parser and initialized before it could turn on
+        # overloads and compile could turn them off.  Kind of restrictive,
+        # though.  But could just put calls to a function to check and raise an
+        # error... Catches accidental uses, and can suggest maybe they need to
+        # init Grammar first...  These all return Item or related anyway,
+        # should catch most accidentals just because of that.
 
         def __add__(cls, other):
             """Addition of two tokens is defined to simply return a tuple of
@@ -378,9 +390,18 @@ def token_subclass_factory():
             """The right version of `__or__` above."""
             return other | cls.prod_rule_funs["Tok"](cls)
 
+        def __rmul__(cls, left_other):
+            """The expression `n*token` for an int `n` is "n occurrences of"
+            `token`."""
+            return cls.prod_rule_funs["OccurrencesOf"](left_other, cls)
+
+        def __rpow__(cls, left_other):
+            """The expression `n**token` for an int `n` is "n or more occurrences of"
+            `token`."""
+            return cls.prod_rule_funs["OrMoreOccurrencesOf"](left_other, cls)
+
         def __invert__(cls):
-            """Define the `~` operator for production rule grammars (make root
-            of subtree)."""
+            """Define the `~` operator for production rule grammars."""
             return cls.prod_rule_funs["Not"](cls)
 
         def __getitem__(cls, arg):
@@ -1864,6 +1885,9 @@ class PrattParser(object):
         `def_first_case_start_handlers` with that caselist.
         
         """
+        # TODO: finish first-sets and make the sub-caselists be groups that
+        # start with the same first-set.  Then make that a precond on it.
+
         # TODO: maybe move this routine back into production_rules module.
         # It is really just preprocessing, and this module is too large.
         # The one use of self can be pushed down to called routine instead.

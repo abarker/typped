@@ -50,6 +50,87 @@ def def_expression_tokens_and_literals(parser):
     parser.def_multi_literals(literals_list)
     pytest_helper.locals_to_globals()
 
+def test_EBNF_like_expressions():
+    parser = PrattParser()
+    parser.def_default_whitespace()
+    def_expression_tokens_and_literals(parser)
+    g = Grammar()
+
+    _ = UNDERSCORE
+
+    expression = ( Rule("term1") + Tok("k_plus") + Rule("term2")
+                 | Rule("term3") + k_minus + Rule("term4")
+                 | Rule("term5")
+                 )
+
+    term = ( Rule("factor1") + k_ast + Rule("factor2")
+           | Rule("factor3") + k_fslash + Rule("factor4")
+           | Rule("factor5")
+           )
+
+    factor = ( k_number
+             | k_lpar + Rule("expression") + k_rpar
+             )
+
+    assert str(expression) == ('CaseList(ItemList(Rule("term1"), '
+                                                'Tok("k_plus"), '
+                                                'Rule("term2")), '
+                                       'ItemList(Rule("term3"), '
+                                                'Tok("k_minus"), '
+                                                'Rule("term4")), '
+                                       'ItemList(Rule("term5")))')
+
+    assert str(term) == ('CaseList(ItemList(Rule("factor1"), '
+                                           'Tok("k_ast"), '
+                                           'Rule("factor2")), '
+                                 'ItemList(Rule("factor3"), '
+                                           'Tok("k_fslash"), '
+                                           'Rule("factor4")), '
+                                 'ItemList(Rule("factor5")))')
+
+    assert str(factor) == ('CaseList(ItemList(Tok("k_number")), '
+                                    'ItemList(Tok("k_lpar"), '
+                                             'Rule("expression"), '
+                                             'Tok("k_rpar")))')
+
+    # TODO these are a MESS, need to work on later or not use...
+    #"""
+    expression2 = ( _<"term1">_ + k_plus + _<"term2">_
+                  | _<"term3">_ + k_minus + _<"term4">_
+                  | _<"term5">_
+                  )
+
+    assert str(expression2) == str(expression)
+   
+
+    print(">>>>>>>>>>>> before testrule")
+    testrule = k_ast + _<"factor2">_
+    print(testrule)
+    assert str(testrule) == 'CaseList(ItemList(Tok("k_ast"), Rule("factor2")))'
+    print(">>>>>>>>>>>> testrule is", testrule)
+
+    testrule2 = _<"factor1">_ + k_ast + _<"factor2">_
+
+    # TODO: Optional returns a CaseList, causes fail.
+    #testrule3 = Optional(k_ast + _<"factor2">_) # Optional should return ItemList
+    assert str(testrule3) == "egg"
+
+    term2 = ( _<"factor1">_ + Optional(k_ast + _<"factor2">_)  # FAILS
+
+            | _<"factor3">_ + k_fslash + _<"factor4">_
+            | _<"factor5">_
+            )
+
+    assert str(term2) == str(term)
+
+    factor2 = ( k_number
+              | k_lpar + _<"expression">_ + k_rpar  # FAILS
+              )
+
+    assert str(factor2) == str(factor)
+    #"""
+
+
 def test_basic_expression_grammar():
     parser = PrattParser()
     parser.def_default_whitespace()
@@ -57,7 +138,8 @@ def test_basic_expression_grammar():
     def_expression_tokens_and_literals(parser)
 
     #
-    # Define the grammar.
+    # Define the grammar.  Basic expression parsing of these expressions is
+    # checked in previous test.
     #
 
     g = Grammar()
@@ -75,29 +157,6 @@ def test_basic_expression_grammar():
     factor = ( k_number
              | k_lpar + Rule("expression") + k_rpar
              )
-
-    assert str(expression) == ('CaseList(ItemList(Rule("term"), '
-                                                'Tok("k_plus"), '
-                                                'Rule("term")), '
-                                       'ItemList(Rule("term"), '
-                                                'Tok("k_minus"), '
-                                                'Rule("term")), '
-                                       'ItemList(Rule("term")))')
-
-    assert str(term) == ('CaseList(ItemList(Rule("factor"), '
-                                           'Tok("k_ast"), '
-                                           'Rule("factor")), '
-                                 'ItemList(Rule("factor"), '
-                                           'Tok("k_fslash"), '
-                                           'Rule("factor")), '
-                                 'ItemList(Rule("factor")))')
-
-    assert str(factor) == ('CaseList(ItemList(Tok("k_number")), '
-                                    'ItemList(Tok("k_lpar"), '
-                                             'Rule("expression"), '
-                                             'Tok("k_rpar")))')
-
-
 
     #
     # Parse some expressions.
