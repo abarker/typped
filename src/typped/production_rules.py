@@ -199,8 +199,8 @@ Summary of the operations:
   `insert` are defined for these list-like classes.  They convert their
   argument to the correct type for the container and then append it to the list
   in-place.  Indexing of these list-like objects is also supported, including
-  negative indices but currently not slices.  This allows them to be iterated
-  over.  They also have a `len`, so they can be tested for emptiness.
+  negative indices and slices.  This allows them to be iterated over.  They
+  also have a `len`, so they can be tested for emptiness.
 
 .. note::
 
@@ -501,7 +501,15 @@ See some of those articles and maybe do a simple thing.
 # TODO: Make the call to external parser a user-settable thing (just as a
 # module var, since developers not users would do it) and this becomes a
 # general EBNF-like-Python-expression definition and parsing module.
-# Most does not depend on the final parser.
+# Most does not depend on the final parser.  Also some TokenNode dependencies.
+
+# TODO really need a TokenList that works like an Item and can go on an
+# itemlist.  They are the terminals, after all.  Also: 2 * (k_lpar + k_lpar)
+# Does the modifier list stuff handle that OK?  What about an `Item` that holds
+# a list of tokens, with addition of tokens producing an `Item`?  But how
+# do `ItemList` and `CaseList` handle this?  What about just a postprocessing
+# to gather them up or mark them somehow?  Could mark them as a TokenGroup(...)
+# or similar.
 
 from __future__ import print_function, division, absolute_import
 import pytest_helper
@@ -517,7 +525,6 @@ from .shared_settings_and_exceptions import ParserException, is_subclass_of, is_
 from .pratt_types import TypeSig, TypeObject, NONE
 from .lexer import TokenNode
 
-lock = threading.Lock() # Only used for intermediate operations in overloaded < and >.
 
 class Grammar(object):
     """An object representing a context-free grammar.  It is basically a
@@ -547,6 +554,13 @@ class Grammar(object):
         If `register` is true the rules are registered with the `PrattParser`
         instance `parser` to enable it to parse the grammar."""
         # TODO: Make sure we don't accidentally re-register something.
+
+        # First run a check on the processing of _ shortcuts, just to catch
+        # any problems.
+        if saved_comparison_args:
+            raise ParserGrammarRuleException("Error detected in compile method:"
+                    " intermediate arguments to '_<' are still saved.  Check"
+                    " for unbalanced '_<' and '>_' symbols.")
 
         #print("call to compile")
         self.production_caselists = {} # Reset all the caselists.
@@ -698,19 +712,21 @@ class Item(object):
     production rules."""
     
     def __init__(self, value=None):
-        """The list `item_list` should be a list of production labels, tokens,
-        type signatures, and integer operator precedence values.
+        """Create an initial `Item` instance.  These plain `Item` instances are
+        not used in expressions.  Before that they must be "decorated" by
+        functions like `Tok` and `Rule` to set the `kind_of_item` attribute,
+        and possibly others.
         
-        If `root` is true then the item will be made the root of the subtree
-        for the production that it is in (in place of the null-string token for
-        the production rule).
+        If a string is passed in as the value it is assumed to be a nonterminal
+        label.
         
-        If `prec` is set to an integer then that value will be used as the
-        precedence of the item when it is called by a tail-handler function.
+        If a token is passed in it is converted to an `Item`.
+
+        If an `Item` instance is passed in then its attributes will be copied
+        to this instance.
         
-        Passing a value of `None` creates a dummy `Item` instance which is only
-        used for overloading purposes (to define the `delimiter` attribute
-        of `Grammar`)."""
+        If no `value` is specified or value is `None` then a dummy `Item` is
+        created, which must be processed further to be used in expressions."""
         if isinstance(value, Item): # Already was an Item, just copy attrs.
             self.value = value.value
             self.root = value.root
@@ -728,10 +744,6 @@ class Item(object):
         self.type_sig = None
         self.modifiers = [] # Things like "Optional(" and ")" added by funs.
 
-        # TODO: modify to let ANY value be passed in and set to value.  Also
-        # allow a `kind` argument, and just set that, too.  THEN let the
-        # wrappers just pass in what they want.  Below is obsolete...  Raw
-        # items are never used (docs don't even tell users how to create them).
         if value is None: # A dummy Item; must be set to something else to be used.
             self.kind_of_item = "dummy"
         elif isinstance(value, str):
@@ -829,9 +841,6 @@ class Item(object):
         raise_if_not([str, Item, ItemList, CaseList], [TokenNode], other, self, "<")
         return handle_overloaded_lt_comparison(self, other)
 
-# TODO really need a TokenList that works like an Item and can go on an
-# itemlist.  They are the terminals, after all.  Also: 2 * (k_lpar + k_lpar)
-
 class ItemList(object):
     """A list of `Item` instances."""
     def __init__(self, *args):
@@ -863,6 +872,8 @@ class ItemList(object):
     def __getitem__(self, index):
         """Index an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
+        if isinstance(index, slice):
+            return self.data_list[index.start:index.stop:index.step]
         if index < 0: # Handle negative indices.
             index += len(self)
         return self.data_list[index]
@@ -870,6 +881,10 @@ class ItemList(object):
     def __setitem__(self, index, value):
         """Set an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
+        if isinstance(index, slice):
+            self.data_list[
+                    index.start:index.stop:index.step] = [Item(v) for v in value]
+            return
         if index < 0: # Handle negative indices.
             index += len(self)
         self.data_list[index] = Item(value)
@@ -933,13 +948,6 @@ class CaseList(object):
         """Take an arbitrary number of `ItemList` arguments and make a `CaseList`
         out of them.  Arguments can include `Item` instances and `TokenNode`
         subclasses."""
-        # TODO: fix and uncomment this bug check after rest works.  Need to turn
-        # off checking when doing operations inside < processing... Can't take
-        # keyword arg with *args, at least not older Python, so maybe **kwargs.
-        #if saved_comparison_args:
-        #    raise ParserGrammarRuleException("Error converting to CaseList:"
-        #            " intermediate arguments to '<' are still saved.  Check"
-        #            " for unbalanced '<' and '>' symbols.")
         self.data_list = []
         for a in args:
             if is_subclass_of(a, TokenNode):
@@ -967,6 +975,8 @@ class CaseList(object):
     def __getitem__(self, index):
         """Index and element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
+        if isinstance(index, slice):
+            return self.data_list[index.start:index.stop:index.step]
         if index < 0: # Handle negative indices.
             index += len(self)
         return self.data_list[index]
@@ -974,6 +984,10 @@ class CaseList(object):
     def __setitem__(self, index, value):
         """Set an element of the `ItemList`.  Negative indices are implemented,
         but slices are not."""
+        if isinstance(index, slice):
+            self.data_list[
+                    index.start:index.stop:index.step] = [ItemList(v) for v in value]
+            return
         if index < 0: # Handle negative indices.
             index += len(self)
         self.data_list[index] = ItemList(value)
@@ -1183,12 +1197,92 @@ def Hide(itemlist):
 # Handle overloading of '<' and '>' for expressions like: _<"string">_
 #
 
+lock = threading.Lock() # Only used for intermediate operations in overloaded < and >.
 inside_matched_pair = False
+
+# TODO: aside from initialization, this is only ever set in the
+# combine_saved_args function.  It should initialize to ItemList,
+# and only change to CaseList if it needs to.  But lots of
+# nasty conditionals arise testing each time...
 saved_comparison_args = CaseList()
 locked = False
 
 # REMEMBER these need to work inside Optional(tok + _<"wff">_) kinds of parens,
 # and get the added modifier lists right.
+
+def handle_overloaded_lt_comparison(calling_instance, other):
+    """Overload `<` from the left operand.  Reflected for the right operand.
+
+    Note that the difficulty that must be overcome is that chained comparison
+    operators are always evaluated with "and" between the pairs, with the
+    middle ones evaluated only once.  If the first n-1 are all true then
+    the return value is the n-1 comparison's result.  This must return the
+    whole result for the chain.
+    
+    The < operations concatenate their left and right operands into a common
+    location before returning `True`.  The final > operator in the sequence
+    then returns this saved value and clears the save list (also releasing the
+    thread lock).
+    """
+    # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
+    global inside_matched_pair, saved_comparison_args, locked
+
+    if not inside_matched_pair: # Must be the < case not the > case.
+        #print("\ncalled < in", calling_instance.__class__.__name__)
+        raise_if_not([str], [], other, calling_instance, "<")
+        # === THREAD LOCKED =========
+        if not locked:
+            lock.acquire()
+            locked = True
+        inside_matched_pair = True
+
+        # Save the arguments for the final, closing > operator in the chain to
+        # use.  Note that this is the ONLY place where things are added to
+        # saved_comparison_args.
+        saved_comparison_args = combine_saved_args(saved_comparison_args,
+                calling_instance, Rule(other))
+        return True # Always the l.h.s. of an "and" with the real value.
+
+    else: # We are already inside a matched pair of < and > operators.
+        #print("\ncalled > in", calling_instance.__class__.__name__)
+        inside_matched_pair = False # Must be done so we know next comparison is <.
+        raise_if_not([str], [], other, calling_instance, ">")
+        raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
+ 
+        # Error check below.
+        if not (isinstance(calling_instance, Item) or
+                isinstance(calling_instance, ItemList) or
+                isinstance(calling_instance, CaseList)):
+            raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
+                    "or CaseList. It is {0}.".format(calling_instance))
+        # Error check above.
+
+        if (isinstance(calling_instance, ItemList) and
+                           calling_instance[-1].kind_of_item == "underscore"):
+            return True
+
+        elif (isinstance(calling_instance, CaseList) and
+                           calling_instance[-1][-1].kind_of_item == "underscore"):
+            return True
+
+        elif (isinstance(calling_instance, Item)
+                and calling_instance.kind_of_item == "underscore"):
+            # Called from the closing underscore Item.  We know this is the end
+            # of the chained comparison sequence, so return the real value.
+            recovered_args = saved_comparison_args #+ [calling_instance]
+            saved_comparison_args = CaseList()
+            if locked:
+                locked = False
+                lock.release()
+            # === THREAD NOW UNLOCKED ========
+            stripped_recovered = strip_underscores(recovered_args)
+            print_indented_caselist("stripped is:",
+                    CaseList(stripped_recovered))
+            return stripped_recovered
+
+        else:
+            raise ParserGrammarRuleException(
+                                "No closing underscore in Rule shortcut.")
 
 def combine_saved_args(saved_comparison_args, calling_instance, rule_item):
     """Recombine the pieces of saved articles which were split up by the low
@@ -1215,136 +1309,48 @@ def combine_saved_args(saved_comparison_args, calling_instance, rule_item):
     print("\ncalling_instance:\n", calling_instance, sep="")
     print("\nrule_item:\n", rule_item, sep="")
     if isinstance(calling_instance, Item):
-        #assert not saved_comparison_args # Only case where calling_instance is an Item.
-        #retval = CaseList(rule_item + calling_instance)
         if not saved_comparison_args:
-            retval = CaseList(rule_item)
+            saved_comparison_args = CaseList(rule_item)
         else:
             saved_comparison_args[-1] += calling_instance
             saved_comparison_args[-1] += rule_item
-            retval = saved_comparison_args
     elif isinstance(calling_instance, ItemList):
-        #del saved_comparison_args[-1] # Was underscore.
-        #del calling_instance[0] # Was underscore.
-        #if calling_instance[-1].kind_of_item == "underscore":
-        #    del calling_instance[-1] # Was underscore.
         if not saved_comparison_args:
             saved_comparison_args = CaseList(calling_instance + rule_item)
         else:
             saved_comparison_args[-1] += calling_instance
             saved_comparison_args[-1] += rule_item
-            #saved_comparison_args.add(calling_instance)
-        retval = saved_comparison_args
-        #retval = CaseList(saved_comparison_args, calling_instance, rule_item)
     elif isinstance(calling_instance, CaseList):
-        #del calling_instance[0][0]
-        #if not calling_instance[0]: del calling_instance[0]
-        #if calling_instance[-1][-1].kind_of_item == "underscore":
-        #    del calling_instance[-1][-1] # Was underscore.
         left = calling_instance[0]
         del calling_instance[0]
-        #saved_comparison_args[-1] += rule_item
         saved_comparison_args[-1] += left
         for case in calling_instance:
             saved_comparison_args.append(case)
         saved_comparison_args[-1] += rule_item
-        retval = saved_comparison_args
-    #saved_comparison_args[-1] += rule_item
-    print_indented_caselist("\nmodified_comparison_args:", retval)
+    print_indented_caselist("\nmodified_comparison_args:",
+                             CaseList(saved_comparison_args))
     print("\n======= done with combine =========")
-    return retval
+    return saved_comparison_args
 
-def handle_overloaded_lt_comparison(calling_instance, other):
-    """Overload `<` from the left operand.  Reflected for the right operand.
-
-    Note that the difficulty that must be overcome is that chained comparison
-    operators are always evaluated with "and" between the pairs, with the
-    middle ones evaluated only once.  If the first n-1 are all true then
-    the return value is the n-1 comparison's result.  This must return the
-    whole result for the chain.
-    
-    The < operations concatenate their left and right operands into a common
-    location before returning `True`.  The final > operator in the sequence
-    then returns this saved value and clears the save list (also releasing the
-    thread lock).
-    """
-    # Reflection info: https://docs.python.org/3.1/reference/datamodel.html
-    global inside_matched_pair, saved_comparison_args, locked
-
-    if not inside_matched_pair: # Must be the < case not the > case.
-        #print("\ncalled < in", calling_instance.__class__.__name__)
-        # === THREAD LOCK =========
-        if not locked:
-            lock.acquire()
-            locked = True
-        inside_matched_pair = True
-        raise_if_not([str], [], other, calling_instance, "<")
-
-        # Save the arguments for the final, closing > operator in the chain to
-        # use.  Note that this is the ONLY place where things are added to
-        # saved_comparison_args.
-        saved_comparison_args = combine_saved_args(saved_comparison_args, calling_instance, Rule(other))
-        #saved_comparison_args += [Rule(other)]
-
-        #print("    saving", saved_comparison_args)
-        return True # Always the l.h.s. of an "and" with the real value.
-
-    else: # We are already inside a matched pair of < and > operators.
-        #print("\ncalled > in", calling_instance.__class__.__name__)
-        inside_matched_pair = False # Must be done so we know next comparison is <.
-        raise_if_not([str], [], other, calling_instance, ">")
-        raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
-        #print("   new 'calling_instance' value is:", calling_instance)
-      
-        # Save the arguments for the next < operator to use, but only if the
-        # calling ItemList or CaseList on the right ends in a dummy Item (need
-        # to save iff that is the case.  If not, release the lock and delete
-        # the saved saved_comparison_args info since at the end of expression.
-        if not (isinstance(calling_instance, Item) or # Just an error check.
-                isinstance(calling_instance, ItemList) or
-                isinstance(calling_instance, CaseList)):
-            raise ParserGrammarRuleException("BAD ASSUMPTION, not Item or ItemList"
-                    "or CaseList. It is {0}.".format(calling_instance))
-        # Error check above.
-
-        if (isinstance(calling_instance, ItemList) and
-                           calling_instance[-1].kind_of_item == "underscore"):
-            return True
-
-        elif (isinstance(calling_instance, CaseList) and
-                           calling_instance[-1][-1].kind_of_item == "underscore"):
-            return True
-
-        elif (isinstance(calling_instance, Item)
-                and calling_instance.kind_of_item == "underscore"):
-            # Is the closing underscore Item, alone.  We know this is the end
-            # of the chained comparison sequence, so return the real value.
-            #print("\n\nCLEARING saved_comparison_args\n\n")
-            #recovered_args = saved_comparison_args + [Rule(other), calling_instance]
-            recovered_args = saved_comparison_args #+ [calling_instance]
-            saved_comparison_args = CaseList()
-            if locked:
-                locked = False
-                lock.release() # === THREAD UNLOCK ========
-            #return combine_comparison_overload_pieces(*recovered_args)
-            print_indented_caselist("recovered args", recovered_args)
-            #return recovered_args
-            # TODO use below later..
-            caselist_stripped_of_underscores = CaseList()
-            for case in recovered_args:
-                print("case being stripped is", case)
-                stripped_case = ItemList()
-                for item in case:
-                    if item.kind_of_item != "underscore":
-                        stripped_case += item
-                caselist_stripped_of_underscores.append(stripped_case)
-            print_indented_caselist("stripped is:", caselist_stripped_of_underscores)
-            return caselist_stripped_of_underscores
-
-
-        else:
-            raise ParserGrammarRuleException(
-                                "No closing underscore in Rule shortcut.")
+def strip_underscores(recovered_args):
+    """Strip out all the `Item` instances which represent underscores from
+    `recovered_args`.  The parameter `recovered_args` can be an `ItemList`
+    or a `CaseList`."""
+    stripped_recovered = CaseList()
+    itemlist = False
+    if isinstance(recovered_args, ItemList):
+        itemlist = True
+        recovered_args = CaseList(recovered_args)
+    for case in recovered_args:
+        print("case being stripped is", case)
+        stripped_case = ItemList()
+        for item in case:
+            if item.kind_of_item != "underscore":
+                stripped_case += item
+        stripped_recovered.append(stripped_case)
+    if itemlist:
+        return stripped_recovered[0]
+    return stripped_recovered
 
 #
 # Utility functions.

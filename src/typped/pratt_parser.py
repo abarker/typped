@@ -1221,7 +1221,6 @@ def token_subclass_factory():
                     "," + str(self.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
-            string = indent + self.summary_repr_with_types() + "\n"
             for c in self.children:
                 string += c.tree_repr_with_types(indent=indent+" "*4)
             return string
@@ -1262,7 +1261,7 @@ class PrattParser(object):
                        skip_type_checking=False,
                        overload_on_arg_types=True,
                        overload_on_ret_types=False,
-                       multi_expression=False):
+                       partial_expressions=False):
         """Initialize the parser.
 
         The `max_peek_tokens` parameter is an optional arbitrary limit on the
@@ -1291,9 +1290,11 @@ class PrattParser(object):
         being used at all.  Setting `overload_on_ret_types` requires an extra
         walk of the token tree, and implies overloading on argument types.
         
-        If `multi_expression` is set then multiple expressions will be parsed
-        from the token stream until it reaches the end, and a list of token
-        trees will be returned, one for each expression."""
+        If `partial_expressions` is set then no check will be made in the
+        `parse` method to see if the parsing consumed up to the end-token in
+        the lexer.  Multiple expression text can be parsed by repeatedly
+        calling `parse` when this option is true and checking whether the
+        lexer's current token is the end-token."""
 
         # If exceptions are not raised on ties below, the last-set one has
         # precedence.  Define this before registering any handlers (done
@@ -1327,7 +1328,7 @@ class PrattParser(object):
         self.jop_token_subclass = None # The actual jop token, if defined.
         self.null_string_token_label = None # Label of the null-string token, if any.
         self.null_string_token_subclass = None # The actual null-string token, if any.
-        self.multi_expression = False # Whether to parse multiple expressions.
+        self.partial_expressions = False # Whether to parse multiple expressions.
 
         # Type-checking options below; these can be changed between calls to `parse`.
         self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
@@ -1760,6 +1761,10 @@ class PrattParser(object):
                       num_args=None):
         """This definition of stdfun uses lookahead.  This will take
         arbitrarily many arguments if `arg_types` is `None`.
+
+        Note that all tokens must be defined as literals except
+        `fname_token_label`.  If the latter is also a literal then
+        `precond_priority` may need to be increased to give this use priority.
         
         The `num_args` parameter is optional for specifying the number of
         arguments when typing is not being used.  If it is set to a nonnegative
@@ -2193,68 +2198,85 @@ class PrattParser(object):
     # The main parse routines.
     #
 
-    def parse_from_lexer(self, lex, pstate=None):
+    def parse_from_lexer(self, lexer, pstate=None):
         """The same as the `parse` method, but a lexer is already assumed to be
         initialized.  This is used when one parser instance calls another
-        parser instance (implicitly, via handler functions of its tokens)."""
-        # TODO: Set the lexer to look at the token_table of this parser
-        # instance, then return the setting afterward back to original.  Use
-        # the lexer's `set_token_table` method.
-        # 
-        # NOTE you do not need to set the TypeTable, since the tokens already
-        # know it.
-        #
-        # Consider if instead the recursive_parse routine should be called for
-        # the token from a special method, maybe parse_from_lexer.
-        # 
-        # Just copy the `parse` method and remove the stuff it doesn't need
-        # to do.
+        parser instance (implicitly, via the handler functions of its tokens).
+        The outer parser calls this routine of the inner, subexpression parser.
+        Such a call to another parser would look something like::
+            
+            alternate_parser.parse_from_lexer(lexer)
 
-    def parse(self, program, pstate=None):
+        where `lexer` is the lexer of the outer parser.  This routine
+        temporarily swaps the token table for the passed-in lexer to be the
+        token table for this parser (remember that this parser is the inner
+        parser when this routine is called)."""
+        # Note you do not need to set the type_table, since the tokens always
+        # have fixed references to their own parser instance.
+        self.lex.set_token_table(lexer.token_table) # Swap the token tables.
+        try:
+            parsed_subexpression = self.parse("IGNORED", pstate=pstate,
+                            partial_expressions=True, skip_lex_setup=True)
+        finally:
+            self.lex.set_token_table(self.token_table) # Restore token table.
+        return parsed_subexpression
+
+    def parse(self, program, pstate=None, partial_expressions=None,
+                                                      skip_lex_setup=False):
         """The main routine for parsing a full program or expression.  Users of
         the class should call this method to perform the parsing operations
-        (after defining a grammar, of course).  Returns a token tree or a list
-        of token trees if `multi_expression` is set.  If the `pstate` variable
-        is set then the value will be pushed as the initial state on the production
-        rule stack `pstate_stack`."""
+        (after defining a grammar, of course).
+        
+        Unless there was a parsing failure or `partial_expressions` is true
+        then the lexer is left with the end-token as the current token.
 
-        #print("\n======================> New call to parse <===================\n")
+        If the `pstate` variable is set then the value will be pushed as the
+        initial state on the production rule stack `pstate_stack`.  The stack
+        is then cleared after a successful call.  (Set the parser attribute
+        directly for more control.)
 
+        The parser's `partial_expressions` attribute will be used unless it is
+        overridden by the parameter `partial_expressions` here.  When it is
+        true no check is made for the end-token after `recursive_parse` returns
+        a value.    The lexer will be left at the last token consumed, so a
+        check for the end-token will tell when all the text was consumed.
+        Users are responsible for making sure their grammars are suitable for
+        this kind of parsing if the option is set.
+        
+        If the `skip_lex_setup` parameter is true then the text `program` is
+        ignored and lexer setup is skipped.  This is used when multiple parsers
+        are parsing from a common text stream, though usually via the method
+        `parse_from_lexer`."""
+       
         if pstate:
             self.pstate_stack = [pstate] # For parsing production rule grammars.
-        parse_tree_list = [] # For multi-expression.
+        if partial_expressions is None:
+            partial_expressions = self.partial_expressions
 
-        while True:
+        if not skip_lex_setup:
             self.lex.set_text(program)
-            begin_tok = self.lex.token # Get begin token to access recursive_parse.
-            output = begin_tok.recursive_parse(0)
-            parse_tree_list.append(output)
+        begin_tok = self.lex.token # Get the first token to access recursive_parse.
+        output = begin_tok.recursive_parse(0)
 
-            # Finalize type-checking for root when overloading on return types.
-            if self.overload_on_ret_types: 
-                output.check_types_in_tree_second_pass(root=True)
+        # Finalize type-checking for root when overloading on return types.
+        if self.overload_on_ret_types: 
+            output.check_types_in_tree_second_pass(root=True)
 
-            # See if we reached the end of the token stream.
-            if self.lex.peek().is_end_token():
-                # TODO: Note that we never shut down the lexer's generator.
-                break
-            if self.multi_expression:
-                continue
-            else:
-                raise IncompleteParseException("Parsing never reached the end of"
-                    " the text.  Parsing stopped with tokens still in the lexer."
-                    " No syntax element was recognized. The last-parsed token had"
-                    " label '{0}' and value '{1}'.  Parsing stopped before a token"
-                    " in the lexer with label '{2}' and value '{3}'.  The partial"
-                    " result returned is:\n{4}"
-                    .format(self.lex.token.token_label, self.lex.token.value, 
-                            self.lex.peek().token_label, self.lex.peek().value,
-                            output.tree_repr()))
+        # See if we reached the end of the token stream.
+        if not self.lex.peek().is_end_token() and not self.partial_expressions:
+            raise IncompleteParseException("Parsing never reached the end of"
+                " the text.  Parsing stopped with tokens still in the lexer."
+                " No syntax element was recognized. The last-parsed token had"
+                " label '{0}' and value '{1}'.  Parsing stopped before a token"
+                " in the lexer with label '{2}' and value '{3}'.  The partial"
+                " result returned is:\n{4}"
+                .format(self.lex.token.token_label, self.lex.token.value, 
+                        self.lex.peek().token_label, self.lex.peek().value,
+                        output.tree_repr()))
 
-        if self.multi_expression:
-            return parse_tree_list
-        else:
-            return output
+        if pstate:
+            self.pstate_stack = []
+        return output
 
 
 def sort_handler_dict(d):
@@ -2285,8 +2307,7 @@ class NoHandlerFunctionDefined(ParserException):
 
 class IncompleteParseException(ParserException):
     """Only raised at the end of the `PrattParser` function `parse` if tokens
-    remain in the lexer after the parser finishes its parsing (unless the
-    `multi_expression` flag is set)."""
+    remain in the lexer after the parser finishes its parsing."""
     pass
 
 class CalledBeginTokenHandler(ParserException):
