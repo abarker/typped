@@ -1240,7 +1240,7 @@ def handle_overloaded_lt_comparison(calling_instance, other):
         # use.  Note that this is the ONLY place where things are added to
         # saved_comparison_args.
         saved_comparison_args = combine_saved_args(saved_comparison_args,
-                calling_instance, Rule(other))
+                                                   calling_instance, Rule(other))
         return True # Always the l.h.s. of an "and" with the real value.
 
     else: # We are already inside a matched pair of < and > operators.
@@ -1284,17 +1284,18 @@ def handle_overloaded_lt_comparison(calling_instance, other):
             raise ParserGrammarRuleException(
                                 "No closing underscore in Rule shortcut.")
 
-def combine_saved_args(saved_comparison_args, calling_instance, rule_item):
+def combine_saved_args(saved_args, calling_instance, rule_item):
     """Recombine the pieces of saved articles which were split up by the low
     precedence of the comparison operators.
     
-    The parameter `saved_comparison_args` is always a `CaseList`.  It
+    The parameter `saved_args` is always a `CaseList`.  It
     saves the partial expression to the left of the < operator.
 
     The `calling_instance` can be an `Item`, an `ItemList`, or a `CaseList`.
-    It is the partial expression to the right of the > operator.  It always
-    has underscore as the leftmost and rightmost item except when it is
-    the last operand of the comparison chain.
+    It is the partial expression to the right of the > operator.  It always has
+    underscore as the leftmost and rightmost item except when it is the last
+    operand of the comparison chain.  It represents the "middle piece" between
+    a `>_` and a `_<`.
     
     The `rule_item` parameter is always an `Item` representing a `Rule` call
     (i.e., it is a nonterminal).
@@ -1305,32 +1306,42 @@ def combine_saved_args(saved_comparison_args, calling_instance, rule_item):
     inside a `CaseList` they join inside the `CaseList`.
     """
     print("\n======= beginning combine =========")
-    print_indented_caselist("\nsaved_comparison_args:", saved_comparison_args)
+    print_indented_caselist("\nsaved_comparison_args:", saved_args)
     print("\ncalling_instance:\n", calling_instance, sep="")
     print("\nrule_item:\n", rule_item, sep="")
+
+    #if isinstance(saved_args, ItemList):
+    #    place_to_add = saved_args
+    #elif isinstance(saved_args, CaseList):
+    #    place_to_add = saved_args[-1]
+
     if isinstance(calling_instance, Item):
-        if not saved_comparison_args:
-            saved_comparison_args = CaseList(rule_item)
+        if not saved_args:
+            saved_args = CaseList(rule_item)
         else:
-            saved_comparison_args[-1] += calling_instance
-            saved_comparison_args[-1] += rule_item
+            saved_args[-1] += calling_instance
+            saved_args[-1] += rule_item
     elif isinstance(calling_instance, ItemList):
-        if not saved_comparison_args:
-            saved_comparison_args = CaseList(calling_instance + rule_item)
+        if not saved_args:
+            saved_args = CaseList(calling_instance + rule_item)
         else:
-            saved_comparison_args[-1] += calling_instance
-            saved_comparison_args[-1] += rule_item
+            saved_args[-1] += calling_instance
+            saved_args[-1] += rule_item
     elif isinstance(calling_instance, CaseList):
+        saved_args = CaseList(saved_args) # Need to promote to CaseList. TESTING
         left = calling_instance[0]
         del calling_instance[0]
-        saved_comparison_args[-1] += left
+        if not saved_args:
+            saved_args = CaseList(left)
+        else:
+            saved_args[-1] += left
         for case in calling_instance:
-            saved_comparison_args.append(case)
-        saved_comparison_args[-1] += rule_item
+            saved_args.append(case)
+        saved_args[-1] += rule_item
     print_indented_caselist("\nmodified_comparison_args:",
-                             CaseList(saved_comparison_args))
+                             CaseList(saved_args))
     print("\n======= done with combine =========")
-    return saved_comparison_args
+    return saved_args
 
 def strip_underscores(recovered_args):
     """Strip out all the `Item` instances which represent underscores from

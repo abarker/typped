@@ -59,21 +59,25 @@ pytest_helper.auto_import()
 import typped as pp
 
 def run_example():
-    print("\n======= parsing term ========================")
+    print("\n======= parsing terms ========================\n")
     term_parser = define_term_parser()
     test_term = "f(x,x33)"
-    print("parsing term:", test_term)
-    print(term_parser.parse(test_term).tree_repr())
+    print("parsing term:", test_term, "\n")
+    print(term_parser.parse(test_term).tree_repr(indent=3))
 
-    print("\n======= parsing wff =========================")
+    print("\n======= parsing wffs =========================\n")
     wff_parser = define_wff_parser(term_parser)
     test_wff = "not A(f(x,x33))"
-    print("parsing wff:", test_wff)
-    print(wff_parser.parse(test_wff).tree_repr())
+    print("parsing wff:", test_wff, "\n")
+    print(wff_parser.parse(test_wff).tree_repr(indent=3))
 
-    test_wff = "not A(f(x,x33)) and A44(x)" # TODO bug on resume, lexer sees "x) and..."
-    print("parsing wff:", test_wff)
-    print(wff_parser.parse(test_wff).tree_repr())
+    test_wff = "not A(f(x,x33)) and A44() and A9(x1, c2, f(c1))"
+    print("parsing wff:", test_wff, "\n")
+    print(wff_parser.parse(test_wff).tree_repr(indent=3))
+
+#
+# Function to define the term parser.
+#
 
 def define_term_parser():
     """Define a Pratt parser to parse terms.  Note that each parser is independent,
@@ -107,6 +111,10 @@ def define_term_parser():
     term_parser.def_stdfun("k_funname", "k_lpar", "k_rpar", "k_comma")
 
     return term_parser
+
+#
+# Define a handler for atomic formulas and use that to define the wff parser.
+#
 
 def def_atomic_formula(parser, term_parser, formula_name_token_label,
                        lpar_token_label, rpar_token_label, comma_token_label):
@@ -163,6 +171,8 @@ def define_wff_parser(term_parser):
     token_list = [
             ("k_predname", r"A[\d]*"),
             ("k_funname", r"f[\d]*"), # Needed for peek into first of subexpressions.
+            ("k_varname", r"x[\d]*"), # Needed for peek into first of subexpressions.
+            ("k_constname", r"c[\d]*"), # Needed for peek into first of subexpressions.
             ("k_not", r"not"),
             ("k_and", r"and"),
             ("k_lpar", r"\("),
@@ -171,13 +181,15 @@ def define_wff_parser(term_parser):
             ]
     wff_parser.def_multi_tokens(token_list)
 
+
+    # Note that k_funname, k_constname, and k_varname are defined above as
+    # tokens, but they are not made literals.  Also, no handlers will be
+    # defined for them.  The term parser will do that.
     literals = [
-            ("k_varname",),
-            ("k_constname",),
             ("k_rpar",),
             ("k_comma",),
             ]
-    term_parser.def_multi_literals(literals)
+    wff_parser.def_multi_literals(literals)
 
     wff_parser.def_bracket_pair("k_lpar", "k_rpar")
 

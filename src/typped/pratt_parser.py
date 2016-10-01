@@ -295,6 +295,11 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # have to change it just after defining the function (inside the other fun).
 # You also have two preconds with equal priorities, but mutually exclusive.
 
+# TODO: Consider allowing a string label of some sort when defining a parser,
+# something like "TermParser" or "parser for terms", "WffParser", etc.  When
+# working with parsers called from parses these labels in error messages would
+# be helpful in debugging.
+
 #
 # TokenNode
 #
@@ -1566,7 +1571,7 @@ class PrattParser(object):
         if tail and prec is None: prec = 0
 
         if self.token_table.has_key(token_label):
-            TokenSubclass = self.token_table.get_token_subclass(token_label)
+            TokenSubclass = self.get_token(token_label)
         else:
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
@@ -2244,16 +2249,8 @@ class PrattParser(object):
             raise
         finally:
             # Restore the lexer.
-            print("curr token before restore:", self.lex.token)
             lexer_to_use.set_token_table(lexer_to_use_usual_table) # Restore token table.
             self.lex = usual_lexer
-            print("curr inner lexer token after restore:", self.lex.token)
-            print("curr inner lexer processed:", self.lex.get_processed_text())
-            print("curr inner lexer unprocessed:", self.lex.get_unprocessed_text())
-            print("curr outer lexer token after restore:", lexer_to_use.token)
-            print("curr outer lexer processed:", lexer_to_use.get_processed_text())
-            print("curr outer lexer unprocessed:", lexer_to_use.get_unprocessed_text())
-            #print("next from lexer_to_use gives", lexer_to_use.next()) #causes weird bug
         return parsed_subexpression
 
     def parse(self, program, pstate=None, partial_expressions=None,
