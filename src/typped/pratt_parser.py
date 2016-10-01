@@ -212,10 +212,11 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_pratt_parser.py",
-                              "../../test/test_production_rules.py"],
-                              pytest_args="-v")
+    pytest_helper.script_run(["../../test/test_production_rules.py",
+                              "../../test/test_pratt_parser.py"
+                              ], pytest_args="-v")
 
+import sys
 import types
 import copy
 import functools
@@ -241,7 +242,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # and refuse to deal with any others.  It implicitly does, with whatever
 # attributes it adds.... but a nice early warning would be good before an
 # unexpected fail.  Currently checked at one place in recursive_parse, but
-# nowhere else.
+# nowhere else.  CONSIDER, though, how this works with parsers that call
+# other parsers in handler funs.
 
 # NOTE that you could use the evaluate function stuff to also do the conversion
 # to AST.
@@ -1693,6 +1695,11 @@ class PrattParser(object):
                                 arg_types=arg_types, eval_fun=eval_fun,
                                 ast_label=ast_label)
 
+    # TODO: allow these to take "extra" precond functions which are called inside
+    # and a the end of the current precond... maybe.  Or could just allow
+    # replacement precond functions.  Would also need a label, though, so that
+    # the different conditions did not clash unintentionally.
+
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
                      val_type=None, arg_types=None, eval_fun=None, ast_label=None):
         """This just calls the more general method `def_multi_infix_op`."""
@@ -1791,6 +1798,7 @@ class PrattParser(object):
                 if not lex.match_next(comma_token_label):
                     break
                 else:
+                    # This checks for errors like f(x,)
                     lex.match_next(rpar_token_label, raise_on_true=True)
             lex.match_next(rpar_token_label, raise_on_fail=True)
             tok.process_and_check_node(head_handler)
@@ -2198,27 +2206,54 @@ class PrattParser(object):
     # The main parse routines.
     #
 
-    def parse_from_lexer(self, lexer, pstate=None):
-        """The same as the `parse` method, but a lexer is already assumed to be
+    def parse_from_lexer(self, lexer_to_use, pstate=None):
+        """The same as the `parse` method, but a lexer_to_use is already assumed to be
         initialized.  This is used when one parser instance calls another
         parser instance (implicitly, via the handler functions of its tokens).
         The outer parser calls this routine of the inner, subexpression parser.
         Such a call to another parser would look something like::
             
-            alternate_parser.parse_from_lexer(lexer)
+            alternate_parser.parse_from_lexer(lexer_to_use)
 
-        where `lexer` is the lexer of the outer parser.  This routine
-        temporarily swaps the token table for the passed-in lexer to be the
+        where `lexer_to_use` is the lexer_to_use of the outer parser.  This routine
+        temporarily swaps the token table for the passed-in lexer_to_use to be the
         token table for this parser (remember that this parser is the inner
         parser when this routine is called)."""
         # Note you do not need to set the type_table, since the tokens always
         # have fixed references to their own parser instance.
-        self.lex.set_token_table(lexer.token_table) # Swap the token tables.
+
+        # Set up to read from lexer_to_use, after setting its token table to
+        # be the token table for this parser (this is the inner parser).
+
+        # Temporarily change new lexer's token table.
+        lexer_to_use_usual_table = lexer_to_use.token_table
+        lexer_to_use.set_token_table(self.token_table)
+
+        # Swap the lexer in.
+        usual_lexer = self.lex
+        self.lex = lexer_to_use # Swap the lexer.
+
         try:
             parsed_subexpression = self.parse("IGNORED", pstate=pstate,
-                            partial_expressions=True, skip_lex_setup=True)
+                                    partial_expressions=True,
+                                    skip_lex_setup=True)
+        except ParserException:
+            print("Error in `parse_from_lexer` method, in call to `parse` method"
+                    " using a different parser's lexer for a subexpression.",
+                    file=sys.stderr)
+            raise
         finally:
-            self.lex.set_token_table(self.token_table) # Restore token table.
+            # Restore the lexer.
+            print("curr token before restore:", self.lex.token)
+            lexer_to_use.set_token_table(lexer_to_use_usual_table) # Restore token table.
+            self.lex = usual_lexer
+            print("curr inner lexer token after restore:", self.lex.token)
+            print("curr inner lexer processed:", self.lex.get_processed_text())
+            print("curr inner lexer unprocessed:", self.lex.get_unprocessed_text())
+            print("curr outer lexer token after restore:", lexer_to_use.token)
+            print("curr outer lexer processed:", lexer_to_use.get_processed_text())
+            print("curr outer lexer unprocessed:", lexer_to_use.get_unprocessed_text())
+            #print("next from lexer_to_use gives", lexer_to_use.next()) #causes weird bug
         return parsed_subexpression
 
     def parse(self, program, pstate=None, partial_expressions=None,
@@ -2247,7 +2282,6 @@ class PrattParser(object):
         ignored and lexer setup is skipped.  This is used when multiple parsers
         are parsing from a common text stream, though usually via the method
         `parse_from_lexer`."""
-       
         if pstate:
             self.pstate_stack = [pstate] # For parsing production rule grammars.
         if partial_expressions is None:
@@ -2263,7 +2297,7 @@ class PrattParser(object):
             output.check_types_in_tree_second_pass(root=True)
 
         # See if we reached the end of the token stream.
-        if not self.lex.peek().is_end_token() and not self.partial_expressions:
+        if not self.lex.peek().is_end_token() and not partial_expressions:
             raise IncompleteParseException("Parsing never reached the end of"
                 " the text.  Parsing stopped with tokens still in the lexer."
                 " No syntax element was recognized. The last-parsed token had"

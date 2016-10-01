@@ -34,11 +34,19 @@ expressions of that sublanguage.  The precedences, etc., of those tokens also
 need to be correct or at least interact correctly (generally the head of a
 subexpression starts with a precedence of 0).  So the outer parser should at
 least have a token for each beginning-token of an expression in the
-sublanguage.
+sublanguage.  They generally do not need to be assigned handlers (such as
+by declaring them literals).
 
 If the token spaces can be identical without causing problems then you can just
 define a function to make the token definitions and then call it for each
 parser.
+
+Using jops may or may not work in combination with inner and outer parsers.
+They will probably work in the inner parser, at least.  The possible problem
+is that they check for head handlers before deciding to infer a jop.
+
+TODO: Types are not yet worked as to how they should interact in the
+type-checking.  Currently types not used in this example.
 
 """
 from __future__ import print_function, division, absolute_import
@@ -51,11 +59,21 @@ pytest_helper.auto_import()
 import typped as pp
 
 def run_example():
+    print("\n======= parsing term ========================")
     term_parser = define_term_parser()
-    print("parsing term:", term_parser.parse("f(x,x33)"))
+    test_term = "f(x,x33)"
+    print("parsing term:", test_term)
+    print(term_parser.parse(test_term).tree_repr())
 
+    print("\n======= parsing wff =========================")
     wff_parser = define_wff_parser(term_parser)
-    print("parsing wff:", wff_parser.parse("not A(f(x,x33))"))
+    test_wff = "not A(f(x,x33))"
+    print("parsing wff:", test_wff)
+    print(wff_parser.parse(test_wff).tree_repr())
+
+    test_wff = "not A(f(x,x33)) and A44(x)" # TODO bug on resume, lexer sees "x) and..."
+    print("parsing wff:", test_wff)
+    print(wff_parser.parse(test_wff).tree_repr())
 
 def define_term_parser():
     """Define a Pratt parser to parse terms.  Note that each parser is independent,
@@ -109,7 +127,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
         """Must be followed by a token with label 'lpar_token_label', with no
         whitespace in-between."""
         peek_tok = lex.peek()
-        if not peek_tok.ignored_before: return False
+        if peek_tok.ignored_before: return False
         if not lex.match_next(lpar_token_label, consume=False): return False
         return True
     precond_label = "lpar after, no whitespace between" # Should be a unique label.
@@ -120,8 +138,9 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
         # Read comma-separated subexpressions until the peek is rpar_token_label.
         while not lex.match_next(rpar_token_label, consume=False):
             # THE TERM PARSER IS CALLED HERE.
-            term_subtree = term_parser.parse_from_lexer(lex,
-                                               partial_expressions=True)
+            #lex.go_back(1) # Because we already consumed the formula name.
+            term_subtree = term_parser.parse_from_lexer(lex)
+            tok.append_children(term_subtree)
             if not lex.match_next(comma_token_label):
                 break
             else:
@@ -131,9 +150,9 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
         return tok
 
     #arg_types = [None]*num_args
-    return parser.modify_token_subclass(formula_name_token_label, prec=0,
-                  head=head_handler, precond_label=precond_label,
-                  precond_fun=preconditions, precond_priority=1)
+    parser.modify_token_subclass(formula_name_token_label, prec=0,
+                            head=head_handler, precond_label=precond_label,
+                            precond_fun=preconditions, precond_priority=1)
 
 def define_wff_parser(term_parser):
     """Define a parser for wffs that uses `term_parser` to parse terms."""
@@ -143,7 +162,9 @@ def define_wff_parser(term_parser):
 
     token_list = [
             ("k_predname", r"A[\d]*"),
+            ("k_funname", r"f[\d]*"), # Needed for peek into first of subexpressions.
             ("k_not", r"not"),
+            ("k_and", r"and"),
             ("k_lpar", r"\("),
             ("k_rpar", r"\)"),
             ("k_comma", r","),
@@ -160,12 +181,16 @@ def define_wff_parser(term_parser):
 
     wff_parser.def_bracket_pair("k_lpar", "k_rpar")
 
-    t_wff = wff_parser.def_type("t_wff")
+    #t_wff = wff_parser.def_type("t_wff") # TODO: consider how types interact here...
 
     # The not symbol, must be followed by a space.
-    wff_parser.def_prefix_op("k_not", 100, val_type=t_wff, arg_types=[t_wff],
+    wff_parser.def_prefix_op("k_not", 100, val_type=None, arg_types=None,
             precond_label="space after not",
             precond_fun=lambda lex, lb: True if lex.peek().ignored_before else False)
+
+    # Note no space around "and" for now... def_infix_op doesn't take precond
+    # parameters as of now.
+    wff_parser.def_infix_op("k_and", 100, "left", val_type=None, arg_types=None)
 
     # If the below function were made a method of a subclass of PrattParser the
     # call would instead be: wff_parser.def_atomic_formula(term_parser,....)

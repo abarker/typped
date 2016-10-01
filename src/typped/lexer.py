@@ -111,7 +111,8 @@ For a token named `t`, these attributes are available:
 * `t.children` -- can be set to a list of children; set by the lexer to `[]`
 * `t.original_matched_string` -- the original text that was consumed for this token
 * `t.line_and_char` -- tuple of line number and character where the token started
-* `ignored_before` -- a tuple of all tokens ignored immediately before this one
+* `t.char_index_in_program` -- the index of this token into the set program text
+* `t.ignored_before` -- a tuple of all tokens ignored immediately before this one
 
 TODO, list other methods, too.
 
@@ -144,6 +145,7 @@ Other attributes:
 * `token` -- the current token (the most recent one returned by `next`)
 * `all_tokens_count` -- num of tokens since text was set (begin and end not counted)
 * `default_helper_exception` -- the default exception for helpers like `match_next`
+* `text_is_set` -- whether or not test has been set for the lexer
 
 TODO, list more, why not make some methods of `TokenNode` instead?
 
@@ -725,7 +727,17 @@ class Lexer(object):
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
         end tokens (using whatever labels are desired)."""
+        self.reset(token_table=token_table, max_peek_tokens=max_peek_tokens,
+                 max_deque_size=max_deque_size,
+                 default_begin_end_tokens=default_begin_end_tokens)
+
+    def reset(self, token_table=None, max_peek_tokens=None,
+                 max_deque_size=None, default_begin_end_tokens=False):
+        """Return the parser to the initial state.  Takes the same arguments as
+        the initializer."""
         self.text_is_set = False
+        self.token = None
+        self.all_token_count = None
 
         if token_table is None:
             token_table = TokenTable()
@@ -740,6 +752,7 @@ class Lexer(object):
         # line_and_char (such as for the current token) for that info.
         self.raw_linenumber = 1 # The line number currently being read.
         self.upcoming_raw_charnumber = 1 # Char number of first char of upcoming token.
+        self.upcoming_raw_total_chars = 1 # Like above, but total num., not on line.
 
         self.all_token_count = 0
 
@@ -754,18 +767,18 @@ class Lexer(object):
     def set_token_table(self, token_table, go_back=0):
         """Sets the current `TokenTable` instance for the lexer to
         `token_table`.  This is called on initialization, but can also be
-        called at any time.  If text is being scanned at the time it flushes,
-        re-scans, and refills the lookahead buffer (using `go_back`, with
-        the argument given by `go_back`).
+        called at any time.  If text is being scanned at the time then it
+        flushes the current and lookahead tokens and re-scans the current
+        token.
         
         When set with this method the token table is always given the attribute
-        `lex`, which points to the lexer instance this method was called from.
+        `lex`, which points to the lexer instance that this method was called from.
         This attribute is used by tokens (which know their fixed symbol table)
         so they can find the current lexer (to call `next`, etc.)"""
         self.token_table = token_table
-        self.token_table.lex = self
+        token_table.lex = self
         if self.text_is_set:
-            self.go_back(0)
+            self.go_back(0) # Re-scan the current token.
 
     def set_text(self, program,
                  reset_linenumber=True, reset_charnumber=True):
@@ -791,6 +804,7 @@ class Lexer(object):
             self.raw_linenumber = 1
         if reset_charnumber:
             self.upcoming_raw_charnumber = 1
+            self.upcoming_raw_total_chars = 1
         self.all_token_count = 0 # Count all actual tokens (not begin and end).
         self.non_ignored_token_count = 0 # Count non-ignored actual tokens.
 
@@ -911,8 +925,6 @@ class Lexer(object):
 
         token_buffer = self.token_buffer
 
-        
-
     def _pop_tokens(self, n):
         """Pop `n` tokens from the token buffer, resetting the slice indices in
         `self.prog_unprocessed` and other state variables.  Used by `go_back`."""
@@ -937,9 +949,12 @@ class Lexer(object):
             # Reset the line number information.
             if popped.ignored_before:
                 line_and_char = popped.ignored_before[0].line_and_char
+                char_index_in_program = popped.ignored_before[0].char_index_in_program
             else:
                 line_and_char = popped.line_and_char
+                char_index_in_program = popped.char_index_in_program
             self.raw_linenumber, self.upcoming_raw_charnumber = line_and_char
+            self.upcoming_raw_total_chars = char_index_in_program
 
             # Reset the slice indices into the program text.
             self.prog_unprocessed[0] -= len(popped.original_matched_string)
@@ -994,7 +1009,7 @@ class Lexer(object):
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
 
-        token_buffer = self.token_buffer
+        token_buffer = self.token_buffer # Shorter alias.
 
         # For negative values just pop the required number off the end of token_buffer.
         if num_toks < 0:
@@ -1099,6 +1114,32 @@ class Lexer(object):
         full_string = "".join(string_list)
         return full_string
 
+    def get_unprocessed_text(self, peek=1):
+        """Return all the text that is set but not yet processed.  Returns
+        `None` if no text is currently set.  The current token is assumed
+        to have been processed.
+        
+        By default this is relative to the current peek token, but the `peek`
+        number can be set to a previous or later one if available in the
+        buffer."""
+        if not self.text_is_set:
+            return None
+        text = self.program[self.peek(peek).char_index_in_program:]
+        return text
+
+    def get_processed_text(self, peek=1):
+        """Return all the text that is set and has been processed.  Returns
+        `None` if no text is currently set.  The current token is assumed
+        to have been processed.
+        
+        By default this is relative to the current peek token, but the `peek`
+        number can be set to a previous or later one if available in the
+        buffer."""
+        if not self.text_is_set:
+            return None
+        text = self.program[:self.peek(peek).char_index_in_program]
+        return text
+
     #
     # Methods to define and undefine tokens
     #
@@ -1163,13 +1204,20 @@ class Lexer(object):
     # Some helper functions when using the Lexer class.
     #
 
-    def match_next(self, token_label_to_match, peeklevel=1,
-                   raise_on_fail=False, raise_on_true=False, consume=True,
+    def match_next(self, token_label_to_match, peeklevel=1, consume=True,
+                   raise_on_fail=False, raise_on_true=False,
                    err_msg_tokens=3):
         """A utility function that tests whether the value of the next token
-        label equals a given token label, and consumes the token from the lexer
-        if there is a match.  Returns a boolean.  The parameter `peeklevel` is
-        passed to the peek function for how far to look; the default is one.
+        label equals a given token label.
+        
+        This method consumes a token from the lexer if and only if there is a
+        match.  Either way, a boolean is returned indicating the match status.
+
+        If `consume` is false then no tokens will ever be consumed.  Otherwise
+        a token will be consumed if and only if it matches.
+        
+        The parameter `peeklevel` is passed to the peek function for how far
+        ahead to look; the default is one.
         
         If `raise_on_fail` set true then a `LexerException` will be raised by
         default if the match fails.  The default can be changed by setting the
@@ -1177,9 +1225,6 @@ class Lexer(object):
         `raise_on_true` raises an exception when a match is found.  Either one
         can be set to a subclass of `Exception` instead of a boolean, and then
         that exception will be called.
-        
-        If `consume` is false then no tokens will be consumed.  Otherwise a
-        token will be consumed if and only if it matches.
         
         The parameter `err_msg_tokens` can be set to change how many tokens
         worth of text back the error messages report (as debugging
@@ -1378,6 +1423,7 @@ class Lexer(object):
                 # out to be ignored tokens (tested just below this block).
                 token_instance.line_and_char = (
                                  self.raw_linenumber, self.upcoming_raw_charnumber)
+                token_instance.char_index_in_program = self.upcoming_raw_total_chars
                 num_newlines = token_value.count("\n")
                 self.raw_linenumber += num_newlines
                 if num_newlines == 0:
@@ -1386,6 +1432,7 @@ class Lexer(object):
                     last_newline = token_value.rfind("\n")
                     self.upcoming_raw_charnumber = (
                             len(token_value) - (last_newline + 1) + 1)
+                self.upcoming_raw_total_chars += len(token_value)
                 
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
@@ -1406,6 +1453,7 @@ class Lexer(object):
                 token_instance = token_subclass_for_end(None)
                 token_instance.line_and_char = (self.raw_linenumber,
                                                 self.upcoming_raw_charnumber)
+                token_instance.char_index_in_program = self.upcoming_raw_total_chars
 
             # Got a token to return.  Set some attributes and return it.
             token_instance.original_matched_string = original_matched_string
