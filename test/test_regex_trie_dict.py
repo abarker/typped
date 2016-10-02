@@ -381,6 +381,7 @@ def test_orInsideRepetition():
 
 
 def test_matcher():
+    """Tests of the `Matcher` object."""
     td = RegexTrieDict()
     mat = Matcher(td)
     # basic string insert

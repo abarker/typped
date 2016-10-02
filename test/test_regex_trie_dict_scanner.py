@@ -26,24 +26,24 @@ def test_TrieDictScannerBasic():
     assert "egg" in td
     print("\nquerying 'eggbert' character by character")
     for i in "eggbert":
-        tok.insertSeqElem(i)
-        tok.printTokenDeque()
+        tok.insert_seq_elem(i)
+        tok.print_token_deque()
     print("\nquerying 'eggber' character by character")
     for i in "eggber":
-        tok.insertSeqElem(i)
-        tok.printTokenDeque()
+        tok.insert_seq_elem(i)
+        tok.print_token_deque()
     print("\nquerying 'x' character, should cause fail and make 'egg' match")
-    tok.insertSeqElem("x")
-    tok.printTokenDeque()
+    tok.insert_seq_elem("x")
+    tok.print_token_deque()
 
-    tok.resetSeq()
-    tok.clearTokenDataDeque()
+    tok.reset_seq()
+    tok.clear_token_data_deque()
     testString = "moneypursemoneysxegg"
     print(testString)
     for char in testString:
-        tok.insertSeqElem(char)
-    tok.assertEndOfSeq()
-    print(tok.getTokenDataDeque())
+        tok.insert_seq_elem(char)
+    tok.assert_end_of_seq()
+    print(tok.get_token_data_deque())
 
 
 def test_trieDictTokenizeMore():
@@ -58,10 +58,10 @@ def test_trieDictTokenizeMore():
     td["fourfour"] = ("var2", 4); td["fivefive"] = ("var2", 5)
     td.print_tree()
     for st in bugString:
-        tok.insertSeqElem(st)
-    tok.assertEndOfSeq()
+        tok.insert_seq_elem(st)
+    tok.assert_end_of_seq()
     print()
-    print(tok.getTokenDataDeque())
+    print(tok.get_token_data_deque())
     print()
     print(td["one"])
 
@@ -73,13 +73,13 @@ def test_trieDictTokenizeMore():
 
     """
    # check unsigned int recognition
-   tok.clearTokenDataDeque()
+   tok.clear_token_data_deque()
    tok.setMatchUnsignedIntAfterLeadingDigit(True, ("unsignedInt", None))
    testStr = "oneoneone3344two\n444\nthree123\n"
    print("test string:", testStr)
    for char in testStr:
-      tok.insertSeqElem(char)
-   tok.assertEndOfSeq()
-   tok.printTokenDeque()
+      tok.insert_seq_elem(char)
+   tok.assert_end_of_seq()
+   tok.print_token_deque()
 
    """

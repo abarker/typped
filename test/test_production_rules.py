@@ -93,50 +93,7 @@ def test_EBNF_like_expressions():
                                              'Rule("expression"), '
                                              'Tok("k_rpar")))')
 
-    # TODO these are a MESS, need to work on later or not use...
-    #"""
-    expression2 = ( _<"term1">_ + k_plus + _<"term2">_
-                  | _<"term3">_ + k_minus + _<"term4">_
-                  | _<"term5">_
-                  )
-
-    assert str(expression2) == str(expression)
-   
-
-    print(">>>>>>>>>>>> before testrule")
-    testrule = k_ast + _<"factor2">_
-    print(testrule)
-    assert str(testrule) == 'CaseList(ItemList(Tok("k_ast"), Rule("factor2")))'
-    print(">>>>>>>>>>>> testrule is", testrule)
-
-    testrule2 = _<"factor1">_ + k_ast + _<"factor2">_
-
-    testrule_caselist_init = k_number | _<"rule1">_ | k_number | _<"rule2">_
-    print("========>",  testrule_caselist_init)
-    #fail()
-
-    return # TODO fix below
-    # TODO: Optional returns a CaseList, causes fail.
-    testrule3 = Optional(k_ast + _<"factor2">_) # Optional should return ItemList
-    assert str(testrule3) == "egg"
-
-    term2 = ( _<"factor1">_ + Optional(k_ast + _<"factor2">_)  # FAILS
-
-            | _<"factor3">_ + k_fslash + _<"factor4">_
-            | _<"factor5">_
-            )
-
-    assert str(term2) == str(term)
-
-    factor2 = ( k_number
-              | k_lpar + _<"expression">_ + k_rpar  # FAILS
-              )
-
-    assert str(factor2) == str(factor)
-    #"""
-
-
-def test_basic_expression_grammar():
+def test_parsing_from_basic_expression_grammar():
     parser = PrattParser()
     parser.def_default_whitespace()
 
@@ -265,8 +222,7 @@ def test_basic_expression_grammar():
                <k_null-string,'factor'>
                    <k_number,'388'>\n""")
 
-def test_overload_expression_grammar():
-    skip()
+def test_shortcut_operator_overloads_in_expression_grammar():
     parser = PrattParser()
     parser.def_default_whitespace()
 
@@ -282,48 +238,169 @@ def test_overload_expression_grammar():
 
     tok_str = Tok(k_number)
     assert tok_str.kind_of_item == "token"
-    print("1", str(  Tok(k_number)  ))
-    print("2", str(  Tok(k_number)  ))
-    print("3", str(  k_number + Rule("factor")  ))
-    print("4", str(  Tok(k_number) + Sig(Rule("factor"), none_sig) | Rule("term")  ))
-    print("5", str(  Tok(k_number) + ~Rule("factor") | Root(Rule("term")) | ~Pratt() | k_number  ))
-    print("6", str(  k_number | k_number | Root(Rule("term")) | Pratt()  ))
-    print("7", str(  k_number + k_number | k_number | Root(Rule("term")) | ~k_plus  ))
+    assert str(Tok(k_number)) == 'Tok("k_number")'
+    assert str(k_number + Rule("factor")) == 'ItemList(Tok("k_number"), Rule("factor"))'
+    assert str(~Tok(k_number) + Sig(Rule("factor"), none_sig) | Rule("term")) == (
+            'CaseList(ItemList(Not(Tok("k_number")), Rule("factor")(t_float, None)), '
+            'ItemList(Rule("term")))')
+    assert str(Tok(k_number) + Rule("factor") | Root(Rule("term")) | Pratt() | k_number) == (
+            'CaseList(ItemList(Tok("k_number"), Rule("factor")), '
+            'ItemList(Root(Rule("term"))), ItemList(Pratt("None")), '
+            'ItemList(Tok("k_number")))')
+    assert str(k_number | k_number | Root(Rule("term")) | Pratt()) == (
+            'CaseList(ItemList(Tok("k_number")), ItemList(Tok("k_number")), '
+            'ItemList(Root(Rule("term"))), ItemList(Pratt("None")))')
+    assert str(k_number + k_number | k_number | Root(Rule("term")) | ~k_plus) == (
+            'CaseList(ItemList(Tok("k_number"), Tok("k_number")), '
+            'ItemList(Tok("k_number")), ItemList(Root(Rule("term"))), '
+            'ItemList(Not(Tok("k_plus"))))')
 
     wff = ( Rule("wff") + ~k_plus + Rule("wff")
+          | Pratt() | k_ast
           | Rule("wff") + ~k_ast  + Rule("wff")
-          | Optional(Rule("wff") + Optional(k_plus + k_plus))
+          | Optional(Rule("wff") + OneOrMore(k_plus + k_plus))
           )
-    print(str(wff))
+    assert str(wff) == (
+        'CaseList(ItemList(Rule("wff"), Not(Tok("k_plus")), Rule("wff")), '
+        'ItemList(Pratt("None")), ItemList(Tok("k_ast")), '
+        'ItemList(Rule("wff"), Not(Tok("k_ast")), Rule("wff")), '
+        'ItemList(Optional(Rule("wff"), OneOrMore(Tok("k_plus"), Tok("k_plus")))))')
 
-    _ = pp.UNDERSCORE
+def test_failed_rule_shortcut():
+    """Tests of FAILED attempt at shortcut _<"wff">_ for Rule."""
+    skip()
+    parser = PrattParser()
+    parser.def_default_whitespace()
+    def_expression_tokens_and_literals(parser)
+    g = Grammar()
 
-    print()
-    print("======================")
-    #print("printing CaseList(_<right1) value:", CaseList(_<"right1")) # ERROR test
-    #print("\nprinting _<right1>_ value:", _<"right1">_, "\n")
+    _ = UNDERSCORE
 
-    # BELOW case -1 works without the rightmost "right1" rule (case -2), but not with it.
-    # It is dropping the left part.  The next-to-last > still needs to save it,
-    # but currently doesn't (how to turn off if it does??)
+    expression = ( Rule("term1") + Tok("k_plus") + Rule("term2")
+                 | Rule("term3") + k_minus + Rule("term4")
+                 | Rule("term5")
+                 )
+
+    term = ( Rule("factor1") + k_ast + Rule("factor2")
+           | Rule("factor3") + k_fslash + Rule("factor4")
+           | Rule("factor5")
+           )
+
+    factor = ( k_number
+             | k_lpar + Rule("expression") + k_rpar
+             )
+
+    assert str(expression) == ('CaseList(ItemList(Rule("term1"), '
+                                                'Tok("k_plus"), '
+                                                'Rule("term2")), '
+                                       'ItemList(Rule("term3"), '
+                                                'Tok("k_minus"), '
+                                                'Rule("term4")), '
+                                       'ItemList(Rule("term5")))')
+
+    assert str(term) == ('CaseList(ItemList(Rule("factor1"), '
+                                           'Tok("k_ast"), '
+                                           'Rule("factor2")), '
+                                 'ItemList(Rule("factor3"), '
+                                           'Tok("k_fslash"), '
+                                           'Rule("factor4")), '
+                                 'ItemList(Rule("factor5")))')
+
+    assert str(factor) == ('CaseList(ItemList(Tok("k_number")), '
+                                    'ItemList(Tok("k_lpar"), '
+                                             'Rule("expression"), '
+                                             'Tok("k_rpar")))')
+
+    # TODO these are a MESS, need to work on later or not use...
+    #"""
+    expression2 = ( _<"term1">_ + k_plus + _<"term2">_
+                  | _<"term3">_ + k_minus + _<"term4">_
+                  | _<"term5">_
+                  )
+
+    assert str(expression2) == str(expression)
+
+    # This tests when the returned middle case is a CaseList but no saved_args
+    # have been saved.
+    testrule_caselist_init = k_number | _<"rule1">_ | k_number | _<"rule2">_
+    assert str(testrule_caselist_init) == ('CaseList(ItemList(Tok("k_number")), '
+                                              'ItemList(Rule("rule1")), '
+                                              'ItemList(Tok("k_number")), '
+                                              'ItemList(Rule("rule2")))')
+
+    testrule = k_ast + _<"factor2">_
+    assert str(testrule) == 'ItemList(Tok("k_ast"), Rule("factor2"))'
+
+    testrule2 = _<"factor1">_ + k_ast + _<"factor2">_
+    assert str(testrule2) == 'ItemList(Rule("factor1"), Tok("k_ast"), Rule("factor2"))'
+
+    # Test function modifiers in expressions using Rule alternative symbols.
+    testrule3 = Optional(k_ast + _<"factor2">_)
+    assert str(testrule3) == 'ItemList(Optional(Tok("k_ast"), Rule("factor2")))'
+
+    testrule4 = k_ast + Optional(_<"factor2">_)
+    assert str(testrule4) == 'ItemList(Tok("k_ast"), Optional(Rule("factor2")))'
+
+    testrule5 = k_ast + Optional(_<"factor2">_) | k_ast
+    assert str(testrule5) == ('CaseList(ItemList(Tok("k_ast"), '
+                                'Optional(Rule("factor2"))), ItemList(Tok("k_ast")))')
+
+    #return
+    # TODO: below test case fails, error is initializer to ItemList passed True.
+    # Also, doesn't properly clear saved_comparison_args.  Note middle part,
+    # _ + Optional(....) will be separately evaluated.  It will end up as an
+    # ItemList.  Will it end with underscore and cause the second > to return True?
+    # Needs to NOT end with underscore after eval AND be an Item.  It fails the latter!
     #
-    # With no | the things seem to work OK (what has been tested).  They delete
-    # info on the closing > and no info is saved for > if 
-    print("\nprinting combo-2:", _<"combo-2">_+_<"left1">_ + _<"left2">_ + Rule("rule2.5") + Rule("rule2.6") + _<"left3">_ + _<"left4">_ + _<"left5">_, "\n")
-    print("\nprinting combo-1:", _<"left1">_ + _<"left2">_ + Rule("rule2.5") \
-            + Rule("rule2.6") + _<"left3">_ + _<"left4">_ 
-            | k_number + _<"right1">_, "\n")
+    # called > from instance ItemList
+    #     the calling_instance is: ItemList(Tok("k_ast"), Item(None))
+    #      the saved_comparison_args are: CaseList(ItemList(Rule("factor1")))
+    # 
+    # Note the Item(None) in there...  bad stripping? conflict in saved_comparison_args?
+    #
+    # Reproduced error below, assuming fail in paren-eval handling:  Error is
+    #
+    #    Overloading of operator '+' is not defined between instances of class
+    #    bool and instances of class Item.  The two operands are Item(None) and True.
+    #
+    # The second _< thinks it is inside a group, not the BEGINNING of a subgroup...
+    # No way to detect???????   If not then a DEAL KILLER for this notation.
+    #
+    # What if you always return the actual thing, not True, put an attribute on
+    # the returned thing as to what case returned it.
 
-    #print("\nprinting combo0:", CaseList(Rule("left")) | _<"right1">_)
-    #print("\nprinting combo0.5:", CaseList(Rule("left")) | _<"right1">_ + Rule("right2"))
-    #print("\nprinting combo1:", CaseList(Rule("left"))
-    #       | _<"right1">_ + _<"right2">_, "\n")
-    #print("\nprinting combo1.5:", CaseList(Rule("left"))
-    #        | _<"right1">_ + _<"right2">_ + _<"right3">_, "\n")
-    #print("\nprinting combo1.6:", CaseList(Rule("left"))
-    #        | _<"right1">_ + _<"right2">_ + _<"right3">_
-    #        | k_number + _<"far_right">_, "\n")
-    #print("\nprinting combo2:", CaseList(Rule("left")) | _<"right">_)
+    testrule7 = _<"factor1">_ + (_<"factor2">_)
+    #testrule7 = _ < [ "factor1">_ + (_<"factor2">_) ]
+    #                "factor1" > [ _ + (_<"factor2">_) ]
+    #                             _ + [ (_<"factor2">_) ] # Note difference...
+    #                                 _ < [_<"factor2">_ ]
+    #                                     _ < [ "factor2">_ ]
+    #                                           "factor2" > [ _ ]
+    print(testrule7)
+    assert testrule7 == "egg"
 
-    fail()
+    return # =======
+    # Original test fail below.
+    testrule6 = _<"factor1">_ + Optional(k_ast + _<"factor2">_)
+    print(testrule6)
+    assert str(testrule6) == ('CaseList(ItemList(Tok("k_ast"), '
+                                'Optional(Rule("factor2"))), ItemList(Tok("k_ast")))')
+
+    # ==================================================================
+    return # TODO temporary stop =======================================
+
+    term2 = ( _<"factor1">_ + Optional(k_ast + _<"factor2">_)  # FAILS, messes up compile check
+            | _<"factor3">_ + k_fslash + _<"factor4">_
+            | _<"factor5">_
+            )
+
+    assert str(term2) == str(term)
+
+    factor2 = ( k_number
+              | k_lpar + _<"expression">_ + k_rpar  # FAILS
+              )
+
+    assert str(factor2) == str(factor)
+    #"""
+
 

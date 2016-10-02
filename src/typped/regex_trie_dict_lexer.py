@@ -1,14 +1,14 @@
 """
 
-This module contains a lexer (tokenizer) which uses a RegexTrieDictScanner
-class to identify tokens.  A RegexTrieDictScanner is used to scan for basic
-tokens.  First the TextStream object is defined as a wrapper for a stream of
-text characters from various sources.  Next, a class RegexTrieDictLexer is
-defined as a very simple lexer drawing characters from a TextStream.  Finally,
-a class BufferedRegexTrieDictLexer is defined using the basic
-RegexTrieDictLexer but providing many more features such as buffering,
+This module contains a lexer (tokenizer) which uses a `RegexTrieDictScanner`
+class to identify tokens.  A `RegexTrieDictScanner` is used to scan for basic
+tokens.  First the `TextStream` object is defined as a wrapper for a stream of
+text characters from various sources.  Next, a class `RegexTrieDictLexer` is
+defined as a very simple lexer drawing characters from a `TextStream`.  Finally,
+a class `BufferedRegexTrieDictLexer` is defined using the basic
+`RegexTrieDictLexer` but providing many more features such as buffering,
 pushback, general whitespace ignoring, etc.  Generally the
-BufferedRegexTrieDictLexer should be used in applictions, rather than the
+`BufferedRegexTrieDictLexer` should be used in applictions, rather than the
 lower-level lexer.
 
 """
@@ -27,27 +27,25 @@ from .regex_trie_dict_scanner import RegexTrieDictScanner, TokenData
 from .text_stream import TextStream
 #from basic_defs import * # DataTuple namedtuple defined here is needed a few places
 
-# TODO remove DataTuple below and replace with the class instances for the various
-# token types.  DataTuple used to just give the kind and then some extra info.
-# It is apparently only used in this module (maybe old parser.py indexed an
-# instance of it, maybe not).
+# TODO remove DataTuple below and replace with the class instances for the
+# various token types.  DataTuple used to just give the kind and then some
+# extra info.  It is apparently only used in this module (maybe old parser.py
+# indexed an instance of it, maybe not).
 #
 # The DataTuple namedtuple.
 #
-"""
-We need a standard convention for passing parse data between modules.  We
-simply use a tuple, where the first element gives the kind of token (i.e., the
-type, but the term "type" is already used in a different context) and the
-second element gives the data itself.  The data itself will by convention be
-either None or the associated parse-tree node, if there is such a node
-associated with that token type, perhaps without all of its elements yet
-filled-in.
-
-Instead of using a regular tuple a namedtuple called DataTuple is used.  This
-allows the fields to be indexed by names (in addition to numerical indices),
-and so produces more readable and maintainable code.  The two fields are "kind"
-and "data".
-"""
+# We need a standard convention for passing parse data between modules.  We
+# simply use a tuple, where the first element gives the kind of token (i.e.,
+# the type, but the term "type" is already used in a different context) and the
+# second element gives the data itself.  The data itself will by convention be
+# either None or the associated parse-tree node, if there is such a node
+# associated with that token type, perhaps without all of its elements yet
+# filled-in.
+# 
+# Instead of using a regular tuple a namedtuple called DataTuple is used.  This
+# allows the fields to be indexed by names (in addition to numerical indices),
+# and so produces more readable and maintainable code.  The two fields are
+# "kind" and "data".
 DataTuple = collections.namedtuple("DataTuple", ["kind","data"])
 
 #
@@ -73,9 +71,9 @@ class RegexTrieDictLexer(object):
         self.textStream = textStream
         self.trieDict = trieDict
         self.trieTok = RegexTrieDictScanner(self.trieDict)
-        self.trieTok.resetSeq() # always start fresh at the beginning of TextStream
-        self.trieTok.clearTokenDataDeque() # may not always be wanted...
-        self.tokenDataDeque = self.trieTok.getTokenDataDeque()
+        self.trieTok.reset_seq() # always start fresh at the beginning of TextStream
+        self.trieTok.clear_token_data_deque() # may not always be wanted...
+        self.tokenDataDeque = self.trieTok.get_token_data_deque()
         self.whitespace = set(whitespace)
         return
 
@@ -107,21 +105,21 @@ class RegexTrieDictLexer(object):
                 return tokData
             else: # len(self.tokenDataDeque)==0, must insert some chars to gen. matches
                 if self.textStream.end_of_text_stream():
-                    self.trieTok.assertEndOfSeq()
+                    self.trieTok.assert_end_of_seq()
                     if len(self.tokenDataDeque) == 0:
                         raise StopIteration(
                             "no more tokens in RegexTrieDictLexer for next()")
                 else:
                     queryChar = self.textStream.next()
                     queryCharPos = self.textStream.get_pos_of_last_next()
-                    self.trieTok.insertSeqElem(queryChar, queryCharPos)
+                    self.trieTok.insert_seq_elem(queryChar, queryCharPos)
         return
 
     def end_of_token_stream(self):
         """True if no more tokens.  Whitespace tokens are not ignored."""
         # note that order matters in the "and" on the next line
         if len(self.tokenDataDeque) == 0 and self.textStream.end_of_text_stream():
-            self.trieTok.assertEndOfSeq() # see if any possible matches unflushed
+            self.trieTok.assert_end_of_seq() # see if any possible matches unflushed
             if len(self.tokenDataDeque) == 0:
                 return True
         return False

@@ -9,8 +9,8 @@ Python expressions.  The backend is the recursive-descent parsing capabilities
 of the `PrattParser` class, implemented using precondition functions and
 null-string token handlers.
 
-Similar projects which parse a Python grammar using recursive descent (though
-without the underlying Pratt parser and calls to it) are:
+Some (but not all) similar projects which parse a grammar specified in a
+Python file are:
 
 * **pyparsing** -- Uses Python overloading to define the grammar, similar to
   this module.
@@ -24,6 +24,8 @@ without the underlying Pratt parser and calls to it) are:
 
 * **yeanpypa** -- Uses Python overloading, similar to this module.
   https://github.com/DerNamenlose/yeanpypa
+
+For more, see https://wiki.python.org/moin/LanguageParsing
 
 Terminology
 -----------
@@ -240,8 +242,62 @@ TODO:
     https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 
 
-A convenient synonym for the `Rule` function
---------------------------------------------
+Rejected overloads
+------------------
+
+TODO: delete this or move to some footnote or something.
+
+basic ones
+~~~~~~~~~~
+
+**Comma-separated lists for items**
+   Instead of combining items with `+`, one could consider combining them with
+   `,` by using the definition of tuples.  Then `lhs = k_number, Rule("wff")`
+   would set lhs to a tuple.  Unfortunately, `|` is not defined for lists.
+   So each production rule would need to be defined on a separate line.
+
+**Raw strings**
+    Raw strings cannot be allowed in the rule expressions because `"s" + "s"`
+    is defined as concatenation, which would lead to conflict with the current
+    use of the `+` operator.  Also, `"s" | "s"` is not defined, which would
+    cause special cases needing wrappers.
+
+**Optional with `[...]`**
+
+    Remember that brackets are lists.  So `[k_comma]` could be considered for
+    `Optional(k_comma)` This fails in similar ways that commas in tuples
+    fail: adding two lists gives the wrong thing, and `|` is not defined for lists.
+    A possible alternative would be to use `_[k_comma]`.  This would work by overloading
+    indexing on the `_` item, but it has the annoying underscore.  Without `{...}`
+    to go with it it doesn't seem too attractive.
+
+**Repeat with `{...}`**
+
+   Usually in EBNF `{...}` is the repeat symbol.  It seems like it would be
+   possible to overload the set initialization braces to do this, since the `|`
+   operation is union.  But the `+` operator is not defined, leading to
+   special cases requiring the wrapper-function `ZeroOrMore`.
+   
+   As far as `|` being union, you just have to make sure that `Item` instances
+   always compare unequal by defining `__bool__` for them.  But it is not just
+   `Item` instances that would need to be redefined if undecorated tokens are
+   allowed in the expressions.  The `Item` class is special-purpose and is only
+   used for these expressions.  Tokens are general-purpose, though, and are
+   used in many contexts.  Such a change to their behavior could lead to many
+   unexpected consequences.
+   
+   Another deal-breaker here is expressions like `lhs = k_digit | k_digit`
+   which cannot be converted into `Item` instances and which collapse down into
+   `lhs = k_digit` in an undetectable way.  Maybe that works, since they *are*
+   identical, and any time you add another item you end up with `ItemList`
+   instances.  It is at least cause to be wary.
+
+   Since the `*` and `**` operators work well and serve as shorcuts for
+   `OneOrMore`, `Optional`, and `ZeroOrMore` the questionable overloads above
+   are not used.  
+
+would-have-been convenient synonym for `Rule`
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The `<` and `>` operators are also defined so they can be used as a convenient
 synonym for the `Rule` function.  Unfortunately, comparison operators have a
@@ -323,56 +379,14 @@ argument.  In every other case the r.h.s. is not an individual `Item`,
 since the smallest case is something like `_<"wff">_+_<"wff">_`.  The
 middle `_+_` is evaluated to produce an `ItemList`, which is not an `Item`.
 
-Rejected overloads
-------------------
-
-TODO: delete this or move to some footnote or something.
-
-**Comma-separated lists for items**
-   Instead of combining items with `+`, one could consider combining them with
-   `,` by using the definition of tuples.  Then `lhs = k_number, Rule("wff")`
-   would set lhs to a tuple.  Unfortunately, `|` is not defined for lists.
-   So each production rule would need to be defined on a separate line.
-
-**Raw strings**
-    Raw strings cannot be allowed in the rule expressions because `"s" + "s"`
-    is defined as concatenation, which would lead to conflict with the current
-    use of the `+` operator.  Also, `"s" | "s"` is not defined, which would
-    cause special cases needing wrappers.
-
-**Optional with `[...]`**
-
-    Remember that brackets are lists.  So `[k_comma]` could be considered for
-    `Optional(k_comma)` This fails in similar ways that commas in tuples
-    fail: adding two lists gives the wrong thing, and `|` is not defined for lists.
-    A possible alternative would be to use `_[k_comma]`.  This would work by overloading
-    indexing on the `_` item, but it has the annoying underscore.  Without `{...}`
-    to go with it it doesn't seem too attractive.
-
-**Repeat with `{...}`**
-
-   Usually in EBNF `{...}` is the repeat symbol.  It seems like it would be
-   possible to overload the set initialization braces to do this, since the `|`
-   operation is union.  But the `+` operator is not defined, leading to
-   special cases requiring the wrapper-function `ZeroOrMore`.
-   
-   As far as `|` being union, you just have to make sure that `Item` instances
-   always compare unequal by defining `__bool__` for them.  But it is not just
-   `Item` instances that would need to be redefined if undecorated tokens are
-   allowed in the expressions.  The `Item` class is special-purpose and is only
-   used for these expressions.  Tokens are general-purpose, though, and are
-   used in many contexts.  Such a change to their behavior could lead to many
-   unexpected consequences.
-   
-   Another deal-breaker here is expressions like `lhs = k_digit | k_digit`
-   which cannot be converted into `Item` instances and which collapse down into
-   `lhs = k_digit` in an undetectable way.  Maybe that works, since they *are*
-   identical, and any time you add another item you end up with `ItemList`
-   instances.  It is at least cause to be wary.
-
-   Since the `*` and `**` operators work well and serve as shorcuts for
-   `OneOrMore`, `Optional`, and `ZeroOrMore` the questionable overloads above
-   are not used.  
+UPDATE: This ultimately fails because it does not work with parentheses in
+expressions or, equivalently, operations inside function argument lists in
+expressions.  The beginning thing inside the parens has no way to know that it
+is the beginning of the comparison chain.  It sees `saved_comparison_args` is
+set, and assumes it is in the middle.  So it returns a boolean, which messes
+everything up.  Just not putting parens around something or putting them can
+make it work or not work.  No way to tell if thing to right is in parens, and
+no way for thing inside parens to tell if it is in parens.
 
 Modifiers for items
 -------------------
@@ -560,9 +574,9 @@ class Grammar(object):
         if saved_comparison_args:
             raise ParserGrammarRuleException("Error detected in compile method:"
                     " intermediate arguments to '_<' are still saved.  Check"
-                    " for unbalanced '_<' and '>_' symbols.")
+                    " for unbalanced '_<' and '>_' symbols.  The saved"
+                    " arguments are: {0}".format(saved_comparison_args))
 
-        #print("call to compile")
         self.production_caselists = {} # Reset all the caselists.
         self.processing_in_progress = set()
         self.parser = parser
@@ -1244,7 +1258,9 @@ def handle_overloaded_lt_comparison(calling_instance, other):
         return True # Always the l.h.s. of an "and" with the real value.
 
     else: # We are already inside a matched pair of < and > operators.
-        #print("\ncalled > in", calling_instance.__class__.__name__)
+        print("\ncalled > from instance", calling_instance.__class__.__name__)
+        print("   the calling_instance is:", calling_instance)
+        print("   the saved_comparison_args are:", saved_comparison_args)
         inside_matched_pair = False # Must be done so we know next comparison is <.
         raise_if_not([str], [], other, calling_instance, ">")
         raise_if_not([Item, ItemList, CaseList], [], calling_instance, other, ">")
@@ -1278,6 +1294,8 @@ def handle_overloaded_lt_comparison(calling_instance, other):
             stripped_recovered = strip_underscores(recovered_args)
             print_indented_caselist("stripped is:",
                     CaseList(stripped_recovered))
+            if len(stripped_recovered) == 1:
+                return stripped_recovered[0] # Not really a CaseList, an ItemList.
             return stripped_recovered
 
         else:
@@ -1310,11 +1328,6 @@ def combine_saved_args(saved_args, calling_instance, rule_item):
     print("\ncalling_instance:\n", calling_instance, sep="")
     print("\nrule_item:\n", rule_item, sep="")
 
-    #if isinstance(saved_args, ItemList):
-    #    place_to_add = saved_args
-    #elif isinstance(saved_args, CaseList):
-    #    place_to_add = saved_args[-1]
-
     if isinstance(calling_instance, Item):
         if not saved_args:
             saved_args = CaseList(rule_item)
@@ -1328,7 +1341,6 @@ def combine_saved_args(saved_args, calling_instance, rule_item):
             saved_args[-1] += calling_instance
             saved_args[-1] += rule_item
     elif isinstance(calling_instance, CaseList):
-        saved_args = CaseList(saved_args) # Need to promote to CaseList. TESTING
         left = calling_instance[0]
         del calling_instance[0]
         if not saved_args:

@@ -2,19 +2,32 @@
 RegexTrieDictScanner
 ----------------------
 
-The RegexTrieDictScanner uses a RegexTrieDict for tokenizing a sequence of
-elements.  This class essentially does the same thing that re.findall would do
-in a traditional scanner design, except that it is easy to dynamically update
-it (though it is less efficient at the static matching).
+TODO: this is an earler class, that doesn't yet use the newer features
+of RegexTrieDict like Matcher objects...
 
-The elements (usually characters) are inserted one by one and tokens
-are returned when they are recognized.  The key-sequences inserted into the
-RegexTrieDict are by definition the tokens.  An arbitrary sequence can then be
-tokenized by inserting it element by element into the TrieDict, using a special
-method.  The shortest or longest matches can be found.  (Note that for
+The `RegexTrieDictScanner` uses a `RegexTrieDict` for tokenizing a sequence of
+elements.  This class essentially does the same thing that `re.match` would do
+in a traditional scanner design, except that 1) it is easy to dynamically
+update the patterns in it, 2) it is fast for large numbers of "simple
+patterns," and 3) it supports on-line scanning (i.e., where characters are
+inserted one at a time and the longest-matching result is returned as soon
+possible based on the patterns and the sequence).  The implementation is pure
+Python, though, so there is a constant before any asymptotic efficiency with
+increasing numbers of patterns.  Like Python's regex (but not some other
+implementations) it has an exponential worst-case match time.  Memory use can
+also be large, since the underlying `RegexTrieDict` essentially does a BFS on
+possible pattern matches (which makes the on-line usage work).
+
+Elements (usually characters) are inserted one by one and tokens are returned
+when their patterns are the best match.  (The key-sequences inserted into the
+underlying `RegexTrieDict` are by definition the tokens.)  An arbitrary
+sequence can then be tokenized by inserting it element by element, using a
+special method.  The shortest or longest matches can be found.  (Note that for
 generality we refer to "tokens" and the "elements" that make up both the tokens
 and the sequences to be tokenized.  In lexical analysis applications the tokens
 are strings and the elements are characters.)
+
+.. code-block:: python
 
    tok = RegexTreeDictTokenizer(td)
 
@@ -34,6 +47,8 @@ may be necessary to call tok.assertEndOfSequence() in order for the tokenizer
 to deal with situations that are currently ambiguous (as far as finding the
 longest match).
 
+.. code-block:: python
+
    tok.assertEndOfSequence()
    tok.printTokenDeque()
    tok.clearDeque()
@@ -47,22 +62,24 @@ effectively back up when it becomes known that a recognized pattern is the
 longest (in that part of the sequence).  But it must wait for a mismatch or the
 end of the query string to know that a saved possible match was the longest.
 
-Worst case, suppose we have these three keys:
+Worst case, suppose we have these three keys::
+
    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
    a
    b
 
-Now, suppose the input query-stream of characters is:
+Now, suppose the input query-stream of characters is::
+
    aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab
 
-We save the first a as a possible match, and then we have to go all the way to
-the final b to determine that the longer string is not a match (and the single
-character is the longest match).  Then we go back and start the same thing over
-from the second a, and so forth, getting a time which depends on the length of
-the longest string stored and the prefix properties of the stored strings.
-When the stored strings are relatively short relative to the query length and
-are distributed in "the usual ways" this should not make much difference in
-practice.
+We save the first `a` as a possible match, and then we have to go all the way
+to the final `b` to determine that the longer string is not a match (and the
+single character is the longest match).  Then we go back and start the same
+thing over from the second `a`, and so forth, getting a time which depends on
+the length of the longest string stored and the prefix properties of the stored
+strings.  When the stored strings are relatively short relative to the query
+length and are distributed in "the usual ways" this should not make much
+difference in practice.
 
 The tree can easily handle whitespace characters if whitespace characters are
 never valid stored strings or substrings of stored strings.  We just get an
@@ -106,7 +123,7 @@ if __name__ == "__main__":
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
-from . import regex_trie_dict
+#from . import regex_trie_dict
 
 
 class TokenData(object):
@@ -152,10 +169,10 @@ class RegexTrieDictScanner(object):
         self.noInvalidTokensFound = True # whether unstored string found on curr query
         self.tokenDataDeque = collections.deque() # the deque of query matches
 
-        self.resetSeq()
+        self.reset_seq()
         return
 
-    def resetSeq(self):
+    def reset_seq(self):
         """ Reset the sequence from previous insertSeqElem calls, i.e.,
         start the next insertion back at the root node.  All of the saved possible
         token matches are deleted and not reported: this is a cold reset.  """
@@ -174,21 +191,21 @@ class RegexTrieDictScanner(object):
         self.nonTreeMatchInProgress = False # true if a number match in progress
         return
 
-    def resetSeqAfterFlushing(self):
+    def reset_seq_after_flushing(self):
         """This flushes out the buffer of possible saved token matches before
         resetting the sequence of elements (back to start at the root)."""
-        self.assertEndOfSeq()
-        self.resetSeq() # done by self.assertEndOfSeq(), but do again to be safe
+        self.assert_end_of_seq()
+        self.reset_seq() # done by self.assert_end_of_seq(), but do again to be safe
         return
 
-    def setMatchLongest(self, boolVal):
+    def set_match_longest(self, boolVal):
         """Set True if longest matches should be found in insertSeqElem queries,
         False if shortest.  The default in initialization and after a clear()
         is True."""
         self.matchLongest = boolVal
         return
 
-    def currentSeqIsValid(self):
+    def current_seq_is_valid(self):
         """Return True if the current sequence being tokenized is still valid.
         Return False otherwise.  A sequence becomes invalid if there are any
         inserts or deletes in the underlying Trie.  This is just for informational
@@ -198,7 +215,7 @@ class RegexTrieDictScanner(object):
                 and self.tdDeleteCount == self.td.deleteCount)
 
     #
-    # Note that shortest match in insertSeqElem works easily, but what about
+    # Note that shortest match in insert_seq_elem works easily, but what about
     # finding the longest match?  We save the most recent possible match, and
     # make it the actual match if a mismatch occurs after it.  How do
     # we reset the tree after getting a mismatch?  We don't always learn
@@ -210,11 +227,11 @@ class RegexTrieDictScanner(object):
     # the characters in the string "berb", starting again at the root of the
     # tree.  Fortunately, the needed data is already being saved in
     # currToken, which has been built up to "eggberb" after the final "b"
-    # has had insertSeqElem called on it.
+    # has had insert_seq_elem called on it.
     #
     digits = set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
 
-    def insertSeqElem(self, char, miscData=None): # TODO change to not depend on chars
+    def insert_seq_elem(self, char, miscData=None): # TODO change to not depend on chars
         """ Insert the next element from the sequence being tokenized.  If
         inserting the element results in a match (including detecting an
         unrecognizable token) the matching token (or sequence of elements) is
@@ -238,8 +255,8 @@ class RegexTrieDictScanner(object):
         query string (and is how assertEndOfSeq() is implemented)."""
 
         # Automatically reset after flushing if underlying Trie is no longer valid.
-        if not self.currentSeqIsValid() and char != "": # TODO: don't use insert empty char for endOfSeq
-            self.resetSeqAfterFlushing()
+        if not self.current_seq_is_valid() and char != "": # TODO: don't use insert empty char for endOfSeq
+            self.reset_seq_after_flushing()
 
         # Now handle any ordinary tree matches for the queryChar char.
         if not char in self.currNode.children: # mismatch beyond current node
@@ -256,9 +273,9 @@ class RegexTrieDictScanner(object):
                 suffixMisc = self.currMiscList[len(self.possibleToken):]
                 if char != "": suffixMisc.append(miscData)
                 # reset query and re-query each char of the suffix string
-                self.resetSeq()
+                self.reset_seq()
                 for index in range(len(suffix)):
-                    self.insertSeqElem(suffix[index], suffixMisc[index])
+                    self.insert_seq_elem(suffix[index], suffixMisc[index])
                 return self.noInvalidTokensFound
             else:
                 # Char doesn't match a child, no saved match, but currToken
@@ -277,27 +294,27 @@ class RegexTrieDictScanner(object):
                     self.noInvalidTokensFound = False # set error return flag
                     if fastRecover:
                         self.tokenDataDeque.append(TokenData(
-                                                   False, self.currToken, None, self.currMiscList))
+                                  False, self.currToken, None, self.currMiscList))
                     else:
                         self.tokenDataDeque.append(TokenData(
-                                                   False, self.currToken[0], None, self.currMiscList[0]))
+                                  False, self.currToken[0], None, self.currMiscList[0]))
                     savedCurrToken = self.currToken
                     savedCurrMiscList = self.currMiscList
-                    self.resetSeq()
+                    self.reset_seq()
                     if fastRecover:
-                        if char != "": self.insertSeqElem(char, miscData)
+                        if char != "": self.insert_seq_elem(char, miscData)
                     else:
                         savedCurrToken = savedCurrToken[1:] + char
                         savedCurrMiscList = savedCurrMiscList[1:]
                         if char != "":
                             savedCurrMiscList.append(miscData)
-                        self.insertSeqElem(savedCurrToken, savedCurrMiscList)
+                        self.insert_seq_elem(savedCurrToken, savedCurrMiscList)
                 else: # only the current char doesn't match, at root
                     if char != "":
                         self.noInvalidTokensFound = False # set error return flag
                         self.tokenDataDeque.append(
                             TokenData(False, char, None, [miscData]))
-                    self.resetSeq()
+                    self.reset_seq()
                 return self.noInvalidTokensFound
 
         # At this point we know there is another node below the current one.
@@ -316,28 +333,27 @@ class RegexTrieDictScanner(object):
             else:
                 # match shortest or else at a leaf
                 self.tokenDataDeque.append(TokenData(
-                                           True, self.currToken, self.currNode.data, self.currMiscList
-                                           ))
-                self.resetSeq()
+                         True, self.currToken, self.currNode.data, self.currMiscList))
+                self.reset_seq()
         return self.noInvalidTokensFound
 
-    def getTokenDataDeque(self):
+    def get_token_data_deque(self):
         """Get the deque of matches generated by insertSeqElem calls."""
         return self.tokenDataDeque
 
-    def clearTokenDataDeque(self):
+    def clear_token_data_deque(self):
         """Sets the current deque of matches empty.  This may be useful in an
         algorithm, or to free memory in a long sequence.  Does not alter anything
         else, including the current query and any saved possible-match value."""
         self.tokenDataDeque.clear()
 
-    def assertEndOfSeq(self):
+    def assert_end_of_seq(self):
         """Asserts that there are no more elements in the current sequence.
         Will empty out the buffer of elements and of possible matches."""
         # TODO do we still want null string, or special end token?
-        return self.insertSeqElem("")
+        return self.insert_seq_elem("")
 
-    def printTokenDeque(self):
+    def print_token_deque(self):
         """Debugging routine, print out all the strings in tokenDataDeque."""
         print("TokenDeque[", end="")
         for i in range(len(self.tokenDataDeque)):

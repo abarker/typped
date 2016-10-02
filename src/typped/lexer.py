@@ -172,8 +172,9 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_lexer.py",
-                              "../../test/test_pratt_parser.py"],
+    pytest_helper.script_run(["../../test/test_pratt_parser.py",
+                              "../../test/test_lexer.py",
+                              ],
                               pytest_args="-v")
 
 import collections
@@ -394,7 +395,8 @@ class TokenTable(object):
         `LexerException` if no subclass is found for the token label."""
         if token_label in self.token_subclass_dict:
             TokenSubclass = self.token_subclass_dict[token_label]
-        else: raise LexerException("No token with label '{0}' is in the token table."
+        else:
+            raise LexerException("No token with label '{0}' is in the token table."
                                    .format(token_label))
         return TokenSubclass
 
