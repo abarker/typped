@@ -676,6 +676,7 @@ class Grammar(object):
         #
         # See algorithm on this page:
         # http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
+        # http://www.csd.uwo.ca/~moreno/CS447/Lectures/Syntax.html/node12.html
         #
         # Note that epsilon is neither a terminal nor a nonterminal.  Terminals
         # cannot expand to epsilon.

@@ -25,12 +25,12 @@ def test_TrieDictScannerBasic():
     assert "eggbert" in td
     assert "egg" in td
     print("\nquerying 'eggbert' character by character")
-    for i in "eggbert":
-        tok.insert_seq_elem(i)
+    for c in "eggbert":
+        tok.insert_seq_elem(c)
         tok.print_token_deque()
     print("\nquerying 'eggber' character by character")
-    for i in "eggber":
-        tok.insert_seq_elem(i)
+    for c in "eggber":
+        tok.insert_seq_elem(c)
         tok.print_token_deque()
     print("\nquerying 'x' character, should cause fail and make 'egg' match")
     tok.insert_seq_elem("x")
@@ -44,7 +44,6 @@ def test_TrieDictScannerBasic():
         tok.insert_seq_elem(char)
     tok.assert_end_of_seq()
     print(tok.get_token_data_deque())
-
 
 def test_trieDictTokenizeMore():
     td = RegexTrieDict()

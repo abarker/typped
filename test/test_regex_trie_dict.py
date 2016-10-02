@@ -381,9 +381,9 @@ def test_orInsideRepetition():
 
 
 def test_matcher():
-    """Tests of the `Matcher` object."""
+    """Tests of the `PrefixMatcher` object."""
     td = RegexTrieDict()
-    mat = Matcher(td)
+    mat = PrefixMatcher(td)
     # basic string insert
     td.insert("egg", ("data",))
     mat.add_key_elem("e")
@@ -403,7 +403,7 @@ def test_matcher():
 
     # pattern when pattern and ordinary string both match (also multiple patts)
     td = RegexTrieDict()
-    mat = Matcher(td)
+    mat = PrefixMatcher(td)
     td.insert("\\[\\w\\]8", "1 pattern data")
     assert td.has_key_meta("x8")
     assert not td.has_key_meta("xx")
@@ -432,7 +432,7 @@ def test_matcher():
 
     with raises(ModifiedTrieError):
         td = RegexTrieDict()
-        mat = Matcher(td)
+        mat = PrefixMatcher(td)
         td.insert("egg", ("data",))
         mat.add_key_elem("e") # this doesn't fail for now, maybe should...
         td.insert("bacon", ("data",))

@@ -3,7 +3,7 @@ RegexTrieDictScanner
 ----------------------
 
 TODO: this is an earler class, that doesn't yet use the newer features
-of RegexTrieDict like Matcher objects...
+of RegexTrieDict like PrefixMatcher objects...
 
 The `RegexTrieDictScanner` uses a `RegexTrieDict` for tokenizing a sequence of
 elements.  This class essentially does the same thing that `re.match` would do
@@ -29,29 +29,34 @@ are strings and the elements are characters.)
 
 .. code-block:: python
 
-   tok = RegexTreeDictTokenizer(td)
+   td = RegexTrieDict()
+   # ... insert patterns in td
 
-   for i in "eggbert":
-      tok.insertSeqElem(i)
-      tok.printTokenDeque()
-   for i in "eggber":
-      tok.insertSeqElem(i)
-      tok.printTokenDeque()
-   tok.insertSeqElem("x")
+   tok = RegexTreeDictScanner(td)
+
+   for c in "eggbert":
+      tok.insert_set_elem(c)
+      tok.print_token_deque()
+
+   for c in "eggber":
+      tok.insert_set_elem(c)
+      tok.print_token_deque()
+
+   tok.insert_set_elem("x")
 
 The results of the tokenization are automatically place in a deque which is
 stored with the RegexTreeDictTokenizer instance.  Users can manipulate this
 deque in any way they want; it is only used for reporting tokens as they are
 unambiguously detected (i.e., they are inserted when matched).  Note that it
-may be necessary to call tok.assertEndOfSequence() in order for the tokenizer
+may be necessary to call tok.assert_end_of_sequence() in order for the tokenizer
 to deal with situations that are currently ambiguous (as far as finding the
 longest match).
 
 .. code-block:: python
 
-   tok.assertEndOfSequence()
-   tok.printTokenDeque()
-   tok.clearDeque()
+   tok.assert_end_of_sequence()
+   tok.print_token_deque()
+   tok.clear_deque()
 
 Key strings can be matched as tokens from a sequential character stream,
 choosing either the longest or the shortest (first) match.  Finding the
@@ -111,7 +116,7 @@ inserts and deletes of keys.
 
 """
 
-#TODO: rewrite using the RegexTrieDict and Matcher classes
+#TODO: rewrite using the RegexTrieDict and PrefixMatcher classes
 
 from __future__ import print_function, division, absolute_import
 
@@ -123,72 +128,80 @@ if __name__ == "__main__":
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
-#from . import regex_trie_dict
+from .regex_trie_dict import PrefixMatcher
+
+#class TokenData(object):
+#
+#    """This class is the basic container used by the RegexTrieDictScanner.  It
+#    holds a token (which may be an invalid token) and also some related data.
+#    The token_data_deque of the `RegexTrieDictScanner` (such as from
+#    `get_token_data_deque()` calls) contains `TokenData` objects."""
+#
+#    def __init__(self, is_valid, matched_seq, data, elem_data):
+#        self.is_valid = is_valid # False if the "token" was not in the RegexTrieDict
+#        self.matched_seq = matched_seq # the string of the token which resulted in the match
+#        self.data = data # some arbitrary piece of data stored as a key/data pair
+#        self.elem_data = elem_data # some arbitrary data stored on a query with each elem
+#
+#    def __repr__(self):
+#        return "TokenData("+str(self.is_valid)+", "+str(self.matched_seq) + \
+#            ", "+str(self.data)+", "+str(self.elem_data)+")"
+#
+#    def __bool__(self):
+#        """Allow for testing a TokenData object in conditionals, converting to bool."""
+#        return self.is_valid
 
 
-class TokenData(object):
-    """This class is the basic container used by the RegexTrieDictScanner.  It
-    holds a token (which may be an invalid token) and also some related data.
-    The tokenDataDeque of the RegexTrieDictScanner (such as from getTokenDataDeque()
-    calls) contains TokenData objects.
-
-    A convention which is used in the language parsing application is that the
-    self.data field contains a tuple of information where the first, 0th item in
-    the tuple is a string giving the sort or type of language element, and the
-    second or later elements contain data dependent of the sort of element.  The
-    current module does not set any of these values, however, and so does have
-    any need to know about or apply that convention."""
-
-    def __init__(self, validToken, tokenString, data, elemData):
-        self.validToken = validToken # False if the "token" was not in the RegexTrieDict
-        self.tokenString = tokenString # the string of the token which resulted in the match
-        self.data = data # some arbitrary piece of data stored as a key/data pair
-        self.elemData = elemData # some arbitrary data stored on a query with each elem
-
-    def __repr__(self):
-        return "TokenData("+str(self.validToken)+", "+str(self.tokenString) + \
-            ", "+str(self.data)+", "+str(self.elemData)+")"
-
-    def __bool__(self):
-        """Allow for testing a TokenData object in conditionals, converting to bool."""
-        return self.validToken
+# This `namedtuple` is the basic container used by the `RegexTrieDictScanner`.
+# It holds a token (which may be an invalid token) and also some related data.
+# The `token_data_deque` of the `RegexTrieDictScanner` (such as from
+# `get_token_data_deque()` calls) contains `TokenData` objects."""
+TokenData = collections.namedtuple("TokenData", [
+            "is_valid", # False if the "token" was not in the RegexTrieDict.
+            "matched_seq", # The sequence of elements (string) which resulted in the match.
+            "data", # Whatever data was stored in the trie with matched pattern as key.
+            "elem_data", # Some arbitrary data stored when adding an elem.
+            ])
 
 
 class RegexTrieDictScanner(object):
     """This class uses the keys of a RegexTrieDict as tokens."""
 
-    def __init__(self, regexTrieDict):
+    def __init__(self, regex_trie_dict):
         """User must pass in a valid RegexTrieDict containing the tokens."""
-        self.td = regexTrieDict
+        self.rtd = regex_trie_dict
+        self.matcher = PrefixMatcher(self.rtd)
         self.clear()
         return
 
     def clear(self):
         """Reset the tokenizer to its initial condition."""
-        self.matchLongest = True # whether to always look for longest match
-        self.noInvalidTokensFound = True # whether unstored string found on curr query
-        self.tokenDataDeque = collections.deque() # the deque of query matches
+        self.match_longest = True # Whether to always look for longest match.
+        self.no_invalid_tokens_found = True # Whether unstored string found on curr query.
+        self.token_data_deque = collections.deque() # The deque of query matches.
 
         self.reset_seq()
+        self.matcher.reset(self.rtd)
         return
 
     def reset_seq(self):
-        """ Reset the sequence from previous insertSeqElem calls, i.e.,
+        """ Reset the sequence from previous insert_set_elem calls, i.e.,
         start the next insertion back at the root node.  All of the saved possible
         token matches are deleted and not reported: this is a cold reset.  """
-        self.currNode = self.td.root # the current node for current sequence elem
-        self.tdInsertCount = self.td.insertCount # to make sure Trie doesn't change
-        self.tdDeleteCount = self.td.deleteCount # to make sure Trie doesn't change
+        self.curr_node = self.rtd.root # the current node for current sequence elem
+        self.td_insert_count = self.rtd.insertCount # to make sure Trie doesn't change
+        self.td_delete_count = self.rtd.deleteCount # to make sure Trie doesn't change
 
-        self.possibleMatch = False # True if a string matched which may not be longest
-        self.possibleToken = "" # The string for the last possible match.
-        self.possibleData = None # Data stored with possibleToken
-        self.possibleMiscList = [] # List of misc data saved with each element.
+        self.possible_match = False # True if a string matched which may not be longest
+        self.possible_token = "" # The string for the last possible match.
+        self.possible_data = None # Data stored with possibleToken
+        self.possible_misc_list = [] # List of misc data saved with each element.
 
-        self.currToken = "" # the concatenation of all elems so far in token being found
-        self.currMiscList = [] # List of misc data saved with each element.
+        self.curr_token = "" # the concatenation of all elems so far in token being found
+        self.curr_misc_list = [] # List of misc data saved with each element.
 
-        self.nonTreeMatchInProgress = False # true if a number match in progress
+        self.non_tree_match_in_progress = False # true if a number match in progress
+        self.matcher.reset() # Reset the matcher.
         return
 
     def reset_seq_after_flushing(self):
@@ -199,10 +212,10 @@ class RegexTrieDictScanner(object):
         return
 
     def set_match_longest(self, boolVal):
-        """Set True if longest matches should be found in insertSeqElem queries,
+        """Set True if longest matches should be found in insert_set_elem queries,
         False if shortest.  The default in initialization and after a clear()
         is True."""
-        self.matchLongest = boolVal
+        self.match_longest = boolVal
         return
 
     def current_seq_is_valid(self):
@@ -211,8 +224,8 @@ class RegexTrieDictScanner(object):
         inserts or deletes in the underlying Trie.  This is just for informational
         purposes, since any attempt to insert an element in an invalid sequence
         will automatically call resetSeqAfterFlushing first and reset the sequence."""
-        return (self.tdInsertCount == self.td.insertCount
-                and self.tdDeleteCount == self.td.deleteCount)
+        return (self.td_insert_count == self.rtd.insertCount
+                and self.td_delete_count == self.rtd.deleteCount)
 
     #
     # Note that shortest match in insert_seq_elem works easily, but what about
@@ -226,57 +239,70 @@ class RegexTrieDictScanner(object):
     # At that point we remove the prefix "egg" from "eggberb" and re-query
     # the characters in the string "berb", starting again at the root of the
     # tree.  Fortunately, the needed data is already being saved in
-    # currToken, which has been built up to "eggberb" after the final "b"
+    # curr_token, which has been built up to "eggberb" after the final "b"
     # has had insert_seq_elem called on it.
     #
     digits = set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
 
-    def insert_seq_elem(self, char, miscData=None): # TODO change to not depend on chars
-        """ Insert the next element from the sequence being tokenized.  If
-        inserting the element results in a match (including detecting an
-        unrecognizable token) the matching token (or sequence of elements) is
-        appended to the result deque, which the getTokenDataDeque method returns.
-        This function returns True until some string has been recognized as not
+    def insert_seq_elem(self, elem, misc_data=None): # NOTE this is the OLD method.
+        # NOTE see new_insert_seq_elem method below, after this one...
+        # updating to use PrefixMatcher.
+        """Insert `elem` as the next element from the sequence being scanned.
+        If inserting the element results in a match (including detecting that
+        the sequence is unrecognizable) then `TokenData` instances for the
+        matching tokens (i.e., sequences of elements) are appended to the
+        result deque, which the `get_token_data_deque` method returns.  This
+        function returns `True` until some string has been recognized as not
         being stored in the tree, after which it returns False (this signals
         that some higher-level error-handling needs to be done).
 
         A future modification might allow multiple query instances,
         essentially a wrapper-class for pointers to nodes in the tree.
 
-        The format of the tokenDataDeque is a deque of TokenData class instances.
+        The format of the `token_data_deque` is a deque containing `TokenData`
+        namedtuple instances for each match that was found.  That is, it
+        contains a data tuple for each prefix of the current sequence of
+        elements that matched a pattern.
 
         In lexical analysis:
 
-        The optional miscData argument is miscellaneous data which is associated
+        The optional misc_data argument is miscellaneous data which is associated
         with the query chars (in particular, line numbers can be stored and
         "passed up" for better error reporting).
 
         Inserting the empty string "" is equivalent to asserting the end of the
         query string (and is how assertEndOfSeq() is implemented)."""
+        # TODO: what if multiple pattern matches for query string?  Seems like you
+        # need a list of TokenData namedtuples at each index of the deque....
+        # Also, how are these elements being combined, if at all?  Test data on
+        # strings looks like they are being added together... presumed + operator.
 
         # Automatically reset after flushing if underlying Trie is no longer valid.
-        if not self.current_seq_is_valid() and char != "": # TODO: don't use insert empty char for endOfSeq
+        if not self.current_seq_is_valid() and elem != "":
             self.reset_seq_after_flushing()
 
-        # Now handle any ordinary tree matches for the queryChar char.
-        if not char in self.currNode.children: # mismatch beyond current node
+        # Now handle any ordinary tree matches for the queryChar elem.
+        if not elem in self.curr_node.children: # mismatch beyond current node
             # empty string queryInserts always take this path from conditional above
-            if self.possibleMatch:
-                self.tokenDataDeque.append(TokenData(
-                                           True, self.possibleToken, self.possibleData, self.possibleMiscList
+            if self.possible_match:
+                self.token_data_deque.append(TokenData(
+                                           is_valid=True,
+                                           matched_seq=self.possible_token,
+                                           data=self.possible_data,
+                                           elem_data=self.possible_misc_list
                                            ))
-                self.possibleMatch = False
+                self.possible_match = False
                 # remove recognized possibleMatch prefix from currToken
                 # note that suffix is saved in a local var for recursion
-                suffix = self.currToken[len(self.possibleToken):]
-                suffix += char
-                suffixMisc = self.currMiscList[len(self.possibleToken):]
-                if char != "": suffixMisc.append(miscData)
-                # reset query and re-query each char of the suffix string
+                suffix = self.curr_token[len(self.possible_token):]
+                suffix += elem
+                suffixMisc = self.curr_misc_list[len(self.possible_token):]
+                if elem != "": suffixMisc.append(misc_data)
+                # reset query and re-query each elem of the suffix string
                 self.reset_seq()
                 for index in range(len(suffix)):
                     self.insert_seq_elem(suffix[index], suffixMisc[index])
-                return self.noInvalidTokensFound
+                return self.no_invalid_tokens_found
             else:
                 # Char doesn't match a child, no saved match, but currToken
                 # matched a prefix of something up to here.  So there is
@@ -287,65 +313,214 @@ class RegexTrieDictScanner(object):
                 #
                 # To fastRecover, ditch all of the currToken rather than
                 # trying to reinsert various parts to do "maximum recovery."
-                # Reset and try re-querying the fail-char if currToken had
-                # nonzero length.  Slower, we can just report the first char
-                # of currToken as a fail, and reinsert all else + char.
-                if len(self.currToken) > 0:
-                    self.noInvalidTokensFound = False # set error return flag
+                # Reset and try re-querying the fail-elem if currToken had
+                # nonzero length.  Slower, we can just report the first elem
+                # of currToken as a fail, and reinsert all else + elem.
+                if len(self.curr_token) > 0:
+                    self.no_invalid_tokens_found = False # set error return flag
                     if fastRecover:
-                        self.tokenDataDeque.append(TokenData(
-                                  False, self.currToken, None, self.currMiscList))
+                        self.token_data_deque.append(TokenData(
+                                  is_valid=False,
+                                  matched_seq=self.curr_token,
+                                  data=None,
+                                  elem_data=self.curr_misc_list))
                     else:
-                        self.tokenDataDeque.append(TokenData(
-                                  False, self.currToken[0], None, self.currMiscList[0]))
-                    savedCurrToken = self.currToken
-                    savedCurrMiscList = self.currMiscList
+                        self.token_data_deque.append(TokenData(
+                                  is_valid=False,
+                                  matched_seq=self.curr_token[0],
+                                  data=None,
+                                  elem_data=self.curr_misc_list[0]))
+                    savedCurrToken = self.curr_token
+                    savedCurrMiscList = self.curr_misc_list
                     self.reset_seq()
                     if fastRecover:
-                        if char != "": self.insert_seq_elem(char, miscData)
+                        if elem != "": self.insert_seq_elem(elem, misc_data)
                     else:
-                        savedCurrToken = savedCurrToken[1:] + char
+                        savedCurrToken = savedCurrToken[1:] + elem
                         savedCurrMiscList = savedCurrMiscList[1:]
-                        if char != "":
-                            savedCurrMiscList.append(miscData)
+                        if elem != "":
+                            savedCurrMiscList.append(misc_data)
                         self.insert_seq_elem(savedCurrToken, savedCurrMiscList)
-                else: # only the current char doesn't match, at root
-                    if char != "":
-                        self.noInvalidTokensFound = False # set error return flag
-                        self.tokenDataDeque.append(
-                            TokenData(False, char, None, [miscData]))
+                else: # only the current elem doesn't match, at root
+                    if elem != "":
+                        self.no_invalid_tokens_found = False # set error return flag
+                        self.token_data_deque.append(
+                            TokenData(
+                                     is_valid=False,
+                                     matched_seq=elem,
+                                     data=None,
+                                     elem_data=[misc_data]))
                     self.reset_seq()
-                return self.noInvalidTokensFound
+                return self.no_invalid_tokens_found
 
         # At this point we know there is another node below the current one.
-        self.currToken = self.currToken + char
-        self.currMiscList.append(miscData)
-        self.currNode = self.currNode.children[char] # move currNode down tree
-        if self.currNode.isLastElemOfKey:
+        self.curr_token = self.curr_token + elem
+        self.curr_misc_list.append(misc_data)
+        self.curr_node = self.curr_node.children[elem] # move currNode down tree
+        if self.curr_node.is_last_elem_of_key:
             # to match longest we must wait before concluding, unless we are at a leaf
-            numChildren = len(self.currNode.children)
-            if self.matchLongest and numChildren != 0:
+            numChildren = len(self.curr_node.children)
+            if self.match_longest and numChildren != 0:
                 # matchLongest and not at a leaf
-                self.possibleMatch = True
-                self.possibleToken = self.currToken
-                self.possibleData = self.currNode.data
-                self.possibleMiscList = self.currMiscList
+                self.possible_match = True
+                self.possible_token = self.curr_token
+                self.possible_data = self.curr_node.data
+                self.possible_misc_list = self.curr_misc_list
             else:
                 # match shortest or else at a leaf
-                self.tokenDataDeque.append(TokenData(
-                         True, self.currToken, self.currNode.data, self.currMiscList))
+                self.token_data_deque.append(TokenData(
+                               is_valid=True,
+                               matched_seq=self.curr_token,
+                               data=self.curr_node.data,
+                               elem_data=self.curr_misc_list))
                 self.reset_seq()
-        return self.noInvalidTokensFound
+        return self.no_invalid_tokens_found
+
+    def new_insert_seq_elem(self, elem, misc_data=None): # NOTE this is the NEW method.
+
+        """Insert `elem` as the next element from the sequence currently being
+        scanned.  If inserting the element results in a match (including
+        detecting that the sequence is unrecognizable) then [LIST OF????]
+        `TokenData` instances for the matching tokens (i.e., sequences of
+        elements) are appended to the result deque, which the
+        `get_token_data_deque` method returns.  This function returns `True`
+        until some string has been recognized as not being stored in the tree,
+        after which it returns False (this signals that some higher-level
+        error-handling needs to be done).
+
+        A future modification might allow multiple query instances,
+        essentially a wrapper-class for pointers to nodes in the tree.
+
+        The format of the `token_data_deque` is a deque containing `TokenData`
+        namedtuple instances for each match that was found.  That is, it
+        contains a data tuple for each prefix of the current sequence of
+        elements that matched a pattern.  TODO: update when clearer.
+
+        In lexical analysis:
+
+        The optional misc_data argument is miscellaneous data which is associated
+        with the query chars (in particular, line numbers can be stored and
+        "passed up" for better error reporting).
+
+        Inserting the empty string "" is equivalent to asserting the end of the
+        query string (and is how assertEndOfSeq() is implemented)."""
+        # TODO: what if multiple pattern matches for query string?  Seems like you
+        # need a list of TokenData namedtuples at each index of the deque....
+        # Also, how are these elements being combined, if at all?  Test data on
+        # strings looks like they are being added together... presumed + operator.
+
+        # TODO The PrefixMatcher is set up for the class.  Now update this
+        # method to use it.  Update the format of the data deque to hold lists
+        # or tuples of all the matches found.
+
+        # Automatically reset after flushing if underlying Trie is no longer valid.
+        if not self.current_seq_is_valid() and elem != "":
+            self.reset_seq_after_flushing()
+
+        # Now handle any ordinary tree matches for the queryChar elem.
+        if not elem in self.curr_node.children: # mismatch beyond current node
+            # empty string queryInserts always take this path from conditional above
+            if self.possible_match:
+                self.token_data_deque.append(TokenData(
+                                           is_valid=True,
+                                           matched_seq=self.possible_token,
+                                           data=self.possible_data,
+                                           elem_data=self.possible_misc_list
+                                           ))
+                self.possible_match = False
+                # remove recognized possibleMatch prefix from currToken
+                # note that suffix is saved in a local var for recursion
+                suffix = self.curr_token[len(self.possible_token):]
+                suffix += elem
+                suffixMisc = self.curr_misc_list[len(self.possible_token):]
+                if elem != "": suffixMisc.append(misc_data)
+                # reset query and re-query each elem of the suffix string
+                self.reset_seq()
+                for index in range(len(suffix)):
+                    self.insert_seq_elem(suffix[index], suffixMisc[index])
+                return self.no_invalid_tokens_found
+            else:
+                # Char doesn't match a child, no saved match, but currToken
+                # matched a prefix of something up to here.  So there is
+                # some error in the currToken.  There are various ways to
+                # handle error recovery.
+                #
+                fastRecover = True # this could be a settable class variable
+                #
+                # To fastRecover, ditch all of the currToken rather than
+                # trying to reinsert various parts to do "maximum recovery."
+                # Reset and try re-querying the fail-elem if currToken had
+                # nonzero length.  Slower, we can just report the first elem
+                # of currToken as a fail, and reinsert all else + elem.
+                if len(self.curr_token) > 0:
+                    self.no_invalid_tokens_found = False # set error return flag
+                    if fastRecover:
+                        self.token_data_deque.append(TokenData(
+                                  is_valid=False,
+                                  matched_seq=self.curr_token,
+                                  data=None,
+                                  elem_data=self.curr_misc_list))
+                    else:
+                        self.token_data_deque.append(TokenData(
+                                  is_valid=False,
+                                  matched_seq=self.curr_token[0],
+                                  data=None,
+                                  elem_data=self.curr_misc_list[0]))
+                    savedCurrToken = self.curr_token
+                    savedCurrMiscList = self.curr_misc_list
+                    self.reset_seq()
+                    if fastRecover:
+                        if elem != "": self.insert_seq_elem(elem, misc_data)
+                    else:
+                        savedCurrToken = savedCurrToken[1:] + elem
+                        savedCurrMiscList = savedCurrMiscList[1:]
+                        if elem != "":
+                            savedCurrMiscList.append(misc_data)
+                        self.insert_seq_elem(savedCurrToken, savedCurrMiscList)
+                else: # only the current elem doesn't match, at root
+                    if elem != "":
+                        self.no_invalid_tokens_found = False # set error return flag
+                        self.token_data_deque.append(
+                            TokenData(
+                                     is_valid=False,
+                                     matched_seq=elem,
+                                     data=None,
+                                     elem_data=[misc_data]))
+                    self.reset_seq()
+                return self.no_invalid_tokens_found
+
+        # At this point we know there is another node below the current one.
+        self.curr_token = self.curr_token + elem
+        self.curr_misc_list.append(misc_data)
+        self.curr_node = self.curr_node.children[elem] # move currNode down tree
+        if self.curr_node.is_last_elem_of_key:
+            # to match longest we must wait before concluding, unless we are at a leaf
+            numChildren = len(self.curr_node.children)
+            if self.match_longest and numChildren != 0:
+                # matchLongest and not at a leaf
+                self.possible_match = True
+                self.possible_token = self.curr_token
+                self.possible_data = self.curr_node.data
+                self.possible_misc_list = self.curr_misc_list
+            else:
+                # match shortest or else at a leaf
+                self.token_data_deque.append(TokenData(
+                               is_valid=True,
+                               matched_seq=self.curr_token,
+                               data=self.curr_node.data,
+                               elem_data=self.curr_misc_list))
+                self.reset_seq()
+        return self.no_invalid_tokens_found
 
     def get_token_data_deque(self):
-        """Get the deque of matches generated by insertSeqElem calls."""
-        return self.tokenDataDeque
+        """Get the deque of matches generated by insert_set_elem calls."""
+        return self.token_data_deque
 
     def clear_token_data_deque(self):
         """Sets the current deque of matches empty.  This may be useful in an
         algorithm, or to free memory in a long sequence.  Does not alter anything
         else, including the current query and any saved possible-match value."""
-        self.tokenDataDeque.clear()
+        self.token_data_deque.clear()
 
     def assert_end_of_seq(self):
         """Asserts that there are no more elements in the current sequence.
@@ -354,13 +529,14 @@ class RegexTrieDictScanner(object):
         return self.insert_seq_elem("")
 
     def print_token_deque(self):
-        """Debugging routine, print out all the strings in tokenDataDeque."""
+        """Debugging routine, print out all the strings in `token_data_deque`."""
+        #print("token data deque is", self.token_data_deque)
         print("TokenDeque[", end="")
-        for i in range(len(self.tokenDataDeque)):
-            if i != len(self.tokenDataDeque)-1:
-                print(self.tokenDataDeque[i].tokenString+",", end="")
+        for i in range(len(self.token_data_deque)):
+            if i != len(self.token_data_deque)-1:
+                print(self.token_data_deque[i].matched_seq+",", end="")
             else:
-                print(self.tokenDataDeque[i].tokenString, end="")
+                print(self.token_data_deque[i].matched_seq, end="")
         print("]")
 
 

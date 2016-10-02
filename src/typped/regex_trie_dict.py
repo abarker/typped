@@ -751,7 +751,7 @@ class RegexTrieDict(TrieDict):
         regexp patterns stored in the RegexTrieDict.  Returns the number of
         matches.  Remember that any literal escapes in the trie must be
         escaped, but escapes in keySeq are always treated as literal."""
-        mat = Matcher(self)
+        mat = PrefixMatcher(self)
         for elem in keySeq:
             mat.add_key_elem(elem)
             if mat.cannot_match(): 
@@ -779,7 +779,7 @@ class RegexTrieDict(TrieDict):
         return the empty list.  Remember that any literal escapes in the
         trie must be escaped, but escapes in keySeq are always treated as
         literal."""
-        mat = Matcher(self)
+        mat = PrefixMatcher(self)
         for elem in keySeq:
             mat.add_key_elem(elem)
             if mat.cannot_match(): 
@@ -1470,7 +1470,7 @@ class RegexTrieDict(TrieDict):
     __setitem__ = setitem = insert
 
 
-class Matcher(object):
+class PrefixMatcher(object):
     """Initialized with an instance of a `RegexTrieDict`.  Allows for
     sequential processing of elements from sequence-keys, and checks of whether
     any regex patterns stored in the trie have been matched.  No trie
@@ -1493,7 +1493,7 @@ class Matcher(object):
         self.reset(regex_trie_dict)
 
     def reset(self, regex_trie_dict=None):
-        """Reset the `Matcher` and free any state memory.  A new trie can
+        """Reset the `PrefixMatcher` and free any state memory.  A new trie can
         optionally be passed in."""
         if regex_trie_dict is not None:
             self.rtd = regex_trie_dict
@@ -1504,7 +1504,8 @@ class Matcher(object):
         """Inserts elem as the next elem of the current key sequence.  (Note
         elem is usually a character if string patterns are stored in the
         tree.)"""
-        if not self.match_in_progress: self._set_to_root()
+        if not self.match_in_progress:
+            self._set_to_root()
         # Update the list of node data states according to the element elem.
         self.node_data_list = self.rtd.get_next_nodes_meta(elem, self.node_data_list)
 
@@ -1539,17 +1540,19 @@ class Matcher(object):
         `add_key_elem` method.  That defines the current key sequence and the
         match is based on the regexp patterns stored in the `RegexTrieDict`.
         The default with no matches is to return the empty list.  Remember that
-        anyp literal escapes in the trie must be escaped, but escapes in query
+        any literal escapes in the trie must be escaped, but escapes in query
         keys are always treated as literal."""
-        if not self.match_in_progress: self._set_to_root()
-        # First insert a null magic element, which by definition does not match
-        # any element actually in the string.  This has the side-effect of
-        # moving us past any self.rGroup closing elements, as well as past any
-        # patterns which can match zero times.  Note that inserting the empty
-        # keySeq will skip the loop above and go directly to the magic element
-        # queryElem below.  Get a temporary state after inserting the
-        # magic_elem, so that we don't mess up the persistent self.node_data_list
-        # for later searches.
+        if not self.match_in_progress:
+            self._set_to_root()
+        # First use `get_next_nodes_meta` to "insert" a null magic element in
+        # the trie (which by definition does not match any element actually in
+        # the string).  Note that the trie itself is not modified.  Save the
+        # resulting node data list in a temporary list (not affecting the real,
+        # persistent `self.node_data_list` for this `PrefixMatcher` instance).
+        # one for this object).  This has the side-effect of moving us past any
+        # `self.rGroup` closing elements, as well as past any patterns which can
+        # match zero times.  (Note that inserting the empty keySeq will skip the
+        # loop above and go directly to the magic element queryElem below.)
         tmp_node_data_list = self.rtd.get_next_nodes_meta(
                                        self.rtd.magic_elem, self.node_data_list)
         matched_nodes = [nodeData for nodeData in tmp_node_data_list
@@ -1557,7 +1560,6 @@ class Matcher(object):
         if not matched_nodes:
             return default
         return [n.node.data for n in matched_nodes]
-
 
 def char_elem_to_int(elem):
     """This routine is set in defineMetaElems as the default value of
