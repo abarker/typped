@@ -2,8 +2,8 @@
 
 TODO: document the MatchObject interface.
 
-`RegexTrieDict`: Pattern matching on dict keys
-----------------------------------------------
+Introduction to `RegexTrieDict`
+===============================
 
 The `RegexTrieDict` class is a subclass of `TrieDict` which adds
 pattern-matching capabilities.  To use these capabilities, you first create a
@@ -11,52 +11,93 @@ key which contains some special meta-elements (which are meta-characters when
 the keys are strings).  Then you insert that key (meta-key) and an associated
 value into the `RegexTrieDict`.  These meta-keys are treated simply as ordinary
 keys by the usual `TrieDict` operations.  The `RegexTrieDict` adds some special
-methods, `has_key_meta` and `get_meta`, which interpret the meta-elements as
-regex symbols rather than treating them as ordinary elements.
+methods, `has_key_meta` and `get_meta`, which interpret the meta-keys as
+regex patterns on queries, rather than treating them as ordinary saved items.
 
-The `has_key_meta` and `get_meta` methods take ordinary keys as arguments,
-i.e., they to not take meta-keys as arguments.  Instead, they match the
-ordinary key against the keys in the trie, interpreting the meta-keys in the
-trie as regex patterns.  So calling `has_key_meta` for an ordinary, non-meta
-key returns `True` if any current key in the trie matches exactly or if any
-meta-key pattern in the trie happens to match as a pattern.  Similarly,
-`get_meta` finds any key or meta-key pattern in the trie which matches and
-returns a tuple containing all the data associated with those matching items.
+The `RegexTrieDict` class implements a full (though bare-bones) regex
+pattern-matching language.  The syntax of the language is slightly modified due
+to the tree structure in which the patterns are stored.  Basically, the special
+characters are made into prefix operators rather than postfix operators so that
+they are encountered first when going down the trie from the root.  The syntax
+is described in a later section.
 
-The special meta-symbols themselves can be user-defined, but their
-interpretations as meta-symbols are fixed.  By default the values are defined
-for keys which are strings of characters (but, in general, keys can be
-sequences of some kind of elements).  The default definitions are as follows
-<TODO update below, some changed>::
+Terminology
+===========
+
+The system is defined to be very general, working on **sequences** made up of
+**elements**.  Sequences are just iterable objects which return some fixed,
+hashable kind of object as elements when iterated over.  Both the stored regex
+patterns and the query keys are sequences.
+
+The most common case is that the sequences are Python strings, and the elements
+are the characters of the strings.  In reading the documentation it can be
+helpful to think of the example where sequences=strings and
+elements=characters.  Sequences do not need to be strings, however.  For
+example, the sequences could be lists of strings.  In that case the elements
+would be the strings on those lists.  Regex patterns would then be lists of
+strings with certain of those strings designated as escape elements and
+pattern-defining elements.
+
+Meta-methods
+============
+
+As mentioned above, the `RegexTrieDict` adds some methods to the ordinary
+`TrieDict` to allow for keys stored in the dict to be intepreted at a
+meta-level, as regex patterns.  The two main methods are `has_key_meta` and
+`get_meta`.
+
+Every `RegexTrieDict` is also a `TrieDict`, and items can be stored in and
+retrieved from it using the methods of the `TrieDict` class.  A `RegexTrieDict`
+used for pattern matching is basically a `TrieDict` which has had regex
+patterns inserted into it as the "ordinary" keys.  It then provides special
+meta-methods which interpret those stored keys as regex patterns during
+queries, rather than as ordinary sequences.
+
+The `has_key_meta` and `get_meta` methods take ordinary sequences as arguments,
+i.e., they to not take pattern-sequences as arguments.  Instead, they match the
+ordinary sequence as a key against the patterns in the trie, interpreting the
+sequences stored in the trie as regex patterns.  So calling `has_key_meta` for
+an ordinary, non-meta key returns `True` if any current key in the trie matches
+exactly *or* if any meta-key pattern in the trie matches as a pattern.
+Similarly, `get_meta` finds any key or meta-key pattern in the trie which
+matches and returns a tuple containing all the data associated with those
+matching items.
+
+The special meta-symbol elements which make up patterns can be user-defined,
+but their interpretations as meta-symbols are fixed.  By default the values are
+defined assuming that keys are strings of characters.  (In general, keys can be
+sequences of any kind of hashable elements.)  The default definitions are as
+follows::
 
    define_meta_elems(escape="\\", repetition="*", lGroup="(", rGroup=")",
-                     lWildcard="[", rWildcard="]", range="-", rangeTestFun=None)
+                     lWildcard="[", rWildcard="]", rangeElem="-", orElem="|")
 
 In order for an element of a key to be interpreted as a meta-symbol it **must**
-be preceded by the defined escape element.  So in a string key the meta-symbols
-with their default definitions above would always appear as `"\\*"`, `"\\("`,
-`"\\)"`, `"\\["`, `"\\]"`, and `"\\-"`.  If the backslash character is the
-escape then raw strings like `r"\*"` and `"r\("` can be convenient.  (But
-remember that in Python raw strings cannot end with a single backslash.)
+be preceded by the defined escape element.  So if the key is a string the
+meta-symbols with their default definitions above would always appear as
+`"\\*"`, `"\\("`, `"\\)"`, `"\\["`, `"\\]"`, `"\\-"`, and `"\\|"`.  If the
+backslash character is the escape then it is convenient to use raw strings like
+`r"\*"` and `"r\("`.  (But remember that in Python raw strings cannot end with
+a single backslash.)
 
 The requirement that all meta-elements must be escaped is intended to minimize
 interference with ordinary key elements.  There are no exceptions, so it is a
-consistent rule which does not require memorizing which elements need to be
-escaped.  As usual, a double escape such as `"\\\\"` (or `r"\\"`) reverts to
-the original escape symbol, as does an escape not followed by any of the
-defined meta-elements.
+consistent rule which does not require memorization of which elements need to
+be escaped and which do not.  As usual, a double escape such as `"\\\\"` (or
+`r"\\"`) reverts to the original escape symbol, as does an escape not followed
+by any of the defined meta-elements.
 
 Keep in mind that when a `RegexTrieDict` is used with escaped elements in the
 keys, to be treated as meta-elements, all the literal escape-elements in the
-keys must be escaped as described above.  Even the ordinary keys which are
-inserted into the `RegexTrieDict` in that case must have any escape elements
-escaped (ordinary strings as regexes are still patterns, just simple ones).
-<TODO: if they are not followed by special char do they need to be escaped?> In
-the query sequences (query keys) themselves, however, escape elements are
-always simply treated as literals.  That is, no meta-interpretation is ever
-performed on the query-key sequences and the escape character has no special
-meaning.  So a single escape on a key-query matches an escaped escape in the
-stored key-sequences in the Trie.
+keys must be escaped as described above.  Even keys consisting of ordinary text
+which are inserted into the `RegexTrieDict` to be used as a pattern with the
+meta routines must have any escape elements escaped.  The escape element as a
+literal must also be escaped.  Ordinary strings as regexes are still regex
+patterns, just simple ones.  In the query sequences (query keys), however,
+escape elements are always simply treated as literals.  That is, no
+meta-interpretation is ever performed on the query-key sequences and the escape
+character has no special meaning.  So a single escape on a key-query matches an
+escaped escape in the stored key-sequences in the Trie.
 
 The meta-level and the object-level are intentionally kept distinct in order to
 minimize some of the confusions that can occur.  The ordinary dict methods
@@ -70,7 +111,7 @@ strings as the keys the characters of the key strings are scanned from left to
 right.
 
 Syntax of the regex language
-----------------------------
+============================
 
 The `RegexTrieDict` class implements all the basic regex patterns (though not
 the fancier ones that some regex implementations allow for).  Because it needs
@@ -136,14 +177,14 @@ chosen.  This restriction essentially requires the end of any repeated-pattern
 segment to be unambiguous (or else no looping-back will occur).
 
 Pattern-matching implementation details
----------------------------------------
+=======================================
 
-As noted, meta-keys are inserted and stored in a TrieDict simply as ordinary
-keys.  It is the traversal algorithm in the routine get_nodes_meta which differs
-from the usual get_node algorithm (which finds the node in the trie
-corresponding to a key).  Note first off that the get_nodes_meta routine can
-returns a list of nodes, not just a single node.  This is because multiple
-patterns can match the same query-key.
+As noted, meta-keys are inserted and stored in a `TrieDict` simply as ordinary
+keys.  It is the traversal algorithm in the routine `get_nodes_meta` which
+differs from the usual `get_node` algorithm of an ordinary `TrieDict` (which
+finds the node in the trie corresponding to a key).  Note first off that the
+`get_nodes_meta` routine can returns a list of nodes, not just a single node.
+This is because multiple patterns can match the same query-key.
 
 The traversal algorithm is the same as usual except when meta-characters are
 encountered.  In this case the state can split into a list of states (similar
@@ -171,14 +212,14 @@ In the case of a repetition pattern, suppose the child list of a current node
 includes a begin-repetition element.  In this case the state splits (as before
 with wildcards), with the usual literal-character child node becoming one new
 state.  But also, the algorithm fast forwards to the corresponding
-end-repetition element of each subtree and makes that a new state (we start at
-the end to get zero repetitions).  They also remember their begin-repetition
-point.  On the next query-key element both states continue, one skipping and
-one looping back.
+end-repetition element of each subtree and makes that a new state (the state
+starts at the end in order to match zero repetitions).  They also remember
+their begin-repetition point.  On the next query-key element both states
+continue, one skipping and one looping back.
 
 To handle uniqueness issues (if we want each distinct pattern to be represented
 by the same pattern-string, with the same associated value) the meta-key
-patterns can be preprocessed before they are entered into the TrieDict, to
+patterns can be preprocessed before they are entered into the `TrieDict`, to
 canonicalize them.  For character wildcards, at least, the characters can be
 sorted and all continuous sequences can be turned into character ranges.
 
@@ -192,13 +233,13 @@ searching forward for the end-group element.  This data could instead be cached
 until an insertion or deletion invalidates, or the space needs to be freed).
 Overriding the children on repetition loops can use up a lot of space for long
 repetition patterns.  It is hard to avoid going to the end in the
-zero-repetition match form, since the end is a valid continuation At-least-one
-repetition patterns could potentially process from the beginning.  Overriding
-the insert (`__setitem__`) method to keep pointers to the loop-ends and
-or-sections would speed things up.  A common dict indexed by node ids could be
-used, but deletion would have to del the deleted-node entries.  Then we could
-start zero-repetition states but just set the stacks for the first loop, fixing
-the children in appendChildNode if the stack is not empty.
+zero-repetition match form, since the end is a valid continuation.
+At-least-one repetition patterns could potentially process from the beginning.
+Overriding the insert (`__setitem__`) method to keep pointers to the loop-ends
+and or-sections would speed things up.  A common dict indexed by node ids could
+be used, but deletion would have to del the deleted-node entries.  Then
+zero-repetition states could be started but just set the stacks for the first
+loop, fixing the children in `append_child_node` if the stack is not empty.
 
 .. note::
 
@@ -344,7 +385,7 @@ class NodeStateDataList(collections.MutableSequence):
     still valid in the underlying trie (there might have been insertions and/or
     deletions."""
     def __init__(self, regex_trie_dict, *arg, **kwds):
-        # The list nodeDataList does the real work.
+        # The list node_data_list does the real work.
         self.node_data_list = list(*arg, **kwds)
         self.insert_count = regex_trie_dict.insertCount
         self.delete_count = regex_trie_dict.deleteCount
@@ -712,7 +753,7 @@ class RegexTrieDict(TrieDict):
         escaped, but escapes in keySeq are always treated as literal."""
         mat = Matcher(self)
         for elem in keySeq:
-            mat.next_key_elem(elem)
+            mat.add_key_elem(elem)
             if mat.cannot_match(): 
                 mat.reset()
                 return 0 # No more nodes, can't match.
@@ -720,13 +761,13 @@ class RegexTrieDict(TrieDict):
         mat.reset() # Ends match and frees memory.
         return retval
         #### This is the earlier implementation, not using seqmeta mode.
-        # self.nodeDataList = self.get_root_node_data_list()
+        # self.node_data_list = self.get_root_node_data_list()
         # 
         # for elem in keySeq:
-        #     self.nodeDataList = self.get_next_nodes_meta(elem, self.nodeDataList)
-        #     if not self.nodeDataList: return 0 # no nodes, can't match
+        #     self.node_data_list = self.get_next_nodes_meta(elem, self.node_data_list)
+        #     if not self.node_data_list: return 0 # no nodes, can't match
 
-        # tmpNodeDataList = self.get_next_nodes_meta(self.magic_elem, self.nodeDataList)
+        # tmpNodeDataList = self.get_next_nodes_meta(self.magic_elem, self.node_data_list)
         # matchedNodes = [nodeData for nodeData in tmpNodeDataList
         #                                       if nodeData[0].is_last_elem_of_key]
         # return len(matchedNodes)
@@ -740,7 +781,7 @@ class RegexTrieDict(TrieDict):
         literal."""
         mat = Matcher(self)
         for elem in keySeq:
-            mat.next_key_elem(elem)
+            mat.add_key_elem(elem)
             if mat.cannot_match(): 
                 mat.reset()
                 return default # No more nodes, can't match.
@@ -783,7 +824,7 @@ class RegexTrieDict(TrieDict):
     #     self.seqmeta_next_key_elem(elem)
 
     #     # Get any matches at the current length of inserted elements.
-    #     tmpNodeDataList = self.get_next_nodes_meta(self.magic_elem, self.nodeDataList)
+    #     tmpNodeDataList = self.get_next_nodes_meta(self.magic_elem, self.node_data_list)
 
     #     # If no more active patterns, we can return the longest found.
     #     if not tmpNodeDataList:
@@ -859,7 +900,7 @@ class RegexTrieDict(TrieDict):
         # If we are starting a magic_elem search, save the current node with the
         # state.  This is to avoid infinite recursion in processing repetitions
         # that match zero times.  The visitedSet is emptied in processNodeData
-        # when a valid end-point is reached.  The appendChildNode routine adds
+        # when a valid end-point is reached.  The append_child_node routine adds
         # any nodes to the set that it processes, and drops any that would
         # loop.
         # TODO consider just turning off all looping-back in handleEndRepetition...
@@ -882,19 +923,19 @@ class RegexTrieDict(TrieDict):
 
     def process_node_data(self, query_elem, node_data, next_node_data_list,
                                                             skip_escapes=True):
-        """Process the instance `node_data`, usually from the `nodeDataList`.
-        Put the results on `next_node_data_list`.  This large routine does most of
-        the work in the processing, and is called recursively when necessary.
-        Escapes are skipped (generally producing a list of `NodeStateData`
-        classes) unless `skip_escapes` is set `False`."""
+        """Process the instance `node_data`, usually from the `node_data_list`.
+        Put the results on `next_node_data_list`.  This large routine does most
+        of the work in the processing, and is called recursively when
+        necessary.  Escapes are skipped (generally producing a list of
+        `NodeStateData` instances) unless `skip_escapes` is set `False`."""
 
         #
         # If escapes are to be skipped, recursively process all the resulting nodes.
         #
 
         if skip_escapes:
-            nodeDataList = self._skip_node_data_list_escapes([node_data])
-            for nd in nodeDataList:
+            node_data_list = self._skip_node_data_list_escapes([node_data])
+            for nd in node_data_list:
                 self.process_node_data(query_elem, nd, next_node_data_list,
                                                           skip_escapes=False)
             return
@@ -1430,14 +1471,21 @@ class RegexTrieDict(TrieDict):
 
 
 class Matcher(object):
-    """Insert elements sequentially, and check whether they match any regex
-    patterns stored in the trie.  No trie modifications can be made between
-    inserting any key elements and testing for matches, or ModifiedTrieError
-    will be raised."""
+    """Initialized with an instance of a `RegexTrieDict`.  Allows for
+    sequential processing of elements from sequence-keys, and checks of whether
+    any regex patterns stored in the trie have been matched.  No trie
+    modifications are allowed between adding an element to the current key and
+    testing for matches of the current key, or `ModifiedTrieError` will
+    be raised.
+    
+    Testing for `cannot_match` will indicate when no patterns can possibly
+    match by adding new elements.  This can be used for on-line matching to get
+    the longest pattern match as soon as possible based on the prefixes of the
+    text."""
     # Should resets be automatic when we get a ModifiedTrieError, or should we
-    # just let the error go?  Flag auto_reset_on_triemod?
+    # just let the error go?  Add a flag auto_reset_on_triemod?
     def __init__(self, regex_trie_dict):
-        """Initialize with a particular RegexTrieDict instance."""
+        """Initialize with a particular `RegexTrieDict` instance."""
         # Note that we have to deal with patterns that match the empty string.
         # We also want to wait until the last possible chance to do a reset,
         # so that we get a NodeStateDataList for the root that is fresh with
@@ -1445,27 +1493,26 @@ class Matcher(object):
         self.reset(regex_trie_dict)
 
     def reset(self, regex_trie_dict=None):
-        """Resets the Matcher and frees any state memory.  A new trie can
+        """Reset the `Matcher` and free any state memory.  A new trie can
         optionally be passed in."""
         if regex_trie_dict is not None:
             self.rtd = regex_trie_dict
         self.match_in_progress = False
         self.node_data_list = None # Free any memory for the garbage collector.
 
-    def next_key_elem(self, elem):
-        """ Inserts elem as the next elem of the key sequence.  (Note elem is
-        usually a character if string patterns are stored in the tree.)"""
-
+    def add_key_elem(self, elem):
+        """Inserts elem as the next elem of the current key sequence.  (Note
+        elem is usually a character if string patterns are stored in the
+        tree.)"""
         if not self.match_in_progress: self._set_to_root()
         # Update the list of node data states according to the element elem.
         self.node_data_list = self.rtd.get_next_nodes_meta(elem, self.node_data_list)
-        return
 
     def cannot_match(self, insert_magic=False):
-        """Return True if no matches are possible with further elements inserted
-        with next_key_elem.  This is determined by whether or not there are any
-        active patterns in the current state."""
-        return not bool(self.node_data_list)
+        """Return `True` if no matches are possible with further elements
+        inserted with `next_key_elem`.  This is determined by whether or not
+        there are any active patterns in the current state."""
+        return not self.node_data_list
 
     def _set_to_root(self):
         """Utility routine to set the state back to the root of the trie."""
@@ -1474,11 +1521,11 @@ class Matcher(object):
 
     def has_key(self):
         """Tests whether the sequence of elements inserted by the
-        next_key_elem function match any of the regexp patterns stored
-        in the RegexTrieDict.  Returns the number of matches.  Remember that
-        any literal escapes in the trie must be escaped, but escapes in keySeq
-        are always treated as literal."""
-        # See get method for comments on what's going on here.
+        `add_key_elem` method matches any of the regexp patterns stored in the
+        `RegexTrieDict` instance.  Returns the number of matches.  Remember
+        that any literal escapes in the trie must be escaped, but escapes in
+        query keys are always treated as literal."""
+        # See the get method for comments on what's going on here.
         if not self.match_in_progress: self._set_to_root()
         tmp_node_data_list = self.rtd.get_next_nodes_meta(
                                       self.rtd.magic_elem, self.node_data_list)
@@ -1488,14 +1535,14 @@ class Matcher(object):
 
     def get(self, default=[]):
         """Return a list of the data items of all the stored strings which
-        match the sequence of elements which have been inserted with the
-        next_key_elem function.  That defines the keySeq and the match
-        is based on the regexp patterns stored in the RegexTrieDict.  The
-        default with no matches is to return the empty list.  Remember that any
-        literal escapes in the trie must be escaped, but escapes in keySeq are
-        always treated as literal."""
+        match the sequence of elements which have been added via the
+        `add_key_elem` method.  That defines the current key sequence and the
+        match is based on the regexp patterns stored in the `RegexTrieDict`.
+        The default with no matches is to return the empty list.  Remember that
+        anyp literal escapes in the trie must be escaped, but escapes in query
+        keys are always treated as literal."""
         if not self.match_in_progress: self._set_to_root()
-        # We insert a null magic element, which by definition does not match
+        # First insert a null magic element, which by definition does not match
         # any element actually in the string.  This has the side-effect of
         # moving us past any self.rGroup closing elements, as well as past any
         # patterns which can match zero times.  Note that inserting the empty

@@ -24,8 +24,8 @@ The easiest way to install Typped is to use pip:
 
    pip install typped
 
-Introduction
-============
+Content
+=======
 
 The Typped package provides a framework for defining and using Pratt parsers,
 with optional type-checking.  Because it is based on Pratt parsing it is

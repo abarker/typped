@@ -386,19 +386,19 @@ def test_matcher():
     mat = Matcher(td)
     # basic string insert
     td.insert("egg", ("data",))
-    mat.next_key_elem("e")
+    mat.add_key_elem("e")
     assert mat.get() == []
-    mat.next_key_elem("g")
+    mat.add_key_elem("g")
     assert mat.get() == []
-    mat.next_key_elem("g")
+    mat.add_key_elem("g")
     assert mat.get() == [("data",)]
 
     # pattern string insert
     td.insert("x\\[\\d\\]", "data9")
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.next_key_elem("x")
+    mat.add_key_elem("x")
     assert mat.get() == []
-    mat.next_key_elem("9")
+    mat.add_key_elem("9")
     assert mat.get() == ["data9"]
 
     # pattern when pattern and ordinary string both match (also multiple patts)
@@ -413,20 +413,20 @@ def test_matcher():
     assert td.has_key_meta("y8")
     assert td.has_key_meta("x8") == 2
     assert td.has_key_meta("y8") == 1
-    mat.next_key_elem("x") # turns on seqmeta mode
+    mat.add_key_elem("x") # turns on seqmeta mode
     assert mat.get() == []
-    mat.next_key_elem("8")
+    mat.add_key_elem("8")
     assert sorted(mat.get()) == sorted(["1 pattern data", "string x8 data"])
     td.insert("x\\[\\d\\]", "2 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.next_key_elem("x")
-    mat.next_key_elem("8")
+    mat.add_key_elem("x")
+    mat.add_key_elem("8")
     assert sorted(mat.get()) == sorted(["1 pattern data", "2 pattern data",
                                                "string x8 data"])
     td.insert("x\\*\\(\\[\\d\\]\\)", "3 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.next_key_elem("x")
-    mat.next_key_elem("8")
+    mat.add_key_elem("x")
+    mat.add_key_elem("8")
     assert sorted(mat.get()) == sorted(["1 pattern data", "2 pattern data",
                                                "3 pattern data", "string x8 data"])
 
@@ -434,9 +434,9 @@ def test_matcher():
         td = RegexTrieDict()
         mat = Matcher(td)
         td.insert("egg", ("data",))
-        mat.next_key_elem("e") # this doesn't fail for now, maybe should...
+        mat.add_key_elem("e") # this doesn't fail for now, maybe should...
         td.insert("bacon", ("data",))
-        mat.next_key_elem("e")
+        mat.add_key_elem("e")
 
 #
 # Test case of non-halt, worst-case.
