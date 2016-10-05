@@ -18,56 +18,264 @@ from py.test import raises, fail
 # Test basic TrieDict operations.
 #
 
-def test_semanticsOfPythonRegex():
+def get_matched(patt, string):
+    """Helper fun to get the matched string from Python re.match function."""
+    m = re.match(patt, string)
+    if not m: return m
+    return m.group()
+
+def rtd_match(rtd_patt, string, rtd):
+    """Helper fun to get the matched string from a `RegexTrieDict`."""
+    rtd.clear()
+    rtd.insert(rtd_patt)
+    return rtd.has_key_meta(string)
+
+def assert_match_agreement(py_patt, rtd_patt, string, rtd, matches=True):
+    """Do match, asserting that it is `True` for both the Python regexes and the
+    `RegexTrieDict` regexes.  Setting `neg` does the "not" assertions."""
+    if matches:
+        assert re.match(py_patt, string)
+        assert rtd_match(rtd_patt, string, rtd)
+    else:
+        assert not re.match(py_patt, string)
+        assert not rtd_match(rtd_patt, string, rtd)
+
+def test_basic_Python_semantics():
     """Just to be clear on the semantics of Python regexes, what should be
     implemented."""
-    patt = "^([ab])*$"
+    rtd = RegexTrieDict()
+
     # No binding on wildcard in loops; they can vary on each iteration.
-    assert re.match(patt, "")
-    assert re.match(patt, "a")
-    assert re.match(patt, "b")
-    assert re.match(patt, "aa")
-    assert re.match(patt, "ab")
-    assert re.match(patt, "abbbaaaab")
+    patt = r"^([ab])*$"
+    rtd_patt = r"\*\(\[ab\]\)"
+    assert_match_agreement(patt, rtd_patt, "", rtd)
+    assert_match_agreement(patt, rtd_patt, "a", rtd)
+    assert_match_agreement(patt, rtd_patt, "b", rtd)
+    assert_match_agreement(patt, rtd_patt, "aa", rtd)
+    assert_match_agreement(patt, rtd_patt, "ab", rtd)
+    assert_match_agreement(patt, rtd_patt, "abbbaaaab", rtd)
+
     # Similarly for pattern 'or' groups, they can vary on each iteration.
-    patt = "^((AA|BB))*$"
-    assert re.match(patt, "AA")
-    assert re.match(patt, "AABB")
-    assert re.match(patt, "AABBAA")
-    assert not re.match(patt, "ABBAAA")
-    # Note that each separate pattern in the trie is assumed to be related by
-    # 'or'.  Each path from the root to a match is a separate pattern connected
-    # by 'or'.  So the patterns in the trie are like an enclosing 'or' at the
+    patt = r"^((AA|BB))*$"
+    rtd_patt = r"\*\(\(AA\|BB\)\)"
+    assert_match_agreement(patt, rtd_patt, "AA", rtd)
+    assert_match_agreement(patt, rtd_patt, "AABB", rtd)
+    assert_match_agreement(patt, rtd_patt, "AABBAA", rtd)
+    assert_match_agreement(patt, rtd_patt, "ABBAAA", rtd, matches=False)
+
+    # Note that each separate patt, rtd_pattern in the trie is assumed to be related by
+    # 'or'.  Each path from the root to a match is a separate patt, rtd_pattern connected
+    # by 'or'.  So the patt, rtd_patterns in the trie are like an enclosing 'or' at the
     # outer level:
-    patt = "^((aA)*|(bB)*)$"
-    assert re.match(patt, "aAaA")
-    assert re.match(patt, "bB")
-    assert not re.match(patt, "aAbB")
-    # Loops re-bind on each entry, even within another loop.  No longer memory.
-    patt = "^((A)*(B)*)*$"
-    assert re.match(patt, "AAABBBBAAAAABBBBBBABBAAAABBBBBB")
+    patt = r"^((aA)*|(bB)*)$"
+    rtd_patt = r"\(\*\(aA\)\|\*\(bB\)\)"
+    assert_match_agreement(patt, rtd_patt, "aAaA", rtd)
+    assert_match_agreement(patt, rtd_patt, "bB", rtd)
+    assert_match_agreement(patt, rtd_patt, "aBbB", rtd, matches=False)
+
+    # Loops re-bind on each entry, even within another loop.  No longer-term memory.
+    patt = r"^((A)*(B)*)*$"
+    rtd_patt = r"\*\(\(A\)\*\(B\)\)"
+    assert_match_agreement(patt, rtd_patt, "AAABBBBAAAAABBBBBBABBAAAABBBBBB", rtd)
     # So fixed characters in a loop are temporarily bound until the loop exits,
-    # but no other pattern elements are ever bound.
+    # but no other patt, rtd_pattern elements are ever bound.
 
+def test_greedy_vs_nongreedy_Python_repetition_semantics():
+    """Test Python semantics involving greedy vs. non-greedy match.
+    
+    Note the important distinction between matching full patterns (with
+    `fullmatch` in Python 3, or starting with ^ and ending with $) and just
+    matching a prefix with `re.match`.  The full pattern must always match, but
+    in one case it can match a prefix and in the other it must match the whole
+    query key.  Greedy vs. non-greedy affects both, but because *some*
+    pattern must always match if it can the results can look quite different.
 
-def mappingInvariants(m):
-    """Called from test_basicRegexTrieDict.  Test the invariants that a map should
+    Adding `$` to the end of the pattern to match constrains the query string
+    to match the existing pattern to the end.  Adding the pattern `.*?$` to the
+    end of any non-full pattern match makes it do the "usual" prefix match and
+    then just accept everything (in a non-greedy way) until the end.
+
+    Note that the above method always returns a match of the same length, i.e.,
+    the length of the query key.  The sub-patterns that are matched within the
+    string can be different, though."""
+
+    # TODO: for testing the rtd, it might be better to test the
+    # RegexTrieDictScanner here, which uses the PrefixMatcher.
+
+    rtd = RegexTrieDict()
+
+    #
+    # Non-greedy.
+    #
+
+    patt = r"A.*?B"
+    assert get_matched(patt, "A") is None
+    assert get_matched(patt, "AB") == "AB"
+    assert get_matched(patt, "AxB") == "AxB"
+    assert get_matched(patt, "AxxB") == "AxxB"
+    # Non-greedy, always stops at first b.
+    assert get_matched(patt, "AxBxxx") == "AxB"
+    assert get_matched(patt, "AxBxxxB") == "AxB" # Greedy would take "AxBxxxB"
+    # Now try the full-pattern match on the last one above.  It will not
+    # take the shorter match because it fails on the final $.  Only successful
+    # matches are taken (if possible), whether greedy or not.
+    patt = r"^A.*?B$"
+    assert get_matched(patt, "AxBxxxB") == "AxBxxxB" # Now it gets the full thing.
+
+    # But note what happens when there is a fixed symbol 'q' after the pattern
+    # (which could also be an end-of-string $).  The match to the 'q' will
+    # match the last example above when a 'q' is added:
+    patt = r"A.*?Bq" # non-greedy
+    assert get_matched(patt, "AxBAxBq") == "AxBAxBq"
+    assert get_matched(patt, "AxBAxBAxBq") == "AxBAxBAxBq"
+    # You might expect it to return None, but it doesn't.
+    #
+    # In terms of multiple states, the state splits into two after the first
+    # loop match, but then the first one then dies when it does not see the
+    # following 'q'; the second one continues on.
+
+    #
+    # Greedy.
+    #
+
+    patt = r"A.*B"
+    assert get_matched(patt, "A") is None
+    assert get_matched(patt, "AB") == "AB"
+    assert get_matched(patt, "AxB") == "AxB"
+    assert get_matched(patt, "AxxB") == "AxxB"
+    # Note greedy, doesn't stop at first b if it finds a later b, otherwise it does.
+    assert get_matched(patt, "AxBxxx") == "AxB"
+    assert get_matched(patt, "AxBxxxB") == "AxBxxxB"
+    assert get_matched(patt, "AxBAxBxxxB") == "AxBAxBxxxB"
+
+    # Note again the difference between the above and the pattern with a 'q'
+    # symbol appended to it.
+    #
+    # It is NOT so greedy that if a loop matches through twice you can kill
+    # its first loop-match state assuming that the double-match or higher will
+    # be used.  In this example, that would grab up the string "ABAB" and then
+    # not match the final "C", but that is not what happens when the match is
+    # to the end-of-string $ symbol:
+    patt = r"(AB)+(ABC)*q" # greedy, with q suffix.
+    assert get_matched(patt, "ABABCq") == "ABABCq"
+    # However, when the match is only a prefix match that DOES happen:
+    patt = r"(AB)+(ABC)*" # greedy, no fixed suffix.
+    assert get_matched(patt, "ABABC") == "ABAB"
+
+    #
+    # Test a pairs of matches.
+
+    patt = r"(.*)(B+)" # Two greedy matches.
+    assert get_matched(patt, "BBBBB") == "BBBBB"
+    m = re.match(patt, "BBBBB")
+    print(m.groups())
+    assert m.groups() == ("BBBB", "B") 
+    patt = r"(.*?)(B+?)" # Two non-greedy matches.
+    assert get_matched(patt, "BBBBB") == "B"
+    m = re.match(patt, "BBBBB")
+    assert m.groups() == ("", "B") 
+    patt = r"(.*?)(B+?)" # Two non-greedy matches.
+    assert get_matched(patt, "BBBBB") == "B"
+    m = re.match(patt, "BBBBB")
+    assert m.groups() == ("", "B") 
+    patt = r"(.*?)(B+?)$" # Two non-greedy matches to end of query.
+    assert get_matched(patt, "BBBBB") == "BBBBB"
+    m = re.match(patt, "BBBBB")
+    assert m.groups() == ("", "BBBBB") 
+    
+    
+def test_nongreedy_Python_or_group_semantics():
+    """
+    Python regex "or" matches are always non-greedy.
+    
+    FIRST match is always taken, left to right on ties.  Even if longer match
+    would be possible."""
+
+    # TODO: for testing the rtd, it might be better to test the
+    # RegexTrieDictScanner here, which uses the PrefixMatcher.
+
+    rtd = RegexTrieDict()
+
+    patt = r"(A*|B*)BB"
+    assert get_matched(patt, "A") == None
+    assert get_matched(patt, "BBBB") == "BB" # Empty string was first "or" match!
+    assert get_matched(patt, "BBBBB") == "BB" # Empty string was still first match.
+    assert get_matched(patt, "ABBBB") == "ABB" # 'A' was first match.
+    patt = r"(AB|ABC)"
+    assert get_matched(patt, "ABC") == "AB" # Longer match is possible but ignored.
+
+    patt = r"^(A|AB)BB$"
+    assert get_matched(patt, "ABBB")
+    
+    #
+    # Set up some named groups to see what Python does, including on length ties.
+    #
+
+    # First two groups will match with equal non-greedy length, last will not match.
+    # Note there is no outer group for the full "or" containing all the cases.
+    # (If there were, beginning it with '(?:' would make the outer "or" group
+    # non-capturing so it would give the same results below.)
+    patt = r"(?P<first>AB)|(?P<second>A.)|(?P<third>ABC)"
+    m = re.match(patt, "ABC")
+    if not m: fail()
+    groups = m.groups()
+    assert groups == ('AB', None, None)
+    assert m.group("first") == "AB"
+    assert m.group("second") is None
+    assert m.group("third") is None
+    assert m.lastgroup == "first"
+
+    # Above matches the first-defined group, not the second.  Now swap the first
+    # two.  Again the first-defined matching "or" subgroup takes it, rest is
+    # ignored and considered unmatched.
+    patt = r"(?P<second>A.)|(?P<first>AB)|(?P<third>ABC)"
+    m = re.match(patt, "ABC")
+    assert m.group("second") == "AB"
+    assert m.group("first") is None
+    assert m.lastgroup == "second"
+    # Note from this that when combining things into a giant "or" (like in
+    # a scanner) it is important to order the matches by order of their
+    # on_ties priority in case of ties.
+
+    # In both cases above, the possible longer match was ignored.  When that
+    # group is first, though, is is no longer ignored.  It becomes the match.
+    patt = r"(?P<third>ABC)|(?P<first>AB)|(?P<second>A.)"
+    m = re.match(patt, "ABC")
+    groups = m.groups()
+    assert groups == ("ABC", None, None)
+    assert m.group("first") is None
+    assert m.group("second") == None
+    assert m.group("third") is "ABC"
+    assert m.lastgroup == "third"
+
+    # So Python checks the "or" cases left to right, and if one succeeds it
+    # never moves on to the next one.  This happens regardless of the length of
+    # the match.  So when separate tokens in a scanner are combined into one
+    # big "or" you really get "first not longest" behavior.  The ordering would
+    # need to take that into account to work around any problems that might
+    # cause.
+
+    # This is in contrast to the `RegexTrieDictScanner` which checks all the
+    # cases in parallel, both for patterns in the trie and for "or" groups in
+    # the patterns.
+
+def mapping_invariants(m):
+    """Called from test_basic_RegexTrieDict.  Test the invariants that a map should
     have, from PEP 3119."""
     assert len(m.values()) == len(m.keys()) == len(m.items()) == len(m)
     assert [value for value in m.values()] == [m[key] for key in m.keys()]
     assert [item for item in m.items()] == [(key, m[key]) for key in m.keys()]
 
-
-def test_basicRegexTrieDict():
+def test_basic_RegexTrieDict_operations():
     """Very basic inserts, deletes, etc."""
     td = RegexTrieDict()
-    assert sorted(td.keys(asLists=True)) == []
+    assert sorted(td.keys(as_lists=True)) == []
     assert sorted(td.keys()) == []
     assert len(td) == 0
     td["eggsalad"] = "x"
-    assert td.keys(asLists=True) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
+    assert td.keys(as_lists=True) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
     assert len(td) == 1
-    mappingInvariants(td)
+    mapping_invariants(td)
     td["egg"] = "eeee"
     del td["egg"]
     assert len(td) == 1
@@ -86,7 +294,7 @@ def test_basicRegexTrieDict():
     with raises(KeyError):
         td['eggattac']
     td.insert("eggattack1")
-    mappingInvariants(td)
+    mapping_invariants(td)
     td.delitem("eggattack1")
     assert td["eggattack"] == "y"
     td.insert("ebert")
@@ -103,7 +311,7 @@ def test_basicRegexTrieDict():
     td["money"] = 55
     assert td["money"] == 55
     assert td.get_meta("money")[0] == 55
-    mappingInvariants(td)
+    mapping_invariants(td)
 
     # is_prefix_of_key
     assert td.is_prefix_of_key("money")
@@ -132,7 +340,7 @@ def test_basicRegexTrieDict():
 # Random insertions and deletions.
 #
 
-def test_randomInsertionsAndDeletions():
+def test_random_insertions_and_deletions():
     """Generate some random strings and insert and delete them."""
     td = RegexTrieDict()
 
@@ -169,7 +377,7 @@ def test_randomInsertionsAndDeletions():
 # Test TrieDict regexp operations.
 #
 
-def test_basicTrieDictCharRegexpSequences():
+def test_basic_TrieDict_char_regex_sequences():
     """Basic regex pattern matching."""
     td = RegexTrieDict()
     td.insert("wa\\[z3\\]aa")
@@ -259,7 +467,7 @@ def test_basicTrieDictCharRegexpSequences():
     td.print_tree() # will show up on errors
 
 
-def test_someRepetitionPrefixes():
+def test_some_repetition_prefixes():
     """This section is to test whether fixing to a single child in repetition
     works.  If not there can be some crosstalk between multiple patterns in
     the trie and some false matches."""
@@ -321,7 +529,7 @@ def test_someRepetitionPrefixes():
     assert not td.has_key_meta("sCysBysCysCy")
 
 
-def test_patternsWithEscapes():
+def test_patterns_with_escapes():
     """Make sure that literal escapes are handled correctly."""
     td = RegexTrieDict()
     td.insert("\\[\\\\B\\]")
@@ -335,8 +543,7 @@ def test_patternsWithEscapes():
     td.insert("\\*\\(\\\\abc\\\\\\)")
     assert td.has_key_meta("\\abc\\")
 
-
-def test_characterMatchesWithPythonEscapeSymbols():
+def test_character_matches_with_Python_escape_symbols():
     """Test the regex wildcards using the Python escape symbols."""
     td = RegexTrieDict()
     # Test a digit, \d.
@@ -345,8 +552,7 @@ def test_characterMatchesWithPythonEscapeSymbols():
     assert td.has_key_meta("9")
     assert not td.has_key_meta("a")
 
-
-def test_orInsideRepetition():
+def test_or_inside_repetition():
     """Test 'or' patterns inside repetition patterns and vice versa."""
     td = RegexTrieDict()
     td.insert("\\*\\(\\(Aa\\|B\\)\\)")
@@ -387,19 +593,19 @@ def test_matcher():
     # basic string insert
     td.insert("egg", ("data",))
     mat.add_key_elem("e")
-    assert mat.get() == []
+    assert mat.get_meta() == []
     mat.add_key_elem("g")
-    assert mat.get() == []
+    assert mat.get_meta() == []
     mat.add_key_elem("g")
-    assert mat.get() == [("data",)]
+    assert mat.get_meta() == [("data",)]
 
     # pattern string insert
     td.insert("x\\[\\d\\]", "data9")
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
     mat.add_key_elem("x")
-    assert mat.get() == []
+    assert mat.get_meta() == []
     mat.add_key_elem("9")
-    assert mat.get() == ["data9"]
+    assert mat.get_meta() == ["data9"]
 
     # pattern when pattern and ordinary string both match (also multiple patts)
     td = RegexTrieDict()
@@ -414,20 +620,20 @@ def test_matcher():
     assert td.has_key_meta("x8") == 2
     assert td.has_key_meta("y8") == 1
     mat.add_key_elem("x") # turns on seqmeta mode
-    assert mat.get() == []
+    assert mat.get_meta() == []
     mat.add_key_elem("8")
-    assert sorted(mat.get()) == sorted(["1 pattern data", "string x8 data"])
+    assert sorted(mat.get_meta()) == sorted(["1 pattern data", "string x8 data"])
     td.insert("x\\[\\d\\]", "2 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
     mat.add_key_elem("x")
     mat.add_key_elem("8")
-    assert sorted(mat.get()) == sorted(["1 pattern data", "2 pattern data",
+    assert sorted(mat.get_meta()) == sorted(["1 pattern data", "2 pattern data",
                                                "string x8 data"])
     td.insert("x\\*\\(\\[\\d\\]\\)", "3 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
     mat.add_key_elem("x")
     mat.add_key_elem("8")
-    assert sorted(mat.get()) == sorted(["1 pattern data", "2 pattern data",
+    assert sorted(mat.get_meta()) == sorted(["1 pattern data", "2 pattern data",
                                                "3 pattern data", "string x8 data"])
 
     with raises(ModifiedTrieError):
@@ -442,7 +648,7 @@ def test_matcher():
 # Test case of non-halt, worst-case.
 #
 
-def test_nonHalt():
+def test_non_halt():
     """Test a worst-case example."""
     td = RegexTrieDict()
     patt = "\\*\\(a\\*\\(\\(\\*\\(G\\)\\|G\\)\\)\\)" # works if either G set to F
@@ -457,7 +663,7 @@ def test_nonHalt():
 #
 
 
-def test_randomRegex():
+def test_random_regexes():
     """Use the regex generator program to randomly generate some regexes.
     Note this can generate some worst-cases which are quite slow if new
     seeds are chosen."""
@@ -492,7 +698,7 @@ def test_randomRegex():
 # Test some error conditions.
 #
 
-def test_someErrorConditions():
+def test_some_error_conditions():
     """Some error patterns.  Some are caught on insert, others are caught
     on queries.  Could later catch more on insert, to catch sooner."""
     # empty elem is not allowed to be inserted (by def it has no elements to store)
@@ -639,8 +845,7 @@ def test_someErrorConditions():
     nodeDataList = td.get_next_nodes_meta("f", nodeDataList)
     assert td["\\*\\(ff\\)xx"] == 5
 
-
-def test_repetitionsWithBounds():
+def test_repetitions_with_bounds():
     """Test repetition patterns with bounds set."""
     td = RegexTrieDict()
 
@@ -680,7 +885,7 @@ def test_repetitionsWithBounds():
 # Test 'or' sections
 #
 
-def test_orSections():
+def test_or_sections():
     td = RegexTrieDict()
 
     # simple 'or' with one choice
@@ -724,19 +929,19 @@ def test_orSections():
 # Test a TrieDict with non-string sequences and non-character elements.
 #
 
-def test_TrieDictWithNonStringSequences():
+def test_TrieDict_with_non_string_sequences():
     """Remember that anything used as the key of a built-in Python dict must be
-    hashable (basically, it must have a unique immutable representation).  We
-    can actually weaken that condition: Only the elements need to be hashable,
-    not the entire sequence of elements.  Here we test the TrieDict with
-    elements defined as strings inside lists.  String-like sequences are then
-    lists (or tuples, but not necessarily) of those character-containing tuples.
-    For example, ("a") is an element and [("a"), ("a")] is a two-element
-    sequence.  For simplicity in the testing example the tuples containing
-    characters are treated like the characters themselves as far as
-    comparisons."""
+    hashable (basically, it must have a unique immutable representation).  That
+    condition is weakened for a `RegexTrieDict`: Only the elements need to be
+    hashable, not the entire sequence of elements.  Here we test the `TrieDict`
+    with elements defined as strings inside tuples rather than as the strings
+    themselves.  String-like sequences are then lists (or tuples) of those
+    character-containing tuples.  For example, ("a",) is an element and
+    [("a",), ("a",)] is a two-element sequence.  For simplicity in the testing
+    example the tuples containing characters are treated like the characters
+    themselves as far as comparisons."""
 
-    td = RegexTrieDict()
+    rtd = RegexTrieDict()
 
     def listRangeTestFun(lowerLstElem, upperLstElem, lstElem):
         return char_range_test(lowerLstElem[0], upperLstElem[0], lstElem[0])
@@ -744,23 +949,26 @@ def test_TrieDictWithNonStringSequences():
     def myPattMatchFun(queryElem, pattList, rangeElem, escapeElem):
         return generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
                                        rangeTestFun=listRangeTestFun)
-    td.define_meta_elems(escape=("\\"), repetition=("*"), lGroup=("("), rGroup=(")"),
-                         lWildcard=("["), rWildcard=("]"), rangeElem=("-"),
-                         wildcardPattMatchFun=myPattMatchFun, canonicalizeFun=None)
+    rtd.define_meta_elems(escape=("\\",), repetition=("*",), lGroup=("(",), rGroup=(")",),
+                         lWildcard=("[",), rWildcard=("]",), rangeElem=("-",),
+                         wildcard_patt_match_fun=myPattMatchFun, canonicalize_fun=None)
 
-    # keys, note this fails without asLists=True because we have not properly defined
+    # keys, note this fails without as_lists=True because we have not properly defined
     # the plus operator to "add" two elements into a sequence.
-    td.insert([("A"), ("B"), ("C")])
-    td.insert([("D"), ("E"), ("F")])
-    print(td.keys(asLists=True))
-    keys = td.keys(asLists=True)
-    assert (keys == [[("A"), ("B"), ("C")], [("D"), ("E"), ("F")]] or
-            keys == [[("D"), ("E"), ("F")], [("A"), ("B"), ("C")]])
+    rtd.insert([("A",), ("B",), ("C",)])
+    rtd.insert([("D",), ("E",), ("F",)])
+    #print(rtd.keys(as_lists=True))
+    keys = rtd.keys(as_lists=True)
+    assert (keys == [[("A",), ("B",), ("C",)], [("D",), ("E",), ("F",)]] or
+            keys == [[("D",), ("E",), ("F",)], [("A",), ("B",), ("C",)]])
 
     # basic wildcards
-    td.insert([("w"), ("a"), ("\\"), ("["), ("z"), ("3"), ("\\"), ("]"), ("a"), ("a")])
-    assert td.has_key_meta([("w"), ("a"), ("z"), ("a"), ("a")])
-    assert td.has_key_meta([("w"), ("a"), ("3"), ("a"), ("a")])
+    rtd.insert([("w",), ("a",), ("\\",), ("[",), ("z",), ("3",),
+                ("\\",), ("]",), ("a",), ("a",)])
+    assert rtd.has_key_meta([("w",), ("a",), ("z",), ("a",), ("a",)])
+    assert rtd.has_key_meta([("w",), ("a",), ("3",), ("a",), ("a",)])
+    assert not rtd.has_key_meta([("w",), ("a",), ("B",), ("a",), ("a",)])
 
     # repetitions
     # TODO
+

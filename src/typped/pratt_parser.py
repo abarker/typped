@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 
-A general Pratt parser module.
+A general Pratt parser module that uses dispatching of handler functions
+and can check types.
+
+Basic usage
+===========
 
 To use the `PrattParser` class you need to do these things:
 
@@ -66,13 +70,13 @@ and Pratt's original naming conventions is given in this table:
 +----------------------------------+--------------------------+
 
 API details
------------
+===========
 
 These are some aspects of the API that are not covered by the function signatures
 and docstrings below.
 
 Extra attributes added to tokens
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+--------------------------------
 
 Tokens straight from a `Lexer` instance have certain attributes set, as documented
 in the `lexer` module.  The `pratt_parser` module defines its own subclass of the
@@ -85,13 +89,13 @@ sets several user-accessible attributes, which are described here.
 TODO: document more
 
 Implementation details
-----------------------
+======================
 
 This section gives a general overview of the lower-level details of the
 `PrattParser` implementation.
 
 The basic class structure
-~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------
 
 There are five basic classes, with instances which interact.  The main class
 is the `PrattParser` class, which users will mostly interact with.  The overall
@@ -162,7 +166,7 @@ define many methods for acting on types.  It is defined in the `pratt_types`
 module and imported.
 
 Using different parsers inside handler functions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------------------------------
 
 It is useful to be able to call different `PrattParser` instances from inside
 handler functions in order to parse subexpressions which are defined as
@@ -203,7 +207,7 @@ fails?  Still, you could have lookahead which is correctly lexed in the top
 language but then fails to match a handler function.
 
 Code
-----
+====
 
 """
 
@@ -299,6 +303,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # something like "TermParser" or "parser for terms", "WffParser", etc.  When
 # working with parsers called from parses these labels in error messages would
 # be helpful in debugging.
+
+# Later, maybe consider serialization with JSON.
 
 #
 # TokenNode

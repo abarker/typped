@@ -18,7 +18,7 @@ arbitrary hashable elements can be inserted and deleted freely in the TrieDict.
 sequences are strings, but that can be changed.)
 
 The keys method assumes that the plus operator combines elements, but setting
-asLists=True returns the list version without attempting the "addition."
+as_lists=True returns the list version without attempting the "addition."
 
 The usage of a TrieDict is as follows.  First create an empty TrieDict:
 
@@ -114,7 +114,6 @@ class TrieDict(collections.MutableMapping):
     def __init__(self):
         """Initialize the basic data elements."""
         self.clear()
-        return
 
     def clear(self):
         """Reset the tree to its initial condition, empty of any stored strings.
@@ -122,7 +121,6 @@ class TrieDict(collections.MutableMapping):
         self.root = TrieDictNode() # the root of the recognizer tree
         self.root.is_last_elem_of_key = False # for consistency only, give root a value
         self.numKeys = 0
-        return
 
     def __len__(self):
         """The number of key:data pairs stored in the dictionary.  Can be called
@@ -146,7 +144,9 @@ class TrieDict(collections.MutableMapping):
             self.numKeys += 1
         node.is_last_elem_of_key = True # end of key_seq, is_last_elem_of_key is True
         node.data = data
-        return
+
+    __setitem__ = insert # Allow bracket-indexing assignment like: d["key"] = 4
+    #setitem = insert # Some people may prefer this name.
 
     def get(self, key_seq, default=None):
         """Return the data element stored with key key_seq, returning the default
@@ -171,40 +171,39 @@ class TrieDict(collections.MutableMapping):
         if node == None or node.is_last_elem_of_key == False: return False
         else: return True
 
-    def items(self, asLists=False):
-        """Return a list of all the (keys,value) tuples stored in the trie.  Note
+    __contains__ = has_key # Allow use of "in" syntax for testing for keys.
+
+    def items(self, as_lists=False):
+        """Return a list of all the `(key,value)` tuples stored in the trie.  Note
         that the plus operator is assumed to be overloaded to combine separate
-        elements into a single key.  Setting asLists=True can be used to return
+        elements into a single key.  Setting `as_lists=True` can be used to return
         the keys as lists of elements, without attempting to combine them."""
-        return [i for i in self.iteritems(asLists=asLists)]
+        return [i for i in self.iteritems(as_lists=as_lists)]
 
-    def iteritems(self, asLists=False):
+    def iteritems(self, as_lists=False):
         """An iterator over the items in the trie, see the items method for details."""
-        def combineKeyElems(elemNodeTupleList):
-            """Combine all the elements in elemNodeTupleList into a single key using
-            the plus operator, unless asLists=True."""
-            elemList = [e[0] for e in elemNodeTupleList]
-            if asLists: return elemList
-            combined = elemList[0] # we don't know the empty element in general
-            for e in elemList[1:]:
-                combined += e # this is where plus operator on elements is assumed
-            return combined
-
         if self.numKeys != 0:
             itemGen = self.get_dfs_gen(self.root, yield_on_match=True)
-            for i in itemGen: yield (combineKeyElems(i), i[-1][1].data)
+            for i in itemGen:
+                elem_list = [e[0] for e in i]
+                if as_lists:
+                    yield (elem_list, i[-1][1].data) 
+                else:
+                    yield (combine_key_elems(elem_list), i[-1][1].data) 
 
-    def keys(self, asLists=False):
+    def keys(self, as_lists=False):
         """Return a list of all the keys stored in the trie.  Note that the plus
         operator is assumed to be overloaded to combine separate elements into a
-        single key.  Setting asLists=True can be used to return the keys as lists
+        single key.  Setting as_lists=True can be used to return the keys as lists
         of elements, without attempting to combine them."""
-        #return [ item[0] for item in self.iteritems(asLists=asLists) ]
-        return [key for key in self.iterkeys(asLists=asLists)]
+        #return [ item[0] for item in self.iteritems(as_lists=as_lists) ]
+        return [key for key in self.iterkeys(as_lists=as_lists)]
 
-    def iterkeys(self, asLists=False):
+    def iterkeys(self, as_lists=False):
         """An iterator over the keys in the trie, see the keys method for details."""
-        for item in self.iteritems(asLists=asLists): yield item[0]
+        for item in self.iteritems(as_lists=as_lists): yield item[0]
+
+    __iter__ = iterkeys # Iterators go over keys, like with Python dicts.
 
     def values(self):
         """Return a list of all the values stored in the trie."""
@@ -212,7 +211,7 @@ class TrieDict(collections.MutableMapping):
 
     def itervalues(self):
         """Return a list of all the values stored in the trie."""
-        for item in self.iteritems(asLists=True): yield item[1]
+        for item in self.iteritems(as_lists=True): yield item[1]
 
     def get_node(self, key_seq):
         """Return the node indexed by using the sequence key_seq as the key.  Does
@@ -299,6 +298,8 @@ class TrieDict(collections.MutableMapping):
         del killNext.children[killElem]
 
         return
+
+    __delitem__ = delitem # Allows the syntax: del d[key]
 
     def get_next_node(self, queryElem, node): # TODO really not used, but could be, but overhead
         """Return the next node in the trie from node when the key-query element
@@ -419,21 +420,13 @@ class TrieDict(collections.MutableMapping):
         if node == self.root: print("\n")
         return doIndent
 
-    #
-    # Define a few aliases/synonyms for certain methods above.
-    #
 
-    """Synonym for delitem."""
-    __delitem__ = delitem # Allows the syntax: del d[key] for a dict d.
-
-    """Synonyms for insert."""
-    __setitem__ = insert # Allows bracket-indexing d["key"] = 4 on a dict d.
-    setitem = insert # Some people may prefer this name.
-
-    """Synonym for has_key.  Note Python 3 deprecated has_key, still in TrieDict."""
-    __contains__ = has_key
-
-    """Synonym for iterkeys."""
-    __iter__ = iterkeys
-
+# TODO: Document this, and let users pass in their own version if they want to.
+def combine_key_elems(elem_list):
+    """Combine all the elements in the list `elem_list` into a single key using
+    the plus operator (string concatenation when strings are passed in)."""
+    combined = elem_list[0] # We don't know the empty element in general.
+    for e in elem_list[1:]:
+        combined += e # This is where plus operator on elements is assumed.
+    return combined
 

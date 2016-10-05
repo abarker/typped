@@ -1,6 +1,6 @@
 """
 
-TODO: document the MatchObject interface.
+TODO: document the Matcher interface.
 
 Introduction to `RegexTrieDict`
 ===============================
@@ -19,7 +19,49 @@ pattern-matching language.  The syntax of the language is slightly modified due
 to the tree structure in which the patterns are stored.  Basically, the special
 characters are made into prefix operators rather than postfix operators so that
 they are encountered first when going down the trie from the root.  The syntax
-is described in a later section.
+is described in a later section.  It implements a subset of the many features
+of the built-in Python regex module.
+
+The pattern match for a call to `has_key_meta` with a single pattern in the
+trie is close to the function/method `fullmatch` in the Python regex module
+(modulo the minor syntactic variation).  Equivalently, it is as if all the
+Python regex patterns start with `^` and end with `$`.  The key that is queried
+must match the full pattern, from beginning to end, in order to return a value
+that evaluates `True`.
+
+The actual value returned by `has_key_meta` is the number of matches against
+patterns in the trie.  When the trie contains multiple regex patterns the query
+key is tested against all the patterns in it; the result is like a giant "or"
+against all the stored patterns.
+
+The `get` method of a `RegexTrieDict` is like the corresponding method of an
+ordinary Python `dict` in that it returns any data elements which were stored
+with the matching patterns in the trie.  The difference is that it can return
+more than one match.  If you need the data stored with matches then call this
+instead of `has_key_meta`.  You can check for the number of matches by
+looking at the `len` of the returned deque.
+
+There is no method to get the actual matching patterns themselves, but since
+the query keys must match from beginning to end they are always known
+beforehand.
+
+In order to get the equivalent of the Python regex function/method `match` --
+which always matches from the beginning of the pattern but not necessarily to
+the end -- you use a `PrefixMatcher` object initialized with the
+`RegexTrieDict` instance containing the pattern sequences.  By checking
+`cannot_match` after each element is added and returning the last result when
+`cannot_match` is `True` you get the equivalent of `match` on the prefix.  You
+can also look at the matches along the way using the `get` method.
+
+In order to match the next prefix when using a `PrefixMatcher` you need clear
+the `PrefixMatcher` and start again after removing the matched prefix removed
+from the query key sequence.  While this seems inefficient, it works online and
+returns the prefix as spoon as it can be determined based on the patterns in
+the trie and the key to be matched.  Remember, also, that it is efficiently
+comparing against a large "or" of many different patterns such as in a lexical
+scanning/tokenizing situation.  While doing this it retains the ability to
+insert/delete patterns very efficiently.  The `TrieDictScanner` is an
+implementation of a scanner using this method.
 
 Terminology
 ===========
@@ -34,9 +76,10 @@ are the characters of the strings.  In reading the documentation it can be
 helpful to think of the example where sequences=strings and
 elements=characters.  Sequences do not need to be strings, however.  For
 example, the sequences could be lists of strings.  In that case the elements
-would be the strings on those lists.  Regex patterns would then be lists of
-strings with certain of those strings designated as escape elements and
-pattern-defining elements.
+would be the strings in those lists.  Regex patterns would then be lists of
+strings with certain of those strings designated as escape elements and the
+pattern-defining elements such as parentheses, the repetition '*", and so
+forth.
 
 Meta-methods
 ============
@@ -136,7 +179,7 @@ range specifier.
 The boolean-valued function `rangeTestFun` will be called for the first and
 last argument of the range, along with the element to test.  The default
 range-function (when the values is set to `None` in the call to
-`defineMetaElems`) only works for character ranges.
+`define_meta_elems`) only works for character ranges.
 
 <TODO note that Python patterns are allowed, and test some.>
 
@@ -175,6 +218,129 @@ pattern element after the closing repetition meta-element.  So the shortest
 valid repetition sequence followed by some other valid element is always
 chosen.  This restriction essentially requires the end of any repeated-pattern
 segment to be unambiguous (or else no looping-back will occur).
+
+Greediness and non-greediness in Python regexes
+===============================================
+
+In Python regexes, the "or" cases are always non-greedy and the repetition
+patterns are optionally non-greedy.  The greediness of this sort of regex
+algorithm tends to be a side-effect of search algorithm, which is basically a
+depth-first search.  For example, the "or" cases can all be searched in order
+and if any path eventually succeeds then the rest of the search can be cut off.
+The optional greediness vs. non-greediness for repetition looping can be
+implemented by choosing whether first expand the loops as far as possible or
+whether to start at the smallest expansion.  If anything path succeeds in
+matching the rest of the search of the search can be cut off.
+
+As an example, the two greedy search groups in `r"(.*)(B+)"` will always match
+`"BBBBB"` by eating up the all the 'B' characters but one in the first group,
+and the last one in the second group.  If the repetitions are made non-greedy
+then the first repetition group will match nothing and the second will match a
+single 'B'.  If the '$' character is added to the end of the pattern then the
+first group matches nothing and the second group matches the full string.
+
+Unlike the search in the Python library, a `RegexTrieDict` essentially uses a
+breadth-first search.  This allows for online recognition of patterns, but does
+not naturally map into Python's definition of greedy vs. non-greedy.  Patterns
+either match the full query sequence or they do not.  Data for all the matching
+patterns is returned.  To find a prefix you use a `PrefixMatcher` object and
+sequentially insert elements of the sequence.  You can look at the results
+along the way and take the shortest (first) match or the longest match.  The
+longest match is determined by taking the last valid match before the
+`PrefixMatcher` method `cannot_match` returns true (which happens when all the
+parallel pattern-matching states have "died" due to mismatches).  Other
+criteria can be defined based on analyzing the list of matched states.
+
+Computational complexity
+========================
+
+The time and space complexity of this particular implementation has not been
+formally analyzed.  It should be similar to other implementations of regexes
+(i.e., other non-optimal ones with respect to time and space and ignoring
+insert and delete time).  The worst case is exponential in the length of the
+query key, like most such implementations.
+
+This implementation is like a nondeterministic finite automata in the sense
+that it can have multiple states in parallel.  The states are `NodeStateData`
+instances, which point to a node and also hold extra state data.  The full
+state of the system is kept in a `NodeStateDataList` instance, which is
+basically a list of `NodeStateData` instances.  These states are all walked down
+the trie, one step with each element of the query sequence, checking for
+matches and looping back and/or splitting when necessary.  When such a state
+fails to match it dies, i.e., it is not propagated to be considered against the
+next element in the sequence.
+
+While traversing the trie, the repetition and "or" groups can cause branching which
+increases the number of these parallel states.  Assuming a single item in the
+trie, branching of states occurs in these cases:
+
+1. For repetitions like `r"\*\(123\)"` each time the end of the loop is reached
+the single state inside the loop splits into two states.  One loops back to the
+beginning of the loop, and one breaks out of the loop and continues.  So the
+worst-case number of states from such a loop is linear in the number of
+repetition of that loop so far in the query key-string (starting at two, since
+empty patterns can match).
+
+2. When a state reaches an "or" group like `r"\(A\|B\|C\)"` it splits into
+new states for each sub-group inside the group.  So that one state becomes as
+many states as there are sub-groups in the "or" group.
+
+When there are multiple patterns in the trie patterns with identical prefixes
+are treated the same up until the point where they diverge.  For ordinary
+elements in pattern sequences the traversal is
+the same as before, since the element either matches or it does not.
+
+When special meta-elements are encountered in the trie traversal then the state
+can split into multiple states.  This is because these points possibly allow
+multiple possible matches.  Consider pattern wildcard brackets on character
+string sequences as an example.  With only one pattern in the trie no new
+states would ever be created by a wildcard.  The single character either
+matches or it does not, so the state either proceeds or dies.  But suppose
+there are two different patterns stored in the trie, containing different
+wildcards that happen to have the starting '[' symbol at the same index-point
+into the string.  In that case when the '[' element is reached in walking the
+trie (assuming it is) the state walking that path needs to split.  It splits
+into a new state for each stored pattern which was identical up the '['
+character and which then differs inside that wildcard bracket.
+
+Repetition and "or" special elements are handled similarly.  Keep in mind that
+this state-splitting is due to multiple possibly-matching patterns, and is in
+addition to any state-splitting due to the repetition groups or "or" groups
+themselves.  The number of states created this way is at most equal to the
+number of different patterns stored in the trie.
+
+In many cases this latter kind of state-splitting does not happen very often,
+and when it does most of the new states die off quickly.  For example, when the
+patterns are strings containing mostly ordinary characters (which can happen
+when they define the tokens of a lexical scanner).  In those cases the
+`RegexTrieDict` has an advantage over alternative methods that save a list of
+individual patterns and loop over all the patterns, checking each pattern for a
+match.
+
+Another alternative approach is to form a giant regex which is the "or" of all
+the regexes that need to be checked.  (There is example code for this in the
+Python 3 regex documentation.)  Because of the non-greedy way Python evaluates
+"or" cases this gives "first not longest" behavior based on the ordering in the
+giant "or."  Ignoring insertion and deletion of patterns, though, this method
+will tend to be faster than using a `RegexTrieDict`.  Insertion and deletion
+costs can be significant when many different patterns need to be compiled into
+the large regex each time.
+
+Neither one of the alternative approaches using Python regexes works for online
+applications, where the goal is to produce a token as soon as possible, from as
+little text as possible.  One approach might be to successively match on longer
+and longer prefixes, starting from length 0, until an "acceptable" match is
+found (which already repeats work).  But without more information about the
+internal pattern state or the class of patterns you never know until the end of
+the string if some greedy repetition group is still active but has not yet
+finished consuming characters.  In cases where there is no such group or they
+have all failed the result can be returned sooner.
+
+[Note that the hidden Python `Scanner` class apparently does "keep going", so
+also consider that or slight modifications to its code.]
+
+The usual Python routines also only work for strings, rather than general
+sequences of elements.
 
 Pattern-matching implementation details
 =======================================
@@ -226,20 +392,28 @@ sorted and all continuous sequences can be turned into character ranges.
 Note that we can freely add and remove keys from the tree in the usual way,
 since they are stored just as if they were ordinary strings.
 
-The pattern-matching algorithm is currently not optimized at all.  For example,
-each time a repetition-loop is encountered it re-processes the entire thing,
-searching forward for the end-group element.  This data could instead be cached
-(such as by having a dict map begin-repetition nodes to the cached data, valid
-until an insertion or deletion invalidates, or the space needs to be freed).
-Overriding the children on repetition loops can use up a lot of space for long
-repetition patterns.  It is hard to avoid going to the end in the
-zero-repetition match form, since the end is a valid continuation.
-At-least-one repetition patterns could potentially process from the beginning.
-Overriding the insert (`__setitem__`) method to keep pointers to the loop-ends
-and or-sections would speed things up.  A common dict indexed by node ids could
-be used, but deletion would have to del the deleted-node entries.  Then
-zero-repetition states could be started but just set the stacks for the first
-loop, fixing the children in `append_child_node` if the stack is not empty.
+The code implementing the pattern-matching algorithm is currently not optimized
+(though asymptotically the algorithm shouldn't be bad except for the known
+worst cases for this kind of implementation).  For example, due to the
+difficulties of debugging the initial algorithm some copies are made of items
+which do not need to be copied.  As far as the looping implementation for
+repetition patterns, each time a repetition-loop is encountered it re-processes
+the entire thing, searching forward for the end-group element.  This data could
+instead be cached (such as by having a dict map begin-repetition nodes to the
+cached data, valid until an insertion or deletion invalidates, or the space
+needs to be freed).  Overriding the children on repetition loops can use up a
+lot of space for long repetition patterns.  It is hard to avoid going to the
+end in the zero-repetition match form, since the end is a valid continuation.
+At-least-one repetition patterns could potentially process from the beginning,
+though.  Overriding the insert (`__setitem__`) method to keep precalculated
+pointers to the loop-ends and different sections sections of each "or" group
+would speed things up at the cost of some memory.  A common dict indexed by
+node ids could be used, but deletion would have to del the deleted-node
+entries.  Then zero-repetition states could be started but just set the stacks
+for the first loop, fixing the children in `append_child_node` if the stack is
+not empty.
+
+# TODO: move any "future implementation" stuff to comments in the code itself.
 
 .. note::
 
@@ -268,21 +442,35 @@ from __future__ import print_function, division, absolute_import
 # Run test cases below when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run("../../test/test_regex_trie_dict.py", pytest_args="-v")
+    pytest_helper.script_run("../../test/test_regex_trie_dict.py",
+                             pytest_args="-v")
 
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
 
+# TODO: Consider adding the '\.' symbol that matches anything.  Shouldn't
+# be too hard; just make sure it doesn't match the MagicElem.
+
+# Todo: Consider a preprocessing routine like the Python regex one `escape`.
+# This one would take an unescaped string and escape all the special chars.
+# Then people who prefer it that way could do it that way.  The default could
+# be easily changed (even as an init parameter).
+
 class NodeStateData(object):
     """This class is used in pattern-searches.  It is just a fancy data-record,
     essentially a named tuple.  It holds one state of a multi-state recognizer.
-    The state consists of a node in the trie as well as some extra information
-    for keeping track of loops.  These states locally (for the particular state
-    and search) redefine the children for each node they have visited and
-    followed a child link from.  That particular child is made into the only
-    child.
+
+    A `NodeStateData` is initialized by passing all the stored items to the
+    initializer, just like initializing a tuple.  Alternately, you can use
+    keyword arguments or just assign values to the attributes.
+
+    A `NodeStateData` instance consists of a node in the trie as well as some
+    extra information for keeping track of loops.  These states locally (for
+    the particular state and search) redefine the children for each node they
+    have visited and followed a child link from.  That particular child is made
+    into the only child.
 
     Each branch in the trie represents a different pattern, connected by "or".
     The pattern-prefix for a node is always the same; a pattern with a
@@ -296,20 +484,27 @@ class NodeStateData(object):
     need to be treated similarly, since they may match a different section on
     each repetition.
 
-    The node attribute holds a node in the trie.  The boolean `node_is_escape` is
-    true for nodes representing the escape element `self.escape`.  The stacks are
-    used to keep track of looping in repetition patterns.  The
-    `bound_node_child_dict` is used to overload the children of the node, so that
-    the same path down the trie is always followed in a repetition loop.  The
-    `visited_rep_node_id_set` set is a set of the ids all the loopback repetition
-    nodes visited, but it is reset each time a literal element is matches the
-    query element (i.e., on a literal or a wildcard match).  This is used to
-    avoid infinite recursion in processing repetition patterns which match zero
-    elements.
-
-    A `NodeStateData` is initialized by passing all the stored items to the
-    initializer, just like initializing a tuple.  Alternately, you can use
-    keyword arguments or just assign values to the fields."""
+    The `node` slot/attribute holds a node in the trie.
+    
+    The boolean `node_is_escape` is true for nodes representing the escape
+    element `self.escape`.
+    
+    The stacks attributes are used to keep track of looping in repetition
+    patterns.
+    
+    The `bound_node_child_dict` is used to overload the children of the node,
+    so that the same path down the trie is always followed in a repetition
+    loop.  With only one regex this would not be needed, but remember that the
+    trie contains many regexes.  A repetition loop which goes back in the trie
+    must be fixed to a single pattern, i.e., the path it took the first time
+    through the loop.  Otherwise there will be "crosstalk" between the
+    different stored patterns.
+    
+    The `visited_rep_node_id_set` set is a set of the ids of all the loopback
+    repetition nodes visited, but it is reset each time a literal element
+    matches the query element (i.e., on a literal or a wildcard match).  This
+    is used to avoid infinite recursion in processing repetition patterns which
+    match zero elements."""
 
     # Note that this does not inherit from collections.Sequence because then
     # arbitrary attribute assignments are the allowed.  That misses spelling
@@ -387,8 +582,8 @@ class NodeStateDataList(collections.MutableSequence):
     def __init__(self, regex_trie_dict, *arg, **kwds):
         # The list node_data_list does the real work.
         self.node_data_list = list(*arg, **kwds)
-        self.insert_count = regex_trie_dict.insertCount
-        self.delete_count = regex_trie_dict.deleteCount
+        self.insert_count = regex_trie_dict.insert_count
+        self.delete_count = regex_trie_dict.delete_count
         self.regex_trie_dict_instance_id = id(regex_trie_dict)
         self.regex_trie_dict = regex_trie_dict
         return
@@ -398,8 +593,8 @@ class NodeStateDataList(collections.MutableSequence):
         valid in the current trie.  If any insertions or deletions have occurred
         since its creation this routine returns False, otherwise True."""
         return (self.regex_trie_dict_instance_id == id(regex_trie_dict) and
-                regex_trie_dict.insertCount == self.insert_count and
-                regex_trie_dict.deleteCount == self.delete_count)
+                regex_trie_dict.insert_count == self.insert_count and
+                regex_trie_dict.delete_count == self.delete_count)
 
     def __delitem__(self, index): del self.node_data_list[index]
 
@@ -425,9 +620,10 @@ class NodeStateDataList(collections.MutableSequence):
         # TODO add a copy=True flag to turn off when not needed, after debug
 
         children_dict = node_data.children()
-        if query_elem not in children_dict: return False
+        if query_elem not in children_dict:
+            return False
 
-        node_data_copy = node_data.copy() # make a copy
+        node_data_copy = node_data.copy() # Make a copy.
 
         # Fix the overridden children dict of states inside repetition loops
         # to the single child path which is actually traveled down (so later
@@ -452,10 +648,11 @@ class NodeStateDataList(collections.MutableSequence):
 
 
 class MagicElem(object):
-    """A special element considered unique (checked by id) and used to
-    represent a null element that doesn't match anything.  Type doesn't matter
+    """A special element considered unique (checked by id) and which always
+    represents an element that doesn't match anything.  Type doesn't matter
     (since no real comparisons are needed).  Not the same as a null string."""
-    def __repr__(self): return "(magic_elem)"
+    def __repr__(self):
+        return "(magic_elem)"
 
 
 # TODO maybe add a non-greedy flag which will work on prexix-matches
@@ -473,25 +670,30 @@ class RegexTrieDict(TrieDict):
 
     def __init__(self, *args, **kwds):
         super(RegexTrieDict, self).__init__(*args, **kwds)
-        self.insertCount = 0 # Used to test if inserts were done.
-        self.deleteCount = 0 # Used to test if deletes were done.
+        self.clear()
+
+    def clear(self):
+        """Clear the `RegexTrieDict` instance, starting at a new root."""
+        self.insert_count = 0 # Used to test if inserts were done.
+        self.delete_count = 0 # Used to test if deletes were done.
         self.node_data_list = None # Used in sequential meta mode to persist states.
         self.define_meta_elems() # Set the meta-elems to their default definitions.
+        super(RegexTrieDict, self).clear() # Call superclass clear method.
 
     def test_pattern_sequence(self, key_seq, raise_errors=False):
-        """Runs some basic tests on pattern sequences.  This routine is always
-        called by the insert method, with `raise_errors=True`.  Users can use it
-        to test patterns before inserting them.  By default the routine will
+        """Runs some basic tests on a pattern sequence.  This routine is always
+        called by the insert method, with `raise_errors=True`.  Users can use
+        it to test patterns before inserting them.  By default the routine will
         just return a boolean value specifying whether the string passes or
-        not.  If raise_errors=True then the escape-processed version of key_seq
-        is returned (assuming no errors are raised).  Note that simply passing
-        the tests is no guarantee that the pattern is correct, just that it
-        passes these tests."""
+        not.  If `raise_errors=True` then, assuming no errors are raised, the
+        escape-processed version of `key_seq` is returned.  Note that simply
+        passing the tests is no guarantee that the pattern is correct, just
+        that it passes these tests."""
 
-        def found_error(errorString, exception=PatternMatchError):
+        def found_error(error_string, exception=PatternMatchError):
             """Utility function to raise errors or return bool as appropriate."""
             if not raise_errors: return False
-            else: raise exception(errorString)
+            else: raise exception(error_string)
 
         def get_string_for_key_seq():
             """Try to get a string representation for key_seq for more-helpful
@@ -584,25 +786,29 @@ class RegexTrieDict(TrieDict):
                 node.children[elem] = TrieDictNode()
                 node = node.children[elem]
         if not node.is_last_elem_of_key: # Don't increment if just resetting data.
-            self.numKeys += 1
-            self.insertCount += 1
+            self.numKeys += 1 # This is an attribute of the underlying TrieDict.
+            self.insert_count += 1
         node.is_last_elem_of_key = True # End of key_seq, isLastElemOfKey is True.
         node.data = data
         return
+
+    __setitem__ = setitem = insert # Alias for insert, to use `rtd[patt] = val`
 
     def delitem(self, key):
         """Delete the stored key and its data.  Raises KeyError if the key wasn't
         found in the trie.  If d is a dict, the syntax del d[key] also invokes
         this function.  This overrides the delete method of the base class to
         update a deletion counter to test pattern-match state validity."""
-        self.deleteCount -= 1
+        self.delete_count -= 1
         TrieDict.delitem(self, key)
         return
 
+    __delitem__ = delitem # Alias for delitem, to use `del rtd[patt]`
+
     def define_meta_elems(self, escape="\\", repetition="*", lGroup="(", rGroup=")",
                         lWildcard="[", rWildcard="]", rangeElem="-",
-                        orElem="|", wildcardPattMatchFun=None, elemToDigitFun=None,
-                        canonicalizeFun=None):
+                        orElem="|", wildcard_patt_match_fun=None, elemToDigitFun=None,
+                        canonicalize_fun=None):
         """Define the meta-elements in pattern-matching."""
         self.escape = escape
         self.repetition = repetition
@@ -612,9 +818,9 @@ class RegexTrieDict(TrieDict):
         self.rWildcard = rWildcard
         self.rangeElem = rangeElem
         self.orElem = orElem
-        self.canonicalize_fun = canonicalizeFun
-        if wildcardPattMatchFun: self.wildcardPattMatchFun = wildcardPattMatchFun
-        else: self.wildcardPattMatchFun = char_pattern_match_test
+        self.canonicalize_fun = canonicalize_fun
+        if wildcard_patt_match_fun: self.wildcard_patt_match_fun = wildcard_patt_match_fun
+        else: self.wildcard_patt_match_fun = char_pattern_match_test
         if elemToDigitFun: self.elemToDigitFun = elemToDigitFun
         else: self.elemToDigitFun = char_elem_to_int
         self.escapeMetaElems = {
@@ -746,18 +952,18 @@ class RegexTrieDict(TrieDict):
             self, [NodeStateData(self.root, False, [], [], [], {}, set())])
         return node_data_list
 
-    def has_key_meta(self, keySeq):
-        """Test of whether the sequence of elements keySeq matches any of the
-        regexp patterns stored in the RegexTrieDict.  Returns the number of
+    def has_key_meta(self, key_seq):
+        """Test of whether the sequence of elements `key_seq` matches any of the
+        regexp patterns stored in the `RegexTrieDict`.  Returns the number of
         matches.  Remember that any literal escapes in the trie must be
-        escaped, but escapes in keySeq are always treated as literal."""
+        escaped, but escapes in `key_seq` are always treated as literal."""
         mat = PrefixMatcher(self)
-        for elem in keySeq:
+        for elem in key_seq:
             mat.add_key_elem(elem)
             if mat.cannot_match(): 
                 mat.reset()
                 return 0 # No more nodes, can't match.
-        retval = mat.has_key()
+        retval = mat.has_key_meta()
         mat.reset() # Ends match and frees memory.
         return retval
         #### This is the earlier implementation, not using seqmeta mode.
@@ -772,20 +978,20 @@ class RegexTrieDict(TrieDict):
         #                                       if nodeData[0].is_last_elem_of_key]
         # return len(matchedNodes)
 
-    def get_meta(self, keySeq, default=[]):
+    def get_meta(self, key_seq, default=[]):
         """Return a list of the data items of all the stored strings which
-        match the sequence of elements keySeq (based on the regexp patterns
-        stored in the RegexTrieDict).  The default with no matches is to
+        match the sequence of elements `key_seq` (based on the regex patterns
+        stored in the `RegexTrieDict`).  The default with no matches is to
         return the empty list.  Remember that any literal escapes in the
-        trie must be escaped, but escapes in keySeq are always treated as
+        trie must be escaped, but escapes in `key_seq` are always treated as
         literal."""
         mat = PrefixMatcher(self)
-        for elem in keySeq:
+        for elem in key_seq:
             mat.add_key_elem(elem)
             if mat.cannot_match(): 
                 mat.reset()
                 return default # No more nodes, can't match.
-        retval = mat.get(default=default)
+        retval = mat.get_meta(default=default)
         mat.reset() # Ends match and frees memory.
         return retval
 
@@ -841,7 +1047,7 @@ class RegexTrieDict(TrieDict):
 
     def _skip_node_data_list_escapes(self, node_data_list):
         """This routines handles pattern-escapes in a list of node-data tuples.
-        This routine is always called by `processNodeData` as the first step
+        This routine is always called by `process_node_data` as the first step
         (unless it is called with `skipEscapes=False`).  For each node on
         `node_data_list`, a parallel node is added for each escape-element child,
         since that will have to be interpreted specially on the next iteration.
@@ -854,9 +1060,9 @@ class RegexTrieDict(TrieDict):
         for nodeData in node_data_list:
             if self.escape in nodeData.children():
                 # Note copies of the loop states are used.
-                nodeDataCopy = nodeData.copy() # TODO can skip copy when single child
-                nodeDataCopy.node_is_escape = True
-                escapedNodeDataList.append_child_node(self.escape, nodeDataCopy)
+                node_data_copy = nodeData.copy() # TODO can skip copy when single child
+                node_data_copy.node_is_escape = True
+                escapedNodeDataList.append_child_node(self.escape, node_data_copy)
                 if len(nodeData.children()) == 1: continue # escape is only child
             escapedNodeDataList.append(nodeData) # copy the node over unchanged
         return escapedNodeDataList
@@ -864,30 +1070,29 @@ class RegexTrieDict(TrieDict):
 
     def get_next_nodes_meta(self, query_elem, node_data_list,
                                                        ignore_validity=False):
-        """Return the list of next nodes for each node on currNodeList,
+        """Return the list of next nodes for each node on `node_data_list`,
         interpreting any stored pattern-matching meta-elements, when the
-        query-key element query_elem is received.  The node_data_list should be
-        a NodeStateDataList object.  It stores a list of NodeDataState tuples,
-        each representing a "live" state of the nondeterministic search.  The
-        tuple contains a node in the trie as well as some additional state
-        information.
+        query-key element query_elem is received.  The `node_data_list` should
+        be a `NodeStateDataList` object.  It stores a list of `NodeStateData`
+        instances, each representing a "live" state in the nondeterministic
+        search.  A state consists of a node in the trie as well as some
+        additional state information.
 
-        See the routine has_key_meta for a simple example of how this method is
-        used.
+        See the routine `has_key_meta` for a simple example of how this method
+        is used.
 
-        When query_elem is set to the special value self.magic_elem this routine
-        has special behavior defined.  It will simply fast-forward up to the
-        point where that character would have been compared to the next one in
-        the query-pattern.  Then it stops, returning those stop-nodes.  This
-        turns out to be very convenient for skipping closing right-group elements
-        as well as zero-repetition-matching patterns at the end of a larger key
-        pattern.  Recall that to check for a match we need to look at the
-        is_last_elem_of_key values at the very end of the stored patterns.  Any
-        node_data_list elements which immediately precede a comparison with an
-        element or set of elements (a literal character or a wildcard) are left
-        unchanged.  Any others move forward to such a point.  Any well-defined
-        pattern has such an endpoint."""
-
+        When `query_elem` is set to the special value `self.magic_elem` this
+        routine has special behavior defined.  It will simply fast-forward up
+        to the point where that character would have been compared to the next
+        one in the query-pattern.  Then it stops, returning those stop-nodes.
+        This turns out to be very convenient for skipping closing right-group
+        elements as well as zero-repetition-matching patterns at the end of a
+        larger key pattern.  Recall that to check for a match we need to look
+        at the `is_last_elem_of_key` values at the very end of the stored
+        patterns.  Any `node_data_list` elements which immediately precede a
+        comparison with an element or set of elements (a literal character or a
+        wildcard) are left unchanged.  Any others move forward to such a point.
+        Any well-defined pattern has such an endpoint."""
         #print("\ndebug get_next_nodes_meta call, processing query char", query_elem)
         #print("*"*30)
         #for nd in node_data_list:
@@ -899,11 +1104,11 @@ class RegexTrieDict(TrieDict):
 
         # If we are starting a magic_elem search, save the current node with the
         # state.  This is to avoid infinite recursion in processing repetitions
-        # that match zero times.  The visitedSet is emptied in processNodeData
-        # when a valid end-point is reached.  The append_child_node routine adds
+        # that match zero times.  The visitedSet is emptied in `process_node_data`
+        # when a valid end-point is reached.  The `append_child_node` routine adds
         # any nodes to the set that it processes, and drops any that would
         # loop.
-        # TODO consider just turning off all looping-back in handleEndRepetition...
+        # TODO consider just turning off all looping-back in `handleEndRepetition`...
         # just set a switch here and turn back off at end.  No valid endpoint is
         # at beginning of a loop, anyway.
         self.magic_elem_no_loop = False # debug xxx
@@ -926,15 +1131,20 @@ class RegexTrieDict(TrieDict):
         """Process the instance `node_data`, usually from the `node_data_list`.
         Put the results on `next_node_data_list`.  This large routine does most
         of the work in the processing, and is called recursively when
-        necessary.  Escapes are skipped (generally producing a list of
-        `NodeStateData` instances) unless `skip_escapes` is set `False`."""
-
+        necessary.
+        
+        Escapes are skipped (generally producing a list of `NodeStateData`
+        instances) unless `skip_escapes` is set `False`.  Escapes are skipped
+        by default, but when called recursively after finding an escape the
+        value is set to `True`."""
         #
         # If escapes are to be skipped, recursively process all the resulting nodes.
         #
 
         if skip_escapes:
             node_data_list = self._skip_node_data_list_escapes([node_data])
+            # We have to loop over the recursion because new states may get
+            # added by `_skip_node_data_list_escapes`.
             for nd in node_data_list:
                 self.process_node_data(query_elem, nd, next_node_data_list,
                                                           skip_escapes=False)
@@ -946,11 +1156,11 @@ class RegexTrieDict(TrieDict):
 
         if not node_data.node_is_escape:
 
-            node_data.visited_rep_node_id_set = set() # got a literal elem, reset
+            node_data.visited_rep_node_id_set = set() # Got a literal elem, reset.
 
             if id(query_elem) == id(self.magic_elem):
                 # The "magic" element doesn't match anything, see header comments.
-                next_node_data_list.append(node_data) # just keep the node itself
+                next_node_data_list.append(node_data) # Just keep the node itself.
 
             elif query_elem == self.escape:
                 # Can't match because node is neither an escaped escape char nor
@@ -970,7 +1180,7 @@ class RegexTrieDict(TrieDict):
             # are among its keys.  After the first escape in a pattern we can get
             # a repetition, a left-wildcard bracket, or another escape (to be
             # treated as a literal).  Multiple are possible.  Inside a
-            # repetition, which are evaluates as normal sequences, we can also
+            # repetition, which are evaluated as normal sequences, we can also
             # encounter a close-group metacharacter and we have to decide
             # whether or not to loop back.  All other escaped characters at
             # this level are errors.
@@ -985,7 +1195,7 @@ class RegexTrieDict(TrieDict):
                 #
                 if meta_elem == self.escape:
                     if query_elem == self.escape:
-                        print("got escaped escape, adding to trie as element")
+                        #print("got escaped escape, adding to trie as element")
                         next_node_data_list.append_child_node(query_elem, node_data,
                                                          node_is_escape=False)
                     else: # An escaped escape just doesn't match, no new node_data.
@@ -1002,10 +1212,10 @@ class RegexTrieDict(TrieDict):
                 # Handle end-repetitions.
                 #
                 elif meta_elem == self.rGroup:
-                    nodeDataCopy = node_data.copy() # debug, unnecessary? xxx
-                    nodeDataCopy.set_child(self.rGroup) # debug, unnecessary? xxx
-                    nodeDataCopy.node = nodeDataCopy.children()[self.rGroup]
-                    self.handle_end_repetitions(query_elem, nodeDataCopy,
+                    node_data_copy = node_data.copy() # debug, unnecessary? xxx
+                    node_data_copy.set_child(self.rGroup) # debug, unnecessary? xxx
+                    node_data_copy.node = node_data_copy.children()[self.rGroup]
+                    self.handle_end_repetitions(query_elem, node_data_copy,
                                         next_node_data_list, refuse_revisits=True)
 
                 #
@@ -1035,10 +1245,10 @@ class RegexTrieDict(TrieDict):
                         #                                  [t[0] for t in treePath])
                         # Errors checked earlier, when lGroup of the 'or' was processed.
                         rGroupElem, rGroupNode = treePath[-1]
-                        nodeDataCopy = node_data.copy() # debug, unneeded?? xxx
-                        nodeDataCopy.set_child(self.orElem) # debug, unnecessary?? xxx
+                        node_data_copy = node_data.copy() # debug, unneeded?? xxx
+                        node_data_copy.set_child(self.orElem) # debug, unnecessary?? xxx
                         self.handle_end_repetitions(
-                            query_elem, nodeDataCopy, next_node_data_list,
+                            query_elem, node_data_copy, next_node_data_list,
                             replace_node=rGroupNode)
                         # When 'or' is set it should give all nodes for state
                         # single-children
@@ -1099,25 +1309,25 @@ class RegexTrieDict(TrieDict):
             pattern = [p[0] for p in wildcard_patt[1:-2]]
             # If the character matches the wildcard pattern:
             # 1) Get a copy NodeStateData.
-            # 2) In the NodeDataState, fix all the nodes on the path to the
+            # 2) In the NodeStateData, fix all the nodes on the path to the
             #    end-element to have one child (the new NodeStateData now
             #    represents just one pattern instance, not the full subtree).
             # 3) Append the node to next_node_data_list.
-            if self.wildcardPattMatchFun(query_elem, pattern,
+            if self.wildcard_patt_match_fun(query_elem, pattern,
                                          self.rangeElem, self.escape):
-                nodeDataCopy = node_data.copy()
-                nodeDataCopy.set_child(self.lWildcard)
+                node_data_copy = node_data.copy()
+                node_data_copy.set_child(self.lWildcard)
 
                 # Fix the children on the wildcard_patt list to only have
                 # one child.
                 for i in range(len(wildcard_patt)-1):
-                    nodeDataCopy.set_child( # elem of next, node of current
+                    node_data_copy.set_child( # elem of next, node of current
                         wildcard_patt[i+1][0], node=wildcard_patt[i][1])
 
                 # Set the other elements and append to next_node_data_list.
-                nodeDataCopy.node = rWildcardNode # stacks do not change
-                nodeDataCopy.node_is_escape = False
-                next_node_data_list.append(nodeDataCopy)
+                node_data_copy.node = rWildcardNode # stacks do not change
+                node_data_copy.node_is_escape = False
+                next_node_data_list.append(node_data_copy)
 
     def handle_begin_repetitions(self, node_data, query_elem, next_node_data_elem):
         """Called when a begin-repetition node (i.e. for '*') is reached in the
@@ -1136,7 +1346,6 @@ class RegexTrieDict(TrieDict):
         # A repetition element must be followed by an open-group element on
         # each path following it.  Get a generator for those nodes.  We only
         # need one new state at the beginning.
-
         dfs_gen_open = self.get_dfs_gen(node_data.children()[self.repetition],
                          include_root=True, copies=False,
                          stop_at_escaped_elems=[self.lGroup],
@@ -1163,7 +1372,7 @@ class RegexTrieDict(TrieDict):
             # states). We can just start a state and wait and later see which
             # ones ever reach their end-group loopback points.
             if iterBounds[0] >= 1: # At least one iteration is required.
-                pass # TODO, just an optimization of what already works
+                pass # TODO, just a possible optimization of what already works.
 
             # Now, for each opening paren, get a generator for all the closing
             # parens corresponding to it.
@@ -1215,7 +1424,6 @@ class RegexTrieDict(TrieDict):
                                             next_node_data_elem, no_loop=set_no_loop)
                 set_no_loop = True # We only need one new state at the beginning.
 
-
     def handle_end_repetitions(self, query_elem, close_paren_node_data,
                            next_node_data_list, replace_node=None,
                            no_loop=False, no_break=False, refuse_revisits=False):
@@ -1224,36 +1432,9 @@ class RegexTrieDict(TrieDict):
         replace_node is set to a node then it replaces the node in close_paren_node_data
         as the new node to jump to after a breaking a loop (used in inside sections
         of 'or' patterns)."""
-        # TODO, consider
-        # Greedy loops would be useful.  They always match as many loops around
-        # as possible, even if that causes the larger pattern to fail.  This avoids
-        # some worst-case scenarios.
-        #
-        # To implement: we need to link/entangle the two states that are produced
-        # at the end of a loop.  Then, if the loopback state makes it through
-        # another iteration, back to here in handleEndRepetition, it somehow signals
-        # that other state to die.  But, if it doesn't complete another loop, that
-        # state goes on.  (Note zero-repetition loops might be a problem...)
-        #
-        # Similarly, if two 'or' sections match we only need to keep one state... NO,
-        # it will NOT necessarily result in the same pattern in the end.  The sections
-        # can have different numbers of elements, and can have loops, etc.  We'd need
-        # to use a greedy or non-greedy rule again.  So the last-exiting match or
-        # first-exiting match could kill all the others.  We always come here to exit
-        # the 'or' sections, since they are treated as loops at the outer level.
-        #
-        # See partial start commented out below.... one problem is that we need
-        # unique IDs for NodeStateData instances, even across copy operations...
-        # but do *some* copy operations need to get a new ID????
-        #
-        # What if we just set the IDs here for the generated NodeStateData copies?
-        # Then copy could just preserve it.  Presumably anything derived from a state
-        # that is killed should also be killed!  So then we just put the ID on a kill
-        # list and at the end of the main routine we go through and remove those states.
-
         #print("debug in handleEndRepetition")
-
-        if not (close_paren_node_data.loopback_stack and close_paren_node_data.loop_counter_stack
+        if not (close_paren_node_data.loopback_stack
+                and close_paren_node_data.loop_counter_stack
                 and close_paren_node_data.loop_bounds_stack):
             raise PatternMatchError(
                 "IndexError on a stack pop, probably mismatched parentheses.")
@@ -1272,8 +1453,12 @@ class RegexTrieDict(TrieDict):
 
         # The node_data for breaking out of the loop.  If loop_count is below
         # loop_bound_min then we cannot break the loop yet.
-        # TODO: free up the stored bound_node_child_dict for breaks to empty stack level 0.
-        # TODO when the boundNodeChildList is set in repetition we don't need to copy it.
+        #
+        # TODO: Can free up the stored bound_node_child_dict for breaks to empty
+        # stack level 0.
+        #
+        # TODO When the bound_node_child_list is set in repetition we don't need
+        # to copy it.
         if loop_count >= loop_bound_min and not no_break:
             break_node_data = close_paren_node_data.copy()
             if replace_node is not None: break_node_data.node = replace_node
@@ -1302,15 +1487,6 @@ class RegexTrieDict(TrieDict):
             loop_node_data_list = [loop_node_data]
         else:
             loop_node_data_list = []
-
-        """
-        # "Entangle" any pairs, for greedy repetition-matching.
-        if break_node_data_list and loop_node_data_list:
-           pairTuple = (id(break_node_data), id(loop_node_data))
-           if pairTuple in self.entangledStatePairsSet:
-              self.stateKillList.append(....)......consider
-           self.entangledStatePairsSet.add( (id(break_node_data), id(loop_node_data)) )
-        """
 
         # Combine any nodes generated.
         node_data_list = break_node_data_list + loop_node_data_list
@@ -1343,7 +1519,7 @@ class RegexTrieDict(TrieDict):
                     "Index error on stack pop, probably mismatched parentheses.")
 
         # The repetition meta-characters do not count as a character of the
-        # literal pattern being matched to query_elem, so run processNodeData on the
+        # literal pattern being matched to query_elem, so run process_node_data on the
         # computed nodes.
         for node_data in node_data_list:
             self.process_node_data(query_elem, node_data, next_node_data_list)
@@ -1459,16 +1635,6 @@ class RegexTrieDict(TrieDict):
                     query_elem, or_section_begin, next_node_data_list)
                 escaped = False
 
-    #
-    # Define a few aliases/synonyms for certain methods above.
-    #
-
-    """Synonym for delitem."""
-    __delitem__ = delitem
-
-    """Synonyms for insert."""
-    __setitem__ = setitem = insert
-
 
 class PrefixMatcher(object):
     """Initialized with an instance of a `RegexTrieDict`.  Allows for
@@ -1479,10 +1645,10 @@ class PrefixMatcher(object):
     be raised.
     
     Testing for `cannot_match` will indicate when no patterns can possibly
-    match by adding new elements.  This can be used for on-line matching to get
+    match by adding new elements.  This can be used for on-line matching to get_meta
     the longest pattern match as soon as possible based on the prefixes of the
     text."""
-    # Should resets be automatic when we get a ModifiedTrieError, or should we
+    # Should resets be automatic when we get_meta a ModifiedTrieError, or should we
     # just let the error go?  Add a flag auto_reset_on_triemod?
     def __init__(self, regex_trie_dict):
         """Initialize with a particular `RegexTrieDict` instance."""
@@ -1509,7 +1675,7 @@ class PrefixMatcher(object):
         # Update the list of node data states according to the element elem.
         self.node_data_list = self.rtd.get_next_nodes_meta(elem, self.node_data_list)
 
-    def cannot_match(self, insert_magic=False):
+    def cannot_match(self):
         """Return `True` if no matches are possible with further elements
         inserted with `next_key_elem`.  This is determined by whether or not
         there are any active patterns in the current state."""
@@ -1520,51 +1686,88 @@ class PrefixMatcher(object):
         self.match_in_progress = True
         self.node_data_list = self.rtd.get_root_node_data_list()
 
-    def has_key(self):
-        """Tests whether the sequence of elements inserted by the
-        `add_key_elem` method matches any of the regexp patterns stored in the
+    def has_key_meta(self):
+        """Tests whether the current sequence of elements inserted by the
+        `add_key_elem` method matches any of the regex patterns stored in the
         `RegexTrieDict` instance.  Returns the number of matches.  Remember
         that any literal escapes in the trie must be escaped, but escapes in
         query keys are always treated as literal."""
         # See the get method for comments on what's going on here.
-        if not self.match_in_progress: self._set_to_root()
+        if not self.match_in_progress:
+            self._set_to_root()
         tmp_node_data_list = self.rtd.get_next_nodes_meta(
                                       self.rtd.magic_elem, self.node_data_list)
         matched_nodes = [node_data for node_data in tmp_node_data_list
-                                              if node_data[0].is_last_elem_of_key]
+                                           if node_data[0].is_last_elem_of_key]
         return len(matched_nodes)
 
-    def get(self, default=[]):
+    # TODO: Is greedy vs. non-greedy in `PrefixMatcher` just a matter of
+    # looking at the currently "live" states and deciding when to halt the trie
+    # traversal?  If you have reached the end of *any* pattern (which you must
+    # to return something other than failure) then you then you can just return
+    # that.  Do not need to check `cannot_match` function except to see when to
+    # report failure.  That is for non-greedy repetitions and non-greedy "or"
+    # groups.  What about for the greedy repetitions?  Then, you can only take
+    # a prefix result if 1) There are no active repetition groups, and 2) you
+    # have some match for a partial.
+    #
+    # So, assume that we mark the repetitions as greedy vs. non-greedy, and that
+    # this can be determined from the `NodeStateData` info.  Then the rule to examine
+    # the states to determine if one can be returned might be:
+    #   - If there are any active greedy repetition groups then nothing can be returned.
+    #   - Rule out those which are currently inside an "or" group, not at end.
+    #   - Rule out those which are currently inside a repetition group, not at end.
+    #   - Rule out those which are not at the end of some pattern in the trie (leaf).
+    # Testing for being a leaf is just looking at `is_last_elem_of_key` attributes.
+    # The leaf rule might actually subsume the two middle ones.  Consider whether to
+    # offer the option to have non-greedy "or" groups.  Maybe define '|?' to turn
+    # ON greedy, rather than turn it off.
+
+    def get_meta(self, default=[], raw_nodes=False):
         """Return a list of the data items of all the stored strings which
         match the sequence of elements which have been added via the
         `add_key_elem` method.  That defines the current key sequence and the
-        match is based on the regexp patterns stored in the `RegexTrieDict`.
+        match is based on the regex patterns stored in the `RegexTrieDict`.
         The default with no matches is to return the empty list.  Remember that
         any literal escapes in the trie must be escaped, but escapes in query
-        keys are always treated as literal."""
+        keys are always treated as literal.
+        
+        If `default` is set then its value will be returned when there are no
+        matches.
+        
+        If `raw_states` is true then a list of `NodeStateData` instance will be
+        returned rather than just the list of the data attributes of the nodes
+        represented in the list.  This is a shallow copy of a subset of the
+        persistent list, containing all the patterns which are currently
+        matches to some pattern (i.e., they are all at leaf nodes in the
+        trie)."""
         if not self.match_in_progress:
             self._set_to_root()
-        # First use `get_next_nodes_meta` to "insert" a null magic element in
-        # the trie (which by definition does not match any element actually in
-        # the string).  Note that the trie itself is not modified.  Save the
-        # resulting node data list in a temporary list (not affecting the real,
+        # First use `get_next_nodes_meta` to "insert" a magic element in the
+        # trie (which by definition does not match any element actually in a
+        # pattern).  Note that the trie itself is not modified:  The resulting
+        # node data list is saved in a temporary list (not affecting the real,
         # persistent `self.node_data_list` for this `PrefixMatcher` instance).
         # one for this object).  This has the side-effect of moving us past any
-        # `self.rGroup` closing elements, as well as past any patterns which can
-        # match zero times.  (Note that inserting the empty keySeq will skip the
-        # loop above and go directly to the magic element queryElem below.)
+        # `self.rGroup` closing elements, as well as past any patterns which
+        # can match zero times.  (Note that inserting the empty keySeq will
+        # skip the loop above and go directly to the magic element queryElem
+        # below.  <Todo re this comment: are empty elems even allowed anymore?>)
         tmp_node_data_list = self.rtd.get_next_nodes_meta(
                                        self.rtd.magic_elem, self.node_data_list)
-        matched_nodes = [nodeData for nodeData in tmp_node_data_list
-                                              if nodeData[0].is_last_elem_of_key]
-        if not matched_nodes:
+        valid_match_node_data_list = [nds for nds in tmp_node_data_list
+                                              if nds[0].is_last_elem_of_key]
+        if raw_nodes:
+            return valid_match_node_data_list
+        if not valid_match_node_data_list:
             return default
-        return [n.node.data for n in matched_nodes]
+        return [n.node.data for n in valid_match_node_data_list]
+
 
 def char_elem_to_int(elem):
-    """This routine is set in defineMetaElems as the default value of
-    elemToDigitFun, which converts elements to digit values.  Used in calculating
-    repetition bounds.  It is the default setting for elemToDigitFun, when
+    """This routine is set in `define_meta_elems` as the default value of
+    `elemToDigitFun`, which converts elements to digit values.  Used in calculating
+    repetition bounds.  It is the default setting for `elemToDigitFun` when
     the elements are characters."""
     try:
         int_val = int(elem)
@@ -1575,11 +1778,14 @@ def char_elem_to_int(elem):
 
 def char_pattern_match_test(query_elem, patt_list, range_elem, escape_elem):
     """This utility routine does a pattern-match for characters in the wildcard
-    brackets.  It does depend on the elements being characters, since it calls
-    a Python regexp.  This has the advantage of allowing all the
-    special-characters in Python regexp wildcards to be used.  This is the
-    default routine set in defineMetaElems as wildcardPattMatchFun, for when
-    elements are characters."""
+    brackets.  It depends on the elements being characters, since it calls a
+    Python regex.  This has the advantage of allowing all the special
+    characters in Python regex wildcards (character sets) to be used.  This is
+    the default routine set in `define_meta_elems` as `wildcard_patt_match_fun`, for
+    when elements are characters."""
+    # Can this ever be passed a MagicElem?  Handle below, just in case.
+    if query_elem is MagicElem: return False
+
     if not patt_list:
         raise PatternMatchError("No pattern in wildcard brackets.")
 
@@ -1606,12 +1812,14 @@ def char_pattern_match_test(query_elem, patt_list, range_elem, escape_elem):
 
 
 def char_range_test(charLower, charUpper, testChar):
-    """Return True if testChar is in the range from char1 to char2, inclusive.
-    Used in testing wildcard patterns in the default with character elements."""
+    """Return True if `testChar` is in the range from `charLower` to
+    `charUpper`, inclusive.  Used in testing wildcard patterns in the default
+    with character elements."""
     #print("debug in char_range_test, comparing queryElem",
     #      testChar, "with lower range", charLower)
     if ord(charLower) > ord(charUpper):
-        raise PatternMatchError("Second element in character range greater than lower.")
+        raise PatternMatchError(
+                "Second element in character range greater than lower.")
     return ord(charLower) <= ord(testChar) and ord(testChar) <= ord(charUpper)
 
 
@@ -1629,9 +1837,8 @@ def generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
           return generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
                                          rangeTestFun=myRangeTestFun)
 
-    Then in calling defineMetaElems define wildcardPattMatchFun=myPattMatchFun.
+    Then in calling `define_meta_elems` define `wildcard_patt_match_fun=myPattMatchFun`.
     """
-
     #print("debug processing pattern pattList", pattList, "for queryElem", queryElem)
     if not pattList:
         raise PatternMatchError("No pattern in wildcard brackets.")
