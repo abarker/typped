@@ -4,7 +4,7 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 import random, string, re
 from typped.regex_trie_dict_lexer import *
@@ -82,7 +82,7 @@ def test_everything():
     if tdlex.end_of_line(): print("EOL")
     print(tdlex.get_all_to_delimiter(" \n\t"))
     tdlex.print_token_buf_strings()
-    
+
     #assertFailToPrint = False
     #assert assertFailToPrint
 

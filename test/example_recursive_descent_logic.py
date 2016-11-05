@@ -27,7 +27,7 @@ and terminators.  Compare this standard EBNF with W3C EBNF (more like regexes)
     { repeated-0-or-more }
     { repeated-1-or-more }-
     3 * xx      repeat xx 3 times
-    
+
 Examples (from same page):
 
     aa = 'A';
@@ -126,7 +126,7 @@ Case-handling rules (broken still):
     Not especially automated, though...
 
     2) Cases must end with a regular token in order to pop the state.
-     
+
 How do we handle:
     X = Y | Z
 when we basically need to know lookahead info?  Almost need to preprocess or else
@@ -263,7 +263,7 @@ import pytest_helper
 
 #pytest_helper.script_run(self_test=True, pytest_args="-v")
 #pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 import math
 import operator
@@ -289,7 +289,7 @@ def define_logic_parser():
 
     parser = LogicParser()
     return parser
- 
+
 def define_logic_language(parser):
 
     #
@@ -464,7 +464,7 @@ def read_eval_print_loop(parser):
         else:
             print(parse_tree.tree_repr())
             #print(eval_value)
-        
+
 
 def define_and_run_logic_repl():
     import readline

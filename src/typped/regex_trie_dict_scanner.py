@@ -167,10 +167,13 @@ TokenData = collections.namedtuple("TokenData", [
 
 
 class RegexTrieDictScanner(object):
-    """This class uses the keys of a RegexTrieDict as tokens."""
+    """This class implements a scanner using the keys of a `RegexTrieDict` as patterns
+    for tokens."""
 
     def __init__(self, regex_trie_dict):
-        """User must pass in a valid RegexTrieDict containing the tokens."""
+        """User must pass in a valid `RegexTrieDict` containing the tokens."""
+        # TODO note that at certain times changes to trie are allowed, others not...
+        # after getting a token you can modify before inserting more....
         self.rtd = regex_trie_dict
         self.matcher = PrefixMatcher(self.rtd)
         self.clear()
@@ -188,7 +191,7 @@ class RegexTrieDictScanner(object):
         back at the root node of the `RegexTrieDict`.  This is called when a
         prefix is "accepted" as a token and the detection shifts to the next
         token."""
-        self.curr_node = self.rtd.root # the current node for current sequence elem
+        self.matcher._set_to_root()
         self.rtd_insert_count = self.rtd.insert_count # to make sure Trie doesn't change
         self.rtd_delete_count = self.rtd.delete_count # to make sure Trie doesn't change
 
@@ -197,14 +200,13 @@ class RegexTrieDictScanner(object):
 
         self.matcher.reset() # Reset the matcher.
 
-    def current_seq_is_valid(self):
+    def is_valid(self):
         """Return True if the current sequence being tokenized is still valid.
         Return False otherwise.  A sequence becomes invalid if there are any
         inserts or deletes in the underlying Trie.  This is just for informational
         purposes, since any attempt to insert an element in an invalid sequence
         will automatically call resetSeqAfterFlushing first and reset the sequence."""
-        return (self.rtd_insert_count == self.rtd.insertCount
-                and self.rtd_delete_count == self.rtd.deleteCount)
+        return self.matcher.is_valid()
 
     def insert_seq_elem(self, elem, misc_data=None):
         """Insert `elem` as the next element from the sequence being scanned.
@@ -221,7 +223,7 @@ class RegexTrieDictScanner(object):
         contains a data tuple for each prefix of the current sequence of
         elements that matched a pattern."""
 
-        if not self.current_seq_is_valid():
+        if not self.is_valid():
             # TODO import or define the real exception
             raise Exception("The trie of regex has been modified since starting"
                     "this prefix search, so the search is now invalid.")

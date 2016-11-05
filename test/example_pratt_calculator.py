@@ -10,7 +10,7 @@ import pytest_helper
 
 #pytest_helper.script_run(self_test=True, pytest_args="-v")
 #pytest_helper.auto_import()
-pytest_helper.sys_path("../src") # TODO remove when installed a package
+#pytest_helper.sys_path("../src")
 
 import math
 import operator

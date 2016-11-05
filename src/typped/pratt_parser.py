@@ -12,7 +12,7 @@ To use the `PrattParser` class you need to do these things:
     1. Create an instance of the PrattParser class.  Example::
 
           parser = PrattParser()
- 
+
     2. Define each token that will appear in the language, including a string
        label and a regex for to recognize that kind of token.  If necessary,
        the appropriate `on_ties` values can be set to break ties in case of equal
@@ -24,7 +24,7 @@ To use the `PrattParser` class you need to do these things:
           parser.def_token("k_lpar", r"\(")
           parser.def_token("k_ast", r"\*")
           parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
-    
+
     3. Define the syntactical elements of the language that you are parsing.
        Any necessary token labels must have already been defined in the previous
        step.  The predefined syntax-definition methods of `PrattParser` take as
@@ -52,7 +52,7 @@ To use the `PrattParser` class you need to do these things:
 
     5. You can optionally evaluate the resulting tree (if evaluate functions
        were supplied as kwargs for the appropriate methods), or convert it to an
-       AST with a different type of nodes. 
+       AST with a different type of nodes.
 
 In reading the code, the correspondence between the naming convention used here
 and Pratt's original naming conventions is given in this table:
@@ -217,6 +217,7 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_production_rules.py",
+                              #"../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
 
@@ -258,7 +259,7 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # use the function names (fully qualified)?
 #
 # f.__module__ + "." + f.__name__
-# 
+#
 # Seems like it could be separated out, and reduce complexity.  Is equality
 # testing of preconditions ever truly required?  Will using function name fail
 # somehow?  If not, why not just use the function objects and leave the user to
@@ -301,10 +302,11 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
 # something like "TermParser" or "parser for terms", "WffParser", etc.  When
-# working with parsers called from parses these labels in error messages would
-# be helpful in debugging.
+# working with parsers called from/by parsers these labels in error messages
+# would be helpful in debugging.
 
-# Later, maybe consider serialization with JSON.
+# Later, consider serialization of defined parsers, such as with JSON or (at
+# least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
 
 #
 # TokenNode
@@ -323,13 +325,13 @@ def token_subclass_factory():
     """This function is called from the `create_token_subclass` method of
     `TokenTable` when it needs to create a new subclass to begin
     with.  It should not be called directly.
-    
+
     Create and return a new token subclass which will be modified and used
     to represent a particular kind of token.  Specifically, each scanned token
     matching the regex defined for tokens with a given token label is
     represented as an instance of the subclass created by calling this function
     (with further attributes, such as the token label, added to it).
-    
+
     Using a separate subclass for each token label allows for attributes
     specific to a kind of token (including head and tail handler methods) to
     later be added to the class itself without conflicts.  This function
@@ -337,9 +339,10 @@ def token_subclass_factory():
 
     class TokenSubclassMeta(type):
         """A trivial metaclass that will actually create the `TokenSubclass`
-        objects.  Since tokens are represented by classes this is necessary in
-        order to change their `__repr__` (the defalt one is ugly for tokens)
-        or to overload operators to work for token operands."""
+        objects.  Since tokens are represented by classes, rather than
+        instances, this is necessary in order to change their `__repr__` (the
+        defalt one is ugly for tokens) or to overload operators to work for
+        token operands."""
         def __new__(meta, name, bases, dct):
             new_class = super(TokenSubclassMeta, meta).__new__(meta, name, bases, dct)
 
@@ -361,13 +364,12 @@ def token_subclass_factory():
             new_class.prod_rule_funs["Prec"] = Prec
             new_class.prod_rule_funs["OccurrencesOf"] = OccurrencesOf
             new_class.prod_rule_funs["OrMoreOccurrencesOf"] = OrMoreOccurrencesOf
-
             return new_class
 
         def __repr__(cls):
             """The representation for tokens.  Tokens are commonly used in the
-            code but are classes which have an ugly `__repr__` when printed out.
-            In the metaclass we can define a better `__repr__`."""
+            code but, being classes, have an ugly default `__repr__` when printed out.
+            In this metaclass we can define a better `__repr__` for tokens."""
             string = "TokenClass_{0}".format(cls.token_label)
             return string
 
@@ -495,7 +497,7 @@ def token_subclass_factory():
             subclass for this kind of token, setting the given properties.
             This method is only ever called from the `modify_token_subclass`
             method of a `PrattParser` instance.
-            
+
             If no precondition label or function is provided a dummy
             precondition that always returns `True` will be used.  If
             `precond_priority` is set it will apply to that dummy function, but
@@ -522,7 +524,7 @@ def token_subclass_factory():
             (such as an evaluation function or AST label) should already have
             been made attributes of the passed-in signature.  Every unique
             type signature is saved, and non-unique ones are overwritten.
-           
+
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
@@ -679,17 +681,17 @@ def token_subclass_factory():
             Either the `lex` parameter or the `precond_label` parameter must be
             set.  If `lex` is set it will be passed to the precondition
             functions as an argument, and similarly for `lookbehind`.
-            
+
             This method evaluates each preconditions function in the sorted
             dict for this kind of token and the specified kind of handler (head
             or tail), returning the handler function associated with the first
             one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`
             if no handler function can be found.
-            
+
             If the parameter `precond_label` is set then this method returns the
             handler function which *would be* returned, assuming that that were
             the label of the "winning" precondition function.
-            
+
             Note that this function also sets the attribute `precond_label` of
             this token instance to the label of the winning precondition
             function."""
@@ -725,7 +727,7 @@ def token_subclass_factory():
             elif head_or_tail == TAIL:
                 fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
                 return functools.partial(fun, self, lex, left) # Bind all known args.
-            else: 
+            else:
                 raise ParserException("Bad first argument to dispatch_handler"
                         " function: must be HEAD or TAIL or the equivalent.")
 
@@ -736,13 +738,13 @@ def token_subclass_factory():
             head and tail handler functions, just before they return a value.
             It sets some attributes and checks that the actual types match some
             defined type signature for the function.
-            
+
             The `fun_object` argument should be a reference to the function
             that called this routine.  This is needed to access signature data
             which is pasted onto the function object as attributes.  Inside a
             handler function this function object is referenced simply by the
             name of the function.
-           
+
             The `typesig_override` argument must be a `TypeSig` instance.  It
             will be *assigned* to the node as its actual signature after all
             checking, overriding any other settings.  This is useful for
@@ -751,29 +753,29 @@ def token_subclass_factory():
             tree and not eliminated).  The `eval_fun` and `ast_label`
             attributes are copied over from the typesig that was found by
             normal resolution.
-            
+
             If `check_override_sig` is true then the overridden signature will
             be the set as the only possible signature, and type checking will
             be done on it.  Any desired `eval_fun` and/or `ast_label` must be
             explicitly set for the signature.  The final, actual signature is
             the possibly-expanded version found in type-checking.
-            
+
             If `in_tree` is set false then the node for this token will not
             appear in the final token tree: its children will replace it, in
             order, in its parent node's list of children.  This does not
             (currently) work for the root node, which has no parent.  The
             default is true, i.e., the token appears in the parse tree.
-            
+
             Setting `in_tree` to `False` can be useful for things like unary
             plus and parentheses which are not wanted in the final tree.
-            
+
             If `repeat_args` is true then the argument types for defined type
             signatures will be expanded to match the actual number of
             arguments, if possible, by cyclically repeating them an arbitary
             number of times."""
-            
+
             self.in_tree = in_tree
-           
+
             # Process the children to implement in_tree, if set.
             modified_children = []
             for child in self.children:
@@ -820,7 +822,7 @@ def token_subclass_factory():
             node."""
             # Note that self.all_sigs is now saved (currently for error
             # messages) so the all_sigs argument to this function really isn't needed.
-            
+
             if not first_pass_of_two:
                 # Ordinary case, each child c has a unique c.type_sig already set.
                 list_of_child_sig_lists = [[c.type_sig] for c in self.children]
@@ -849,12 +851,12 @@ def token_subclass_factory():
         def check_types_in_tree_second_pass(self, root=False):
             """Recursively run the second pass on the token subtree with the
             `self` node as the root.
-            
+
             This method currently still needs to be explicitly called for the
             root of the final parse tree, from the `PrattParser` method
             `parse`, as well as from the checking routines here to do partial
             checks on subtrees which are already resolvable."""
-            unresolved_children = [ 
+            unresolved_children = [
                     c for c in self.children if hasattr(c, "matching_sigs")]
             self._check_types_pass_two() # Call first on self to do top-down.
             for child in unresolved_children: # Recurse on unprocessed children.
@@ -887,7 +889,7 @@ def token_subclass_factory():
             # there is ambiguity.  (Each node saved a set of sigs that is
             # satisfiable by some realizable choice of child sigs, and parents
             # can force children to assume any of their possible types).
-            # 
+            #
             # On SECOND pass: On the way *down* the tree, parents choose one
             # sig as final for each child and set it in that child's node as
             # the new self.matching_sigs.  This should always be a unique sig;
@@ -984,8 +986,8 @@ def token_subclass_factory():
 
             # Not if the ignored token for jop is set but not present.
             if parser_instance.jop_ignored_token_label and (
-                          parser_instance.jop_ignored_token_label 
-                          not in lex.peek().ignored_before_labels()): 
+                          parser_instance.jop_ignored_token_label
+                          not in lex.peek().ignored_before_labels()):
                 return None
 
             # Now infer a jop, but only if 1) its prec would satisfy the while loop
@@ -1085,7 +1087,7 @@ def token_subclass_factory():
             # an actual token and handler to call to fill the "slot" in the
             # grammar, NOT to return a processed-left... Kind of inelegant that
             # they behave differently... UNLESS this routine actually makes the
-            # call, too... 
+            # call, too...
             #   processed_left = self.get_next_token_call_handler_return_processed(...)
             # Note that this comes about because of the need to repeatedly call
             # the handler in some cases (not all).  Instead, could just use jump
@@ -1133,12 +1135,12 @@ def token_subclass_factory():
             to make use of it.  For example, the ordinal position of the token
             in the top level of the subexpression can be calculated from the
             length of `lookbehind`.
-            
+
             This function is made a method of `TokenSubclass` so that handler
             functions can easily call it by using `tok.recursive_parse`, and
             also so that it can access the lexer without it needing to be
             passed as an argument.
-            
+
             If `processed_left` is set (evaluates to true) then the first part
             of `recursive_parse` is skipped and it jumps right to the
             tail-handling loop part using the passed-in values of
@@ -1229,8 +1231,8 @@ def token_subclass_factory():
         #
 
         def summary_repr_with_types(self):
-            return ("<" + str(self.token_label) + 
-                    "," + str(self.value) + 
+            return ("<" + str(self.token_label) +
+                    "," + str(self.value) +
                     "," + str(self.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
@@ -1287,11 +1289,11 @@ class PrattParser(object):
         requested peek tokens.  The default is for it to grow arbitrarily
         (though it is reset on each parse).  Needs to be large enough for the
         max level of peeks required plus the max `go_back` level required.
-        
+
         If a Lexer is passed in the parser will use that lexer and its token
         table, otherwise a new lexer is created.  The previous lexer options
         are ignored.
-        
+
         No default begin and end functions will be set if a lexer is passed in,
         regardless of the value of `default_begin_end_tokens`.  Otherwise,
         default begin and end tokens will be defined unless
@@ -1302,7 +1304,7 @@ class PrattParser(object):
         Setting `skip_type_checking=True` is slightly faster if typing is not
         being used at all.  Setting `overload_on_ret_types` requires an extra
         walk of the token tree, and implies overloading on argument types.
-        
+
         If `partial_expressions` is set then no check will be made in the
         `parse` method to see if the parsing consumed up to the end-token in
         the lexer.  Multiple expression text can be parsed by repeatedly
@@ -1543,7 +1545,7 @@ class PrattParser(object):
         looking at the `token_label` attribute of the token."""
         return self.token_table.get_token_subclass(token_label)
 
-    def modify_token_subclass(self, token_label, prec=None, head=None, tail=None, 
+    def modify_token_subclass(self, token_label, prec=None, head=None, tail=None,
                        precond_label=None, precond_fun=None,
                        precond_priority=0, val_type=None, arg_types=None,
                        eval_fun=None, ast_label=None):
@@ -1551,11 +1553,11 @@ class PrattParser(object):
         label `token_label` (in the token table) and modify its properties.  A
         token with that label must already be in the token table, or an
         exception will be raised.
-        
+
         Returns the modified class. Saves any given `head` or `tail` functions
         in the handler dict for the token.  Both can be passed in one call, but
         they must have the same preconditions function and priority.
-        
+
         If `tail` is set then the prec will also be set unless `prec` is
         `None`.  For a head the `prec` value is ignored.  If `tail` is set and
         `prec` is `None` then the prec value defaults to zero.  If `head` or
@@ -1564,7 +1566,7 @@ class PrattParser(object):
         will be associated that function.  If `precond_fun` is also set then it
         will first be registered with the label `precond_label` (which must be
         present in that case).
-        
+
         The `eval_fun` and the `ast_label` arguments are saved as attributes of
         the type signature (and all defined type signatures for a token are
         saved with that token).  This is so different overloads of the token
@@ -1592,8 +1594,8 @@ class PrattParser(object):
             TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Create the type sig object.
-        type_sig = TypeSig(val_type, arg_types, eval_fun=eval_fun, ast_label=ast_label) 
-        
+        type_sig = TypeSig(val_type, arg_types, eval_fun=eval_fun, ast_label=ast_label)
+
         if head:
             TokenSubclass.register_handler_fun(HEAD, head,
                                precond_label=precond_label, precond_fun=precond_fun,
@@ -1783,7 +1785,7 @@ class PrattParser(object):
         Note that all tokens must be defined as literals except
         `fname_token_label`.  If the latter is also a literal then
         `precond_priority` may need to be increased to give this use priority.
-        
+
         The `num_args` parameter is optional for specifying the number of
         arguments when typing is not being used.  If it is set to a nonnegative
         number then it will automatically set `arg_types` to the corresponding
@@ -1860,11 +1862,11 @@ class PrattParser(object):
         potential left operand but not for the potential right operand.  If
         this function returns `True` then a jop is inferred and the parse
         proceeds assuming there is a jop token in the token stream.
-        
+
         Note that if the juxtaposition operator always resolves to a single
         type signature based on its argument types then, even if overloading on
         return types is in effect, the jop can be effectively inferred based on
-        type signature information.""" 
+        type signature information."""
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
 
@@ -1893,7 +1895,7 @@ class PrattParser(object):
     def def_production_rule(self, nonterm_label, grammar):
         """Register production rule cases for the nonterminal `nonterm_label`,
         as defined in the `Grammar` object `grammar`.
-        
+
         To initially process a caselist this algorithm is run.  It partitions
         the caselist for the `nonterm_label` nonterminal into separate caselists.
 
@@ -1907,7 +1909,7 @@ class PrattParser(object):
 
         3. For each partial caselist created above, call
         `def_first_case_start_handlers` with that caselist.
-        
+
         """
         # TODO: finish first-sets and make the sub-caselists be groups that
         # start with the same first-set.  Then make that a precond on it.
@@ -1930,7 +1932,7 @@ class PrattParser(object):
         nonterm_start_cases = [] # Cases starting with a nonterminal.
 
         while caselist:
-            # Repeatedly cycle through caselist, comparing first case to later ones, 
+            # Repeatedly cycle through caselist, comparing first case to later ones,
             # saving common-start ones and then deleting all that were saved on that
             # cycle from caselist.
             #print("PPPPPPPPPPPPP caselist at top of while =", caselist)
@@ -2026,7 +2028,7 @@ class PrattParser(object):
         called to parse a production rule (i.e., called when precondition that
         the state label `nonterm_label` is on the top of the `pstate_stack` is
         satisfied).
-        
+
         These handlers handle all the production rule cases of the caselist for
         the nonterminal, backtracking on failure and trying the next case, etc.
         They act very much like the usual recursive descent function for
@@ -2106,7 +2108,7 @@ class PrattParser(object):
                     last_case = True
 
                 # Loop through the items testing for match; backtrack on exception.
-                try: 
+                try:
                     for item in case:
                         #print("\n" + indent() + "Handling case item in loop:", item)
 
@@ -2223,7 +2225,7 @@ class PrattParser(object):
         parser instance (implicitly, via the handler functions of its tokens).
         The outer parser calls this routine of the inner, subexpression parser.
         Such a call to another parser would look something like::
-            
+
             alternate_parser.parse_from_lexer(lexer_to_use)
 
         where `lexer_to_use` is the lexer_to_use of the outer parser.  This routine
@@ -2264,7 +2266,7 @@ class PrattParser(object):
         """The main routine for parsing a full program or expression.  Users of
         the class should call this method to perform the parsing operations
         (after defining a grammar, of course).
-        
+
         Unless there was a parsing failure or `partial_expressions` is true
         then the lexer is left with the end-token as the current token.
 
@@ -2280,7 +2282,7 @@ class PrattParser(object):
         check for the end-token will tell when all the text was consumed.
         Users are responsible for making sure their grammars are suitable for
         this kind of parsing if the option is set.
-        
+
         If the `skip_lex_setup` parameter is true then the text `program` is
         ignored and lexer setup is skipped.  This is used when multiple parsers
         are parsing from a common text stream, though usually via the method
@@ -2296,7 +2298,7 @@ class PrattParser(object):
         output = begin_tok.recursive_parse(0)
 
         # Finalize type-checking for root when overloading on return types.
-        if self.overload_on_ret_types: 
+        if self.overload_on_ret_types:
             output.check_types_in_tree_second_pass(root=True)
 
         # See if we reached the end of the token stream.
@@ -2307,7 +2309,7 @@ class PrattParser(object):
                 " label '{0}' and value '{1}'.  Parsing stopped before a token"
                 " in the lexer with label '{2}' and value '{3}'.  The partial"
                 " result returned is:\n{4}"
-                .format(self.lex.token.token_label, self.lex.token.value, 
+                .format(self.lex.token.token_label, self.lex.token.value,
                         self.lex.peek().token_label, self.lex.peek().value,
                         output.tree_repr()))
 

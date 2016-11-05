@@ -5,6 +5,8 @@ Test the code in the production_rules.py file.
 
 """
 
+# TODO: install typped in pip
+
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
@@ -13,6 +15,7 @@ if __name__ == "__main__":
     pytest_helper.script_run(self_test=True, pytest_args="-vv")
 
 pytest_helper.autoimport()
+#pytest_helper.sys_path("../src")
 
 from typped import * # Assumes pip install, local for devel work.
 
@@ -231,7 +234,7 @@ def test_shortcut_operator_overloads_in_expression_grammar():
     #
     # Define the grammar.
     #
-   
+
     print("token number now looks like this", k_number)
     t_float = parser.def_type("t_float")
     none_sig = TypeSig(t_float, None)
@@ -355,7 +358,7 @@ def test_failed_rule_shortcut():
     # called > from instance ItemList
     #     the calling_instance is: ItemList(Tok("k_ast"), Item(None))
     #      the saved_comparison_args are: CaseList(ItemList(Rule("factor1")))
-    # 
+    #
     # Note the Item(None) in there...  bad stripping? conflict in saved_comparison_args?
     #
     # Reproduced error below, assuming fail in paren-eval handling:  Error is

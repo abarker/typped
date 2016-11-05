@@ -9,7 +9,7 @@ from __future__ import print_function, division, absolute_import
 import pytest_helper
 
 #pytest_helper.script_run(self_test=True, pytest_args="-v")
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 import math
 import operator
@@ -59,7 +59,7 @@ def define_parser_subclass():
                 if num_args != 0:
                     tok.append_children(tok.recursive_parse(0))
                 lex.match_next(rpar_token_label, raise_on_fail=True)
-                
+
                 # Always call this function at the end of a handler function.
                 tok.process_and_check_node(head_handler)
                 return tok

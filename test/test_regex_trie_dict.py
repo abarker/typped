@@ -2,11 +2,9 @@
 from __future__ import print_function, division
 import pytest_helper
 
-# TODO: random regex fails for Python3, string problem
-
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 import random
 import string
@@ -82,7 +80,7 @@ def test_basic_Python_semantics():
 
 def test_greedy_vs_nongreedy_Python_repetition_semantics():
     """Test Python semantics involving greedy vs. non-greedy match.
-    
+
     Note the important distinction between matching full patterns (with
     `fullmatch` in Python 3, or starting with ^ and ending with $) and just
     matching a prefix with `re.match`.  The full pattern must always match, but
@@ -169,25 +167,25 @@ def test_greedy_vs_nongreedy_Python_repetition_semantics():
     assert get_matched(patt, "BBBBB") == "BBBBB"
     m = re.match(patt, "BBBBB")
     print(m.groups())
-    assert m.groups() == ("BBBB", "B") 
+    assert m.groups() == ("BBBB", "B")
     patt = r"(.*?)(B+?)" # Two non-greedy matches.
     assert get_matched(patt, "BBBBB") == "B"
     m = re.match(patt, "BBBBB")
-    assert m.groups() == ("", "B") 
+    assert m.groups() == ("", "B")
     patt = r"(.*?)(B+?)" # Two non-greedy matches.
     assert get_matched(patt, "BBBBB") == "B"
     m = re.match(patt, "BBBBB")
-    assert m.groups() == ("", "B") 
+    assert m.groups() == ("", "B")
     patt = r"(.*?)(B+?)$" # Two non-greedy matches to end of query.
     assert get_matched(patt, "BBBBB") == "BBBBB"
     m = re.match(patt, "BBBBB")
-    assert m.groups() == ("", "BBBBB") 
-    
-    
+    assert m.groups() == ("", "BBBBB")
+
+
 def test_nongreedy_Python_or_group_semantics():
     """
     Python regex "or" matches are always non-greedy.
-    
+
     FIRST match is always taken, left to right on ties.  Even if longer match
     would be possible."""
 
@@ -206,7 +204,7 @@ def test_nongreedy_Python_or_group_semantics():
 
     patt = r"^(A|AB)BB$"
     assert get_matched(patt, "ABBB")
-    
+
     #
     # Set up some named groups to see what Python does, including on length ties.
     #

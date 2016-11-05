@@ -127,7 +127,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
     like in some of the other examples.  (It could be made into a method by
     just making it an attribute of the subclass, renaming `parser` to `self`,
     and making sure the superclass initializer is called.)
-    
+
     This code could also just be in-line, since it is only called once, but it
     is nice to separate it out."""
 
@@ -225,8 +225,8 @@ def define_default_tokens(parser):
     define_basic_tokens(parser)
     define_identifier_token(parser)
 
-    #parser.def_infix_op("divsign", u"÷") 
-    #parser.def_infix_op("caret", "^") 
+    #parser.def_infix_op("divsign", u"÷")
+    #parser.def_infix_op("caret", "^")
 
 def define_comment_to_EOL_token(parser, begin_string):
     # Note that comment_to_endline is non-greedy due to *? symbol.
@@ -251,7 +251,7 @@ def define_syntax(parser):
 
     # Operators
     parser.def_stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
-                                ast_label="a_std_function") 
+                                ast_label="a_std_function")
     #parser.def_stdfun_lpar_tail("k_identifier", "k_lpar", "k_rpar", "k_comma", 20,
     #                            ast_label="a_std_function") # 20 is prec of (
 
@@ -402,7 +402,7 @@ def test_stdfun_functions(basic_setup):
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
     assert str(e.value).startswith("No head handler function matched")
-    
+
 def test_stdfun_lpar_tail_functions(basic_setup):
     TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
@@ -444,8 +444,8 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
     assert str(e.value).startswith("Function no_ignored_before expected no ignored tokens")
-    
-def test_jop(basic_setup): 
+
+def test_jop(basic_setup):
     # TODO basic setup will not work, maybe individual defs of identifiers and vars
     # or else better dispatching.  (Later: what does this mean??? Tests below work.
     # Maybe identifiers need testing???)
@@ -480,7 +480,7 @@ def test_jop(basic_setup):
                           "<k_jop,None>(<k_number,'4'>,<k_sin,'sin'>(<k_number,'0'>))")
 
 
-def test_types_mixed_numerical_bool_expressions(): 
+def test_types_mixed_numerical_bool_expressions():
     """Test type-checking on number-valued and bool-valued expressions, using
     only overloading on argument types."""
     # setup
@@ -601,7 +601,7 @@ def test_types_mixed_numerical_bool_expressions():
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Actual argument types match multiple signatures.")
 
-def test_types_overloaded_return(): 
+def test_types_overloaded_return():
     """Repeat the general tests from test_types_mixed_numerical_bool_expressions
     to make sure none of them break, then test cases specific to overloading on
     return types."""

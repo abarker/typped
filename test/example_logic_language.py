@@ -100,7 +100,7 @@ to parse.
                ->                         20
                <->                        10
         lowest
-   
+
 There are two basic types: boolean and whatever type is assigned to objects in
 the domain of interpretation (i.e., the type of variables, constants, and
 function return values).  They could just have the type `t_termtype`, but for
@@ -156,7 +156,7 @@ another `recursive_parse` to read the wff to its right (which may also have
 quantifiers).  The result is "converted into" a wff.
 
 Using a wff inside a quantifier is restricted to the case where the quantifier
-expression is in parentheses.  This simplifies parsing since cases like 
+expression is in parentheses.  This simplifies parsing since cases like
 (Ax>10 x>11) are disallowed in favor of ((Ax>10) x>11), which is much easier
 to read, anyway.  In this case when not inside parens you can assume a variable
 or variable list, and when inside parens you can peek to look for either a comma or
@@ -171,7 +171,7 @@ import pytest_helper
 
 #pytest_helper.script_run(self_test=True, pytest_args="-v")
 #pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 import math
 import operator
@@ -311,7 +311,7 @@ def define_logic_parser():
             return self.modify_token_subclass(lpar_token_label, head=head_handler)
 
     return LogicParser()
- 
+
 def define_logic_language(parser):
 
     #
@@ -429,18 +429,18 @@ def define_logic_language(parser):
     parser.def_postfix_op("k_bang", 110, val_type=t_Real, arg_types=[t_Real])
 
     parser.def_infix_op("k_caret", 100, "right", val_type=t_Real, arg_types=[t_Real,t_Real])
-    
+
     parser.def_infix_op("k_asterisk", 90, "left", val_type=t_Real, arg_types=[t_Real,t_Real])
     parser.def_infix_op("k_slash", 90, "left", val_type=t_Real, arg_types=[t_Real,t_Real])
-    
+
     parser.def_infix_op("k_plus", 80, "left", val_type=t_Real, arg_types=[t_Real,t_Real])
     parser.def_infix_op("k_minus", 80, "left", val_type=t_Real, arg_types=[t_Real,t_Real])
-    
+
     parser.def_infix_op("k_greater", 70, "left", val_type=t_Bool, arg_types=[t_Real,t_Real])
     parser.def_infix_op("k_less", 70, "left", val_type=t_Bool, arg_types=[t_Real,t_Real])
 
     parser.def_infix_op("k_equals", 60, "left", val_type=t_Bool, arg_types=[t_Real,t_Real])
-    
+
     parser.def_prefix_op("k_not", 50, val_type=t_Bool, arg_types=[t_Bool])
 
     parser.def_infix_op("k_and", 40, "left", val_type=t_Bool, arg_types=[t_Bool,t_Bool])
@@ -514,7 +514,7 @@ def dummy_take_what_is_needed():
                         eval_fun=eval_assign)
 
 
-   
+
 
 def read_eval_print_loop(parser):
     try:
@@ -541,7 +541,7 @@ def read_eval_print_loop(parser):
         else:
             print(parse_tree.tree_repr())
             #print(eval_value)
-        
+
 
 def define_and_run_logic_repl():
     import readline

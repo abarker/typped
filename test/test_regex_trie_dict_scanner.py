@@ -4,7 +4,7 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 from typped.regex_trie_dict import *
 from typped.regex_trie_dict_scanner import *
@@ -28,6 +28,7 @@ def test_TrieDictScannerBasic():
     for c in "eggbert":
         tok.insert_seq_elem(c)
         tok.print_token_deque()
+    fail() # TODO above here gives fail due to trie modification.
     print("\nquerying 'eggber' character by character")
     for c in "eggber":
         tok.insert_seq_elem(c)
@@ -46,6 +47,7 @@ def test_TrieDictScannerBasic():
     print(tok.get_token_data_deque())
 
 def test_trieDictTokenizeMore():
+    skip()
     td = RegexTrieDict()
     tok = RegexTrieDictScanner(td)
     bugString = "oneonefive\none"

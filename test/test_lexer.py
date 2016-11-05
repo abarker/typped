@@ -9,7 +9,7 @@ import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
-pytest_helper.sys_path("../src")
+#pytest_helper.sys_path("../src")
 
 from typped.lexer import * # Test as an individual module.
 
@@ -185,7 +185,7 @@ def test_go_back():
     t = lex.next()
     assert t.is_first
 
-    assert t.value == "1" 
+    assert t.value == "1"
 
     t = lex.go_back(4) # attempt to go back before beginning
     assert t.is_begin_token()
@@ -195,22 +195,22 @@ def test_go_back():
     lex.go_back()
     t = lex.next()
     assert lex.token.value == "4"
-    
+
     assert t.value == "4"
 
     # test going back to a state from saved lex.num_non_ignored_token_count
     non_ig_before = lex.non_ignored_token_count
-    lc = lex.token.line_and_char 
+    lc = lex.token.line_and_char
     lex.next(2)
     non_ig_after = lex.non_ignored_token_count
     diff = non_ig_after - non_ig_before
     assert diff == 2
     lex.go_back(diff)
     assert lex.token.value == "4"
-    assert lc == lex.token.line_and_char 
+    assert lc == lex.token.line_and_char
     t = lex.token
     assert len(token_buffer.token_buffer) <= max_deque_size
-  
+
     assert t.value == "4"
 
     # test near-end conditions
@@ -225,7 +225,7 @@ def test_go_back():
     assert lex.peek(2).is_end_token() # buffer fills with end tokens
     t = lex.token
     assert len(token_buffer.token_buffer) == max_deque_size
-  
+
     assert t.value == "8"
 
     # Now we are at the end of the text, but haven't read end token.
@@ -290,7 +290,7 @@ def test_some_error_conditions():
         ("k_egg", "egg"),
         ]
     lex.def_multi_tokens(tokens)
-    
+
     # Multiple pattern match, need on_ties value error.
     lex.set_text("x  + y + egg")
     lex.next(4)
@@ -317,7 +317,7 @@ def test_documentation_example():
         ("k_plus", r"\+"),
         ]
     lex.def_multi_tokens(tokens)
-    
+
     lex.set_text("x  + y")
 
     for t in lex:
@@ -331,7 +331,7 @@ def test_documentation_example():
     assert lst[1] == "<k_plus,'+'>"
     assert lst[2] == "<k_identifier,'y'>"
     assert lst[3] == "<end,None>"
- 
+
     lex.set_text("x  + y")
     t = next(lex)
     assert str(t) == "<k_identifier,'x'>"
