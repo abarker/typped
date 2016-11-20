@@ -20,7 +20,7 @@ sequences are strings, but that can be changed.)
 The keys method assumes that the plus operator combines elements, but setting
 as_lists=True returns the list version without attempting the "addition."
 
-The usage of a TrieDict is as follows.  First create an empty TrieDict:
+The usage of a TrieDict is as follows.  First create an empty TrieDict::
 
    td = TrieDict()
 
@@ -29,7 +29,7 @@ argument (default is None) which is the value associated with the key.
 Alternately, the dict-style bracket notation can be used.  Any iterable items
 which iterate over hashable elements can be inserted.  The nodes of the trie
 will be built up from the pieces obtained by iterating over each inserted item.
-In the case of strings, iteration gives the individual characters.
+In the case of strings, iteration gives the individual characters. ::
 
    td.insert("egg")
    td.insert("r", "what_r_maps_to")
@@ -38,25 +38,18 @@ In the case of strings, iteration gives the individual characters.
 
 The above creates a tree with some reduncancy on the "egg" prefix.
 To test if a key is in the trie, use the usual has_key method, as
-with a dict:
+with a dict::
 
    if td.has_key("egg"): print('Correct, "egg" is stored')
    else: print('Incorrect, "egg" is stored')
 
-Many of the basic dict operations can be applied, but the full interface is not
-currently supported.
+Many of the basic dict operations can be applied, but the full dict interface
+is not currently supported.
 
-Note that this data structure is called a "trie."  For this application the
-basic implementation here is sufficient and allows for more control over the
-interface and implementation.  There are, however, several different Python
-packages available (optimized for efficiency in various ways):
-   https://en.wikipedia.org/wiki/Trie
-   http://kmike.ru/python-data-structures/
-
-For usual dict applications the standard hashed dict would be faster.  The
-TrieDict data structure is especially good for the case where keys are
-concatenations of hashable objects, such as in a lexical analyzer to tokenize
-character strings.
+Note that this data structure is called a "trie," usually pronounced "try."
+For this application the basic implementation here is sufficient and allows for
+more control over the interface and implementation (and is subclassed to
+recognize regex patterns in the `RegexTrieDict`).
 
 The data structure in this implementation makes heavy use of Python's built-in
 dict.  It is basically just a dict of dicts of dicts, etc., arranged into a
@@ -65,6 +58,16 @@ keys to walk down the tree.  Each tree node holds a value that the input which
 stops there is mapped to.  In a lexical analyzer application each tree node can
 holds a boolean accept/reject value according to whether a test-word is a key
 in the dict (when it terminates at that node it is either recognized or not).
+
+This is clearly not the most efficient general trie implementation.  If that is
+important there are several different Python packages available (optimized for
+efficiency in various ways). See, e.g., https://en.wikipedia.org/wiki/Trie or
+http://kmike.ru/python-data-structures/
+
+For usual dict applications the standard hashed dict would be faster.  The
+`TrieDict` data structure is especially good for the case where keys are
+concatenations of hashable objects, such as in a lexical analyzer to tokenize
+character strings, when prefixes are being searched.
 
 """
 
@@ -187,9 +190,9 @@ class TrieDict(collections.MutableMapping):
             for i in itemGen:
                 elem_list = [e[0] for e in i]
                 if as_lists:
-                    yield (elem_list, i[-1][1].data) 
+                    yield (elem_list, i[-1][1].data)
                 else:
-                    yield (combine_key_elems(elem_list), i[-1][1].data) 
+                    yield (combine_key_elems(elem_list), i[-1][1].data)
 
     def keys(self, as_lists=False):
         """Return a list of all the keys stored in the trie.  Note that the plus
@@ -317,7 +320,7 @@ class TrieDict(collections.MutableMapping):
         """Returns a generator which will do a depth-first traversal of the trie,
         starting at node subtree_root_node.  This is a Swiss Army knife routine
         which is used in many places to do the real work.
-        
+
         On each call this method returns a list of (nodeElem, node) pairs for
         each node on some path from the root to a leaf of the tree.  It
         generates such a list for each path from the root to a leaf (one on

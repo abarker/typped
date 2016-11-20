@@ -47,6 +47,7 @@ choice if speed is the most important factor.
    juxtaposition_operators
    extending_prattparser
    multiple_parsers
+   templates
    lookbehind.rst
    typped
    other_possible_generalizations
