@@ -232,11 +232,27 @@ from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexErr
                     multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
-# TODO: Define some common helper preconditions.  They are boolean so they can
-# easily be composed.  Can store them in a separate module,
+# TODO: Saving eval fun info, etc., with TypeSig does not work as expected when
+# not overloading on return type, too.  Consider saving the eval funs, etc., in
+# a dict stored with the token subclass.  Key it on EITHER the full ACTUAL
+# TypeSig or else just on the arg_types part of the actual sig (consider actual
+# vs. formal, too, and maybe have separate attributes for tokens for each (if
+# not fully done already).
+
+# TODO: Consider allowing the chosen type to vary for different token labels,
+# based on the value of the subtree root token as well as on the token label of
+# the token (as now).  Save a dict with the token subclass which is used to
+# look up the actual typesig; use None by default but let the user manage it
+# and add labels.  So, e.g., a particular identifier could be declared a variable
+# of some type, and then the user could add that to the dict stored with the
+# identifier token subclass.  Would then check if value in the dict, and if not
+# use the None value (or set a dict default value, easier).
+
+# TODO: Maybe define some common helper preconditions.  They are boolean so
+# they can easily be composed.  Can store them in a separate module,
 # precondition_helpers.py, and then import them in the __init__ for module
-# space.  Could store helpers like match_next with them (or similarly) if it
-# is determined that they shouldn't be in TokenSubclass namespace.
+# space.  Could store helpers like match_next with them (or similarly) if it is
+# determined that they shouldn't be in TokenSubclass namespace.
 
 # TODO: consider how to define a named tuple to take the arguments of the
 # functions like literals and require them to be used in the multi-def things.

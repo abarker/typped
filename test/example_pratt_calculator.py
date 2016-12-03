@@ -8,10 +8,6 @@ A simple calculator example using the Typped parser.
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
-#pytest_helper.script_run(self_test=True, pytest_args="-v")
-#pytest_helper.auto_import()
-#pytest_helper.sys_path("../src")
-
 import math
 import operator
 import typped as pp
@@ -30,9 +26,11 @@ def define_basic_calculator(parser):
     parser.def_default_whitespace() # Does the same as the commented-out lines above.
 
     token_list = [
+            # Below is from: https://docs.python.org/2/library/re.html#simulating-scanf
             #("k_float", r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"),
-            # Above from: https://docs.python.org/2/library/re.html#simulating-scanf
-            # But cannot use Python doc form exactly or 4 -4 (jop for mult) would fail.
+            # But if we use the Python doc form exactly then 4 -4 would be interpreted
+            # as a multiplication jop for rather than correctly, as subtraction.
+            # So the [+-] part is left off and done as a prefix operator.
             ("k_float", r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"),
 
             ("k_double_ast", r"(?:\*\*|\^)"), # Note ^ is defined as a synonym.
@@ -123,7 +121,7 @@ def define_basic_calculator(parser):
 
     jop_required_token = "k_space" # Can be set to None to not require any whitespace.
     parser.def_jop_token("k_jop", jop_required_token)
-    parser.def_jop(20, "left",
+    parser.def_jop(20, "left", # Same precedence and assoc. as ordinary multiplication.
             eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
 
     #
