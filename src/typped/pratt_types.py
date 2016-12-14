@@ -118,7 +118,7 @@ class TypeSig(object):
     expanded to be a tuple of that type of objects, of any required length.
     For example, a function might take an arbitrary number of arguments but
     they must all have `Int` type.
-    
+
     The values type and the argument types can be accessed by indexing the
     0 and 1 element of an instance, respectively, or by using the `val_type`
     and `arg_types` attributes."""
@@ -129,21 +129,21 @@ class TypeSig(object):
     def __init__(self, val_type=None, arg_types=None, test_fun=None, actual=False,
             eval_fun=None, ast_label=None, formal_sig=None):
         """Initialize a type signature object.
-        
+
         The argument `val_type` should be either `None`, or a `TypeObject`
         instance.
 
         The argument `arg_types` should be a list, tuple, or other iterable of
         `None` values and/or `TypeObject` instances.
-        
+
         The `None` value is treated as a wildcard that matches any
         corresponding type; `None` alone for `arg_types` allows any number of
         arguments of any type.
-        
+
         The `actual` parameter should be set `True` for type sigs which
         represent actual type sigs.  This allows for some error-checking in the
         methods.  It just sets the attribute `is_actual_sig`.
-        
+
         The `eval_fun` and `ast_label` arguments are just copied as attributes
         of the newly-created signature."""
 
@@ -157,7 +157,7 @@ class TypeSig(object):
         self.eval_fun = eval_fun
         self.ast_label = ast_label
         self.formal_sig = formal_sig
-        
+
         #
         # Convert val_type argument to TypeObject instance.
         #
@@ -217,7 +217,7 @@ class TypeSig(object):
         each sublist is a list of all the possible actual signatures for a
         child node.  The sublists should be in the same order as the
         children/arguments.
-       
+
         This is the only method of this class which is actually called from
         the `PrattParser` class (except for `__init__` other magic methods
         like equality testing)."""
@@ -338,7 +338,7 @@ class TypeSig(object):
             msg = "Actual argument types do not match any signature."
             if tnode:
                 tnode._raise_type_mismatch_error([], msg)
-            else: 
+            else:
                 raise TypeErrorInParsedLanguage(msg)
 
         return matching_sigs
@@ -350,7 +350,7 @@ class TypeSig(object):
         `child.matching_sigs` which also match in return type.  This is used in
         pass two of the type-checking, and `matching_sigs` is the
         `child.matching_sigs` attribute which was set already on pass one."""
-        return [s for s in matching_sigs 
+        return [s for s in matching_sigs
                 if s.val_type == return_type or return_type is None]
 
     @staticmethod
@@ -384,7 +384,7 @@ class TypeSig(object):
 
     def __getitem__(self, index):
         """Indexing works like a tuple."""
-        if index == 0: 
+        if index == 0:
             return self.val_type
         elif index == 1:
             return self.arg_types
@@ -474,14 +474,14 @@ class TypeObject(object):
     def matches_formal_type(self, formal_type):
         """Test whether this object as an actual type matches `formal_type` as
         a formal type.  All checks for type matches use this method.
-        
+
         A hook is provided to pass in a different function to do the
         comparison.  Set the `TypeObject` initializer keyword
         `actual_matches_formal_fun` to the function on the creation of each
         type.  It should take two `TypeObject` arguments: the actual one
         followed by the formal one.  Different functions can be passed to
         different type objects, or a generic one can be passed to all of them.
-        
+
         See also the related method `matches_formal_sig` of `TypeSig` which
         checks each value and argument in a signature"""
         return self.actual_matches_formal_fun(self, formal_type)

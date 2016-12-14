@@ -83,8 +83,7 @@ in the `lexer` module.  The `pratt_parser` module defines its own subclass of th
 base `TokenNode` class, which sets some extra attributes.  The parsing process
 sets several user-accessible attributes, which are described here.
 
-* `type_sig` -- a `TypeSig` instance giving the value and argument types
-* `val_type` -- the type of the token itself, always equals `type_sig.val_type`
+* `actual_sig` -- a `TypeSig` instance with the actual signature (value and argument types)
 
 TODO: document more
 
@@ -217,6 +216,7 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_production_rules.py",
+                              "../../test/test_example_calculator.py",
                               #"../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
@@ -233,11 +233,11 @@ from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexErr
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: Saving eval fun info, etc., with TypeSig does not work as expected when
-# not overloading on return type, too.  Consider saving the eval funs, etc., in
-# a dict stored with the token subclass.  Key it on EITHER the full ACTUAL
-# TypeSig or else just on the arg_types part of the actual sig (consider actual
-# vs. formal, too, and maybe have separate attributes for tokens for each (if
-# not fully done already).
+# not overloading on return type, too.  (Does it??)  Consider saving the eval
+# funs, etc., in a dict stored with the token subclass.  Key it on EITHER the
+# full ACTUAL TypeSig or else just on the arg_types part of the actual sig
+# (consider actual vs. formal, too, and maybe have separate attributes for
+# tokens for each (if not fully done already).
 
 # TODO: Consider allowing the chosen type to vary for different token labels,
 # based on the value of the subtree root token as well as on the token label of
@@ -458,8 +458,8 @@ def token_subclass_factory():
             string from the text.  This instance represents the token."""
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
-            self.type_sig = "Unresolved" # The full signature.  Set after parsing.
-            self.val_type = "Unresolved" # The type of the token (after parsing).
+            self.actual_sig = "Unresolved" # The full signature.  Set after parsing.
+            #self.formal_sig = "Unresolved" # TODO, might be useful to save this, too.
 
         @classmethod
         def prec(cls):
@@ -606,7 +606,8 @@ def token_subclass_factory():
                 precond_fun = cls.lookup_precond_fun(precond_label)
             else:
                 # If neither precond_fun nor precond_label, use dummy True precond
-                def true_fun(lex, lookbehind): return True
+                def true_fun(lex, lookbehind):
+                    return True
                 true_fun.priority = precond_priority
                 precond_fun = true_fun
                 # Default precondition label is a tuple so that no string matches it.
@@ -804,15 +805,15 @@ def token_subclass_factory():
 
                 # Get all the sigs for the node while we have access to fun_object.
                 if typesig_override and check_override_sig:
-                    all_sigs = [typesig_override]
+                    all_possible_sigs = [typesig_override]
                 else:
-                    all_sigs = fun_object.type_sigs
-                self.all_sigs = all_sigs # Saved ONLY for printing error messages.
+                    all_possible_sigs = fun_object.type_sigs
+                self.all_possible_sigs = all_possible_sigs # Saved ONLY for printing error messages.
 
                 if not self.parser_instance.overload_on_ret_types: # One-pass.
-                    self._check_types(all_sigs, repeat_args)
+                    self._check_types(all_possible_sigs, repeat_args)
                 else: # Two-pass.
-                    self._check_types(all_sigs, repeat_args, first_pass_of_two=True)
+                    self._check_types(all_possible_sigs, repeat_args, first_pass_of_two=True)
                     # If we have a *unique* matching sig, run pass two on the
                     # subtree.  In this case, since the signature is fixed by
                     # argument types (regardless of where the top-down pass
@@ -823,45 +824,43 @@ def token_subclass_factory():
 
             if typesig_override and not check_override_sig:
                 # Force the final, actual typesig to be the override sig.
-                typesig_override.ast_label = self.type_sig.ast_label
-                typesig_override.eval_fun = self.type_sig.eval_fun
-                self.type_sig = typesig_override
-                self.val_type = typesig_override.val_type
+                typesig_override.ast_label = self.actual_sig.ast_label
+                typesig_override.eval_fun = self.actual_sig.eval_fun
+                self.actual_sig = typesig_override
 
             return
 
-        def _check_types(self, all_sigs, repeat_args, first_pass_of_two=False):
+        def _check_types(self, all_possible_sigs, repeat_args, first_pass_of_two=False):
             """Utility function called from `process_and_check_node` to check
             the actual types against their signatures.  It assumes a single
-            pass unless `first_pass_of_two` is set.  The `all_sigs` argument is
+            pass unless `first_pass_of_two` is set.  The `all_possible_sigs` argument is
             a list (or iterable) of all the possible signatures for the
             node."""
-            # Note that self.all_sigs is now saved (currently for error
-            # messages) so the all_sigs argument to this function really isn't needed.
+            # Note that self.all_possible_sigs is now saved (currently for error
+            # messages) so the all_possible_sigs argument to this function really isn't needed.
 
             if not first_pass_of_two:
-                # Ordinary case, each child c has a unique c.type_sig already set.
-                list_of_child_sig_lists = [[c.type_sig] for c in self.children]
+                # Ordinary case, each child c has a unique c.actual_sig already set.
+                list_of_child_sig_lists = [[c.actual_sig] for c in self.children]
             else:
                 # First pass case, multiple sigs in child's self.matching_sigs list.
                 list_of_child_sig_lists = [c.matching_sigs for c in self.children]
 
             # Reduce to only the signatures that the types of the children match.
             self.matching_sigs = TypeSig.get_all_matching_sigs(
-                                      all_sigs, list_of_child_sig_lists,
+                                      all_possible_sigs, list_of_child_sig_lists,
                                       tnode=self, repeat_args=repeat_args)
-            self.all_sigs = all_sigs # Saved ONLY for printing error messages.
+            self.all_possible_sigs = all_possible_sigs # Saved ONLY for printing error messages.
 
             if not first_pass_of_two:
                 if len(self.matching_sigs) != 1:
                     self._raise_type_mismatch_error(self.matching_sigs,
                             "Actual argument types match multiple signatures.")
 
-                # Found a unique signature; set the node's val_type to its val_type.
-                self.type_sig = self.matching_sigs[0] # Save sig for semantic actions.
-                self.val_type = self.type_sig.val_type # Set the node type.
+                # Found a unique signature; set the node's type_sig attribute.
+                self.actual_sig = self.matching_sigs[0] # Save sig for semantic actions.
                 delattr(self, "matching_sigs")
-                delattr(self, "all_sigs")
+                delattr(self, "all_possible_sigs")
             return
 
         def check_types_in_tree_second_pass(self, root=False):
@@ -882,7 +881,7 @@ def token_subclass_factory():
             for child in unresolved_children: delattr(child, "matching_sigs")
             if root:
                 delattr(self, "matching_sigs")
-                delattr(self, "all_sigs")
+                delattr(self, "all_possible_sigs")
 
         def _check_types_pass_two(self):
             """A second pass is only used when overloading on return types is
@@ -928,35 +927,30 @@ def token_subclass_factory():
                         .format(len(self.matching_sigs), self.matching_sigs))
 
             # We have a unique signature; set the node's type attributes
-            self.type_sig = self.matching_sigs[0] # Save signature for semantic actions.
-            self.val_type = self.type_sig.val_type # Set the type for the node.
+            self.actual_sig = self.matching_sigs[0] # Save signature for semantic actions.
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
                 if not hasattr(child, "matching_sigs"): continue # Already resolved.
                 matched_sigs = TypeSig.get_child_sigs_matching_return_arg_type(
-                                          child, self.type_sig.arg_types[count],
+                                          child, self.actual_sig.arg_types[count],
                                           child.matching_sigs)
                 # From the first pass, we know at least one child sig matches.
-                assert len(matched_sigs) != 0
-                #if len(matched_sigs) == 0:
-                #    child._raise_type_mismatch_error(matched_sigs,
-                #        "Token node has no signatures with return type matching type of "
-                #        "parent (pass two). Parent expects type '{0}'.  Defined "
-                #        "signatures are: {1}.".format(self.val_type, child.matching_sigs))
+                assert len(matched_sigs) != 0 # Debug.
                 if len(matched_sigs) > 1:
                     # Recursion could catch this on the next step, but better err msg.
                     child._raise_type_mismatch_error(matched_sigs,
                         "Token node has multiple signatures with return type matching "
-                        "type of parent (pass two). Parent expects type '{0}'.  Defined "
-                        "signatures are: {1}.".format(self.val_type, child.matching_sigs))
+                        "type of parent (pass two). Parent expects type '{0}'.  Defined"
+                        " signatures are: {1}."
+                        .format(self.actual_sig.val_type, child.matching_sigs))
                 child.matching_sigs = matched_sigs
             return
 
         def _raise_type_mismatch_error(self, matching_sigs, basic_msg):
             """Raise an error, printing a helpful diagnostic message.  Assumes
-            that `_check_types` has been called (to set `self.all_sigs`)."""
-            # TODO: Will the self.type_sig *ever* be resolved when this routine is
+            that `_check_types` has been called (to set `self.all_possible_sigs`)."""
+            # TODO: Will the self.actual_sig *ever* be resolved when this routine is
             # called?  If not, then it is not very useful and message could be reworded.
             diagnostic = ("  Current token node has value '{0}' and label '{1}'.  Its"
                          " signature is {2}.  The"
@@ -964,10 +958,12 @@ def token_subclass_factory():
                          "val_types {4}.  The matching signatures "
                          "are {5}.  The possible signatures were {6}"
                          .format(self.value, self.token_label,
-                             self.type_sig,
+                             self.actual_sig,
                              tuple(c.summary_repr() for c in self.children),
-                             tuple(c.val_type for c in self.children),
-                             matching_sigs, self.all_sigs))
+                             tuple(c.actual_sig.val_type if not isinstance(c.actual_sig, str) else
+                                   c.actual_sig
+                                   for c in self.children), # Note this can be "Unresolved", clean up...
+                             matching_sigs, self.all_possible_sigs))
             raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
 
         #
@@ -978,10 +974,10 @@ def token_subclass_factory():
             """Run the saved evaluation function on the token, if one was
             registered with it.  Will raise an error if with no such function
             is found (the `eval_fun` is initialized to `None`)."""
-            if not self.type_sig.eval_fun:
+            if not self.actual_sig.eval_fun:
                 raise ParserException("Attempted to run an evaluation function for"
                         " token {0} but none was found.""".format(self))
-            return self.type_sig.eval_fun(self) # Run the function saved with the instance.
+            return self.actual_sig.eval_fun(self) # Run the function saved with the instance.
 
         #
         # The main recursive_parse function.
@@ -1249,7 +1245,7 @@ def token_subclass_factory():
         def summary_repr_with_types(self):
             return ("<" + str(self.token_label) +
                     "," + str(self.value) +
-                    "," + str(self.val_type) + ">")
+                    "," + str(self.actual_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
             for c in self.children:
@@ -1783,7 +1779,7 @@ class PrattParser(object):
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
             lex.match_next(rbrac_token_label, raise_on_fail=True)
-            child_type = tok.children[0].val_type
+            child_type = tok.children[0].actual_sig.val_type
             tok.process_and_check_node(head_handler,
                     typesig_override=TypeSig(child_type, [child_type]))
             return tok
@@ -1795,8 +1791,8 @@ class PrattParser(object):
                       precond_priority=1,
                       val_type=None, arg_types=None, eval_fun=None, ast_label=None,
                       num_args=None):
-        """This definition of stdfun uses lookahead.  This will take
-        arbitrarily many arguments if `arg_types` is `None`.
+        """This definition of stdfun uses lookahead to the opening paren or
+        bracket token.
 
         Note that all tokens must be defined as literals except
         `fname_token_label`.  If the latter is also a literal then
@@ -1908,9 +1904,9 @@ class PrattParser(object):
     # to pass it in explicitly if possible.  Is it always available where these
     # are called from?
 
-    def def_production_rule(self, nonterm_label, grammar):
-        """Register production rule cases for the nonterminal `nonterm_label`,
-        as defined in the `Grammar` object `grammar`.
+    def def_production_rules_for_nonterminal(self, nonterm_label, grammar):
+        """Register production rules for all the cases of the nonterminal
+        `nonterm_label`, as defined in the `Grammar` object `grammar`.
 
         To initially process a caselist this algorithm is run.  It partitions
         the caselist for the `nonterm_label` nonterminal into separate caselists.
@@ -1924,7 +1920,7 @@ class PrattParser(object):
         grouped with others having the same first-set.)
 
         3. For each partial caselist created above, call
-        `def_first_case_start_handlers` with that caselist.
+        `def_handlers_for_first_case_of_nonterminal` with that caselist.
 
         """
         # TODO: finish first-sets and make the sub-caselists be groups that
@@ -2024,7 +2020,7 @@ class PrattParser(object):
             # identify in both cases, but may need more preconds (later). Todo
             #print("XXXXXXXXXX registering peek token of", token_label)
             if caselist:
-                self.def_first_case_start_handlers(nonterm_label, null_token,
+                self.def_handlers_for_first_case_of_nonterminal(nonterm_label, null_token,
                                                          caselist, token_label)
 
         caselist = nonterm_start_cases # All rules currently handled the same.
@@ -2032,10 +2028,11 @@ class PrattParser(object):
         # Register handler with the null-string token preconditioned on
         # nonterm_label being on the top of the pstate_stack.
         if caselist:
-            self.def_first_case_start_handlers(nonterm_label, null_token, caselist)
+            self.def_handlers_for_first_case_of_nonterminal(
+                                                    nonterm_label, null_token, caselist)
 
-    def def_first_case_start_handlers(self, nonterm_label, null_token, caselist,
-                                                       peek_token_label=None):
+    def def_handlers_for_first_case_of_nonterminal(self, nonterm_label, null_token,
+                                                   caselist, peek_token_label=None):
                        # Below not used yet.... need to know cases of production...
                        #val_type=None, arg_types=None, eval_fun=None,
                        #ast_label=None):

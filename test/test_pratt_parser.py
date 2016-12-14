@@ -409,9 +409,9 @@ def test_types_mixed_numerical_bool_expressions():
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
     assert tree.children[0].token_label == "f_bn2n"
-    assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[0].actual_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[1].actual_sig == TypeSig(t_number, (t_bool, t_number))
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
@@ -420,9 +420,9 @@ def test_types_mixed_numerical_bool_expressions():
                                ast_label="a_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
-    assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[0].actual_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSig(t_number, (t_number, t_bool))
+    assert tree.children[1].actual_sig == TypeSig(t_number, (t_number, t_bool))
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")
@@ -528,9 +528,9 @@ def test_types_overloaded_return():
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
     assert tree.children[0].token_label == "f_bn2n"
-    assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[0].actual_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[1].actual_sig == TypeSig(t_number, (t_bool, t_number))
 
     # functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
@@ -539,9 +539,9 @@ def test_types_overloaded_return():
                                ast_label="a_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
-    assert tree.children[0].type_sig == TypeSig(t_number, (t_bool, t_number))
+    assert tree.children[0].actual_sig == TypeSig(t_number, (t_bool, t_number))
     assert tree.children[1].token_label == "g_bn2n"
-    assert tree.children[1].type_sig == TypeSig(t_number, (t_number, t_bool))
+    assert tree.children[1].actual_sig == TypeSig(t_number, (t_number, t_bool))
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
     assert str(e.value).startswith("Actual argument types do not match any signature.")

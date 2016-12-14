@@ -437,7 +437,7 @@ class Grammar(object):
 
         if register:
             for label, caselist in self.production_caselists.items():
-                self.parser.def_production_rule(label, self)
+                self.parser.def_production_rules_for_nonterminal(label, self)
 
     def _process_nonterm_caselist(self, nonterm_label):
         """Recursively process rules, converting string labels into their
