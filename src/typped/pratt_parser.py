@@ -83,7 +83,7 @@ in the `lexer` module.  The `pratt_parser` module defines its own subclass of th
 base `TokenNode` class, which sets some extra attributes.  The parsing process
 sets several user-accessible attributes, which are described here.
 
-* `actual_sig` -- a `TypeSig` instance with the actual signature (value and argument types)
+* `expanded_formal_sig` -- a `TypeSig` instance with the expanded formal sig
 
 TODO: document more
 
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_production_rules.py",
                               "../../test/test_example_calculator.py",
-                              #"../../test/test_parser_called_from_parser.py",
+                              "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
 
@@ -238,6 +238,15 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # full ACTUAL TypeSig or else just on the arg_types part of the actual sig
 # (consider actual vs. formal, too, and maybe have separate attributes for
 # tokens for each (if not fully done already).
+#
+# UPDATE: Save both the actual sig and the formal sig when parsing a token.
+# Note formal sigs are initially defined and saved with the token.  Currently
+# they have the eval fun pasted onto them.  But, instead, you can define
+# another dict with the token subclass which maps the FORMAL sig to the eval
+# fun, etc.   Then you can ignore the return value, if overloading on return is
+# not being used... but consider a bit more...  Key on formal since that is
+# what the users define the eval funs in terms of...  How do eval funs
+# interact with overloading in general when return type is and isn't used?
 
 # TODO: Consider allowing the chosen type to vary for different token labels,
 # based on the value of the subtree root token as well as on the token label of
@@ -458,7 +467,7 @@ def token_subclass_factory():
             string from the text.  This instance represents the token."""
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
-            self.actual_sig = "Unresolved" # The full signature.  Set after parsing.
+            self.expanded_formal_sig = "Unresolved" # The full signature.  Set after parsing.
             #self.formal_sig = "Unresolved" # TODO, might be useful to save this, too.
 
         @classmethod
@@ -824,9 +833,9 @@ def token_subclass_factory():
 
             if typesig_override and not check_override_sig:
                 # Force the final, actual typesig to be the override sig.
-                typesig_override.ast_label = self.actual_sig.ast_label
-                typesig_override.eval_fun = self.actual_sig.eval_fun
-                self.actual_sig = typesig_override
+                typesig_override.ast_label = self.expanded_formal_sig.ast_label
+                typesig_override.eval_fun = self.expanded_formal_sig.eval_fun
+                self.expanded_formal_sig = typesig_override
 
             return
 
@@ -840,14 +849,14 @@ def token_subclass_factory():
             # messages) so the all_possible_sigs argument to this function really isn't needed.
 
             if not first_pass_of_two:
-                # Ordinary case, each child c has a unique c.actual_sig already set.
-                list_of_child_sig_lists = [[c.actual_sig] for c in self.children]
+                # Ordinary case, each child c has a unique c.expanded_formal_sig already set.
+                list_of_child_sig_lists = [[c.expanded_formal_sig] for c in self.children]
             else:
                 # First pass case, multiple sigs in child's self.matching_sigs list.
                 list_of_child_sig_lists = [c.matching_sigs for c in self.children]
 
             # Reduce to only the signatures that the types of the children match.
-            self.matching_sigs = TypeSig.get_all_matching_sigs(
+            self.matching_sigs = TypeSig.get_all_matching_expanded_sigs(
                                       all_possible_sigs, list_of_child_sig_lists,
                                       tnode=self, repeat_args=repeat_args)
             self.all_possible_sigs = all_possible_sigs # Saved ONLY for printing error messages.
@@ -858,7 +867,7 @@ def token_subclass_factory():
                             "Actual argument types match multiple signatures.")
 
                 # Found a unique signature; set the node's type_sig attribute.
-                self.actual_sig = self.matching_sigs[0] # Save sig for semantic actions.
+                self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
                 delattr(self, "matching_sigs")
                 delattr(self, "all_possible_sigs")
             return
@@ -927,13 +936,13 @@ def token_subclass_factory():
                         .format(len(self.matching_sigs), self.matching_sigs))
 
             # We have a unique signature; set the node's type attributes
-            self.actual_sig = self.matching_sigs[0] # Save signature for semantic actions.
+            self.expanded_formal_sig = self.matching_sigs[0] # Save signature for semantic actions.
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
                 if not hasattr(child, "matching_sigs"): continue # Already resolved.
                 matched_sigs = TypeSig.get_child_sigs_matching_return_arg_type(
-                                          child, self.actual_sig.arg_types[count],
+                                          child, self.expanded_formal_sig.arg_types[count],
                                           child.matching_sigs)
                 # From the first pass, we know at least one child sig matches.
                 assert len(matched_sigs) != 0 # Debug.
@@ -943,14 +952,14 @@ def token_subclass_factory():
                         "Token node has multiple signatures with return type matching "
                         "type of parent (pass two). Parent expects type '{0}'.  Defined"
                         " signatures are: {1}."
-                        .format(self.actual_sig.val_type, child.matching_sigs))
+                        .format(self.expanded_formal_sig.val_type, child.matching_sigs))
                 child.matching_sigs = matched_sigs
             return
 
         def _raise_type_mismatch_error(self, matching_sigs, basic_msg):
             """Raise an error, printing a helpful diagnostic message.  Assumes
             that `_check_types` has been called (to set `self.all_possible_sigs`)."""
-            # TODO: Will the self.actual_sig *ever* be resolved when this routine is
+            # TODO: Will the self.expanded_formal_sig *ever* be resolved when this routine is
             # called?  If not, then it is not very useful and message could be reworded.
             diagnostic = ("  Current token node has value '{0}' and label '{1}'.  Its"
                          " signature is {2}.  The"
@@ -958,10 +967,10 @@ def token_subclass_factory():
                          "val_types {4}.  The matching signatures "
                          "are {5}.  The possible signatures were {6}"
                          .format(self.value, self.token_label,
-                             self.actual_sig,
+                             self.expanded_formal_sig,
                              tuple(c.summary_repr() for c in self.children),
-                             tuple(c.actual_sig.val_type if not isinstance(c.actual_sig, str) else
-                                   c.actual_sig
+                             tuple(c.expanded_formal_sig.val_type if not isinstance(c.expanded_formal_sig, str) else
+                                   c.expanded_formal_sig
                                    for c in self.children), # Note this can be "Unresolved", clean up...
                              matching_sigs, self.all_possible_sigs))
             raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
@@ -974,10 +983,10 @@ def token_subclass_factory():
             """Run the saved evaluation function on the token, if one was
             registered with it.  Will raise an error if with no such function
             is found (the `eval_fun` is initialized to `None`)."""
-            if not self.actual_sig.eval_fun:
+            if not self.expanded_formal_sig.eval_fun:
                 raise ParserException("Attempted to run an evaluation function for"
                         " token {0} but none was found.""".format(self))
-            return self.actual_sig.eval_fun(self) # Run the function saved with the instance.
+            return self.expanded_formal_sig.eval_fun(self) # Run the function saved with the instance.
 
         #
         # The main recursive_parse function.
@@ -1245,7 +1254,7 @@ def token_subclass_factory():
         def summary_repr_with_types(self):
             return ("<" + str(self.token_label) +
                     "," + str(self.value) +
-                    "," + str(self.actual_sig.val_type) + ">")
+                    "," + str(self.expanded_formal_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
             for c in self.children:
@@ -1779,7 +1788,7 @@ class PrattParser(object):
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
             lex.match_next(rbrac_token_label, raise_on_fail=True)
-            child_type = tok.children[0].actual_sig.val_type
+            child_type = tok.children[0].expanded_formal_sig.val_type
             tok.process_and_check_node(head_handler,
                     typesig_override=TypeSig(child_type, [child_type]))
             return tok

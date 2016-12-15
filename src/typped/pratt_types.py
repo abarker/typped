@@ -122,12 +122,9 @@ class TypeSig(object):
     The values type and the argument types can be accessed by indexing the
     0 and 1 element of an instance, respectively, or by using the `val_type`
     and `arg_types` attributes."""
-    #ast_label = None # Default value for extra attribute pasted onto instances.
-    #eval_fun = None # Default value for extra attribute pasted onto instances.
-    #formal_sig = None # Set for instances when wildcards (None types) are expanded.
 
-    def __init__(self, val_type=None, arg_types=None, test_fun=None, actual=False,
-            eval_fun=None, ast_label=None, formal_sig=None):
+    def __init__(self, val_type=None, arg_types=None, test_fun=None,
+                                             eval_fun=None, ast_label=None):
         """Initialize a type signature object.
 
         The argument `val_type` should be either `None`, or a `TypeObject`
@@ -140,10 +137,6 @@ class TypeSig(object):
         corresponding type; `None` alone for `arg_types` allows any number of
         arguments of any type.
 
-        The `actual` parameter should be set `True` for type sigs which
-        represent actual type sigs.  This allows for some error-checking in the
-        methods.  It just sets the attribute `is_actual_sig`.
-
         The `eval_fun` and `ast_label` arguments are just copied as attributes
         of the newly-created signature."""
 
@@ -153,10 +146,8 @@ class TypeSig(object):
         # actually matches the declared type in the function spec.  Decide if
         # useful, else delete.
 
-        self.is_actual_sig = actual
         self.eval_fun = eval_fun
         self.ast_label = ast_label
-        self.formal_sig = formal_sig
 
         #
         # Convert val_type argument to TypeObject instance.
@@ -201,39 +192,36 @@ class TypeSig(object):
         self.arg_types = arg_types
 
 
-    # TODO: error check on actual vs. formal in methods below using self.is_actual_sig.
-
     @staticmethod
-    def get_all_matching_sigs(sig_list, list_of_child_sig_lists, tnode=None,
+    def get_all_matching_expanded_sigs(sig_list, list_of_child_sig_lists, tnode=None,
                               repeat_args=False, raise_err_on_empty=True):
         """Return the list of all the signatures on `sig_list` whose arguments
         match some choice of child/argument signatures from
-        `list_of_child_sig_lists`.
+        `list_of_child_sig_lists`  Note that this does not look at the return
+        types, and returns all signatures with matching arguments.
+
+        This is the main method of this class which is actually called from the
+        `PrattParser` to find all the argument-matching signatures.  (If
+        overloading on return types is used then `PrattParser` also calls
+        `get_child_sigs_matching_return_arg_type` on the second pass, to check
+        return matches.)
 
         The `sig_list` argument should be a list of `TypeSig` instances
         representing formal types.
 
         The `list_of_child_sig_lists` argument should be a list of lists, where
-        each sublist is a list of all the possible actual signatures for a
-        child node.  The sublists should be in the same order as the
-        children/arguments.
+        each sublist is a list of all the possible signatures for a child node.
+        The sublists should be in the same order as the children/arguments.
 
-        This is the only method of this class which is actually called from
-        the `PrattParser` class (except for `__init__` other magic methods
-        like equality testing)."""
+        The returned list is a list of expanded formal type signatures (i.e.,
+        with `None` arguments expanded and with a fixed number of arguments).
+        The original, unexpanded formal signature which matched is saved as an
+        attribute `original_formal_sig` of each matching expanded formal
+        signature which is returned."""
         num_args = len(list_of_child_sig_lists)
 
-        # Do some integrity checks on the lists (could be removed for efficiency).
-        if not all(not s.is_actual_sig for s in sig_list):
-            raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
-                    " sigs as `sig_list` argument.")
-        # TODO these should eval to false after they become actual types...
-        if not all(not s.is_actual_sig for s_lst in list_of_child_sig_lists for s in s_lst):
-            raise TypeModuleException("Call to `get_all_matching_sigs` with actual"
-                    " sigs as `sig_list` argument.")
-
         # Expand the signatures with wildcards to match the number of args.
-        sig_list = TypeSig.expand_sigs_with_None_args(num_args, sig_list)
+        sig_list = TypeSig.get_sigs_expanded_for_num_actual_args(num_args, sig_list)
 
         # Filter the signatures by the number of arguments.
         sig_list = TypeSig.get_sigs_matching_num_args(num_args, sig_list,
@@ -241,7 +229,7 @@ class TypeSig(object):
 
         # Now filter by sigs for which the actual value of the child type matches
         # (as a type, not equality) the required formal type return type.
-        sig_list = TypeSig.get_sigs_matching_child_types(sig_list,
+        sig_list = TypeSig.filter_sigs_matching_child_types(sig_list,
                              list_of_child_sig_lists, tnode, raise_err_on_empty)
         return sig_list
 
@@ -251,20 +239,24 @@ class TypeSig(object):
     #    return list(set(sig_list))
 
     @staticmethod
-    def expand_sigs_with_None_args(num_args, sig_list):
-        """Expand the signatures on list `sig_list` so that any `None` argument not
-        inside a tuple or list is converted to a tuple of `None` having
-        `num_args` of argument.  Each expanded version has the original signature
-        saved with it as an attribute called `formal_sig`.  This routine also
-        expands signatures which are a single `TypeObject` to take any number
-        of arguments of that type."""
+    def get_sigs_expanded_for_num_actual_args(num_args, sig_list):
+        """Expand the signatures on list `sig_list` so that any `None` argument
+        not inside a tuple or list is converted to a tuple of `None` having
+        `num_args` of argument.
+
+        This routine also expands argument signatures consisting of a single
+        `TypeObject` to take any number of arguments of that type.
+
+        Each expanded version has the original, unexpanded signature saved with
+        it as an attribute called `original_formal_sig`."""
         all_sigs_expanded = []
         for sig in sig_list:
             if isinstance(sig.arg_types, TypeObject): # TypeObject(None) here also.
                 new_sig = TypeSig(sig.val_type, (sig.arg_types,)*num_args,
-                        formal_sig=sig, eval_fun=sig.eval_fun, ast_label=sig.ast_label)
+                                  eval_fun=sig.eval_fun, ast_label=sig.ast_label)
             else:
                 new_sig = sig
+            new_sig.original_formal_sig = sig # Save formal sig as an attribute of expanded.
             all_sigs_expanded.append(new_sig)
         return all_sigs_expanded
 
@@ -274,21 +266,27 @@ class TypeSig(object):
         """Return a list of signatures from `sig_list` which match `num_args`
         as the number of arguments.  Expand as necessary by repeating the
         arguments over and over if `repeat_args` is `True`.  The optional
-        token-tree node `tnode` is only used for improved error reporting."""
+        token-tree node `tnode` is only used for improved error reporting.
+
+        This routine assumes that a `formal_sig` attribute has been set for all
+        passed-in signatures (for example, as set by the method
+        `expand_sigs_with_None_args`."""
         sigs_matching_numargs = []
         for sig in sig_list:
             sig_args_len = len(sig.arg_types)
-            if sig_args_len != num_args:
+            if sig_args_len == num_args:
+                new_sig = sig
+            else:
                 if not repeat_args:
                     continue
                 if num_actual_args % sig_args_len != 0:
                     continue
                 num_repeats = num_actual_args // sig_args_len
                 # NOTE repeating adds refs, not copies; OK for now but keep in mind.
-                sig = TypeSig(sig.val_type, sig.arg_types * num_repeats,
-                        formal_sig=sig, eval_fun=sig.eval_fun,
-                        ast_label=sig.ast_label)
-            sigs_matching_numargs.append(sig)
+                new_sig = TypeSig(sig.val_type, sig.arg_types * num_repeats,
+                                  eval_fun=sig.eval_fun, ast_label=sig.ast_label)
+            new_sig.original_formal_sig = sig.original_formal_sig # Copy over the formal sig.
+            sigs_matching_numargs.append(new_sig)
 
         if raise_err_on_empty and not sigs_matching_numargs:
             msg = "The number of arguments ({0}) does not match any signature.".format(
@@ -300,15 +298,22 @@ class TypeSig(object):
         return sigs_matching_numargs
 
     @staticmethod
-    def get_sigs_matching_child_types(sig_list, list_of_child_sig_lists,
+    def filter_sigs_matching_child_types(sig_list, list_of_child_sig_lists,
                                           tnode=None, raise_err_on_empty=True):
+
         """Return a list of all signatures in `sig_list` which have arguments
         that match (in order) the return type of some child signature in the
         corresponding sublist of `list_of_child_sig_lists`.  The latter should
-        be a list containing lists of all the signatures for each child, in
-        order.  The number of arguments is assumed to already match (see
-        `get_sigs_matching_num_args`).  The optional token-tree node `tnode` is
-        only used for improved error reporting."""
+        be a list containing lists of all the expanded signatures for each
+        child, in corresponding order.
+
+        The number of arguments is assumed to already match (see
+        `get_sigs_matching_num_args`).  This just filters the list, removing the
+        non-matches.
+
+        The optional token-tree node `tnode` is only used for improved error
+        reporting."""
+
         matching_sigs = []
         # Loop over each possible sig, testing for matches.
         for sig in sig_list:
@@ -345,11 +350,16 @@ class TypeSig(object):
 
     @staticmethod
     def get_child_sigs_matching_return_arg_type(child, return_type, matching_sigs):
-        """Called with a child node and the expected return type for that
+        """Called with a child node, the expected return type for that
         child, and a list of matching sigs for the child.  Returns all the
-        `child.matching_sigs` which also match in return type.  This is used in
-        pass two of the type-checking, and `matching_sigs` is the
-        `child.matching_sigs` attribute which was set already on pass one."""
+        `child.matching_sigs` which also match in return type.
+
+        This is used in pass two of the type-checking.  When called, the
+        `matching_sigs` parameter is passed the `child.matching_sigs` attribute
+        which was already set on pass one of the checking.  If the result
+        is unique the return type of the child is known, and so the full
+        signature can be resolved and assigned."""
+        # TODO TODO: This needs to use actual_matches_formal routine instead!
         return [s for s in matching_sigs
                 if s.val_type == return_type or return_type is None]
 
@@ -369,7 +379,9 @@ class TypeSig(object):
         """Test if this signature as an actual signature matches `formal_sig`
         as a formal signature.  Note the difference between this and equality!
         This is the one which should be called to determine signature
-        equivalence based on type equivalences and possible conversions."""
+        equivalence based on type equivalences and possible conversions.
+
+        NOT CURRENTLY USED, low-level `matches_formal_type` is used instead."""
         if not isinstance(formal_sig, self.__class__):
             raise TypeError(
                     "Comparing {0} with some other kind of object.".format(__class__))
@@ -421,15 +433,15 @@ class TypeSig(object):
 # NOTE: Consider if there is any advantage to having types themselves take
 # parameters other than the string labels.
 
-def actual_matches_formal(actual, formal):
+def actual_matches_formal(actual_type, formal_type):
     # TODO: this could be a method of a full class, which handles all the
     # type equivalence, alias, and conversion stuff.....
     # Alternately, it would fit in as part of the existing TypeTable class.
     """The default function to check whether actual types match formal types.
-    Uses straight equality."""
-    return actual == formal
+    Currently uses straight equality, nothing else."""
+    return actual_type == formal_type # Later consider fancier matching.
 
-# TODO nice to have only one wildcard object, but may need __new__.
+# TODO would be nice to have only one wildcard object, but may need __new__.
 NONE = (None,) # A representation for a type label of None, so == comparisons OK.
 
 class TypeObject(object):
