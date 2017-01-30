@@ -232,22 +232,6 @@ from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexErr
                     multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
-# TODO: Saving eval fun info, etc., with TypeSig does not work as expected when
-# not overloading on return type, too.  (Does it??)  Consider saving the eval
-# funs, etc., in a dict stored with the token subclass.  Key it on EITHER the
-# full ACTUAL TypeSig or else just on the arg_types part of the actual sig
-# (consider actual vs. formal, too, and maybe have separate attributes for
-# tokens for each (if not fully done already).
-#
-# UPDATE: Save both the actual sig and the formal sig when parsing a token.
-# Note formal sigs are initially defined and saved with the token.  Currently
-# they have the eval fun pasted onto them.  But, instead, you can define
-# another dict with the token subclass which maps the FORMAL sig to the eval
-# fun, etc.   Then you can ignore the return value, if overloading on return is
-# not being used... but consider a bit more...  Key on formal since that is
-# what the users define the eval funs in terms of...  How do eval funs
-# interact with overloading in general when return type is and isn't used?
-
 # TODO: Consider allowing the chosen type to vary for different token labels,
 # based on the value of the subtree root token as well as on the token label of
 # the token (as now).  Save a dict with the token subclass which is used to
@@ -468,7 +452,6 @@ def token_subclass_factory():
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
             self.expanded_formal_sig = "Unresolved" # The full signature.  Set after parsing.
-            #self.formal_sig = "Unresolved" # TODO, might be useful to save this, too.
 
         @classmethod
         def prec(cls):
@@ -817,7 +800,7 @@ def token_subclass_factory():
                     all_possible_sigs = [typesig_override]
                 else:
                     all_possible_sigs = fun_object.type_sigs
-                self.all_possible_sigs = all_possible_sigs # Saved ONLY for printing error messages.
+                self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
 
                 if not self.parser_instance.overload_on_ret_types: # One-pass.
                     self._check_types(all_possible_sigs, repeat_args)
@@ -969,8 +952,9 @@ def token_subclass_factory():
                          .format(self.value, self.token_label,
                              self.expanded_formal_sig,
                              tuple(c.summary_repr() for c in self.children),
-                             tuple(c.expanded_formal_sig.val_type if not isinstance(c.expanded_formal_sig, str) else
-                                   c.expanded_formal_sig
+                             tuple(c.expanded_formal_sig.val_type
+                                 if not isinstance(c.expanded_formal_sig, str)
+                                 else c.expanded_formal_sig
                                    for c in self.children), # Note this can be "Unresolved", clean up...
                              matching_sigs, self.all_possible_sigs))
             raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
@@ -1605,7 +1589,7 @@ class PrattParser(object):
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
                     " calling `def_token` first.".format(token_label))
-            # This used to just create a subclass, but that can mask errors.
+            # Below line used to just create a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
         # Save a reference to the PrattParser, so nodes can access it if they need to.

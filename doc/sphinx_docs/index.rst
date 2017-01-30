@@ -9,16 +9,47 @@ Typped: A typed Pratt parser employing dispatching
 
 .. default-role:: code
 
-This package provides a general purpose Python framework for creating Pratt
-parsers to parse possibly typed target languages.  It provides default parser
-functions for many standard constructs (such as infix operators and ordinary
-functions) and can be extended to allow more complicated or specific constructs
-to be parsed.
+The Typped package provides a general Python framework for defining and using
+Pratt parsers.  The parsed language can optionally include basic types and
+overloading on those types.  Default parser methods are provided for many
+standard constructs (such as infix operators and ordinary function calls).
+Users can define their own custom functions or methods to allow for parsing
+more complicated or more specific grammatical constructs.  An EBNF-like Python
+syntax is also provided, which can be used to define and implement recursive
+descent parsing of a grammar within the Typped framework and (integrated with
+Pratt parsing).
+
+Although the framework is general, the package was originally designed to parse
+logic languages and mathematical languages.  Because it is based on Pratt
+parsing it is especially good at parsing expression languages or sublanguages
+which have various operators at different precedences.  The parser can be
+modified on-the-fly, so the parsed languages can be fully dynamic.  Since the
+package is written in pure Python it is probably not the best choice if speed
+is a crucial factor.
+
+.. warning::
+
+   This is alpha-level software.  Many features are only partially implemented,
+   and the documentation is incomplete.  The user API can still change, though
+   probably in minor ways.
 
 Installation
 ============
 
-The easiest way to install Typped is to use pip:
+The current way to install is to clone the GitHub repo and install with pip:
+
+.. code-block:: bash
+
+   git clone https://github.com/abarker/typped
+   cd typped
+   pip install .
+
+As usual, use a virtual environment or at least run pip with the ``--user``
+option unless you really want to modify the system Python installation (in
+which case you may need to use ``sudo``).
+
+At a more stable development point Typped will be uploaded to PyPI so users can
+install Typped directly:
 
 .. code-block:: bash
 
@@ -26,14 +57,6 @@ The easiest way to install Typped is to use pip:
 
 Content
 =======
-
-The Typped package provides a framework for defining and using Pratt parsers,
-with optional type-checking.  Because it is based on Pratt parsing it is
-especially good at expression languages with various types of operators.   The
-package was designed for logic languages and mathematical languages, but the
-framework is general-purpose.  Languages can be fully dynamic, defined and
-modified on-the-fly.  Since the package is pure Python it is not the best
-choice if speed is the most important factor.
 
 .. toctree::
    :maxdepth: 3
