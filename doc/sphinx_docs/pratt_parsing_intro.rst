@@ -380,7 +380,7 @@ The parse is roughly described in the box below.
 .. topic:: Parsing the expression ``2 + 5 * 8``
 
    This is an rough English description of parsing the expression ``2 + 5 * 8``
-   with a Pratt parser, as defined above.  Indents occur on recursive calls,
+   with a Pratt parser as defined above.  Indents occur on recursive calls,
    and the corresponding dedents indicate a return to that level.  Remember
    that this is a mutual recursion, between the ``recursive_parse`` routine and
    the head and tail handler functions associated with tokens.  The tokens

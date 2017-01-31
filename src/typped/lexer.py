@@ -68,7 +68,7 @@ can be combined using the `def_multi_tokens` method.::
         ("k_plus", r"\+")
         ]
     lex.def_multi_tokens(tokens)
-    
+
     lex.set_text("x  + y")
 
     for t in lex:
@@ -179,7 +179,7 @@ if __name__ == "__main__":
 
 import collections
 from .matcher_python_regex import MatcherPythonRegex
-from .shared_settings_and_exceptions import LexerException, return_first_exception
+from .shared_settings_and_exceptions import LexerException, is_subclass_of
 
 #
 # TokenNode
@@ -189,17 +189,17 @@ class TokenNode(object):
     """The base class for token objects.  Each different kind of token is represented
     by a subclass of this class.  Instances of the tokens in the program text are
     represented by instances of the subclass for that kind of token.
-    
+
     The attribute `token_label` is the string token label for the kind of token
     represented by an instance.  The attribute `value` is set to the actual
     string value in the lexed text which matched the regex of the token.  The
     attribute `ignored_before` is a tuple of all tokens ignored just
     before the lexer got this token.
-    
+
     The attribute `children` is a list of the child nodes, and `parent` is the
-    parent.  Indexing a `TokenNode` class also returns the corresponding child 
+    parent.  Indexing a `TokenNode` class also returns the corresponding child
     node, i.e. `t_node[0]` would be the leftmost child."""
-    
+
     token_label = None # A label for subclasses representing kinds of tokens.
     original_matched_string = "" # Default, for begin- and end-tokens.
 
@@ -245,7 +245,7 @@ class TokenNode(object):
         copied over.  The AST nodes are only assumed to have an append_children
         method which appends a child AST node."""
         ast_node = convert_TokenNode_to_AST_node_fun(self)
-        for child in self.children: 
+        for child in self.children:
             ast_node.append_children(
                     child.convert_to_AST(convert_TokenNode_to_AST_node_fun))
         return ast_node
@@ -333,7 +333,7 @@ def basic_token_subclass_factory():
     start with.  This function **should not be called directly**, since
     additional attributes (such as the token label and a new subclass name)
     also need to be added to the generated subclass.
-    
+
     This function is the default argument to the `token_subclassing_fun`
     keyword argument of the initializer for `TokenTable`.  Users
     can define their own such function in order to add methods to token objects
@@ -437,23 +437,23 @@ class TokenTable(object):
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
         """Define a token and the regex to recognize it.
-        
+
         The label `token_label` is the label for the kind of token.
-        
+
         The label `regex_string` is a Python regular expression defining the
         text strings which match for the token.  If `regex_string` is set to
         `None` then a dummy token will be created which is never searched for
         in the lexed text.  To better catch errors it does not have a default
         value, so setting it to `None` must be done explicitly.
-        
+
         Setting `ignore=True` will cause all such tokens to be ignored (except
         that they will be placed on the `ignored_before` list of the
         non-ignored token that they precede).
-        
+
         In case of ties for the longest match in scanning, the integer
         `on_ties` values are used to break the ties.  If any two are still
         equal an exception will be raised.
-        
+
         Returns the new token subclass."""
         if self.is_defined_token_label(token_label):
             raise LexerException("A token with label '{0}' is already defined.  It "
@@ -589,7 +589,7 @@ class TokenBuffer(object):
         previously-buffered tokens if possible.  The `Lexer` method `next`
         should always be called by users of that class, because it also handles
         some other things.
-        
+
         Attempts to move past the first end-token leave the current offset at
         the first end-token.  No new tokens are added to the buffer.  The
         end-token is returned."""
@@ -655,9 +655,9 @@ class TokenBuffer(object):
 
     def _append(self, tok=None):
         """Append to buffer and fix current index if necessary.  Users should not
-        call.  If `tok` is not set then the token to append is obtained from the 
+        call.  If `tok` is not set then the token to append is obtained from the
         `token_getter_fun` function.
-        
+
         Note that this is the **only** method that ever gets tokens directly
         from the token getter function."""
         # TODO: should this fill with end tokens, or stop at the first end token?
@@ -696,18 +696,18 @@ class Lexer(object):
     """Scans text and returns tokens, represented by instances of `TokenNode`
     subclass instances. There is one subclass for each kind of token, i.e., for
     each token label.  These subclasses themselves are assumed to have been
-    created before any scanning operation, via the `def_token` method. 
-    
+    created before any scanning operation, via the `def_token` method.
+
     Token sequences are assumed to have both a begin-token and an end-token
     sentinel, defined via the `def_begin_end_tokens` method.  Exactly one
     end-token will be returned by `next`; any further calls to `next` raise
     `StopIteration`.
-    
+
     The scanning is independent of the order in which tokens are defined.  The
     longest match over all token patterns will always be the one selected.  In
     case of ties the `on_ties` value (passed to `def_token`) is used to
     break it.  If that fails a `LexerException` is raised.
-    
+
     If no token table is passed into `__init__` the `Lexer` will create its
     own empty one."""
 
@@ -772,7 +772,7 @@ class Lexer(object):
         called at any time.  If text is being scanned at the time then it
         flushes the current and lookahead tokens and re-scans the current
         token.
-        
+
         When set with this method the token table is always given the attribute
         `lex`, which points to the lexer instance that this method was called from.
         This attribute is used by tokens (which know their fixed symbol table)
@@ -845,7 +845,7 @@ class Lexer(object):
         """Return the next token, consuming from the token stream.  Also sets
         `self.token` to the return value.  Returns one end-token and raises
         `StopIteration` on a `next` after that end-token.
-        
+
         If `num` is greater than one a list of the tokens is returned.  This
         list is cut short if the first end-token is encountered, so this
         kind of `next` call will never generate `StopIteration`."""
@@ -875,7 +875,7 @@ class Lexer(object):
         return self.token
 
     __next__ = next # For Python 3.
-    
+
     def __iter__(self):
         return self # Class provides its own __next__ method.
 
@@ -886,7 +886,7 @@ class Lexer(object):
         Peeking zero shows the current token.  Negative peeks are allowed, and
         look back at the previous tokens (up to the number in the token
         buffer).
-        
+
         Tokens are read into the buffer on-demand to satisfy any requested
         peek.  If `max_peek_tokens` is set then an exception will be raised on
         attempts to peek farther than that."""
@@ -907,7 +907,7 @@ class Lexer(object):
         or deletions to the token definitions.  If the parser is guaranteed
         to be static with respect to the tokens then this is the routine to
         use.  Otherwise, use `go_back`.
-        
+
         The optional parameter `num_toks` is the number of tokens to move
         back.  Negative numbers move forward, consuming more tokens if
         necessary.  Moving forward will always stop before consuming a second
@@ -981,13 +981,13 @@ class Lexer(object):
         than one go farther back in the token stream.  Attempts to go back
         before the beginning of the program text go back to the beginning and
         stop there.
- 
+
         This method returns the current token after any re-scanning.
-       
+
         Values of `num_toks` less than one apply to saved loohahead tokens (if
         any).  The call `go_back(-1)` flushes all lookahead tokens saved in the
         buffer except the one immediately following the current token.
-       
+
         If `num_is_raw` is true then `num_toks` is interpreted as the actual
         number of tokens to go back, including any in the buffer (which are
         otherwise handled automatically).  This can be useful when looking at
@@ -1120,7 +1120,7 @@ class Lexer(object):
         """Return all the text that is set but not yet processed.  Returns
         `None` if no text is currently set.  The current token is assumed
         to have been processed.
-        
+
         By default this is relative to the current peek token, but the `peek`
         number can be set to a previous or later one if available in the
         buffer."""
@@ -1133,7 +1133,7 @@ class Lexer(object):
         """Return all the text that is set and has been processed.  Returns
         `None` if no text is currently set.  The current token is assumed
         to have been processed.
-        
+
         By default this is relative to the current peek token, but the `peek`
         number can be set to a previous or later one if available in the
         buffer."""
@@ -1211,23 +1211,23 @@ class Lexer(object):
                    err_msg_tokens=3):
         """A utility function that tests whether the value of the next token
         label equals a given token label.
-        
+
         This method consumes a token from the lexer if and only if there is a
         match.  Either way, a boolean is returned indicating the match status.
 
         If `consume` is false then no tokens will ever be consumed.  Otherwise
         a token will be consumed if and only if it matches.
-        
+
         The parameter `peeklevel` is passed to the peek function for how far
         ahead to look; the default is one.
-        
+
         If `raise_on_fail` set true then a `LexerException` will be raised by
         default if the match fails.  The default can be changed by setting the
         lexer instance attribute `default_helper_exception`.  Similarly,
         `raise_on_true` raises an exception when a match is found.  Either one
         can be set to a subclass of `Exception` instead of a boolean, and then
         that exception will be called.
-        
+
         The parameter `err_msg_tokens` can be set to change how many tokens
         worth of text back the error messages report (as debugging
         information) when an exception is raised.  (The count does not
@@ -1348,7 +1348,7 @@ class Lexer(object):
         indices in a list `self.prog_unprocessed` indexing the unprocessed
         part.  That slice can be externally modified (the `go_back` routine
         does this).
-        
+
         This is a lower-level function used by `next` to do the real work.  All
         the token subclasses should have been defined and stored in the the
         `TokenTable`.  Regexes defined for tokens are repeatedly matched at the
@@ -1358,7 +1358,7 @@ class Lexer(object):
         object and an instance of that subclass is returned to represent the
         token.  Every token processed is represented by a unique new instance
         of the appropriate subclass of `TokenNode`.
-        
+
         This generator has two states which can be set instance-globally to
         alter the state of the generator.  The states are
         `GenTokenState.ordinary` for ordinary scanning execution, and
@@ -1435,7 +1435,7 @@ class Lexer(object):
                     self.upcoming_raw_charnumber = (
                             len(token_value) - (last_newline + 1) + 1)
                 self.upcoming_raw_total_chars += len(token_value)
-                
+
                 # ------------------------------------------------------------------
                 # Go to the top of the loop and get another if the token is ignored.
                 # ------------------------------------------------------------------
@@ -1479,6 +1479,17 @@ def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):
                    "Bad multi-definition of {0}: Omitted required arguments."
                    "\nError on this tuple: {1}".format(function.__name__, t))
    return tuple(retval_list)
+
+def return_first_exception(*args):
+    """Go down the argument list and return the first object that is a
+    subclass of the `Exception` class.  Arguments do not need to all be
+    classes.  Returns `None` if all fail.  Used to allow an optional exception
+    class to be passed to a function instead of true, with a default called
+    if the passed-in value is not an exception."""
+    for item in args:
+        if is_subclass_of(item, Exception):
+            return item
+    return None
 
 #
 # Exceptions

@@ -392,7 +392,7 @@ from .shared_settings_and_exceptions import ParserException, is_subclass_of, is_
 
 from .pratt_types import TypeSig, TypeObject, NONE
 from .lexer import TokenNode
-
+from .recursive_descent_methods import def_production_rules_for_nonterminal
 
 class Grammar(object):
     """An object representing a context-free grammar.  It is basically a
@@ -437,7 +437,7 @@ class Grammar(object):
 
         if register:
             for label, caselist in self.production_caselists.items():
-                self.parser.def_production_rules_for_nonterminal(label, self)
+                def_production_rules_for_nonterminal(self.parser, label, self)
 
     def _process_nonterm_caselist(self, nonterm_label):
         """Recursively process rules, converting string labels into their
