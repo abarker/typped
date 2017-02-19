@@ -443,6 +443,11 @@ def token_subclass_factory():
         token_label = None # Set to the actual value later, by create_token_subclass.
         parser_instance = None # Set by the `PrattParser` method `def_token`.
 
+        # These two dicts are used so overloaded instances can have different AST
+        # data and evaluation functions associated with them.  Keyed by original sig.
+        ast_label_dict = {} # Saves AST data associated keyed by type signature.
+        eval_fun_dict = {}  # Saves evaluation functions keyed by type signature.
+
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
             labeled with `token_label`.  The `value` is the actual parsed
@@ -463,10 +468,8 @@ def token_subclass_factory():
             # the value.  (Note that if overloading on return types is turned
             # off then these dicts are keyed only on the argument portion of
             # the original typesig.)
-            self.expanded_formal_sig = "Unresolved" # The full signature.  Set after parsing.
-            self.ast_label_dict = {} # TODO: This is not yet implemented at all.. change over
-            self.eval_fun_dict = {}  # TODO: Same as above line. Change over from current...
-            #self.actual_sig = {} # Currently just look at the tree, can read off the types.
+            self.expanded_formal_sig = "Unresolved" # The full sig.  Set after parsing.
+            #self.actual_sig = {} # Currently just look at tree, can read off the types.
 
         @classmethod
         def prec(cls):
@@ -542,11 +545,9 @@ def token_subclass_factory():
             since only the typesigs are one-to-one with the final, resolved
             functions.
 
-            The `type_sig` argument must be a valid `TypeSig` instance.  Any
-            extra data attributes which should be associated with signatures
-            (such as an evaluation function or AST label) should already have
-            been made attributes of the passed-in signature.  Every unique
-            type signature is saved, and non-unique ones are overwritten.
+            The `type_sig` argument must be a valid `TypeSig` instance.  Every
+            unique type signature is saved, and non-unique ones have their
+            previously-associated data overwritten.
 
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
@@ -641,7 +642,7 @@ def token_subclass_factory():
             # AT ALL, or just give a warning.  See case of preconds for quantifiers
             # in logic example which use mutually exclusive handlers and have the
             # same priority.  TODO: Consider removing FALSE flag and code below.
-            pre_check_for_same_priority = False # Make attribute or pass in or delete all.
+            pre_check_for_same_priority = False
             if pre_check_for_same_priority:
                 for p_label, data_item in sorted_handler_dict.items():
                     if p_label == precond_label:
@@ -775,14 +776,12 @@ def token_subclass_factory():
             handling things like parentheses and brackets which inherit the
             type of their child (assuming the parens and brackets are kept as
             nodes in the parse tree and not eliminated).  The `eval_fun` and
-            `ast_label` attributes are copied over from the typesig that was
-            found by normal resolution.
+            `ast_label` found by the normally-resolved typesig are also
+            keyed under the override signature.
 
             If `check_override_sig` is true then the overridden signature will
-            be the set as the only possible signature, and type checking will
-            be done on it.  Any desired `eval_fun` and/or `ast_label` must be
-            explicitly set for the signature.  The final, actual signature is
-            the possibly-expanded version found in type-checking.
+            be type-checked.  In checking it is assumed to be the only possible
+            signature.  It is then expanded, as usual, in the checking process.
 
             If `in_tree` is set false then the node for this token will not
             appear in the final token tree: its children will replace it, in
@@ -830,9 +829,11 @@ def token_subclass_factory():
                         self.check_types_in_tree_second_pass()
 
             if typesig_override and not check_override_sig:
+                # Key eval_fun and ast_label, now keyed with current sig, also with overload sig.
+                self.parser_instance._save_eval_fun_and_ast_data(self.__class__, typesig_override,
+                            self.eval_fun_dict.get(self.expanded_formal_sig.original_formal_sig, None),
+                            self.ast_label_dict.get(self.expanded_formal_sig.original_formal_sig, None))
                 # Force the final, actual typesig to be the override sig.
-                typesig_override.ast_label = self.expanded_formal_sig.ast_label
-                typesig_override.eval_fun = self.expanded_formal_sig.eval_fun
                 self.expanded_formal_sig = typesig_override
 
             return
@@ -981,11 +982,23 @@ def token_subclass_factory():
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
             registered with it.  Will raise an error if with no such function
-            is found (the `eval_fun` is initialized to `None`)."""
-            if not self.expanded_formal_sig.eval_fun:
-                raise ParserException("Attempted to run an evaluation function for"
-                        " token {0} but none was found.""".format(self))
-            return self.expanded_formal_sig.eval_fun(self) # Run the fun saved with the instance.
+            is found."""
+            sig = self.expanded_formal_sig
+            orig_sig = self.expanded_formal_sig.original_formal_sig
+            eval_fun = None
+            if self.parser_instance.overload_on_ret_types:
+                eval_fun = self.eval_fun_dict.get(orig_sig, None)
+            elif self.parser_instance.overload_on_arg_types:
+                eval_fun = self.eval_fun_dict.get(orig_sig.arg_types, None)
+
+            if not eval_fun:
+                raise ParserException("Evaluation function called for token with label "
+                        "'{0}', but no defined and matching evaluation function was found."
+                        " The resolved original signature is {1} and the resolve expanded "
+                        "signature is {2}.  The token's eval_fun_dict is:\n{3}"
+                        .format(self.token_label, orig_sig, sig, self.eval_fun_dict))
+
+            return eval_fun(self)
 
         #
         # The main recursive_parse function.
@@ -1287,6 +1300,13 @@ class PrattParser(object):
         calling `parse` when this option is true and checking whether the
         lexer's current token is the end-token."""
 
+        ## Type-checking options below; these can be changed between calls to `parse`.
+        self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
+        self.overload_on_arg_types = overload_on_arg_types # Raise error on mult defs?
+        self.overload_on_ret_types = overload_on_ret_types # Requires extra processing.
+        if overload_on_ret_types:
+            self.overload_on_arg_types = True # Overload on ret implies overload on args.
+
         # If exceptions are not raised on ties below, the last-set one has
         # precedence.  Define this before registering any handlers (done
         # below in `def_begin_end_tokens`).
@@ -1320,13 +1340,6 @@ class PrattParser(object):
         self.null_string_token_label = None # Label of the null-string token, if any.
         self.null_string_token_subclass = None # The actual null-string token, if any.
         self.partial_expressions = False # Whether to parse multiple expressions.
-
-        # Type-checking options below; these can be changed between calls to `parse`.
-        self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
-        self.overload_on_arg_types = overload_on_arg_types # Raise error on mult defs?
-        self.overload_on_ret_types = overload_on_ret_types # Requires extra processing.
-        if overload_on_ret_types:
-            self.overload_on_arg_types = True
 
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
@@ -1521,6 +1534,21 @@ class PrattParser(object):
         looking at the `token_label` attribute of the token."""
         return self.token_table.get_token_subclass(token_label)
 
+    def _save_eval_fun_and_ast_data(self, token_subclass, type_sig, eval_fun, ast_label):
+        """This is a utility function that saves data in the `eval_fun_dict`
+        and `ast_label_dict` associated with token `token_subclass`, keyed by
+        the `TypeSig` instance `typesig` and also by the `arg_types` of that
+        typesig.  This is used so overloaded instances can have different
+        evaluations and AST data."""
+        if self.overload_on_arg_types:
+            print("saving for token with label", token_subclass.token_label)
+            # Save in dicts hashed with full signature.
+            token_subclass.ast_label_dict[type_sig] = ast_label
+            token_subclass.eval_fun_dict[type_sig] = eval_fun
+            # Save in dicts hashed only on args.
+            token_subclass.ast_label_dict[type_sig.arg_types] = ast_label
+            token_subclass.eval_fun_dict[type_sig.arg_types] = eval_fun
+
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None,
                        precond_label=None, precond_fun=None,
                        precond_priority=0, val_type=None, arg_types=None,
@@ -1543,10 +1571,12 @@ class PrattParser(object):
         will first be registered with the label `precond_label` (which must be
         present in that case).
 
-        The `eval_fun` and the `ast_label` arguments are saved as attributes of
-        the type signature (and all defined type signatures for a token are
-        saved with that token).  This is so different overloads of the token
-        can have different AST labels and/or evaluation functions."""
+        The `eval_fun` and the `ast_label` arguments are saved in the dicts
+        `eval_fun_dict` and `ast_label_dict` respectively, keyed by the
+        `TypeSig` defined by `val_type` and `arg_types`, as well as by
+        `arg_types` alone for when overloading on return values is not used.
+        This allows for different overloads to have different evaluation
+        functions and AST-associated data."""
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
@@ -1556,7 +1586,7 @@ class PrattParser(object):
             prec = 0
 
         if self.token_table.has_key(token_label):
-            TokenSubclass = self.get_token(token_label)
+            token_subclass = self.get_token(token_label)
         else:
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
@@ -1565,23 +1595,26 @@ class PrattParser(object):
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
         # Save a reference to the PrattParser, so nodes can access it if they need to.
-        TokenSubclass.parser_instance = self # maybe weakref later
+        token_subclass.parser_instance = self # maybe weakref later
 
         if tail:
-            TokenSubclass.static_prec = prec # Ignore prec for heads; it will stay 0.
+            token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Create the type sig object.
-        type_sig = TypeSig(val_type, arg_types, eval_fun=eval_fun, ast_label=ast_label)
+        type_sig = TypeSig(val_type, arg_types)
+
+        # Save the eval_fun and ast_label with the token, keyed by type_sig.
+        self._save_eval_fun_and_ast_data(token_subclass, type_sig, eval_fun, ast_label)
 
         if head:
-            TokenSubclass.register_handler_fun(HEAD, head,
+            token_subclass.register_handler_fun(HEAD, head,
                                precond_label=precond_label, precond_fun=precond_fun,
                                precond_priority=precond_priority, type_sig=type_sig)
         if tail:
-            TokenSubclass.register_handler_fun(TAIL, tail,
+            token_subclass.register_handler_fun(TAIL, tail,
                                precond_label=precond_label, precond_fun=precond_fun,
                                precond_priority=precond_priority, type_sig=type_sig)
-        return TokenSubclass
+        return token_subclass
 
     def undef_handler(self, token_label, head_or_tail, precond_label=None,
                          val_type=None, arg_types=None, all_handlers=False):

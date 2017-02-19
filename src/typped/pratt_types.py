@@ -123,8 +123,7 @@ class TypeSig(object):
     0 and 1 element of an instance, respectively, or by using the `val_type`
     and `arg_types` attributes."""
 
-    def __init__(self, val_type=None, arg_types=None, test_fun=None,
-                                             eval_fun=None, ast_label=None):
+    def __init__(self, val_type=None, arg_types=None, test_fun=None):
         """Initialize a type signature object.
 
         The argument `val_type` should be either `None`, or a `TypeObject`
@@ -135,19 +134,13 @@ class TypeSig(object):
 
         The `None` value is treated as a wildcard that matches any
         corresponding type; `None` alone for `arg_types` allows any number of
-        arguments of any type.
-
-        The `eval_fun` and `ast_label` arguments are just copied as attributes
-        of the newly-created signature."""
+        arguments of any type."""
 
         # TODO test_fun is not set or used as of now, but it is supposed to be
         # an optional user-defined function which tests whether the parsed
         # subexpression subtree which was found in the parsed program text
         # actually matches the declared type in the function spec.  Decide if
         # useful, else delete.
-
-        self.eval_fun = eval_fun
-        self.ast_label = ast_label
 
         #
         # Convert val_type argument to TypeObject instance.
@@ -252,8 +245,7 @@ class TypeSig(object):
         all_sigs_expanded = []
         for sig in sig_list:
             if isinstance(sig.arg_types, TypeObject): # TypeObject(None) here also.
-                new_sig = TypeSig(sig.val_type, (sig.arg_types,)*num_args,
-                                  eval_fun=sig.eval_fun, ast_label=sig.ast_label)
+                new_sig = TypeSig(sig.val_type, (sig.arg_types,)*num_args)
             else:
                 new_sig = sig
             new_sig.original_formal_sig = sig # Save formal sig as an attribute of expanded.
@@ -283,8 +275,7 @@ class TypeSig(object):
                     continue
                 num_repeats = num_actual_args // sig_args_len
                 # NOTE repeating adds refs, not copies; OK for now but keep in mind.
-                new_sig = TypeSig(sig.val_type, sig.arg_types * num_repeats,
-                                  eval_fun=sig.eval_fun, ast_label=sig.ast_label)
+                new_sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
             new_sig.original_formal_sig = sig.original_formal_sig # Copy over the formal sig.
             sigs_matching_numargs.append(new_sig)
 
@@ -423,7 +414,7 @@ class TypeSig(object):
         return "TypeSig({0}, {1})".format(self.val_type.short_repr(), arglist)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
-        return hash((self.val_type, self.arg_types))
+        return hash(("TypeSig", self.val_type, self.arg_types))
 
 
 #
@@ -446,6 +437,7 @@ NONE = (None,) # A representation for a type label of None, so == comparisons OK
 
 class TypeObject(object):
     """Instances of this class represent types."""
+    # Be sure to update __hash__ if more type-defining components are added.
 
     def __init__(self, type_label, actual_matches_formal_fun=actual_matches_formal):
         """Instantiate a type object or a wildcare object with `None` argument."""
@@ -458,6 +450,10 @@ class TypeObject(object):
             self.is_wildcard = False
         self.conversions = {} # Dict keyed by to_type values.
         self.actual_matches_formal_fun = actual_matches_formal_fun
+
+    def __hash__(self):
+        """Define hashing for instances."""
+        return hash(("TypeObject", self.type_label))
 
     def def_conversion(self, to_type, priority=0, tree_data=None):
         """Define an automatic conversion to be applied to the `TypeObjectBase`
@@ -508,10 +504,6 @@ class TypeObject(object):
     def __ne__(self, type_object):
         return not self == type_object
 
-    #def __hash__(self):
-    #    """Needed to index dicts and for use in Python sets."""
-    #    # TODO, may need fancier hash at some point, not needed at all now, though.
-    #    return hash(self.type_label)
     def __repr__(self):
         str_label = self.type_label
         if self.type_label == NONE: str_label = "None"
