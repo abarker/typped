@@ -248,11 +248,6 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # space.  Could store helpers like match_next with them (or similarly) if it is
 # determined that they shouldn't be in TokenSubclass namespace.
 
-# TODO: consider how to define a named tuple to take the arguments of the
-# functions like literals and require them to be used in the multi-def things.
-# Otherwise, gets confusing about what the arguments are, and cannot use
-# keywords... May or may not work, though.
-
 # TODO: if PrattParser requires tokens defined from itself, it should mark them
 # and refuse to deal with any others.  It implicitly does, with whatever
 # attributes it adds.... but a nice early warning would be good before an
@@ -317,6 +312,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
+# If a TokenTable is made to fully define a parser then you only need to save that...
+# but you need to clutter it with non-token data.
 
 #
 # TokenNode
@@ -452,7 +449,24 @@ def token_subclass_factory():
             string from the text.  This instance represents the token."""
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
+
+            # The `expanded_formal_sig` is set upon parsing.  It is the
+            # expanded form of one of the formal sigs which were registered
+            # with the token (the expansion handles wildcards, repeat options,
+            # etc.)  If is the signature which matched the actual args.  The
+            # `self.expanded_formal_sig` has an attribute `original_formal_sig`
+            # which is the original, unexpanded formal signature that matched
+            # (after expansion) the actual arguments.  This is important
+            # because the eval_fun and ast_label for tokens are saved in dicts
+            # keyed by the original signature at the time when they are
+            # defined.  So we need the resolved original signature to look up
+            # the value.  (Note that if overloading on return types is turned
+            # off then these dicts are keyed only on the argument portion of
+            # the original typesig.)
             self.expanded_formal_sig = "Unresolved" # The full signature.  Set after parsing.
+            self.ast_label_dict = {} # TODO: This is not yet implemented at all.. change over
+            self.eval_fun_dict = {}  # TODO: Same as above line. Change over from current...
+            #self.actual_sig = {} # Currently just look at the tree, can read off the types.
 
         @classmethod
         def prec(cls):
@@ -759,10 +773,10 @@ def token_subclass_factory():
             will be *assigned* to the node as its actual signature after all
             checking, overriding any other settings.  This is useful for
             handling things like parentheses and brackets which inherit the
-            type of their child (assuming they are kept as nodes in the parse
-            tree and not eliminated).  The `eval_fun` and `ast_label`
-            attributes are copied over from the typesig that was found by
-            normal resolution.
+            type of their child (assuming the parens and brackets are kept as
+            nodes in the parse tree and not eliminated).  The `eval_fun` and
+            `ast_label` attributes are copied over from the typesig that was
+            found by normal resolution.
 
             If `check_override_sig` is true then the overridden signature will
             be the set as the only possible signature, and type checking will
@@ -920,7 +934,7 @@ def token_subclass_factory():
                         .format(len(self.matching_sigs), self.matching_sigs))
 
             # We have a unique signature; set the node's type attributes
-            self.expanded_formal_sig = self.matching_sigs[0] # Save signature for semantic actions.
+            self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
@@ -971,7 +985,7 @@ def token_subclass_factory():
             if not self.expanded_formal_sig.eval_fun:
                 raise ParserException("Attempted to run an evaluation function for"
                         " token {0} but none was found.""".format(self))
-            return self.expanded_formal_sig.eval_fun(self) # Run the function saved with the instance.
+            return self.expanded_formal_sig.eval_fun(self) # Run the fun saved with the instance.
 
         #
         # The main recursive_parse function.
@@ -1045,64 +1059,20 @@ def token_subclass_factory():
             """Check for any possible matching null-string token handlers;
             return the token and the matching handler if one is found."""
 
-            # Need a way to pass the subexp_prec argument to null-string
+            # TODO: Need a way to pass the subexp_prec argument to null-string
             # handlers, so they can relay it -- a way that works with recursive
             # calls, too.
             #
-            # Since different INSTANCES of the null-string token are always
-            # used then can paste it onto that -- the handler fun is passed
-            # tok.  Currently done like this.
+            # The idea is that we want to have the recursive descent stuff use
+            # the Pratt-style priority mechanisms if possible...
             #
-            # How about setting it as an attribute of the looked-up handler
-            # function itself?  Handler fun (only for null-string) can then
-            # look at its own attribute.  Token instance probably better.
-            #
-            # TODO: consider "virtual null-string tokens" which only execute
-            # their handlers (such as to change pstate) but are not treated
-            # as actual tokens.  Some possible uses, but is there enough
-            # real advantage?
-            #
-            # To do backtracking stuff you can handle productions like this
-            #   <prod> = <prod1> | <prod2> | <prod3>
-            # with virtual tokens by going in order (of def or priority) and
-            # setting the state to, say <prod1>, looking up the handler,
-            # calling the handler.  Inside the handler, call *this routine*
-            # recursively until a non-fail result returned or all fail.  Raise
-            # a special exception on fail, and continue the loop on the next
-            # item if one fails.  Until one succeeds or possibilities
-            # exhausted.
-            #
-            # Each production needs to declare whether it is a head or tail,
-            # though (should be same for whole thing).
-            #
-            # ---> Above probably works for general backtracking... also for
-            # formulaic evaluation of production rules.  Just need to register
-            # a special handler for head token of each production case.  (Could
-            # conceivably even do optimization and search the full tree once --
-            # such as for G-normal-form rules -- setting improved preconditions
-            # for the tokens...)
-            #
-            # Note this routine now returns a (possible) actual token.  So the
-            # handlers can call this routine *and* the dispatch_handler routine
-            # inside them, until all fail or an actual handler returned.  They
-            # need to call lex.next to get the actual token, so it would also be
-            # easy to substitute-in an instance of the null-string token.
-
-            # DEFINE: this routine must return nothing or an actual token and
-            # handler.  So, job of handlers in null-string tokens is to return
-            # an actual token and handler to call to fill the "slot" in the
-            # grammar, NOT to return a processed-left... Kind of inelegant that
-            # they behave differently... UNLESS this routine actually makes the
-            # call, too...
-            #   processed_left = self.get_next_token_call_handler_return_processed(...)
-            # Note that this comes about because of the need to repeatedly call
-            # the handler in some cases (not all).  Instead, could just use jump
-            # into middle of the recursive_parse (or break it into two functions
-            # and have recursive_parse call both).
+            # Does each production need to declare whether it is a head or tail?
+            # Implicit?
             #
             # Jumping into recursive_parse in middle may be better solution...
             # as originally done.  To the handlers it is all the same loop,
-            # since they get the same info.
+            # since they get the same info.  I.e., to handle tails in recursive
+            # descent like way...
 
             parser_instance = self.parser_instance
             curr_token = None
@@ -1582,7 +1552,8 @@ class PrattParser(object):
             raise ParserException("The arg_types argument to token_subclass must"
                     " be None or an iterable returning type labels (e.g., a list"
                     " or tuple).")
-        if tail and prec is None: prec = 0
+        if tail and (prec is None):
+            prec = 0
 
         if self.token_table.has_key(token_label):
             TokenSubclass = self.get_token(token_label)

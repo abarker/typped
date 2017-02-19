@@ -30,14 +30,17 @@ from typped import PrattParser
 def define_parser_subclass():
 
     class MyParser(PrattParser):
+        """Subclass and add a new method to the `PrattParser` class as an example."""
+
         def __init__(self, *args, **kwargs):
             """Call the superclass initializer."""
             super(MyParser, self).__init__(*args, **kwargs)
 
-        def def_stdfun(self, fname_token_label, lpar_token_label,
+        def def_stdfun_lookahead(self, fname_token_label, lpar_token_label,
                        rpar_token_label, comma_token_label, num_args,
                        precond_priority=1):
             """Define a standard function with a fixed number of arguments."""
+
             # Define the preconditions function and a unique label for it.
             def preconditions(lex, lookbehind):
                 # Note that helper functions like `match_next` could also be used.
@@ -47,6 +50,7 @@ def define_parser_subclass():
                 return True
             precond_label = "lpar after, no whitespace between" # Some unique label.
 
+            # Define the head-handler function.
             def head_handler(tok, lex):
                 # Below match is for a precondition, so it will match and consume.
                 lex.match_next(lpar_token_label, raise_on_fail=True)
@@ -64,7 +68,8 @@ def define_parser_subclass():
                 tok.process_and_check_node(head_handler)
                 return tok
 
-            # Always call this function to register handler funs with the token.
+            # Register the handler function with the token, associated with the
+            # preconditions function.
             self.modify_token_subclass(fname_token_label, prec=0,
                                        head=head_handler,
                                        precond_label=precond_label,
@@ -92,8 +97,8 @@ def define_grammar(MyParser):
                ]
     parser.def_multi_literals(literals)
 
-    parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", 2)
-    parser.def_stdfun("k_sub", "k_lpar", "k_rpar", "k_comma", 2)
+    parser.def_stdfun_lookahead("k_add", "k_lpar", "k_rpar", "k_comma", 2)
+    parser.def_stdfun_lookahead("k_sub", "k_lpar", "k_rpar", "k_comma", 2)
 
     return parser
 

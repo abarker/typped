@@ -17,18 +17,13 @@ if __name__ == "__main__":
     pytest_helper.script_run(["../../test/test_production_rules.py",
                               ], pytest_args="-v")
 
-# TODO: Fix syntax checking and remove unneeded imports below.
-
-import sys
-import types
-import copy
-import functools
-from collections import OrderedDict, namedtuple, defaultdict
-
+from collections import defaultdict
 from .shared_settings_and_exceptions import (ParserException, CalledEndTokenHandler)
-from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
-                    multi_funcall)
-from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
+
+#from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
+#                    multi_funcall)
+#from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
+
 
 #
 # Production rule methods.

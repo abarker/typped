@@ -46,7 +46,7 @@ The current way to install is to clone the GitHub repo and install with pip:
 
 As usual, use a virtual environment or at least run pip with the ``--user``
 option unless you really want to modify the system Python installation (in
-which case you may need to use ``sudo``).
+which case you may also need to use ``sudo`` on a Linux system).
 
 At a more stable development point Typped will be uploaded to PyPI so users can
 install Typped directly:
