@@ -33,10 +33,10 @@ To use the `PrattParser` class you need to do these things:
        way desired, including in preconditions).  Examples::
 
           t_number = parser.def_type("t_number")
-          parser.def_literal("k_number", val_type=t_number, ast_label="a_number")
+          parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
           parser.def_infix_op("k_plus", 10, "left",
                            val_type="number", arg_types=[t_number, t_number],
-                           ast_label="a_add")
+                           ast_data="a_add")
 
        If the predefined methods are not sufficient you might need to create a
        subclass of `PrattParser` to provide additional methods.  Note that
@@ -445,7 +445,7 @@ def token_subclass_factory():
 
         # These two dicts are used so overloaded instances can have different AST
         # data and evaluation functions associated with them.  Keyed by original sig.
-        ast_label_dict = {} # Saves AST data associated keyed by type signature.
+        ast_data_dict = {} # Saves AST data associated keyed by type signature.
         eval_fun_dict = {}  # Saves evaluation functions keyed by type signature.
 
         def __init__(self, value):
@@ -462,7 +462,7 @@ def token_subclass_factory():
             # `self.expanded_formal_sig` has an attribute `original_formal_sig`
             # which is the original, unexpanded formal signature that matched
             # (after expansion) the actual arguments.  This is important
-            # because the eval_fun and ast_label for tokens are saved in dicts
+            # because the eval_fun and ast_data for tokens are saved in dicts
             # keyed by the original signature at the time when they are
             # defined.  So we need the resolved original signature to look up
             # the value.  (Note that if overloading on return types is turned
@@ -776,7 +776,7 @@ def token_subclass_factory():
             handling things like parentheses and brackets which inherit the
             type of their child (assuming the parens and brackets are kept as
             nodes in the parse tree and not eliminated).  The `eval_fun` and
-            `ast_label` found by the normally-resolved typesig are also
+            `ast_data` found by the normally-resolved typesig are also
             keyed under the override signature.
 
             If `check_override_sig` is true then the overridden signature will
@@ -829,10 +829,10 @@ def token_subclass_factory():
                         self.check_types_in_tree_second_pass()
 
             if typesig_override and not check_override_sig:
-                # Key eval_fun and ast_label, now keyed with current sig, also with overload sig.
+                # Key eval_fun and ast_data, now keyed with current sig, also with overload sig.
                 self.parser_instance._save_eval_fun_and_ast_data(self.__class__, typesig_override,
                             self.eval_fun_dict.get(self.expanded_formal_sig.original_formal_sig, None),
-                            self.ast_label_dict.get(self.expanded_formal_sig.original_formal_sig, None))
+                            self.ast_data_dict.get(self.expanded_formal_sig.original_formal_sig, None))
                 # Force the final, actual typesig to be the override sig.
                 self.expanded_formal_sig = typesig_override
 
@@ -1534,25 +1534,25 @@ class PrattParser(object):
         looking at the `token_label` attribute of the token."""
         return self.token_table.get_token_subclass(token_label)
 
-    def _save_eval_fun_and_ast_data(self, token_subclass, type_sig, eval_fun, ast_label):
+    def _save_eval_fun_and_ast_data(self, token_subclass, type_sig, eval_fun, ast_data):
         """This is a utility function that saves data in the `eval_fun_dict`
-        and `ast_label_dict` associated with token `token_subclass`, keyed by
+        and `ast_data_dict` associated with token `token_subclass`, keyed by
         the `TypeSig` instance `typesig` and also by the `arg_types` of that
         typesig.  This is used so overloaded instances can have different
         evaluations and AST data."""
         if self.overload_on_arg_types:
             print("saving for token with label", token_subclass.token_label)
             # Save in dicts hashed with full signature.
-            token_subclass.ast_label_dict[type_sig] = ast_label
+            token_subclass.ast_data_dict[type_sig] = ast_data
             token_subclass.eval_fun_dict[type_sig] = eval_fun
             # Save in dicts hashed only on args.
-            token_subclass.ast_label_dict[type_sig.arg_types] = ast_label
+            token_subclass.ast_data_dict[type_sig.arg_types] = ast_data
             token_subclass.eval_fun_dict[type_sig.arg_types] = eval_fun
 
     def modify_token_subclass(self, token_label, prec=None, head=None, tail=None,
                        precond_label=None, precond_fun=None,
                        precond_priority=0, val_type=None, arg_types=None,
-                       eval_fun=None, ast_label=None):
+                       eval_fun=None, ast_data=None):
         """Look up the subclass of base class `TokenNode` corresponding to the
         label `token_label` (in the token table) and modify its properties.  A
         token with that label must already be in the token table, or an
@@ -1571,8 +1571,8 @@ class PrattParser(object):
         will first be registered with the label `precond_label` (which must be
         present in that case).
 
-        The `eval_fun` and the `ast_label` arguments are saved in the dicts
-        `eval_fun_dict` and `ast_label_dict` respectively, keyed by the
+        The `eval_fun` and the `ast_data` arguments are saved in the dicts
+        `eval_fun_dict` and `ast_data_dict` respectively, keyed by the
         `TypeSig` defined by `val_type` and `arg_types`, as well as by
         `arg_types` alone for when overloading on return values is not used.
         This allows for different overloads to have different evaluation
@@ -1603,8 +1603,8 @@ class PrattParser(object):
         # Create the type sig object.
         type_sig = TypeSig(val_type, arg_types)
 
-        # Save the eval_fun and ast_label with the token, keyed by type_sig.
-        self._save_eval_fun_and_ast_data(token_subclass, type_sig, eval_fun, ast_label)
+        # Save the eval_fun and ast_data with the token, keyed by type_sig.
+        self._save_eval_fun_and_ast_data(token_subclass, type_sig, eval_fun, ast_data)
 
         if head:
             token_subclass.register_handler_fun(HEAD, head,
@@ -1653,7 +1653,7 @@ class PrattParser(object):
 
     def def_literal(self, token_label, val_type=None, precond_label=None,
                           precond_fun=None, precond_priority=1,
-                          eval_fun=None, ast_label=None):
+                          eval_fun=None, ast_data=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
         function to the token.  Literals are the leaves of the parse tree; they
@@ -1667,7 +1667,7 @@ class PrattParser(object):
         return self.modify_token_subclass(token_label, head=head_handler_literal,
                                val_type=val_type, arg_types=(),
                                precond_label=precond_label, precond_fun=precond_fun,
-                               eval_fun=eval_fun, ast_label=ast_label)
+                               eval_fun=eval_fun, ast_data=ast_data)
 
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
@@ -1679,7 +1679,7 @@ class PrattParser(object):
     def def_infix_multi_op(self, operator_token_labels, prec,
                                     assoc, repeat=False, in_tree=True,
                                     val_type=None, arg_types=None, eval_fun=None,
-                                    ast_label=None):
+                                    ast_data=None):
         # TODO only this type currently supports "in_tree" kwarg.  General and easy
         # mechanism, though.  Test more and add to other methods.
         # Does in-tree keep the first one? how is it defined for this thing?
@@ -1716,7 +1716,7 @@ class PrattParser(object):
         return self.modify_token_subclass(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type,
                                 arg_types=arg_types, eval_fun=eval_fun,
-                                ast_label=ast_label)
+                                ast_data=ast_data)
 
     # TODO: allow these to take "extra" precond functions which are called inside
     # and a the end of the current precond... maybe.  Or could just allow
@@ -1724,16 +1724,16 @@ class PrattParser(object):
     # the different conditions did not clash unintentionally.
 
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
-                     val_type=None, arg_types=None, eval_fun=None, ast_label=None):
+                     val_type=None, arg_types=None, eval_fun=None, ast_data=None):
         """This just calls the more general method `def_multi_infix_op`."""
         return self.def_infix_multi_op([operator_token_label], prec,
                               assoc, in_tree=in_tree,
                               val_type=val_type, arg_types=arg_types,
-                              eval_fun=eval_fun, ast_label=ast_label)
+                              eval_fun=eval_fun, ast_data=ast_data)
 
     def def_prefix_op(self, operator_token_label, prec, precond_label=None,
                       precond_fun=None, val_type=None, arg_types=None,
-                      eval_fun=None, ast_label=None):
+                      eval_fun=None, ast_data=None):
         """Define a prefix operator.  Note that head handlers do not have
         precedences, only tail handlers.  (With respect to the looping in
         `recursive_parse` it wouldn't make a difference.)  But, within the head
@@ -1747,11 +1747,11 @@ class PrattParser(object):
         return self.modify_token_subclass(operator_token_label, head=head_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                            ast_label=ast_label)
+                            ast_data=ast_data)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
                        val_type=None, arg_types=None, eval_fun=None,
-                       ast_label=None):
+                       ast_data=None):
         """Define a postfix operator.  If `allow_ignored_before` is false then
         no ignored token (usually whitespace) can appear immediately before the
         operator."""
@@ -1763,10 +1763,10 @@ class PrattParser(object):
             return tok
         return self.modify_token_subclass(operator_token_label, prec=prec,
                         tail=tail_handler, val_type=val_type, arg_types=arg_types,
-                        eval_fun=eval_fun, ast_label=ast_label)
+                        eval_fun=eval_fun, ast_data=ast_data)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
-                                               eval_fun=None, ast_label=None):
+                                               eval_fun=None, ast_data=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of
         the brackets).  Defines a head handler for the left bracket token, so
@@ -1782,12 +1782,12 @@ class PrattParser(object):
                     typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.modify_token_subclass(lbrac_token_label, head=head_handler,
-                                   eval_fun=eval_fun, ast_label=ast_label)
+                                   eval_fun=eval_fun, ast_data=ast_data)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
                       precond_priority=1,
-                      val_type=None, arg_types=None, eval_fun=None, ast_label=None,
+                      val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                       num_args=None):
         """This definition of stdfun uses lookahead to the opening paren or
         bracket token.
@@ -1830,11 +1830,11 @@ class PrattParser(object):
                      head=head_handler, precond_label=precond_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                     ast_label=ast_label)
+                     ast_data=ast_data)
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label, prec_of_lpar,
-                      val_type=None, arg_types=None, eval_fun=None, ast_label=None,
+                      val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                       num_args=None):
         """This is an alternate version of stdfun that defines lpar as an infix
         operator (with a tail).  This function works in the usual cases but
@@ -1858,12 +1858,12 @@ class PrattParser(object):
         return self.modify_token_subclass(lpar_token_label,
                                          prec=prec_of_lpar, tail=tail_handler,
                                          val_type=val_type, arg_types=arg_types,
-                                         eval_fun=eval_fun, ast_label=ast_label)
+                                         eval_fun=eval_fun, ast_data=ast_data)
 
     def def_jop(self, prec, assoc,
                       precond_label=None, precond_fun=None, precond_priority=None,
                       val_type=None, arg_types=None, eval_fun=None,
-                      ast_label=None):
+                      ast_data=None):
         """The function `precond_fun` is called to determine whether or not to
         infer a juxtaposition operator between the previously-parsed
         subexpression result and the next token.  This function will be passed
@@ -1891,7 +1891,7 @@ class PrattParser(object):
                 tail=tail_handler, precond_label=precond_label,
                 precond_fun=precond_fun, precond_priority=precond_priority,
                 val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                ast_label=ast_label)
+                ast_data=ast_data)
 
     #
     # The main parse routines.

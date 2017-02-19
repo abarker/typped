@@ -146,7 +146,7 @@ def define_basic_calculator(parser):
         symbol_dict[t[0].value] = rhs
         return rhs
 
-    parser.def_infix_op("k_equals", 5, "right", ast_label="a_assign",
+    parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
                         eval_fun=eval_assign)
 
     #

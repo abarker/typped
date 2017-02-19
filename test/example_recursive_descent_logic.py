@@ -367,7 +367,7 @@ def define_logic_language(parser):
                      precond_fun=logical_not_token_precond_wff_state,
                      precond_priority=precond_priority,
                      #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                     #ast_label=ast_label
+                     #ast_data=ast_data
                      )
 
     #
@@ -391,7 +391,7 @@ def define_logic_language(parser):
                      precond_fun=implies_token_in_wff_prime_state_precond,
                      precond_priority=precond_priority,
                      #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                     #ast_label=ast_label
+                     #ast_data=ast_data
                      )
 
     # TODO still need the null-state token....
@@ -435,7 +435,7 @@ def dummy_take_what_is_needed():
         symbol_dict[t[0].value] = rhs
         return rhs
 
-    parser.def_infix_op("k_equals", 5, "right", ast_label="a_assign",
+    parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
                         eval_fun=eval_assign)
 
 
