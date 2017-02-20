@@ -173,7 +173,6 @@ class TypeSig(object):
                     pass # May take some action at some point, not now...
                 elif arg_types[i] is None:
                     arg_types[i] = TypeObject(None)
-                    pass
                 else:
                     raise TypeModuleException("`TypeSig` initialized with invalid"
                                 " `val_type` of '{0}', of Python type {1}.  Must be"
@@ -271,9 +270,9 @@ class TypeSig(object):
             else:
                 if not repeat_args:
                     continue
-                if num_actual_args % sig_args_len != 0:
+                if num_args % sig_args_len != 0:
                     continue
-                num_repeats = num_actual_args // sig_args_len
+                num_repeats = num_args // sig_args_len
                 # NOTE repeating adds refs, not copies; OK for now but keep in mind.
                 new_sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
             new_sig.original_formal_sig = sig.original_formal_sig # Copy over the formal sig.
@@ -375,7 +374,8 @@ class TypeSig(object):
         NOT CURRENTLY USED, low-level `matches_formal_type` is used instead."""
         if not isinstance(formal_sig, self.__class__):
             raise TypeError(
-                    "Comparing {0} with some other kind of object.".format(__class__))
+                    "Comparing {0} with some other kind of object."
+                    .format(self.__class__))
         if not self.val_type.matches_formal_type(formal_sig.val_type):
             return False
         if len(self.arg_types) != len(formal_sig.arg_types):
@@ -400,8 +400,9 @@ class TypeSig(object):
         consider more sophisticated notions of equality."""
         if not isinstance(sig, self.__class__):
             raise TypeError(
-                    "Comparing {0} with some other kind of object.".format(__class__))
-        return (self.val_type == sig.val_type and self.arg_types == sig.arg_types)
+                    "Comparing {0} with some other kind of object."
+                    .format(self.__class__))
+        return self.val_type == sig.val_type and self.arg_types == sig.arg_types
     def __ne__(self, sig):
         return not self == sig
 
@@ -506,11 +507,13 @@ class TypeObject(object):
 
     def __repr__(self):
         str_label = self.type_label
-        if self.type_label == NONE: str_label = "None"
+        if self.type_label == NONE:
+            str_label = "None"
         return "TypeObject({0})" .format(str_label)
     def short_repr(self):
         str_label = self.type_label
-        if self.type_label == NONE: str_label = "None"
+        if self.type_label == NONE:
+            str_label = "None"
         return str_label
 
 #

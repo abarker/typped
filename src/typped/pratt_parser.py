@@ -222,15 +222,13 @@ if __name__ == "__main__":
                               ], pytest_args="-v")
 
 import sys
-import types
 import copy
 import functools
-from collections import OrderedDict, namedtuple, defaultdict
+from collections import OrderedDict, namedtuple
 
 from .shared_settings_and_exceptions import (ParserException,
-                                      CalledBeginTokenHandler, CalledEndTokenHandler)
-from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
-                    multi_funcall)
+                              CalledBeginTokenHandler, CalledEndTokenHandler)
+from .lexer import (Lexer, TokenNode, TokenTable, multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: Consider allowing the chosen type to vary for different token labels,
@@ -241,6 +239,13 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # of some type, and then the user could add that to the dict stored with the
 # identifier token subclass.  Would then check if value in the dict, and if not
 # use the None value (or set a dict default value, easier).
+#
+# Note that this would have to be able to switch to different handlers, like
+# when an identifier is defined to be a function name versus a variable name.
+# Currently overloading is only done on repeated calls when type differs.
+# When precond fun differs you can get a different handlers.  So, one approach
+# would be to include the current value as a precondition in a call with
+# a new precond fun.  Might not be the most efficient way, though.
 
 # TODO: Maybe define some common helper preconditions.  They are boolean so
 # they can easily be composed.  Can store them in a separate module,
@@ -350,8 +355,8 @@ def token_subclass_factory():
         instances, this is necessary in order to change their `__repr__` (the
         defalt one is ugly for tokens) or to overload operators to work for
         token operands."""
-        def __new__(meta, name, bases, dct):
-            new_class = super(TokenSubclassMeta, meta).__new__(meta, name, bases, dct)
+        def __new__(mcs, name, bases, dct):
+            new_class = super(TokenSubclassMeta, mcs).__new__(mcs, name, bases, dct)
 
             # Below is ugly, but avoids mutual import problems.  Used as an
             # easy way to define token addition so that it works in the
@@ -410,7 +415,7 @@ def token_subclass_factory():
 
         def __ror__(cls, left_other):
             """The right version of `__or__` above."""
-            return other | cls.prod_rule_funs["Tok"](cls)
+            return left_other | cls.prod_rule_funs["Tok"](cls)
 
         def __rmul__(cls, left_other):
             """The expression `n*token` for an int `n` is "n occurrences of"
@@ -667,6 +672,7 @@ def token_subclass_factory():
             handlers (as selected by `head_or_tail`) are unregistered.  If
             `type_sig` is not present then all overloads are also unregistered.
             No error is raised if a matching handler function is not found."""
+            # TODO Untested method.
 
             if precond_label is None:
                 if head_or_tail in cls.handler_funs:
@@ -679,7 +685,7 @@ def token_subclass_factory():
             if not sorted_handler_dict:
                 return
 
-            if not precond_label in sorted_handler_list:
+            if not precond_label in sorted_handler_dict:
                 return
 
             if type_sig is None:
@@ -688,12 +694,12 @@ def token_subclass_factory():
 
             sig_list = sorted_handler_dict[precond_label]
 
-            for i in reversed(range(len(sorted_handler_list))):
-                item = sorted_handler_list[i]
+            for i in reversed(range(len(sorted_handler_dict))):
+                item = sorted_handler_dict[i]
                 handler_fun = item.handler_fun
                 new_handler_sigs = [s for s in handler_fun.type_sigs if s != type_sig]
                 if not new_handler_sigs:
-                    del sorted_handler_list[i] # No type sigs at all, remove item.
+                    del sorted_handler_dict[i] # No type sigs at all, remove item.
                     continue
                 handler_fun.type_sigs = new_handler_sigs
             return
@@ -1225,6 +1231,7 @@ def token_subclass_factory():
                     "," + str(self.expanded_formal_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
+            string = self.summary_repr_with_types()
             for c in self.children:
                 string += c.tree_repr_with_types(indent=indent+" "*4)
             return string
@@ -1899,7 +1906,7 @@ class PrattParser(object):
 
     def parse_from_lexer(self, lexer_to_use, pstate=None):
         """The same as the `parse` method, but a lexer_to_use is already assumed to be
-        initialized.  This is used when one parser instance calls another
+        initialized.  This is ONLY used when one parser instance calls another
         parser instance (implicitly, via the handler functions of its tokens).
         The outer parser calls this routine of the inner, subexpression parser.
         Such a call to another parser would look something like::
@@ -1962,9 +1969,9 @@ class PrattParser(object):
         this kind of parsing if the option is set.
 
         If the `skip_lex_setup` parameter is true then the text `program` is
-        ignored and lexer setup is skipped.  This is used when multiple parsers
-        are parsing from a common text stream, though usually via the method
-        `parse_from_lexer`."""
+        ignored and lexer setup is skipped.  This is generally ONLY used when
+        multiple parsers are parsing from a common text stream, and `parse` is
+        called from the method `parse_from_lexer`."""
         if pstate:
             self.pstate_stack = [pstate] # For parsing production rule grammars.
         if partial_expressions is None:
