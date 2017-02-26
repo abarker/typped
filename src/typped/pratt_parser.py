@@ -498,7 +498,7 @@ def token_subclass_factory():
 
         @classmethod
         def register_handler_fun(cls, head_or_tail, handler_fun,
-                             precond_label=None, precond_fun=None, precond_priority=0,
+                             precond_label, precond_fun, precond_priority=0,
                              type_sig=TypeSig(None, None)):
             """Register a handler function (either head or tail) with the
             subclass for this kind of token, setting the given properties.
@@ -509,8 +509,6 @@ def token_subclass_factory():
             precondition that always returns `True` will be used.  If
             `precond_priority` is set it will apply to that dummy function, but
             this will completely override anything with a lower priority.
-
-            If `precond_label` is set then `precond_fun` must also be provided.
 
             Type information is stored as an attribute of the handler function
             itself, so it can easily be accessed from inside the handler
@@ -560,36 +558,7 @@ def token_subclass_factory():
 
             # Get and save any previous type sig data (for overloaded sigs
             # corresponding to a single precond_label).
-
-            # TODO also: does it cause problems to save sig data with the handler
-            # functions themselves?   What if you re-use one?  Is there a rule that you
-            # cannot re-use one?  Remember that only the labels are unique!!!
-            # Better to save the typesig list on on the named tuple
-            #     (precond_fun, precond_priority, handler_fun, TYPESIG_LIST)
-
-            # TODO this code causes a couple of errors, but seems like it is
-            # better done this way...  Needs to be AFTER the "if" just below...
-            # see if can be moved later to near top of modify_token_subclass
-            # when problem fixed.  Fix before other bug involving
-            # _save_eval_fun_and_ast_data method.
-            #
-            #if precond_label is None:
-            #    precond_label = DEFAULT_PRECOND_LABEL
-            #    precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
-            #
-            # Get any previously-registered handler function for the precondition
-            # label.  This is necessary so overloading can be done by re-registration.
-            # The type information is saved.
-            assert None not in cls.handler_funs[head_or_tail] # DEBUG
-            # Note DEFAULT_PRECOND_LABEL sometimes IS in cls.handler_funs[head_or_tail]
-            # So we have a difference in running code above and below the "if" right
-            # there.
-            #
-            # Problem is occurring ACROSS TOKENS, in test file.  If k_exp is defined
-            # to take one arg and then k_add is defined to take two, it will allow
-            # k_add to take one arg!!!!!  Somehow the sig info is being combined
-            # across tokens.
-
+            #assert None not in cls.handler_funs[head_or_tail] # DEBUG
             if precond_label in cls.handler_funs[head_or_tail]:
                 prev_handler_data_for_precond = cls.handler_funs[head_or_tail][precond_label]
                 prev_type_sigs_for_precond = (
@@ -613,14 +582,6 @@ def token_subclass_factory():
             TypeSig.append_sig_to_list_replacing_if_identical(
                                                prev_type_sigs_for_precond, type_sig)
             handler_fun.type_sigs = prev_type_sigs_for_precond
-
-            if precond_label:
-                assert precond_fun # Catch possible internal error.
-            else:
-                assert not precond_fun # Catch possible internal error.
-                # If neither precond_fun nor precond_label, use defaults defined above.
-                precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
-                precond_label = DEFAULT_PRECOND_LABEL
 
             # Get the current dict of head or tail handlers for the node,
             # containing the (precond_fun, precond_priority, handler_fun) named
@@ -994,7 +955,6 @@ def token_subclass_factory():
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
-            precond_label = None # TODO precond also keying fails!  Remove line when fixed.
             if cls.parser_instance.overload_on_arg_types:
                 # Save in dicts hashed with full signature.
                 dict_key = (precond_label, type_sig)
@@ -1010,7 +970,6 @@ def token_subclass_factory():
             Must be called after parsing because the `precond_label` attribute must
             be set on the token instance."""
             precond_label = self.precond_label # Set during parsing.
-            precond_label = None # TODO precond also keying fails! Remove line when fixed.
             if self.parser_instance.overload_on_ret_types:
                 dict_key = (precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
@@ -1024,7 +983,6 @@ def token_subclass_factory():
             Must be called after parsing because the `precond_label` attribute must
             be set on the token instance."""
             precond_label = self.precond_label # Set during parsing.
-            precond_label = None # TODO precond also keying fails! Remove line when fixed.
             if self.parser_instance.overload_on_ret_types:
                 dict_key = (precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
@@ -1605,12 +1563,6 @@ class PrattParser(object):
         `None`.  For a head the `prec` value is ignored.  If `tail` is set and
         `prec` is `None` then the prec value defaults to zero.
 
-        If `head` or `tail` is set and `precond_label` is also set then the
-        corresponding preconditions function will be looked up and the head or
-        tail function will be associated that function.  If `precond_fun` is
-        also set then it will first be registered with the label
-        `precond_label` (which must be present in that case).
-
         The `eval_fun` and the `ast_data` arguments are saved in the dicts
         `eval_fun_dict` and `ast_data_dict` respectively, keyed by the
         `TypeSig` defined by `val_type` and `arg_types`, as well as by
@@ -1625,6 +1577,10 @@ class PrattParser(object):
 
         if tail and (prec is None):
             prec = 0
+
+        if precond_label is None:
+            precond_label = DEFAULT_PRECOND_LABEL
+            precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
 
         if self.token_table.has_key(token_label):
             token_subclass = self.get_token(token_label)
@@ -1847,6 +1803,9 @@ class PrattParser(object):
         if num_args is not None and arg_types is None:
             arg_types = [None]*num_args
 
+        # TODO maybe have option to match value instead of type...
+        # Maybe even always use a distinct precond_label unless some `overload=True`
+        # flag is set.... CONSIDER, large design change.
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""
@@ -1881,11 +1840,32 @@ class PrattParser(object):
                       val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                       num_args=None):
         """This is an alternate version of stdfun that defines lpar as an infix
-        operator (with a tail).  This function works in the usual cases but
-        the current version without preconditions may have problems distinguishing
+        operator (i.e., with a tail handler).  This function works in the usual cases
+        but the current version without preconditions may have problems distinguishing
         "b (" from "b(" when a multiplication jop is set.  The lookahead version
         `def_stdfun` is usually preferred."""
-        if num_args is not None and arg_types is None: arg_types = [None]*num_args
+        if num_args is not None and arg_types is None:
+            arg_types = [None]*num_args
+
+        def precond_fun(lex, lookbehind):
+            """Check that the peek backward token label for the function name
+            is `fname_token_label`.  This is necessary to get the type sig info
+            to work when different functions take different numbers (and
+            possibly different types) of arguments.   Otherwise, defining two
+            different functions for different tokens like `k_add` and `k_exp`
+            is treated as an overload since both are really handled by the
+            `lpar_token_label` token.  The label would otherwise never be checked.
+
+            One could do a similar thing checking the value of the previous token
+            if the fnames are all, say, identifiers or some common token kind.
+            Maybe even have a flag to indicate this when worked out better."""
+            prev_tok = lex.peek(-1)
+            print("\nprev tok is", prev_tok)
+            if prev_tok.token_label != fname_token_label: return False
+            if lex.token.ignored_before: return False # No space allowed after fun name.
+            return True
+        # Note we need to generate a unique precond_label for each fname_token_label.
+        precond_label = "match desired function name of " + fname_token_label
 
         def tail_handler(tok, lex, left):
             # Nothing between fun name and lpar_token.
@@ -1901,6 +1881,8 @@ class PrattParser(object):
             return left
         return self.modify_token_subclass(lpar_token_label,
                                           prec=prec_of_lpar, tail=tail_handler,
+                                          precond_label=precond_label,
+                                          precond_fun=precond_fun,
                                           val_type=val_type, arg_types=arg_types,
                                           eval_fun=eval_fun, ast_data=ast_data)
 

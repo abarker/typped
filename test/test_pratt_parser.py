@@ -206,6 +206,8 @@ def test_error_conditions(basic_setup):
     #fail("Just to see output.")
 
 def test_stdfun_functions(basic_setup):
+    """Test the built-in standard function method which uses a precondition on the
+    function name token label looking for an left paren."""
     TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
 
@@ -244,6 +246,9 @@ def test_stdfun_functions(basic_setup):
     assert str(e.value).startswith("No head handler function matched")
 
 def test_stdfun_lpar_tail_functions(basic_setup):
+    """Tests for the built-in stdfun implementation that uses a tail-handler on the lpar
+    token.  So the token which does the real work is the lpar token for both `k_exp` and
+    `k_add` functions."""
     TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
 
@@ -291,7 +296,7 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     assert str(e.value).startswith("Function match_next (with peeklevel=1) found unexpected")
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
-    assert str(e.value).startswith("Function no_ignored_before expected no ignored tokens")
+    assert str(e.value).startswith("No tail handler function matched the token with token label")
 
 def test_jop(basic_setup):
     # TODO basic setup will not work, maybe individual defs of identifiers and vars
