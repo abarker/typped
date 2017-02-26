@@ -10,28 +10,29 @@ Typped: A typed Pratt parser employing dispatching
 .. default-role:: code
 
 The Typped package provides a general Python framework for defining and using
-Pratt parsers.  The parsed language can optionally include basic types and
-overloading on those types.  Default parser methods are provided for many
-standard constructs (such as infix operators and ordinary function calls).
-Users can define their own custom functions or methods to allow for parsing
-more complicated or more specific grammatical constructs.  An EBNF-like Python
-syntax is also provided, which can be used to define and implement recursive
-descent parsing of a grammar within the Typped framework and (integrated with
-Pratt parsing).
+Pratt parsers.  The parsed language can optionally include basic types, and
+overloading on those types is allowed.  Default parser methods are provided for
+many standard constructs such as, for example, infix operators and ordinary
+function calls.  Users can define their own customized functions or methods in
+order to parse more-complicated or more-specific grammatical constructs.  An
+EBNF-like Python syntax is also provided, which can be used to define and
+implement recursive descent parsing of a grammar within the Typped framework
+(and integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
 logic languages and mathematical languages.  Because it is based on Pratt
 parsing it is especially good at parsing expression languages or sublanguages
 which have various operators at different precedences.  The parser can be
-modified on-the-fly, so the parsed languages can be fully dynamic.  Since the
-package is written in pure Python it is probably not the best choice if speed
+modified on-the-fly, so the parsed languages can be fully dynamic.  Pratt
+parsing tends to be fairly efficient in this context, but the package is
+written in pure Python so it is probably not the best choice if parsing speed
 is a crucial factor.
 
 .. warning::
 
    This is alpha-level software.  Many features are only partially implemented,
-   and the documentation is incomplete.  The user API can still change, though
-   probably in minor ways.
+   and the documentation is incomplete.  The user API can still change ---
+   probably in minor ways but not necessarily.
 
 Installation
 ============
@@ -46,7 +47,8 @@ The current way to install is to clone the GitHub repo and install with pip:
 
 As usual, use a virtual environment or at least run pip with the ``--user``
 option unless you really want to modify the system Python installation (in
-which case you may also need to use ``sudo`` on a Linux system).
+which case you may also need to use ``sudo`` on a Linux system).  Use the
+``-e`` option to pip if you want to experiment with the code.
 
 At a more stable development point Typped will be uploaded to PyPI so users can
 install Typped directly:

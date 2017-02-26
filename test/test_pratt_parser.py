@@ -247,6 +247,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
     ParserException = typped.ParserException
 
+    #
+    # Define exp for a single argument.
+    #
+
     parser.def_token("k_exp", r"exp")
     parser.def_literal("k_exp")
 
@@ -259,6 +263,10 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("exp()")
     assert str(e.value).startswith("The number of arguments (0) does not match any sig")
+
+    #
+    # Define addition for two arguments.
+    #
 
     parser.def_token("k_add", r"add")
     parser.def_literal("k_add")
