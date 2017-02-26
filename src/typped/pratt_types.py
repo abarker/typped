@@ -87,8 +87,9 @@ from .shared_settings_and_exceptions import ParserException
 
 class TypeSig(object):
 
-    """The formal type specification for a function.  Generally set at function
-    definition.  The "functions" themselves can be any syntactic construct that
+    """The type specification for a function.  Generally set at function
+    definition.  Can also be used for actual types, since it is just a
+    container.  The "functions" themselves can be any syntactic construct that
     produces a node in the final parse tree, with of the node representing the
     arguments.
 
@@ -97,7 +98,9 @@ class TypeSig(object):
     of them.  Using a separate class instead of a tuple allows for additional
     information to be stored with the data and produces better error messages.
     The class also provides a convenient place to localize some routines which
-    operate on type signatures and lists of type signatures.
+    operate on type signatures and lists of type signatures.Properties are
+    used automatically convert wildcard `None` arguments to the corresponding
+    `TypeObject` instances in the attributes `val_type` and `arg_types`.
 
     For the purposes of equality comparison these objects are equivalent to the
     tuple form.  Equality is exact equality and **does not** hold for formal
@@ -110,9 +113,9 @@ class TypeSig(object):
     for the `arg_types` list or tuple matches any arguments and any number of
     arguments (it is expanded during parsing to as many `None` arguments as are
     required).  Note that `TypeSig() == TypeSig(None) == TypeSig(None, None)`.
-    To specify an object like a literal which takes no arguments an empty tuple
-    should be used for `arg_types`, as in `TypeSig(None, ())`, with the
-    `val_type` argument set to whatever type if it is not a wildcard.
+    To specify an object like a literal which takes no arguments an empty list
+    or tuple should be used for `arg_types`, as in `TypeSig(None, [])`; the
+    `val_type` argument can be set to the desired type if it is typed.
 
     A single `TypeObject` as an `arg_types` argument (i.e., not an iterable) is
     expanded to be a tuple of that type of objects, of any required length.
@@ -142,10 +145,32 @@ class TypeSig(object):
         # actually matches the declared type in the function spec.  Decide if
         # useful, else delete.
 
-        #
-        # Convert val_type argument to TypeObject instance.
-        #
+        self.val_type = val_type
+        self.arg_types = arg_types
 
+    #
+    # Properties are used for val_type and arg_types to automatically convert
+    # None args to TypeObject instances.
+    #
+
+    @property
+    def val_type(self):
+        return self._val_type
+    @val_type.setter
+    def val_type(self, value):
+        """Convert val_type argument to TypeObject instance and set attribute."""
+        self._val_type = self.convert_val_type_wildcards(value)
+
+    @property
+    def arg_types(self):
+        return self._arg_types
+    @arg_types.setter
+    def arg_types(self, value):
+        """Convert arg_types arguments to TypeObject instances return it."""
+        self._arg_types = self.convert_arg_types_wildcards(value)
+
+    def convert_val_type_wildcards(self, val_type):
+        """Convert `val_type` argument to a `TypeObject` instance and set attribute."""
         if isinstance(val_type, TypeObject):
             pass # May need to do something at some point, not as of now.
         elif val_type is None:
@@ -155,17 +180,16 @@ class TypeSig(object):
             raise TypeModuleException("`TypeSig` initialized with invalid `val_type`"
                      " of '{0}', of Python type {1}.  Must be a `TypeObject` instance."
                                 .format(val_type, type(val_type)))
+        return val_type
 
-        #
-        # Convert arg_type to tuple of TypeObject instances or a single wildcard one.
-        #
-
+    def convert_arg_types_wildcards(self, arg_types):
+        """Convert all `arg_types` arguments to `TypeObject` instances and return it."""
         if arg_types is None: # None representing arbitrary objects.
             arg_types = TypeObject(None)
         elif isinstance(arg_types, TypeObject): # Single TypeObject, expands as needed.
             pass
         elif not arg_types: # Matches (), [], and anything else that bools to False
-            arg_types = () # Below case catches this, but this clearer.
+            arg_types = () # Below case catches this, but this is clearer.
         else:
             arg_types = list(arg_types)
             for i in range(len(arg_types)):
@@ -175,14 +199,15 @@ class TypeSig(object):
                     arg_types[i] = TypeObject(None)
                 else:
                     raise TypeModuleException("`TypeSig` initialized with invalid"
-                                " `val_type` of '{0}', of Python type {1}.  Must be"
-                                " a `TypeObject` instances."
-                                .format(val_type, type(val_type)))
+                                " `arg_types` of '{0}', of Python types {1}.  Must be"
+                                " `TypeObject` instances.".format(list(arg_types),
+                                              [type(at) for at in arg_types]))
             arg_types = tuple(arg_types)
+        return arg_types
 
-        self.val_type = val_type
-        self.arg_types = arg_types
-
+    #
+    # Static methods to do tasks related to TypeSig instances.
+    #
 
     @staticmethod
     def get_all_matching_expanded_sigs(sig_list, list_of_child_sig_lists, tnode=None,
@@ -365,6 +390,10 @@ class TypeSig(object):
         sig_list.append(sig)
         return sig_list
 
+    #
+    # General indexing and equality testing methods.
+    #
+
     def matches_formal_sig(self, formal_sig):
         """Test if this signature as an actual signature matches `formal_sig`
         as a formal signature.  Note the difference between this and equality!
@@ -434,7 +463,7 @@ def actual_matches_formal(actual_type, formal_type):
     return actual_type == formal_type # Later consider fancier matching.
 
 # TODO would be nice to have only one wildcard object, but may need __new__.
-NONE = (None,) # A representation for a type label of None, so == comparisons OK.
+NONE = (None,) # A different representation for a type label of None.
 
 class TypeObject(object):
     """Instances of this class represent types."""
