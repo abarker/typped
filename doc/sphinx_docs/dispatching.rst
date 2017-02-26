@@ -125,6 +125,64 @@ signatures differ.  Only the last-registered handler function is actually used,
 but all the type information is saved and is used in resolving the final
 signature (and possible evaluation functions, etc.)
 
+.. topic:: Two ways to parse identifiers
+
+   The Typped parser and lexer are dynamic; both can be updated on-the-fly.
+   This flexibility allows for a different style of defining identifiers than
+   is traditionally used.  Consider an example where function name
+   identifiers are being parsed.  Assume that the language being parsed has
+   some sort of definition mechanism where function names must be defined
+   before they are used.  (The principle is more general, including cases
+   where, say, functions and variables share the same namespace or for
+   kinds of token other than identifiers.)
+   
+   In the traditional parser design a generic function-name identifier is
+   defined for the lexer and any further processing is done by the parser, based
+   on the actual string value found in the program text.  This allows for a
+   fixed lexer to be used.  When the lexer is dynamic, though, it is possible
+   to define a new token for each definition of an identifier.
+   
+   Suppose we have functions ``add`` and ``exp``.  In the traditional approach
+   the lexer would identify each as a function name identifier, and return that
+   information along with the actual text string.  In the dynamic approach you
+   would define a new token for ``exp`` at the time it is defined (and might
+   not even need a general identifier token).  Similarly for the ``add``
+   function.  The lexer would then return a unique token for each function,
+   pushing some of the parsing down to the lexer level.
+
+   An advantage of the dynamic approach is that it can help to avoid
+   ambiguities in parsing complex languages.  The disadvantages are that it may
+   take more space to define the new tokens, it may be slower to parse with so
+   many possible tokens, and the function names (and hence their tokens) must
+   be defined before being used.
+
+   Recall that Pratt parsers are based on tokens (rather than production rules
+   in a grammar like recursive descent).  Defining a new token type for each
+   function name opens some possibilities.  This is especially true in the
+   Typped package where type signature information is also stored with the
+   tokens.
+
+   In order for Typped type-checking to work on functions, functions with
+   different signatures (ignoring overloading) must be handled by the different
+   handler functions.  This requires either 1) a different precondition for
+   each such function, or 2) a different token for each such function.  The
+   latter is sometimes easier.  (The same holds for using function overloading,
+   except that the *same* handler must be used for each overload redefinition.
+   By the definition of overloading, the function overloads parse the same; the
+   actual argument types must be examined to resolve the overload.)
+  
+   While there are still some disadvantages, the Typped lexer is designed to
+   efficiently scan large numbers of tokens provided they have a simple
+   pattern.  The patterns (currently restricted to fixed strings for this
+   speedup) are stored in a trie data structure and are essentially all
+   scanned in parallel.  The dynamic approach can also reduce the need to
+   define preconditions functions for more-generic handlers (such as for
+   looking at the string value for a token in a precondition).  It can also
+   help avoid problems with overloading.
+
+   So while the Typped parser can be used in either way, it is worth
+   considering the use of dynamic token definitions.
+
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
 
@@ -159,38 +217,6 @@ rest is handled automatically.
 
 The code for this example can be found in a runnable form in the file
 `example_stdfun_lookahead.py`.
-
-.. TODO: are we treating identifiers as a group here, or defining a special
-   token for function name identifiers, i.e., when they are defined?  There
-   are different approaches... nice to list a few and discuss a little maybe.
-   TODO clear up note below...
-
-.. note::
-
-   In this example the lexer could be set up to recognize the function name as
-   a generic identifier token, and variables could be treated the same way.
-   The precondition on the opening lpar for a function would differentiate
-   them.  With the Typped parser, though, it is generally a good idea to make
-   every function name into its own separate token type, if possible.  This is
-   possible, when, for example, all functions in the language must be declared
-   ahead of time.
-   
-   Having separate tokens for each name helps to avoid possible ambiguities
-   which can arise in the interactions of multiple grammatical constructs in
-   more-complex grammars.  It also helps with type-checking and overloading.
-
-   In order for type-checking to work on functions, each function with the same
-   signature must be handled by the same handler function.  This requires
-   either 1) a different precondition for each one, or 2) a different token for
-   each one.  The latter is generally easier.  The same holds for using
-   function overloading, except that the *same* handler must be used for each
-   overload redefinition.  (By the definition of overloading, the functions
-   parse the same and the actual argument types must be examined to resolve the
-   overload.)
-  
-   The Typped lexer is designed to efficiently deal with multiple token
-   definitions of this sort.  It is dynamically modifiable, and it stores
-   simple names in a trie so it can search them all in parallel.
 
 In this example the `PrattParser` class is extended by creating a subclass with
 additional methods.  It is not strictly necessary to create a subclass,
