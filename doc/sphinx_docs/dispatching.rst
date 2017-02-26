@@ -71,18 +71,21 @@ preconditions functions.  The type system is discussed more in later sections.
    Pratt parser.  A similar thing could be accomplished with ordinary head and
    tail functions via a case statement inside each one, performing different
    actions based on the conditions at the time and ordered in the case
-   statement by priority.  An advantage of using function dispatching instead
+   statement by priority. An advantage of using function dispatching instead
    is that it allows for modularity in defining the head and tail handlers for
-   a particular kind of token.  The overall case statement in a handler
-   function is essentially split up, so each part can be defined in the place
-   where that syntactic construct is generally being defined, rather than
-   having to be placed in one centralized and separate location.  This makes it
-   easier to create essentially independent functional interfaces for different
-   syntactical constructs.  For example, the `PrattParser` class comes with
-   methods predefined to easily perform common syntax-related tasks such as
-   defining an infix operator, define a grouping operator, define a standard
-   function, etc.  If one big case statement were being used in a single head
-   or tail hangler then it would have to be modified for each such method.
+   a particular kind of token.
+   
+   With dispatching, what would be the overall case statement in a handler
+   function is essentially split up into many separate functions.  So each part
+   can be defined in the place where that syntactic construct is generally
+   being defined, rather than having to be placed in one centralized and
+   separate location.  This makes it easier to create essentially independent
+   functional interfaces for different syntactical constructs.  For example,
+   the `PrattParser` class comes with methods predefined to easily perform
+   common syntax-related tasks such as defining an infix operator, define a
+   grouping operator, define a standard function, etc.  If one big case
+   statement were being used in a single head or tail hangler then it would
+   have to be modified for each such method.
 
 Uniqueness of preconditions functions
 -------------------------------------
