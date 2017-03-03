@@ -60,7 +60,7 @@ import typped as pp
 from example_parser_called_from_parser import *
 
 def test_basic_example():
-    term_parser = define_term_parser()
+    term_parser = define_term_parser() # Define a parser for terms.
     test_term = "f(x,x33)"
     parse_tree = "\n" + term_parser.parse(test_term).tree_repr(indent=4)
     assert parse_tree == ("""
@@ -68,7 +68,7 @@ def test_basic_example():
         <k_varname,'x'>
         <k_varname,'x33'>\n""")
 
-    wff_parser = define_wff_parser(term_parser)
+    wff_parser = define_wff_parser(term_parser) # Define a parser for wffs.
     test_wff = "not A(f(x,x33))"
     parse_tree = "\n" + wff_parser.parse(test_wff).tree_repr(indent=4)
     assert parse_tree == ("""

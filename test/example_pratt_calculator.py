@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 """
 
-A simple calculator example using the Typped parser.
+A simple calculator example using the Typped parser.  This module is described
+in the general Typped documentation web page as a calculator example.
 
 """
+
+# TODO: Consider using the cmd module in the standard library for the REP loop:
+# https://docs.python.org/3/library/cmd.html
 
 from __future__ import print_function, division, absolute_import
 import pytest_helper
@@ -12,11 +16,10 @@ import math
 import operator
 import typped as pp
 
-def define_basic_calculator(parser):
-
-    #
-    # Some general tokens.
-    #
+def define_general_tokens_and_literals(parser):
+    """Define some general tokens and literals in the calculator language.
+    Other tokens such as for functions in the language will be defined
+    later."""
 
     #whitespace_tokens = [
     #        ("k_space", r"[ \t]+"),       # Note + symbol, one or more, NOT * symbol.
@@ -59,6 +62,21 @@ def define_basic_calculator(parser):
 
     parser.def_literal("k_float", eval_fun=lambda t: float(t.value))
 
+def define_functions_and_operators(parser):
+    """Define the all the functions and operators for the calculator.
+    Evaluation functions are also supplied for each one.  Parentheses and
+    brackets are also defined here, since they have a precedence in the order
+    of evaluations."""
+
+    #
+    # Parens and brackets, highest precedence (since they have a head function).
+    #
+
+    parser.def_bracket_pair("k_lpar", "k_rpar",
+                            eval_fun=lambda t: t[0].eval_subtree())
+    parser.def_bracket_pair("k_lbrac", "k_rbrac",
+                            eval_fun=lambda t: t[0].eval_subtree())
+
     #
     # Standard functions.
     #
@@ -80,15 +98,6 @@ def define_basic_calculator(parser):
                       eval_fun=lambda t: math.log(t[0].eval_subtree()))
     parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", num_args=2,
                eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()))
-
-    #
-    # Parens and brackets, highest precedence (since they have a head function).
-    #
-
-    parser.def_bracket_pair("k_lpar", "k_rpar",
-                            eval_fun=lambda t: t[0].eval_subtree())
-    parser.def_bracket_pair("k_lbrac", "k_rbrac",
-                            eval_fun=lambda t: t[0].eval_subtree())
 
     #
     # Basic operators, from highest to lowest precedence.
@@ -115,18 +124,16 @@ def define_basic_calculator(parser):
     parser.def_infix_op("k_minus", 10, "left",
             eval_fun=lambda t: operator.sub(t[0].eval_subtree(), t[1].eval_subtree()))
 
-    #
-    # Juxtaposition operator (jop) as synonym for multiplication.
-    #
+def define_juxtaposition_operators(parser):
+    """Define the juxtaposition operator (jop) as synonym for multiplication."""
 
     jop_required_token = "k_space" # Can be set to None to not require any whitespace.
     parser.def_jop_token("k_jop", jop_required_token)
     parser.def_jop(20, "left", # Same precedence and assoc. as ordinary multiplication.
             eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
 
-    #
-    # Assign simple variable.
-    #
+def define_assignment_operator(parser):
+    """Define assignment and reading of simple variables."""
 
     parser.calculator_symbol_dict = {} # Store symbol dict as a new parser attribute.
     symbol_dict = parser.calculator_symbol_dict
@@ -149,14 +156,23 @@ def define_basic_calculator(parser):
     parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
                         eval_fun=eval_assign)
 
-    #
-    # Comments, all after '#' to EOL, defined via an ignored token pattern.
-    #
+def define_comments(parser):
+    """Define comments in the calculator.  Everything from '#' to EOL is a
+    comment.  Defined using an ignored token pattern."""
 
     parser.def_ignored_token("k_comment_to_EOL", r"\#[^\r\n]*$", on_ties=10)
 
+def define_basic_calculator(parser):
+    """Define the calculator language in the parser instance."""
+
+    define_general_tokens_and_literals(parser)
+    define_functions_and_operators(parser)
+    define_juxtaposition_operators(parser)
+    define_assignment_operator(parser)
+    define_comments(parser)
 
 def read_eval_print_loop(parser):
+    """Implement the REP loop."""
     import readline
 
     try:
@@ -196,6 +212,7 @@ def read_eval_print_loop(parser):
 
 
 def define_and_run_basic_calculator():
+    """Get a parser, define the calculator language, and start the REP loop."""
     parser = pp.PrattParser()
     define_basic_calculator(parser)
     read_eval_print_loop(parser)
