@@ -149,6 +149,7 @@ def define_assignment_operator(parser):
             eval_fun=lambda t: symbol_dict.get(t.value, 0.0))
 
     def eval_assign(t):
+        """Evaluate the identifier token `t` and save the value in `symbol_dict`."""
         rhs = t[1].eval_subtree()
         symbol_dict[t[0].value] = rhs
         return rhs
@@ -210,9 +211,9 @@ def read_eval_print_loop(parser):
                 print("\n", parse_tree.tree_repr(), sep="")
             print(eval_value)
 
-
 def define_and_run_basic_calculator():
     """Get a parser, define the calculator language, and start the REP loop."""
+
     parser = pp.PrattParser()
     define_basic_calculator(parser)
     read_eval_print_loop(parser)
