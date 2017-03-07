@@ -9,14 +9,16 @@ Python expressions.  The backend is the recursive-descent parsing capabilities
 of the `PrattParser` class, implemented using precondition functions and
 null-string token handlers.
 
-Some (but not all) similar projects which parse a grammar specified in a
-Python file are:
+Here are some (but not all) similar Python parsing packages.  Some use strings
+for the grammar, and others use overloaded Python operators.  Most do not
+produce a parse tree.
 
 * **pyparsing** -- Uses Python overloading to define the grammar, similar to
   this module.
   http://pyparsing.wikispaces.com/home
 
-* **Parsimonius** -- Passed a string containing the EBNF of the grammar.
+* **Parsimonius** -- Passed a string containing the EBNF of the grammar and
+  returns a parse tree.
   https://github.com/erikrose/parsimonious
 
 * **Parsley** -- Passed a string containing the EBNF of the grammar.
@@ -26,61 +28,57 @@ Python file are:
   https://github.com/DerNamenlose/yeanpypa
 
 * **Lark** -- Passed a string. Implements Earley & LALR(1) and returns a parse tree.
-  https://www.reddit.com/r/Python/comments/5tepaq/announcing_lark_a_parsing_library_that_implements/
+  https://github.com/erezsh/Lark
 
 For more, see https://wiki.python.org/moin/LanguageParsing
 
 Terminology
 -----------
 
-* **Production rules** are also called **productions**, **parsing rules**,
-  or just **rules**.  They are the individual rewrite rules such as
-  `<expression> ::= <term>` in a BNF grammar.  The symbols on the l.h.s. of
-  productions (which can also appear in the r.h.s.) are called **nonterminal
-  symbols**.  The r.h.s of a production is called the **parsing expression**.
-  The other possible symbols on the r.h.s. are **terminal symbols** or the
-  special **epsilon symbol**.
+* **Production rules**
+  are the individual rewrite rules such as `<expression> ::= <term>` in a BNF
+  grammar.  They are also called **productions** or just **rules**.  The
+  symbols on the l.h.s. of productions (which can also appear in the r.h.s.)
+  are called **nonterminal symbols**.  The r.h.s of a production is called the
+  **parsing expression**.  The r.h.s. or productions can have terminal symbols,
+  **nonterminal symbols** and perhaps other symbols such as the special
+  **epsilon symbol** which matches an empty string.
 
 * Production rules with the the same l.h.s. nonterminal symbol will be
-  called different **cases** of the nonterminal symbol.  An alternative
-  notation is to define multiple cases in one expression by using "or" symbol
-  `|`.  This latter form of definition is currently *required* by this module.
-  That is, all the cases of rules defining a nonterminal must be occur in one
-  expression, using `|` if there are multiple cases.  The ordered list of all
-  the rule cases for a nonterminal will be called the **caselist** for the
-  nonterminal.
+  called different **cases** of the nonterminal symbol.  A common notation is
+  to define multiple cases in one production rule expression by using the "or"
+  symbol `|`.  This latter form of definition is currently *required* by this
+  module.  That is, all the cases of rules defining a nonterminal must be occur
+  in one expression, using `|` if there are multiple cases.  The ordered list
+  of all the rule cases for a nonterminal will be called the **caselist** for
+  the nonterminal.  Order matters for resolving ambiguity.
 
 * The separate symbol elements within a case will be collectively called the
   **items** of that case.  They include terminal symbols, nonterminal symbols,
   and possibly the epsilon symbol.  In this module there are no explicit
   terminal symbols.  Instead, terminals are either tokens (defined for and
-  parsed from the lexer) or else consecutive sequences of tokens.  Several
-  grammatical constructs are possible to modify the meaning of the items in a
-  production rule, which will be discussed later.
+  parsed from the lexer) or else consecutive sequences of tokens.  There are
+  various notational constructs in the production rule notation of this module
+  which modify the meaning of the items in a production rule.  They will be
+  discussed later.
 
 The order in which the caselists of production rules are written does not
-matter.  So they can be written top-down starting with the starting
-nonterminal, or any other convenient way.  Some of the nonterminals in the
-r.h.s. of the caselists may not have been defined yet, but they are written as
-string labels and are resolved later when the `compile` method of the grammar
-is called (passed the start nonterminal and a locals dict).  These r.h.s.
-strings for nonterminals **must be identical** to the l.h.s. Python variable
-names for the nonterminals (since they are looked up in the locals dict).
+matter.  So they can be written top-down, beginning with the start-state
+nonterminal, or in any other convenient way.  Nonterminals can be used in the
+r.h.s. of the caselists even when they have not been defined yet: they are
+written as string labels which are resolved later when the `compile` method of
+the grammar is called (passed the start nonterminal and a locals dict).  These
+r.h.s. strings for nonterminals **must be identical** to the l.h.s. Python
+variable names for the nonterminals since they are looked up in the locals
+dict.
 
 The order in which the cases of a nonterminal are defined within a caselist
 *does* matter, at least for ambiguous grammars and to avoid or minimize
 backtracking.  The order of the cases is the order in which the algorithm will
 test the cases.  The first successful parse is returned.  In this sense the
 grammar is similar to a **parsing expression grammar (PEG)** rather than a
-**context-free grammar (CFG)**, which can be ambiguous.  (PEGs also allow "and"
-and "not" predicates which do not consume any input.)
-
+**context-free grammar (CFG)**, which can be ambiguous.  See, e.g.,
 https://en.wikipedia.org/wiki/Parsing_expression_grammar
-
-TODO: note that on page above a PEG essentially allows parsing expressions to
-contain other parsing expressions, as in `Sum ← Product (('+' / '-') Product)*`
-It does a backtracking until one succeeds or all fail.  Essentially an inlining
-of the cases for a sub-rule.  Can ignore, but consider if easily doable.
 
 Implementation
 --------------
@@ -89,50 +87,35 @@ Implementation
 
     This module is a work-in-progress.  As of now the syntactic Python
     interface mostly all works, but not all of the features have been coded
-    into the backend algorithms.  Currently it does basic BNF types of things,
-    but not many EBNF extensions.  See the test file cases for examples.  Here
-    is a summary of what is implemented and what is not yet implemented.
+    into the backend "compiling" algorithm.  Currently it does basic BNF types
+    production rules, but not many EBNF extensions.  See the test file cases for
+    examples.  Here is a summary of what is implemented and what is not yet
+    implemented.
 
-    Implemented::
+    Implemented:
 
        Backtracking recursive descent search.
-       Rule
-       Tok
+       `Rule`
+       `Tok`
 
-    Not yet implemented::
+    Not yet implemented:
 
-       Prec and precedences in productions
-       Sig type handling
-       Pratt calls to the Pratt parser
-       Optional
-       OneOrMore
-       ZeroOrMore
-       Not
-       AnyOf
-       Hide
-       Repeat(n, itemlist), exactly n repeats
-       overload * as in `3 * k_rpar` for Repeat
-       RepeatAtLeast(n, itemlist), n or more repeats
-       overload ** as in `3 ** k_rpar` for RepeatAtLeast
+       `Prec` and precedences in productions
+       `Sig` type handling
+       `Pratt` calls to the Pratt parser
+       `Optional`
+       `OneOrMore`
+       `ZeroOrMore`
+       `Not`
+       `AnyOf`
+       `Hide`
+       `Repeat(n, itemlist)`, exactly n repeats
+       Overload * as in `3 * k_rpar` for `Repeat`
+       `RepeatAtLeast(n, itemlist)`, n or more repeats
+       Overload ** as in `3 ** k_rpar` for `RepeatAtLeast`.
        LL(1) optimization
-       epsilon production handling
-       Undo compile in Grammar class.
-
-
-TODO: Make this a table????
-
-The kinds of items that are supported are:
-
-* rules         Rule, _<"str">_, ItemList var?, probably _<"str" alone
-* tokens        tok_name, Tok(tok_name)
-* pratt calls   Pratt(<args>)
-* dummy         DummyItem(), just set flag.... then _ = DummyItem()
-
-The possible modifiers are:
-
-* prec       int argument assumed a prec.  only for rules?  tokens too?
-* root       Anything, wrap with Root(...) helper fun.
-* type_sig   Any instance of TypeSig assumed to set it.
+       Epsilon production handling.
+       Undo compile in the `Grammar` class.
 
 Wrapper functions
 -----------------
@@ -145,16 +128,24 @@ strings at the beginning of the expression.
 
 Wrapper functions:
 
-=========   =========================== ==========
-Function    Arguments                   Shortcut
-=========   =========================== ==========
-`Rule`      rule-label (string)
-`Tok`       token                       token
-`Root`      item
-`Prec`      item, prec                  item[prec]
-`Pratt`     (optional) pstate, type sig
-`Sig`       item, type sig              item(sig)
-=========   =========================== ==========
+============   =========================== ==========
+Function       Arguments                   Shortcut
+============   =========================== ==========
+`Rule`         rule-label (string)
+`Tok`          token                       token
+`Root`         item
+`Prec`         item, prec                  item[prec]
+`Sig`          item, type sig              item(sig)
+`Pratt`        (optional) pstate, type sig
+`Optional`     item
+`nExactly`     int, item                   n * item
+`nOrMore`      int, item                   n ** item
+`OneOrMore`    item
+`ZeroOrMore`   item
+`Hide`         item
+`Not`          item
+`AnyOf`        itemlist
+============   =========================== ==========
 
 Overloaded operator API
 -----------------------
@@ -235,7 +226,7 @@ TODO:
     * `**` = "or more occurrences of"
 
     Applies to groups in parens for free; the + operators turn the all
-    into an ItemList.
+    into an `ItemList`.
 
     Implement as `Repeat(n, itemlist)` and `RepeatAtLeast(n, itemlist)`.
 
@@ -688,12 +679,12 @@ class Item(object):
 
     def __rmul__(self, left_other):
         """The expression `n*item` for an int `n` is "n occurrences of" `item`."""
-        return OccurrencesOf(left_other, self)
+        return nExactly(left_other, self)
 
     def __rpow__(self, left_other):
         """The expression `n**token` for an int `n` is "n or more occurrences of"
         `token`."""
-        return OrMoreOccurrencesOf(left_other, self)
+        return nOrMore(left_other, self)
 
     def __invert__(self):
         """Overload the prefix operator '~'."""
@@ -785,12 +776,12 @@ class ItemList(object):
     def __rmul__(self, left_other):
         """The expression `n*itemlist` for an int `n` is "n occurrences of"
         `itemlist`."""
-        return OccurrencesOf(left_other, self)
+        return nExactly(left_other, self)
 
     def __rpow__(self, left_other):
         """The expression `n**token` for an int `n` is "n or more occurrences of"
         `token`."""
-        return OrMoreOccurrencesOf(left_other, self)
+        return nOrMore(left_other, self)
 
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
@@ -897,12 +888,12 @@ class CaseList(object):
     def __rmul__(self, left_other):
         """The expression `n*caselist` for an int `n` is "n occurrences of"
         `caselist`."""
-        return OccurrencesOf(left_other, self)
+        return nExactly(left_other, self)
 
     def __rpow__(self, left_other):
         """The expression `n**token` for an int `n` is "n or more occurrences of"
         `token`."""
-        return OrMoreOccurrencesOf(left_other, self)
+        return nOrMore(left_other, self)
 
     def __repr__(self):
         return "CaseList({0})".format(", ".join([str(i) for i in self.data_list]))
@@ -980,20 +971,6 @@ def Optional(arg):
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-def OneOrMore(arg):
-    # Same as 1 ** arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "OneOrMore(")
-    itemlist[-1].modifiers.append(")")
-    return itemlist
-
-def ZeroOrMore(arg):
-    # Same as 0 ** arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "ZeroOrMore(")
-    itemlist[-1].modifiers.append(")")
-    return itemlist
-
 # TODO: consider if arg * 3 and arg ** 3 would be better, since then
 # you do not have a problem with 3 * 2 ** arg == 6 ** arg (because
 # left arg is always a token, Item or ItemList.
@@ -1008,17 +985,38 @@ def ZeroOrMore(arg):
 # Also consider arg // 3 for "repeat at most", but precedence is
 # different from ** so caution is warranted...
 
-def OccurrencesOf(n, arg):
+def nExactly(n, arg):
+    # Same as n * arg.
     itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "OccurrencesOf({0},".format(n))
+    itemlist[0].modifiers.insert(0, "ExactlyN({0},".format(n))
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-def OrMoreOccurrencesOf():
+def nOrMore(n, arg):
+    # Same as n ** arg.
     itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "OrMoreOccurrencesOf({0},".format(n))
+    itemlist[0].modifiers.insert(0, "nOrMore({0},".format(n))
     itemlist[-1].modifiers.append(")")
     return itemlist
+
+def OneOrMore(arg):
+    # Same as 1 ** arg.
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "OneOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+def ZeroOrMore(arg):
+    # Same as 0 ** arg.
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "ZeroOrMore(")
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+def Hide(itemlist):
+    """Do not show the items in the final tree.  For example, parentheses can
+    be ignored in function argument lists."""
+    raise NotImplementedError("Not yet implemented.")
 
 def Not(token):
     """The token cannot appear or the case fails."""
@@ -1033,11 +1031,6 @@ def AnyOf(*args):
     # Maybe, give you a choice of possibilities from several.  Same as "Or" but
     # maybe a little more descriptive.
     pass
-
-def Hide(itemlist):
-    """Do not show the items in the final tree.  For example, parentheses can
-    be ignored in function argument lists."""
-    raise NotImplementedError("Not yet implemented.")
 
 #
 # Utility functions.

@@ -375,7 +375,7 @@ def token_subclass_factory():
             # easy way to define token addition so that it works in the
             # grammars defined by the production_rules module.
             from .production_rules import (Tok, Not, Prec,
-                                           OccurrencesOf, OrMoreOccurrencesOf)
+                                           nExactly, nOrMore)
             # These are saved in a dict below because if they are made
             # attributes then Python 2 complains about "TypeError: unbound
             # method Tok() must be called with TokenClass_k_lpar instance as
@@ -387,8 +387,8 @@ def token_subclass_factory():
             new_class.prod_rule_funs["Tok"] = Tok
             new_class.prod_rule_funs["Not"] = Not
             new_class.prod_rule_funs["Prec"] = Prec
-            new_class.prod_rule_funs["OccurrencesOf"] = OccurrencesOf
-            new_class.prod_rule_funs["OrMoreOccurrencesOf"] = OrMoreOccurrencesOf
+            new_class.prod_rule_funs["nExactly"] = nExactly
+            new_class.prod_rule_funs["nOrMore"] = nOrMore
             return new_class
 
         def __repr__(cls):
@@ -433,12 +433,12 @@ def token_subclass_factory():
         def __rmul__(cls, left_other):
             """The expression `n*token` for an int `n` is "n occurrences of"
             `token`."""
-            return cls.prod_rule_funs["OccurrencesOf"](left_other, cls)
+            return cls.prod_rule_funs["nExactly"](left_other, cls)
 
         def __rpow__(cls, left_other):
             """The expression `n**token` for an int `n` is "n or more occurrences of"
             `token`."""
-            return cls.prod_rule_funs["OrMoreOccurrencesOf"](left_other, cls)
+            return cls.prod_rule_funs["nOrMore"](left_other, cls)
 
         def __invert__(cls):
             """Define the `~` operator for production rule grammars."""
