@@ -128,11 +128,11 @@ We want to parse this expression::
 
     f(g(h(int), int)
 
-where the int values are from literals at the leaves of the parse tree.  When
-we reach the bottom of the tree and start going up we cannot immediately choose
-the signature of ``h`` to use.  They both match arguments to ``g``.  But only
-one argument to ``g`` also matches the argument to ``f`` since we can rule out
-the second signature of ``f``.
+where the int values are from literal tokens at the leaves of the parse tree.
+When we reach the bottom of the tree and start going up we cannot immediately
+choose the signature of ``h`` to use.  They both match arguments to ``g``.  But
+only one argument to ``g`` also matches the argument to ``f`` since we can rule
+out the second signature of ``f``.
 
 We might consider passing the expected argument down the tree, so that when we
 reach ``h`` we will know that ``g`` needs to return a real so it has to take an

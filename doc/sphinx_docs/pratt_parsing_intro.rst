@@ -54,7 +54,7 @@ function it requires slightly less code, and, more importantly, is easier to
 follow.
 
 A parser parses a **program** or an **expression** from text that is passed to
-the parser's `parse` function.   In this writeup we tend to refer to parsing
+the parser's ``parse`` function.   In this writeup we tend to refer to parsing
 expressions, but it could also be a full program.  Every expression is assumed
 to be made up of **subexpressions**.  Subexpressions are defined by the
 particular handler-function implementations and by **operator precedences**.
@@ -63,25 +63,24 @@ parser recursively parses these expressions, subexpressions, etc., top-down.
 
 An **expression tree** is a tree for an expression such that each function or
 operator corresponds to an interior node of the tree, and the
-arguments/parameters of the function are the ordered child nodes.  A **parse
-tree** or **derivation tree**, on the other hand, corresponds to a grammar.
-The internal nodes all correspond to grammar productions.  In parse tree the
-leaves of the tree are identically the actual tokens (literals) returned from
-the lexer, whereas in an expression tree some of the literals are represented
-by internal nodes.  An **abstract syntax tree (AST)** is an abstract
+arguments/parameters of the function are the ordered child nodes.  The leaves
+of an expression tree are the **literal tokens**, i.e., the tokens which are
+also their own subtrees in the final expression tree.  The other tokens appear
+in the tree as interior nodes.
+
+A **parse tree** or **derivation tree**, on the other hand, corresponds to a
+grammar.  The internal nodes all correspond to grammar productions.  In a parse
+tree the leaves of the tree are all tokens (literal and non-literal) returned
+from the lexer.  An **abstract syntax tree (AST)** is an abstract
 representation of the information in a parse tree or expression tree, in some
 format chosen to be convenient.  A Pratt parser can produce any of the above
 kinds of trees, depending on how the handler functions are defined, but
-naturally produces expression trees.  The term **syntax tree** will be used to
+naturally produces expression trees.  The term **syntax tree** will generally
 refer to any of the above types of trees.
-
-.. Is a parse tree just a derivation tree when you ASSUME language defined by a grammar?
-   Easier to just use derivation tree for BNF, and parse tree for generic?
-   TODO
 
 In common usage the **parsing** of text tends to refer to any kind of formal
 decomposition into a predefined structure, particularly into a tree structure.
-This may include parsing the text to a derivation tree, an expression tree, an
+This may include parsing text to a derivation tree, an expression tree, an
 AST, or the use of various ad hoc methods for breaking the text down into
 components.  Informally, expression trees are often referred to as parse trees.
 
@@ -111,7 +110,8 @@ should produce the expression tree represented by::
          8
          
 where an indented column under a token represent its children/arguments.  Note
-that the leaves of the tree are always **literals** such as ``2`` and ``5``.
+that the leaves of the tree are always literal tokens such as ``2`` and ``5``
+which form their own subtrees.
 
 In producing the parse tree above it has been assumed that the usual operator
 precedence rules in mathematics hold: ``*`` has higher precedence than ``+``.
@@ -134,13 +134,12 @@ clear in the context the token precedence will simply be called **precedence** o
 Subexpressions
 --------------
 
-By definition, every subtree in a parse tree represents a subexpression.
-In this sense, the token precedence values define the subexpression
-structure of infix operators.  In the simple example above, the top-level
-expression is represented by the full tree, with root at the operator
-``+``.  Each literal also defines a (trivial) subexpression.  The operator
-``*`` defines a non-trivial subexpression which corresponds to the text
-``5 * 8``.
+By definition, every subtree in a parse tree represents a subexpression.  In
+this sense, the token precedence values define the subexpression structure of
+infix operators.  In the simple example above, the top-level expression is
+represented by the full tree, with root at the operator ``+``.  Each literal
+token also defines a (trivial) subexpression.  The operator ``*`` defines a
+non-trivial subexpression which corresponds to the text ``5 * 8``.
 
 In Pratt parsing, recursion is used to parse subexpressions (starting top-down,
 from the full expression).  A crucial distinction in this parsing method is
@@ -245,10 +244,10 @@ token's prec value).  The subexpression ends when that occurs, and the result
 ``processed_left`` is returned.
 
 The initial call of ``recursive_parse`` from ``parse`` always starts with a
-subexpression precedence of 0.  Literals and the end token always have a token
-precedence of 0, so subexpressions always end when the next token is the end
-token or the next token is a literal.  That makes sense, since all
-subexpressions need to end on the end token, and literals form their own
+subexpression precedence of 0.  Literal tokens and the end token always have a
+token precedence of 0, so subexpressions always end when the next token is the
+end token or the next token is a literal token.  That makes sense, since all
+subexpressions need to end on the end token, and literal tokens form their own
 subexpressions, i.e., subtrees (leaves) of the parse tree.
 
 Generally, any token with only a head handler definition must have a prec of 0.
@@ -321,12 +320,12 @@ could, for example, call a completely different parser.  Below we describe what
 they usually do, and give an example of processing the simple expression used
 in the :ref:`Operator precedence` section.
 
-The literals in a grammar always have a head handler, since they are themselves
-atomic subexpressions.  The head handler for literals is trivial: the head
-function simply returns a parse subtree for a leaf node containing that
-literal.  Note that any mutual recursion always ends with literals because all
-the leaves of a parse tree are literals and these head handlers do not make any
-recursive calls.
+The literal tokens in a grammar always have a head handler, since they are
+themselves subexpressions.  The head handler for literal tokens is trivial: the
+head function simply returns a parse subtree for a leaf node containing that
+token.  Note that any mutual recursion always ends with literal tokens because
+all the leaves of a parse tree are literal tokens and these head handlers do
+not make any recursive calls.
 
 Every token is represented by a unique subclass of the ``TokenNode`` class.
 The defined precedences for tokens are saved as attributes of the
@@ -335,23 +334,24 @@ and the lexer returns such an instance for every token it finds.  We will build
 the parse tree using the token representations returned by the lexer as the
 nodes.
 
-The head for literals basically just needs to return the token instance itself,
-since literals are the leaves of the parse tree:
+The head for literal tokens basically just need to return the token instance
+itself, since literal tokens are the leaves of the parse tree and so form their
+own subtrees:
 
 .. code-block:: python
 
      def head_handler_literal(self, lex):
          return self
 
-At the time when they are defined these head handlers are "pasted on" as new
+At the time when they are defined these head handlers are registered as new
 methods of the subclass of ``TokenNode`` which represents the corresponding
-literal (hence the ``self`` argument to the function).  The same holds for
-head and tail handlers for any tokens.
+literal token (hence the ``self`` argument to the function).  The same holds
+for head and tail handlers for any tokens.
 
-Beyond just literals, the head and tail handlers do two things while
-constructing the result value to return: they read in more tokens, and they
-call ``recursive_parse`` to evaluate sub-subexpressions of their subexpression.
-This is the definition of the tail handler for the ``+`` operator:
+Generally, head and tail handlers do two things while constructing the result
+value to return: they read in more tokens, and they call ``recursive_parse`` to
+evaluate sub-subexpressions of their subexpression.  This is the definition of
+the tail handler for the ``+`` operator:
 
 .. code-block:: python
 
@@ -413,9 +413,9 @@ The parse is roughly described in the box below.
       from the lexer, which is the token for ``2``.  It then and calls the head
       handler associated with it.
 
-         The head handler for the token ``2`` returns the token for ``2`` itself
-         as the corresponding node in the subtree, since literals are their own
-         subtrees (leaves) of the final expression tree.
+         The head handler for the token ``2`` returns the token for ``2``
+         itself as the corresponding node in the subtree, since literal tokens
+         are their own subtrees (leaves) of the final expression tree.
       
       The ``processed_left`` variable is set to the returned node, which is the
       token ``2``.
@@ -440,7 +440,7 @@ The parse is roughly described in the box below.
             token for ``5``, and calls the head handler for that token.
             
                The head handler returns the node for ``5`` as the subtree, since
-               it is a literal.
+               it is a literal token.
                
             The returned node/subtree for ``5`` is set as the initial value for
             ``processed_left`` at this level of recursion.

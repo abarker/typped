@@ -135,10 +135,10 @@ of the parameters.
 
    Composite types in a language are types which are constructed from other
    types.  The definition chains end with the primitive data types of language
-   (much like the literals at the leaves of a parse tree).  An example in
+   (much like the literal tokens at the leaves of a parse tree).  An example in
    C is the use of `typedef` to create a type `point` from a `struct` of two
-   `int` values.  In C++ classes create types whenever they are defined (or
-   the template is instantiated, if it is templated).
+   `int` values.  In C++ classes create types whenever they are defined (or the
+   template is instantiated, if it is templated).
 
    Composite types are a feature of the implemented language, so Typped does
    not directly handle them.  In implementing this language feature using
@@ -201,9 +201,9 @@ The method takes an argument ``val_type``.  Note that now whenever the
 ``val_type`` is set for the *node* it should be for an *instance* of the type
 specifier.  Perhaps it should be called ``val_type_actual``, or else just set
 the full ``TypeSpec`` and specify that the can only contain instances.  Then,
-all the literals have instances set for them as ``val_type_actual``.  Going up
-the parse tree, the higher nodes look down at the ``val_type_actual`` values of
-their children to obtain the actual types of the type specifiers.
+all the literal tokens have instances set for them as ``val_type_actual``.
+Going up the parse tree, the higher nodes look down at the ``val_type_actual``
+values of their children to obtain the actual types of the type specifiers.
 
 .. topic:: Example of defining types.
 

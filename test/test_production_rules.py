@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 
-Test the code in the production_rules.py file.
+Test the code in the `production_rules.py` file as well as the functions in
+`register_grammar_with_parser.py` and the `PrattParser` code for handling
+null-string tokens, etc.
 
 """
-
-# TODO: install typped in pip
 
 from __future__ import print_function, division, absolute_import
 import pytest_helper
@@ -17,9 +17,10 @@ if __name__ == "__main__":
 pytest_helper.autoimport()
 #pytest_helper.sys_path("../src")
 
-from typped import * # Assumes pip install, local for devel work.
+from typped import * # Assumes typped is installed locally.
 
 def def_expression_tokens_and_literals(parser):
+    """Define some general tokens."""
     #
     # Define the tokens.
     #
@@ -54,6 +55,7 @@ def def_expression_tokens_and_literals(parser):
     pytest_helper.locals_to_globals()
 
 def test_EBNF_like_expressions():
+    """Test the Python grammar for representing EBNF grammars."""
     parser = PrattParser()
     parser.def_default_whitespace()
     def_expression_tokens_and_literals(parser)
@@ -95,6 +97,7 @@ def test_EBNF_like_expressions():
                                              'Tok("k_rpar")))')
 
 def test_parsing_from_basic_expression_grammar():
+    """Test the actual parser creation and execution from a grammar."""
     parser = PrattParser()
     parser.def_default_whitespace()
 

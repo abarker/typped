@@ -33,16 +33,17 @@ are top-down recursive methods.  Pratt parsing, however, is based on tokens
 whereas recursive descent parsing is based on production rules in a grammar.
 The ability to dispatch handlers based on preconditions makes the Typped Pratt
 parser even more similar to a recursive descent parser.  The terminal symbols
-in a grammar are essentially the tokens in a Pratt parser.  The below
-discussion assumes that correspondence, so terminals are essentially defined by
+in a grammar are essentially the literal tokens in a Pratt parser.  The below
+discussion assumes this correspondence, so terminals are essentially defined by
 regular expressions (as are the tokens in Typped).
 
-Suppose all the productions in a grammar begin with a terminal.  This is
+Suppose all the productions in a grammar begin with a literal terminal
+(represented by the regular expression of some corresponding token).  This is
 called a **right-regular grammar**.  A Pratt parser with preconditioned
 dispatching can be used to implement recursive descent parsing on such a
-grammar.  Since each rule in such a grammar begins with a terminal (i.e., a
-token), the head-handler for each such token can be set up to process
-the rule.
+grammar.  Since each rule in such a grammar begins with a terminal
+corresponding to a literal token the head-handler for each such token can be
+set up to process the rule.
 
 In order to do this you keep a stack of production rule labels, updated to have
 the current production rule on the top.  In a ``PrattParser`` instance this
@@ -51,14 +52,15 @@ precondition on the top label in that stack in all the head-handlers for tokens
 which start some production.  These head-handler functions are also responsible
 for updating the ``pstate`` stack as necessary.  Using this, along with
 lookahead to the upcoming tokens in the preconditions, gives the power to do
-recursive descent parsing.
+recursive descent parsing of right regular grammars.
 
 These head-handler functions effectively mimic the separate recursive functions
 for each production rule.  They are just triggered by preconditions matches.
 The ``pstate`` stack keeps track of the recursion in the tree defined by the
 grammar.  If the collection of production rules for a given terminal are
 ordered by priority then the head handler for the token which starts the first
-one can be used to process the whole collection.
+one can be used to loop through and process the whole collection (like in
+recursive descent).
 
 When a production does not necessarily start with a terminal then there is a
 problem as far as how to apply a Pratt parser while keeping the grammar
@@ -94,12 +96,12 @@ Example
    We will assume that the stack is in a list called ``pstack``, and holds string
    labels for the names of the productions.
 
-   To implement the parser for a production you define and register a head handler
-   for each type of token which can begin the production as a literal.  For the
-   "or" cases you can either define a separate head for each disjunct in the
+   To implement the parser for a production you define and register a head
+   handler for each literal token which can begin the production.  For the "or"
+   cases you can either define a separate head for each disjunct in the
    production, or you can use "or" conditionals inside a single precondition
-   function for a single head function.  Inside each head you process the relevant
-   case or cases of the production.
+   function for a single head function.  Inside each head you process the
+   relevant case or cases of the production.
 
    Note that some productions immediately do a recursive production evaluation.
    For those case you can push back the token which was read, change the
@@ -146,6 +148,13 @@ Recursive descent with Typped's EBNF grammar
 --------------------------------------------
 
 The Typped package comes with a EBNF grammar defined via Python overloads.
+This essentially automates the procecure described above.
+
+This is a simple example of using the EBNF grammar:
+
+.. code-block:: python
+
+
 When the grammar is "compiled" with respect to a ``PrattParser`` instance it
 produces a recursive descent parser for the grammar within the Pratt parser
 framework.  The generated parsers currently use full backtracking search, and
@@ -155,4 +164,6 @@ The EBNF language is currently bare-bones as far as what can be compile into a
 parser instance.  (The EBNF language itself, defined with Python overloading,
 is mostly written.)
 
+.. TODO: link to the production_rules.py file or wherever that documentation
+   of the Python overloads ends up.
 

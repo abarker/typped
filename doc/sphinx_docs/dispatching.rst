@@ -3,10 +3,10 @@ Preconditioned dispatching
 ==========================
 
 This section describes the use of preconditioned dispatching in the
-`PrattParser` class.  Many Typped users will never need to explicitly use the
+``PrattParser`` class.  Many Typped users will never need to explicitly use the
 techniques described here, since the Typped parser comes with various built-in
 methods which hide the use of precondition functions.  The calulator
-example, for example, uses only built-in methods of the `PrattParser` class.
+example, for example, uses only built-in methods of the ``PrattParser`` class.
 This description is mainly for users who plan to extend the built-in collection
 of methods or those who are simply interested in the details of how dispatching
 works.
@@ -28,9 +28,9 @@ ignored if one wants to use only standard Pratt parser techniques.
 
 The preconditions which trigger the use of a particular head or tail handler
 function for a token are defined by the user at the time when that handler
-function is registered/associated with the token.  The `PrattParser` method
+function is registered/associated with the token.  The ``PrattParser`` method
 which registers a handler function with a token (called
-`modify_token_subclass`) is additionally passed the precondition function and
+``modify_token_subclass``) is additionally passed the precondition function and
 any other required information.  Preconditions functions are essentially
 arbitrary boolean-valued functions which are called to look at the state at the
 time a token is parsed.
@@ -102,7 +102,7 @@ functions are considered equal and when they are not.
 In order to avoid problems in determining when functions are identical, every
 preconditions function (or distinct use of a preconditions function) **must**
 be assigned a string label.  The preconditions functions are then registered in
-a dict (a `TokenTable` instance) with that label as the key.  For two
+a dict (a ``TokenTable`` instance) with that label as the key.  For two
 preconditions functions to be considered identical they must have the *exact
 same* label.  For them to be considered different they must have *different*
 labels.  **This can be important in defining general parser methods and can
@@ -219,28 +219,28 @@ are defined.  Both handlers are registered for the identifier token, and the
 rest is handled automatically.
 
 The code for this example can be found in a runnable form in the file
-`example_stdfun_lookahead.py`.
+``example_stdfun_lookahead.py``.
 
-In this example the `PrattParser` class is extended by creating a subclass with
+In this example the ``PrattParser`` class is extended by creating a subclass with
 additional methods.  It is not strictly necessary to create a subclass,
-however.  An ordinary function could be used, just renaming the `self`
-variable to something like `parser` and then explicitly passing in a parser
+however.  An ordinary function could be used, just renaming the ``self``
+variable to something like ``parser`` and then explicitly passing in a parser
 instance when calling it.  Extending the class has the advantage that the newer
 methods are accessed in the same way as the built-in ones and are in the
 parser instance's namespace.
 
-In this example the method `def_stdfun_lookahead` is added to the
-`PrattParser`.  (This is only an example, since the `PrattParser` class already
-has a `def_stdfun` method which uses lookahead and also incorporates types,
+In this example the method ``def_stdfun_lookahead`` is added to the
+``PrattParser``.  (This is only an example, since the ``PrattParser`` class already
+has a ``def_stdfun`` method which uses lookahead and also incorporates types,
 etc.)  Before calling this method all of the tokens involved must have already
-been defined along with their labels (via the `def_token` method).  Ignored
+been defined along with their labels (via the ``def_token`` method).  Ignored
 whitespace tokens must also have been defined already.  The lpar, rpar, and
-comma tokens must already have been defined as literals (via the `def_literal`
+comma tokens must already have been defined as literal tokens (via the ``def_literal``
 method).
 
 Recall that the head-handler will be called to process a subexpression starting
 from the beginning.  That head-handler is then responsible for parsing the full
-subexpression -- though it can itself call `recursive_parse` to parse
+subexpression -- though it can itself call ``recursive_parse`` to parse
 sub-subexpressions.  We are defining a head-handler that only matches a
 function name in the case when the peek token is an lpar with no intervening
 space.
@@ -301,14 +301,15 @@ space.
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and
 ``recursive_parse``.  The general rule is that tokens which will appear in the
-final parse tree, even literals, should always be retrieved with
+final parse tree, even literal tokens, should always be retrieved with
 ``recursive_parse``.  This is because it processes the nodes to adds some extra
 attributes which are needed by other tree operations.  Tokens which do not
 appear in the final parse tree, such as the final closing rpar token of the
-function arguments, can simply be consumed by ``match_next`` or an explicit call
-to ``lex.next()`` and discarded.  (If you must include a directly-consumed token
-in the tree, it must at least have its ``process_and_check_node`` method called
-with an overridden type signature to mimic what the handler for literals does.)
+function arguments, can simply be consumed by ``match_next`` or an explicit
+call to ``lex.next()`` and discarded.  (If you must include a directly-consumed
+token in the tree, it must at least have its ``process_and_check_node`` method
+called with an overridden type signature to mimic what the handler for literal
+tokens does.)
 
 The function defined above could be called as follows.
 

@@ -25,6 +25,9 @@ Python file are:
 * **yeanpypa** -- Uses Python overloading, similar to this module.
   https://github.com/DerNamenlose/yeanpypa
 
+* **Lark** -- Passed a string. Implements Earley & LALR(1) and returns a parse tree.
+  https://www.reddit.com/r/Python/comments/5tepaq/announcing_lark_a_parsing_library_that_implements/
+
 For more, see https://wiki.python.org/moin/LanguageParsing
 
 Terminology
@@ -147,7 +150,7 @@ Function    Arguments                   Shortcut
 =========   =========================== ==========
 `Rule`      rule-label (string)
 `Tok`       token                       token
-`Root`      item                        ~item
+`Root`      item
 `Prec`      item, prec                  item[prec]
 `Pratt`     (optional) pstate, type sig
 `Sig`       item, type sig              item(sig)
@@ -392,7 +395,7 @@ from .shared_settings_and_exceptions import ParserException, is_subclass_of, is_
 
 from .pratt_types import TypeSig, TypeObject, NONE
 from .lexer import TokenNode
-from .recursive_descent_methods import def_production_rules_for_nonterminal
+from .register_grammar_with_parser import register_rule_handlers_with_parser
 
 class Grammar(object):
     """An object representing a context-free grammar.  It is basically a
@@ -437,7 +440,7 @@ class Grammar(object):
 
         if register:
             for label, caselist in self.production_caselists.items():
-                def_production_rules_for_nonterminal(self.parser, label, self)
+                register_rule_handlers_with_parser(self.parser, label, self)
 
     def _process_nonterm_caselist(self, nonterm_label):
         """Recursively process rules, converting string labels into their

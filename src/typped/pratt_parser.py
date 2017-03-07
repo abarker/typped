@@ -40,9 +40,10 @@ To use the `PrattParser` class you need to do these things:
 
        If the predefined methods are not sufficient you might need to create a
        subclass of `PrattParser` to provide additional methods.  Note that
-       literals must be defined as syntax, in addition to being defined as
-       tokens.  If typing is to be used then any type information should also be
-       set for the syntax elements.
+       literal tokens must be defined as syntax in the grammar being parsed
+       after being defined as tokens (which are scanning scanned and returned
+       by the lexer).  If typing is being used then any type information should
+       also be set for the literal tokens, as syntax elements.
 
     4. Pass the parser a string of text to parse and save the resulting token
       tree. ::
@@ -866,12 +867,13 @@ def token_subclass_factory():
             node attribute `self.matching_sigs` having been set in the first
             pass."""
             # On FIRST pass: on the way *up* the tree (after getting the
-            # literals, the leaves of the tree) get all the signature types for
-            # a node which match in arguments for *some* possible return-type
-            # choice of the children.  Same as the one-pass version, but now
-            # sets of possibilities are allowed and state is saved for the
-            # second pass to use: the list of matching sigs is temporarily
-            # saved with the node in the self.matched_sigs attribute.
+            # literal tokens, the leaves of the tree) get all the signature
+            # types for a node which match in arguments for *some* possible
+            # return-type choice of the children.  Same as the one-pass
+            # version, but now sets of possibilities are allowed and state is
+            # saved for the second pass to use: the list of matching sigs is
+            # temporarily saved with the node in the self.matched_sigs
+            # attribute.
             #
             # Summary: first pass, bottom-up, find all sigs that match possible
             # val_types of the node's children, across all arguments.
@@ -890,10 +892,10 @@ def token_subclass_factory():
             # and set the (unique) signature for each of their children.
             #
             # Note that this algorithm works just as well if the second pass is
-            # run on each subtree as soon as the subtree root has a unique signature,
-            # and the recursion only goes down to subtrees with roots having a
-            # unique signature.  This yields partial results and some error
-            # conditions sooner, and is what is implemented here.
+            # run on each subtree as soon as the subtree root has a unique
+            # signature, and the recursion only goes down to subtrees with
+            # roots having a unique signature.  This yields partial results and
+            # some error conditions sooner, and is what is implemented here.
 
             if len(self.matching_sigs) != 1: # The root case needs this.
                 self._raise_type_mismatch_error(self.matching_sigs,
@@ -1656,11 +1658,12 @@ class PrattParser(object):
                           eval_fun=None, ast_data=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
-        function to the token.  Literals are the leaves of the parse tree; they
-        are things like numbers and variable names in a numerical expression.
-        They always occur as the first (and only) token in a subexpression
-        being evaluated by `recursive_parse`, so they need a head handler but not
-        a tail handler."""
+        function to the token.  Literal tokens are the leaves of the expression
+        trees; they are things like numbers and variable names in a numerical
+        expression.  They always occur as the first (and only) token in a
+        subexpression being evaluated by `recursive_parse`, so they need a head
+        handler but not a tail handler.  (Though note that the token itself
+        might also have a tail handler.)"""
         def head_handler_literal(tok, lex):
             tok.process_and_check_node(head_handler_literal)
             return tok
@@ -1792,8 +1795,9 @@ class PrattParser(object):
         """This definition of stdfun uses lookahead to the opening paren or
         bracket token.
 
-        Note that all tokens must be defined as literals except
-        `fname_token_label`.  If the latter is also a literal then
+        Note that all tokens must be defined as literal tokens except
+        `fname_token_label` (which ends up as the root of the function
+        evaluation subtree).  If the latter is also a literal token then
         `precond_priority` may need to be increased to give this use priority.
 
         The `num_args` parameter is optional for specifying the number of
