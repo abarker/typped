@@ -5,10 +5,10 @@ Preconditioned dispatching
 This section describes the use of preconditioned dispatching in the
 ``PrattParser`` class.  Many Typped users will never need to explicitly use the
 techniques described here, since the Typped parser comes with various built-in
-methods which hide the use of precondition functions.  The calulator
-example, for example, uses only built-in methods of the ``PrattParser`` class.
-This description is mainly for users who plan to extend the built-in collection
-of methods or those who are simply interested in the details of how dispatching
+methods which hide the use of precondition functions.  The calulator example,
+for example, uses only built-in methods of the ``PrattParser`` class.  This
+description is mainly for users who plan to extend the built-in collection of
+methods or those who are simply interested in the details of how dispatching
 works.
 
 What is preconditioned dispatching?
@@ -221,22 +221,22 @@ rest is handled automatically.
 The code for this example can be found in a runnable form in the file
 ``example_stdfun_lookahead.py``.
 
-In this example the ``PrattParser`` class is extended by creating a subclass with
-additional methods.  It is not strictly necessary to create a subclass,
+In this example the ``PrattParser`` class is extended by creating a subclass
+with additional methods.  It is not strictly necessary to create a subclass,
 however.  An ordinary function could be used, just renaming the ``self``
 variable to something like ``parser`` and then explicitly passing in a parser
 instance when calling it.  Extending the class has the advantage that the newer
-methods are accessed in the same way as the built-in ones and are in the
-parser instance's namespace.
+methods are accessed in the same way as the built-in ones and are in the parser
+instance's namespace.
 
 In this example the method ``def_stdfun_lookahead`` is added to the
-``PrattParser``.  (This is only an example, since the ``PrattParser`` class already
-has a ``def_stdfun`` method which uses lookahead and also incorporates types,
-etc.)  Before calling this method all of the tokens involved must have already
-been defined along with their labels (via the ``def_token`` method).  Ignored
-whitespace tokens must also have been defined already.  The lpar, rpar, and
-comma tokens must already have been defined as literal tokens (via the ``def_literal``
-method).
+``PrattParser``.  (This is only an example, since the ``PrattParser`` class
+already has a ``def_stdfun`` method which uses lookahead and also incorporates
+types, etc.)  Before calling this method all of the tokens involved must have
+already been defined along with their labels (via the ``def_token`` method).
+Ignored whitespace tokens must also have been defined already.  The lpar, rpar,
+and comma tokens must already have been defined as literal tokens (via the
+``def_literal`` method).
 
 Recall that the head-handler will be called to process a subexpression starting
 from the beginning.  That head-handler is then responsible for parsing the full
@@ -245,8 +245,8 @@ sub-subexpressions.  We are defining a head-handler that only matches a
 function name in the case when the peek token is an lpar with no intervening
 space.
 
-.. TODO: update code with latest version from Python file
-   ``example_stdfun_lookahead.py``, after cleanup, etc.  Maybe add more tests
+.. TODO: Keep up-to-date with the code in latest version from Python file
+   ``example_stdfun_lookahead.py``  Maybe add more tests
    (maybe as a pytest file).
 
 .. code-block:: python
@@ -389,16 +389,16 @@ because it does not handler jops, null-string tokens, or error-checking.
 The lookup is performed by getting the list of precondition functions, ordered
 by priority, and calling each one until one returns ``True`` based on the
 current conditions.  The associated handler function is then executed.  Note
-that the dispatch handler binds the arguments of the function it returns
-(i.e., it returns a partial function since it knows the arguments).
+that the dispatch handler binds the arguments of the function it returns (i.e.,
+it returns a partial function since it knows the arguments).
 
 All the registered handler functions for a token label are stored in a static
-``OrderedDict`` attribute of the corresponding ``TokenNode`` subclass (after being passed
-into ``modify_token_subclass`` via keyword arguments).  The dict is called
-``handler_funs`` and is keyed first by ``HEAD`` or ``TAIL`` and then by
-precondition label strings.  For each type of handler function, head or tail,
-the ordered dict holds a named tuple keyed by precondition labels and having
-the following format::
+``OrderedDict`` attribute of the corresponding ``TokenNode`` subclass (after
+being passed into ``modify_token_subclass`` via keyword arguments).  The dict
+is called ``handler_funs`` and is keyed first by ``HEAD`` or ``TAIL`` and then
+by precondition label strings.  For each type of handler function, head or
+tail, the ordered dict holds a named tuple keyed by precondition labels and
+having the following format::
 
      (precond_fun, precond_priority, handler_fun)
 
@@ -427,7 +427,10 @@ Remember these points:
 - Each defined type signature is stored with its corresponding handler
   function.  Currently a list of signatures is actually pasted onto the
   function as an attribute, **so function objects used as handlers cannot ever
-  be reused**.
+  be reused**.  Use a factory function if you need to use the same code for
+  different handler functions.  In the built-in methods such as ``def_stdfun``
+  the handlers are defined inside the method, so a different function object is
+  created each time.
 
 - Evaluation functions are saved with tokens keyed by the precondition label
   and the formal type that they are defined with.  They are looked up based on

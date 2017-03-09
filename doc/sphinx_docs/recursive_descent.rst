@@ -91,31 +91,6 @@ later versions if necessary.
 Example
 -------
 
-.. keep or delete below indented
-
-   We will assume that the stack is in a list called ``pstack``, and holds string
-   labels for the names of the productions.
-
-   To implement the parser for a production you define and register a head
-   handler for each literal token which can begin the production.  For the "or"
-   cases you can either define a separate head for each disjunct in the
-   production, or you can use "or" conditionals inside a single precondition
-   function for a single head function.  Inside each head you process the
-   relevant case or cases of the production.
-
-   Note that some productions immediately do a recursive production evaluation.
-   For those case you can push back the token which was read, change the
-   production-state to the one you want to process, and then call
-   ``recursive_parse``.  That returns the parse tree for the sub-production, with
-   which you can continue to evaluate the production in much the same way as for
-   recursive descent.
-
-   As a possible idea for the "or" cases where a recursive call is immediately,
-   made you can implicitly define a head for all tokens by setting a default token
-   with only the production-state as the precondition (TODO maybe).  Could these
-   handle the general recursive descent in a better way?  Just define with
-   preconditions based on the top label in the production stack....
-
 Consider this example of a very simple expression grammar (even though the
 expression parts of grammars are better evaluated with Pratt-style parsing).
 The ``identifier`` and ``number`` productions are assumed to be implemented as
@@ -164,6 +139,9 @@ The EBNF language is currently bare-bones as far as what can be compile into a
 parser instance.  (The EBNF language itself, defined with Python overloading,
 is mostly written.)
 
-.. TODO: link to the production_rules.py file or wherever that documentation
+For details of the current state of the Python EBNF language see the docs for
+the module ``production_rules.py``.
+
+.. TODO: add link to the production_rules.py file or wherever that documentation
    of the Python overloads ends up.
 
