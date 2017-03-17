@@ -55,12 +55,12 @@ DataTuple = collections.namedtuple("DataTuple", ["kind","data"])
 class RegexTrieDictLexer(object):
     """A simple, nonbuffered lexer based on the RegexTrieDict data structure."""
 
-    def __init__(self, textStream, trieDict, whitespace=""):
-        """The `trieDict` is assumed to define the tokens and have a stored data
+    def __init__(self, text_stream, trie_dict, whitespace=""):
+        """The `trie_dict` is assumed to define the tokens and have a stored data
         element with each token which exactly equals the data which should be
         returned when the token is recognized.  Text is taken character by
-        character from the textStream and insertSeqElem is called on a
-        RegexTrieDictScanner created from the trieDict.  When a match is found
+        character from the text_stream and insertSeqElem is called on a
+        RegexTrieDictScanner created from the trie_dict.  When a match is found
         the (string,data) tuple is returned.
 
         Whitespace is a string of characters to ignore in processing tokens,
@@ -68,17 +68,17 @@ class RegexTrieDictLexer(object):
         trieTok data structure.  The default whitespace is the empty string
         (which doesn't ignore anything)."""
 
-        self.textStream = textStream
-        self.trieDict = trieDict
-        self.trieTok = RegexTrieDictScanner(self.trieDict)
-        self.trieTok.reset_seq() # always start fresh at the beginning of TextStream
-        self.trieTok.clear_token_data_deque() # may not always be wanted...
-        self.tokenDataDeque = self.trieTok.get_token_data_deque()
+        self.text_stream = text_stream
+        self.trie_dict = trie_dict
+        self.trie_tok = RegexTrieDictScanner(self.trie_dict)
+        self.trie_tok.reset_seq() # always start fresh at the beginning of TextStream
+        self.trie_tok.clear_token_data_deque() # may not always be wanted...
+        self.token_data_deque = self.trie_tok.get_token_data_deque()
         self.whitespace = set(whitespace)
         return
 
-    def set_whitespace(whitespaceChars):
-        self.whitespace = set(whitespaceChars)
+    def set_whitespace(whitespace_chars):
+        self.whitespace = set(whitespace_chars)
         return
 
     def __iter__(self):
@@ -94,33 +94,33 @@ class RegexTrieDictLexer(object):
         # TODO the above documentation is quite outdated.
         RAISE_ERROR_ON_BAD_TOKEN = False # maybe make a settable class variable
         while True:
-            if len(self.tokenDataDeque) > 0:
-                tokData = self.tokenDataDeque.popleft() # process the first token
+            if len(self.token_data_deque) > 0:
+                tok_data = self.token_data_deque.popleft() # process the first token
                 if RAISE_ERROR_ON_BAD_TOKEN:
-                    if tokData.validToken == False:
+                    if tok_data.validToken == False:
                         raise Exception(
-                            "Bad token '"+tokData.tokenString+"' in token stream.")
-                if ignore_whitespace and tokData.tokenString in self.whitespace:
+                            "Bad token '"+tok_data.tokenString+"' in token stream.")
+                if ignore_whitespace and tok_data.tokenString in self.whitespace:
                     continue
-                return tokData
-            else: # len(self.tokenDataDeque)==0, must insert some chars to gen. matches
-                if self.textStream.end_of_text_stream():
-                    self.trieTok.assert_end_of_seq()
-                    if len(self.tokenDataDeque) == 0:
+                return tok_data
+            else: # len(self.token_data_deque)==0, must insert some chars to gen. matches
+                if self.text_stream.end_of_text_stream():
+                    self.trie_tok.assert_end_of_seq()
+                    if len(self.token_data_deque) == 0:
                         raise StopIteration(
                             "no more tokens in RegexTrieDictLexer for next()")
                 else:
-                    queryChar = self.textStream.next()
-                    queryCharPos = self.textStream.get_pos_of_last_next()
-                    self.trieTok.insert_seq_elem(queryChar, queryCharPos)
+                    query_char = self.text_stream.next()
+                    query_char_pos = self.text_stream.get_pos_of_last_next()
+                    self.trie_tok.insert_seq_elem(query_char, query_char_pos)
         return
 
     def end_of_token_stream(self):
         """True if no more tokens.  Whitespace tokens are not ignored."""
         # note that order matters in the "and" on the next line
-        if len(self.tokenDataDeque) == 0 and self.textStream.end_of_text_stream():
-            self.trieTok.assert_end_of_seq() # see if any possible matches unflushed
-            if len(self.tokenDataDeque) == 0:
+        if len(self.token_data_deque) == 0 and self.text_stream.end_of_text_stream():
+            self.trie_tok.assert_end_of_seq() # see if any possible matches unflushed
+            if len(self.token_data_deque) == 0:
                 return True
         return False
 
@@ -147,17 +147,17 @@ class BufferedRegexTrieDictLexer(object):
     # will start deleting elements at the beginning on appends once
     # MAX_BUFFERED_TOKENS is reached, messing up the indices from the left).
 
-    def __init__(self, textStream, regexTrieDict, whitespace="",
+    def __init__(self, text_stream, regex_trie_dict, whitespace="",
                  MAX_BUFFERED_TOKENS=1024):
-        self.lexer = RegexTrieDictLexer(textStream, regexTrieDict, whitespace)
+        self.lexer = RegexTrieDictLexer(text_stream, regex_trie_dict, whitespace)
         self.MAX_BUFFERED_TOKENS = MAX_BUFFERED_TOKENS # set to None for infinite
-        self.tokenDataBuf = collections.deque(maxlen=self.MAX_BUFFERED_TOKENS)
+        self.token_data_buf = collections.deque(maxlen=self.MAX_BUFFERED_TOKENS)
         self.whitespace = set(whitespace)
         self.pos = 0 # a self.pos value of len(tokenDataBuf) means read in and append
         return
 
-    def set_whitespace(whitespaceChars):
-        self.whitespace = set(whitespaceChars)
+    def set_whitespace(whitespace_chars):
+        self.whitespace = set(whitespace_chars)
         return
 
     def __iter__(self):
@@ -175,33 +175,33 @@ class BufferedRegexTrieDictLexer(object):
         equivalence any next(boolVal) results should only be pushed back with
         pushback(boolVal), for the same boolVal."""
 
-        if self.pos == len(self.tokenDataBuf): # empty, need to call lower-level lexer
+        if self.pos == len(self.token_data_buf): # empty, need to call lower-level lexer
             # let self.lexer.next raise a StopIteration, if necessary
-            newTok = self.lexer.next(False) # call low-level lexer, don't ignore white
-            self.tokenDataBuf.append(newTok)
-            self.pos = len(self.tokenDataBuf)
+            new_tok = self.lexer.next(False) # call low-level lexer, don't ignore white
+            self.token_data_buf.append(new_tok)
+            self.pos = len(self.token_data_buf)
             if ignore_whitespace:
-                while self.tokenDataBuf[-1].tokenString in self.whitespace:
+                while self.token_data_buf[-1].tokenString in self.whitespace:
                     return self.next(ignore_whitespace) # recurse
-            return self.tokenDataBuf[-1]
+            return self.token_data_buf[-1]
         # at this point we know buffer is not empty, so self.pos is negative
-        retval = self.tokenDataBuf[self.pos]
+        retval = self.token_data_buf[self.pos]
         self.pos += 1 # there won't be any appends until pos gets back to the end
         if self.pos == 0:
-            self.pos = len(self.tokenDataBuf) # at the far right end
+            self.pos = len(self.token_data_buf) # at the far right end
         if ignore_whitespace and retval.tokenString in self.whitespace:
             return self.next(ignore_whitespace) # recurse
         return retval
 
-    def expect_char(self, charStr, ignore_whitespace=True):
+    def expect_char(self, char_str, ignore_whitespace=True):
         # TODO rewrite or eliminate; should look at label.  Used in old parser.py as
         # if not lex.expectChar(whitespace, False):
         #       print("Error: whitespace required after type '"+echoString+"'.")
 
         """A convenience function.  Does a peek() and returns True if the string
-        for the returned token matches one of the characters in charStr, False
+        for the returned token matches one of the characters in char_str, False
         otherwise."""
-        return self.peek(ignore_whitespace).tokenString in charStr
+        return self.peek(ignore_whitespace).tokenString in char_str
 
     def pushback(self, ignore_whitespace=True):
         """Effectively pushes back the last token read.  If ignore_whitespace is
@@ -223,15 +223,15 @@ class BufferedRegexTrieDictLexer(object):
         undefined).  The lexer is dynamic, and changes according to definitions
         of its tokens in the regexTrieDict."""
 
-        if self.pos == -len(self.tokenDataBuf):
+        if self.pos == -len(self.token_data_buf):
             return False
-        elif self.pos == len(self.tokenDataBuf):
+        elif self.pos == len(self.token_data_buf):
             self.pos = -1
         else: self.pos = self.pos - 1
         # if ignoring whitespace, push back the preceeding whitespace
         if ignore_whitespace:
-            if self.pos == -len(self.tokenDataBuf): return False
-            if self.tokenDataBuf[self.pos-1].tokenString in self.whitespace:
+            if self.pos == -len(self.token_data_buf): return False
+            if self.token_data_buf[self.pos-1].tokenString in self.whitespace:
                 return self.pushback(ignore_whitespace) # recurse
         return True
 
@@ -253,7 +253,7 @@ class BufferedRegexTrieDictLexer(object):
         count = 0
         while True:
             # if no tokens in buffer and no tokens left in low-level lexer then True
-            if self.pos == len(self.tokenDataBuf) and self.lexer.end_of_token_stream():
+            if self.pos == len(self.token_data_buf) and self.lexer.end_of_token_stream():
                 retval = True
                 break
             # if whitespace isn't being ignored we're done: endOfTokenStream is False
@@ -302,31 +302,31 @@ class BufferedRegexTrieDictLexer(object):
         regions on the order of MAX_BUFFERED_TOKENS would violate this.)"""
 
         # at beginning, no reads yet
-        if self.lexer.textStream.beginning_of_text_stream() == 0:
+        if self.lexer.text_stream.beginning_of_text_stream() == 0:
             return True
 
         # handle regular cases
         retval = False
         count = 0
         while True:
-            if self.tokenDataBuf[self.pos].tokenString == "\n":
+            if self.token_data_buf[self.pos].tokenString == "\n":
                 retval = True
                 break
             if not ignore_whitespace: break
-            if self.tokenDataBuf[self.pos].tokenString in self.whitespace:
-                pushVal = self.pushback(False)
-                if pushVal: count += 1
-                if pushVal == False:
+            if self.token_data_buf[self.pos].tokenString in self.whitespace:
+                push_val = self.pushback(False)
+                if push_val: count += 1
+                if push_val == False:
                     retval = True
                     break
 
         for i in range(count): self.next(False)
         return retval
 
-    def get_all_to_delimiter(self, delimiterStr, ignore_whitespace=True):
+    def get_all_to_delimiter(self, delimiter_str, ignore_whitespace=True):
         """This reads in a sequence of tokens from the current place in the token
         stream, up to a delimiter which is a character in the string
-        delimiterStr.  The strings for each such token are concatenated together
+        delimiter_str.  The strings for each such token are concatenated together
         and returned as a single uncheckedString token.  Each individual
         delimiter character must be the string for a distinct token type.  The
         delimiter character itself is pushed back.  The empty string is reported
@@ -352,37 +352,37 @@ class BufferedRegexTrieDictLexer(object):
         to read, say, numbers (which are recognized from seeing a leading
         digit)."""
 
-        delimiterSet = set(delimiterStr)
+        delimiter_set = set(delimiter_str)
         before = True
-        stringVal = ""
-        lineInfoList = []
+        string_val = ""
+        line_info_list = []
 
         while True:
             if not self.peek(False): break # check for end of token stream
-            tokData = self.next(False)
-            if tokData.tokenString in delimiterSet:
-                if ignore_whitespace and (tokData.tokenString in self.whitespace) and before:
+            tok_data = self.next(False)
+            if tok_data.tokenString in delimiter_set:
+                if ignore_whitespace and (tok_data.tokenString in self.whitespace) and before:
                     continue
                 self.pushback(ignore_whitespace) # if ignore, put white before it back, too
                 break
-            if ignore_whitespace and (tokData.tokenString in self.whitespace):
+            if ignore_whitespace and (tok_data.tokenString in self.whitespace):
                 continue
             before = False
-            stringVal = stringVal + tokData.tokenString
-            lineInfoList.extend(tokData.elemData)
+            string_val = string_val + tok_data.tokenString
+            line_info_list.extend(tok_data.elemData)
 
-        return TokenData(True, stringVal, DataTuple("uncheckedString", None), lineInfoList)
+        return TokenData(True, string_val, DataTuple("uncheckedString", None), line_info_list)
 
     def print_token_buf_strings(self, n=0):
         """Debugging routine to print out the strings for the last n tokens in
         tokenDataBuf.  If n=0 all the tokens are printed."""
-        bufSize = len(self.tokenDataBuf)
-        if n == 0: n = bufSize
+        buf_size = len(self.token_data_buf)
+        if n == 0: n = buf_size
         print("TokenBuff[", end="")
-        for i in range(max(0, bufSize-n), bufSize):
-            string = self.tokenDataBuf[i].tokenString
+        for i in range(max(0, buf_size-n), buf_size):
+            string = self.token_data_buf[i].tokenString
             if string == "\n": string = "\\n"
-            if i != bufSize-1: print(string+",", end="")
+            if i != buf_size-1: print(string+",", end="")
             else: print(string, end="")
         print("]")
         return

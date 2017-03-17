@@ -123,12 +123,12 @@ class TrieDict(collections.MutableMapping):
         Any meta-element redefinitions are retained."""
         self.root = TrieDictNode() # the root of the recognizer tree
         self.root.is_last_elem_of_key = False # for consistency only, give root a value
-        self.numKeys = 0
+        self.num_keys = 0
 
     def __len__(self):
         """The number of key:data pairs stored in the dictionary.  Can be called
         like the usual len function, as len(d) for a dict d."""
-        return self.numKeys
+        return self.num_keys
 
     def insert(self, key_seq, data=None):
         """Store the data item in the dict with the key key_seq.  Any existing
@@ -144,7 +144,7 @@ class TrieDict(collections.MutableMapping):
                 node.children[elem] = TrieDictNode()
                 node = node.children[elem]
         if not node.is_last_elem_of_key: # don't increment if just resetting data
-            self.numKeys += 1
+            self.num_keys += 1
         node.is_last_elem_of_key = True # end of key_seq, is_last_elem_of_key is True
         node.data = data
 
@@ -184,9 +184,9 @@ class TrieDict(collections.MutableMapping):
 
     def iteritems(self, as_lists=False):
         """An iterator over the items in the trie, see the items method for details."""
-        if self.numKeys != 0:
-            itemGen = self.get_dfs_gen(self.root, yield_on_match=True)
-            for i in itemGen:
+        if self.num_keys != 0:
+            item_gen = self.get_dfs_gen(self.root, yield_on_match=True)
+            for i in item_gen:
                 elem_list = [e[0] for e in i]
                 if as_lists:
                     yield (elem_list, i[-1][1].data)
@@ -258,21 +258,21 @@ class TrieDict(collections.MutableMapping):
         this function."""
 
         node = self.root
-        nodeList = [self.root] # Save the nodes down the tree path, to back up later.
-        elemList = [e for e in key] # the elements corresponding to path nodes
+        node_list = [self.root] # Save the nodes down the tree path, to back up later.
+        elem_list = [e for e in key] # the elements corresponding to path nodes
 
-        # Walk down the tree for elems in elemList, saving the nodes in nodeList.
-        for elem in elemList:
+        # Walk down the tree for elems in elem_list, saving the nodes in node_list.
+        for elem in elem_list:
             if not elem in node.children:
                 raise KeyError("Key is not in the TrieDict.")
             else:
                 node = node.children[elem]
-                nodeList.append(node)
+                node_list.append(node)
 
         # We now know that key is "in the tree," see if is_last_elem_of_key is True.
         if node.is_last_elem_of_key:
             node.is_last_elem_of_key = False # matched, turn off the flag to delete key
-            self.numKeys -= 1
+            self.num_keys -= 1
         else:
             # The key is a prefix of something, but is not a match.
             raise KeyError("Key is not in the TrieDict.")
@@ -288,26 +288,26 @@ class TrieDict(collections.MutableMapping):
         # On the forward path after the last is_last_elem_of_key, all only-child children can be
         # deleted.  We use the backward path and find the first node that can't be
         # deleted.
-        for i in reversed(range(len(nodeList))):
-            node = nodeList[i]
+        for i in reversed(range(len(node_list))):
+            node = node_list[i]
             # The can't-kill conditions: break when such a node found, otherwide free
             # node.
             if self.num_children(node) > 1 or node.is_last_elem_of_key or node == self.root:
-                killNext = node        # the node to keep but kill one child
-                killElem = elemList[i] # the corresponding element to kill
+                kill_next = node        # the node to keep but kill one child
+                kill_elem = elem_list[i] # the corresponding element to kill
                 break
             else: node.children = None # just to break up the tree for garbage collector
-        del killNext.children[killElem]
+        del kill_next.children[kill_elem]
 
         return
 
     __delitem__ = delitem # Allows the syntax: del d[key]
 
-    def get_next_node(self, queryElem, node): # TODO really not used, but could be, but overhead
+    def get_next_node(self, query_elem, node): # TODO really not used, but could be, but overhead
         """Return the next node in the trie from node when the key-query element
-        queryElem is received.  This routine treats meta-characters as ordinary
+        query_elem is received.  This routine treats meta-characters as ordinary
         characters."""
-        if queryElem in node.children: return node.children[queryElem]
+        if query_elem in node.children: return node.children[query_elem]
         else: return None
 
     def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
@@ -359,45 +359,45 @@ class TrieDict(collections.MutableMapping):
         for example, in pattern-matches where the child dict is locally modified
         per state."""
 
-        def dfs_recursion(currNodeElem, currNode, depth):
+        def dfs_recursion(curr_node_elem, curr_node, depth):
             # Put the node on the running list of nodes (down current tree path).
             if depth > 0 or include_root:
-                if fun_to_apply: nodeList.append(fun_to_apply(currNodeElem, currNode))
-                else: nodeList.append((currNodeElem, currNode))
+                if fun_to_apply: node_list.append(fun_to_apply(curr_node_elem, curr_node))
+                else: node_list.append((curr_node_elem, curr_node))
             # Get the current node's child list and modify it.
-            if child_fun is not None: childDict = child_fun(currNode)
-            else: childDict = currNode.children
-            children = childDict.keys()
+            if child_fun is not None: child_dict = child_fun(curr_node)
+            else: child_dict = curr_node.children
+            children = child_dict.keys()
             for elem in stop_at_elems:
-                if elem == currNodeElem: children = []
-            if stop_at_depth and depth == maxDepth: children = []
+                if elem == curr_node_elem: children = []
+            if stop_at_depth and depth == max_depth: children = []
             if only_follow_elems:
                 children = [c for c in children if c in only_follow_elems]
             if sort_children: children = sorted(children)
             # Yield the results, according to the selected criteria.
-            yieldedAlready = False
-            if copies: yieldValue = nodeList[:]
-            else: yieldValue = nodeList
+            yielded_already = False
+            if copies: yield_value = node_list[:]
+            else: yield_value = node_list
             if yield_on_leaves and not children: # match only leaves (or pseudo-leaves)
-                yield yieldValue
-                yieldedAlready = True
-            if yield_on_match and currNode.is_last_elem_of_key:
-                if not yieldedAlready: yield yieldValue
+                yield yield_value
+                yielded_already = True
+            if yield_on_match and curr_node.is_last_elem_of_key:
+                if not yielded_already: yield yield_value
             # Recurse for each child.
             for elem in children:
-                for value in dfs_recursion(elem, childDict[elem], depth+1):
+                for value in dfs_recursion(elem, child_dict[elem], depth+1):
                     yield value
-                if nodeList: nodeList.pop() # each child adds one, so pop one
+                if node_list: node_list.pop() # each child adds one, so pop one
 
-        nodeList = []
+        node_list = []
         if stop_at_depth != False:
-            maxDepth = stop_at_depth
+            max_depth = stop_at_depth
             stop_at_depth = True # because 0 evals to False as a bool
 
         return dfs_recursion(subtree_root_elem, subtree_root_node, 0)
 
 
-    def print_tree(self, node=0, depth=0, separation=1, childFun=None):
+    def print_tree(self, node=0, depth=0, separation=1, child_fun=None):
         """Print out a representation of the stored tree of keys.  Useful for
         debugging.  Call with default arguments to get the full tree.
         The variable separation can be increased to increase the space
@@ -407,20 +407,20 @@ class TrieDict(collections.MutableMapping):
         if node == 0: node = self.root; print()
         if self.num_children(node) == 0:
             return True
-        doIndent = False
-        if childFun is not None: children = childFun(node).keys()
+        do_indent = False
+        if child_fun is not None: children = child_fun(node).keys()
         else: children = node.children.keys()
         for elem in sorted(children):
-            if doIndent: print("\n"+" "*(3*depth), end=""); doIndent = False
-            sepStr = " " * separation
-            if node.children[elem].is_last_elem_of_key: sepStr = "+" + sepStr
-            else: sepStr += " "
-            print(elem+sepStr, end="")
-            doIndent = self.print_tree(node.children[elem], depth+1,
-                                      separation=separation, childFun=childFun)
+            if do_indent: print("\n"+" "*(3*depth), end=""); do_indent = False
+            sep_str = " " * separation
+            if node.children[elem].is_last_elem_of_key: sep_str = "+" + sep_str
+            else: sep_str += " "
+            print(elem+sep_str, end="")
+            do_indent = self.print_tree(node.children[elem], depth+1,
+                                      separation=separation, child_fun=child_fun)
             sys.stdout.flush()
         if node == self.root: print("\n")
-        return doIndent
+        return do_indent
 
 
 # TODO: Document this, and let users pass in their own version if they want to.

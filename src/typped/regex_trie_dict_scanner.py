@@ -287,11 +287,11 @@ class OldRegexTrieDictScanner(object):
         self.reset_seq() # done by self.assert_end_of_seq(), but do again to be safe
         return
 
-    def set_match_longest(self, boolVal):
+    def set_match_longest(self, bool_val):
         """Set True if longest matches should be found in `insert_seq_elem` queries,
         `False` if shortest.  The default in initialization and after a `clear()`
         is `True`."""
-        self.match_longest = boolVal
+        self.match_longest = bool_val
         return
 
     def current_seq_is_valid(self):
@@ -372,12 +372,12 @@ class OldRegexTrieDictScanner(object):
                 # note that suffix is saved in a local var for recursion
                 suffix = self.curr_token[len(self.possible_token):]
                 suffix += elem
-                suffixMisc = self.curr_misc_list[len(self.possible_token):]
-                if elem != "": suffixMisc.append(misc_data)
+                suffix_misc = self.curr_misc_list[len(self.possible_token):]
+                if elem != "": suffix_misc.append(misc_data)
                 # reset query and re-query each elem of the suffix string
                 self.reset_seq()
                 for index in range(len(suffix)):
-                    self.insert_seq_elem(suffix[index], suffixMisc[index])
+                    self.insert_seq_elem(suffix[index], suffix_misc[index])
                 return self.no_invalid_tokens_found
             else:
                 # Char doesn't match a child, no saved match, but currToken
@@ -385,16 +385,16 @@ class OldRegexTrieDictScanner(object):
                 # some error in the currToken.  There are various ways to
                 # handle error recovery.
                 #
-                fastRecover = True # this could be a settable class variable
+                fast_recover = True # this could be a settable class variable
                 #
-                # To fastRecover, ditch all of the currToken rather than
+                # To fast_recover, ditch all of the currToken rather than
                 # trying to reinsert various parts to do "maximum recovery."
                 # Reset and try re-querying the fail-elem if currToken had
                 # nonzero length.  Slower, we can just report the first elem
                 # of currToken as a fail, and reinsert all else + elem.
                 if len(self.curr_token) > 0:
                     self.no_invalid_tokens_found = False # set error return flag
-                    if fastRecover:
+                    if fast_recover:
                         self.token_data_deque.append(TokenData(
                                   is_valid=False,
                                   matched_seq=self.curr_token,
@@ -406,17 +406,17 @@ class OldRegexTrieDictScanner(object):
                                   matched_seq=self.curr_token[0],
                                   data=None,
                                   elem_data=self.curr_misc_list[0]))
-                    savedCurrToken = self.curr_token
-                    savedCurrMiscList = self.curr_misc_list
+                    saved_curr_token = self.curr_token
+                    saved_curr_misc_list = self.curr_misc_list
                     self.reset_seq()
-                    if fastRecover:
+                    if fast_recover:
                         if elem != "": self.insert_seq_elem(elem, misc_data)
                     else:
-                        savedCurrToken = savedCurrToken[1:] + elem
-                        savedCurrMiscList = savedCurrMiscList[1:]
+                        saved_curr_token = saved_curr_token[1:] + elem
+                        saved_curr_misc_list = saved_curr_misc_list[1:]
                         if elem != "":
-                            savedCurrMiscList.append(misc_data)
-                        self.insert_seq_elem(savedCurrToken, savedCurrMiscList)
+                            saved_curr_misc_list.append(misc_data)
+                        self.insert_seq_elem(saved_curr_token, saved_curr_misc_list)
                 else: # only the current elem doesn't match, at root
                     if elem != "":
                         self.no_invalid_tokens_found = False # set error return flag
@@ -435,8 +435,8 @@ class OldRegexTrieDictScanner(object):
         self.curr_node = self.curr_node.children[elem] # move currNode down tree
         if self.curr_node.is_last_elem_of_key:
             # to match longest we must wait before concluding, unless we are at a leaf
-            numChildren = len(self.curr_node.children)
-            if self.match_longest and numChildren != 0:
+            num_children = len(self.curr_node.children)
+            if self.match_longest and num_children != 0:
                 # matchLongest and not at a leaf
                 self.possible_match = True
                 self.possible_token = self.curr_token

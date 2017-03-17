@@ -946,9 +946,9 @@ def test_TrieDict_with_non_string_sequences():
 
     def myPattMatchFun(queryElem, pattList, rangeElem, escapeElem):
         return generic_wildcard_match_fun(queryElem, pattList, rangeElem, escapeElem,
-                                       rangeTestFun=listRangeTestFun)
-    rtd.define_meta_elems(escape=("\\",), repetition=("*",), lGroup=("(",), rGroup=(")",),
-                         lWildcard=("[",), rWildcard=("]",), rangeElem=("-",),
+                                       range_test_fun=listRangeTestFun)
+    rtd.define_meta_elems(escape=("\\",), repetition=("*",), l_group=("(",), r_group=(")",),
+                         l_wildcard=("[",), r_wildcard=("]",), range_elem=("-",),
                          wildcard_patt_match_fun=myPattMatchFun, canonicalize_fun=None)
 
     # keys, note this fails without as_lists=True because we have not properly defined
