@@ -121,12 +121,12 @@ syntactical constructs which parse the same (i.e., using the same handler
 function) but then are resolved into different things based on the actual type
 signatures of the arguments.  To use overloading the handler function which
 parses a construct should be re-registered with each different type signature
-but with the same preconditions function (i.e., a preconditions function with
-the same label).  All head or tail handler functions which are registered using
-the *same* preconditions function are treated as being overloaded if their type
-signatures differ.  Only the last-registered handler function is actually used,
-but all the type information is saved and is used in resolving the final
-signature (and possible evaluation functions, etc.)
+but using *the same* preconditions function (i.e., a preconditions function
+with the same label).  All head or tail handler functions which are registered
+using the same preconditions function are treated as being overloaded if their
+type signatures differ.  Only the last-registered handler function is actually
+saved and used, but all the type information is saved and is used in resolving
+the final signature (and in looking up evaluation functions, etc.)
 
 .. topic:: Two ways to parse identifiers
 

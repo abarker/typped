@@ -19,7 +19,7 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run("../../test/test_regex_trie_dict_lexer.py", pytest_args="-v")
- 
+
 import sys
 import collections # for named tuple
 from .regex_trie_dict import RegexTrieDict
@@ -41,7 +41,7 @@ from .text_stream import TextStream
 # either None or the associated parse-tree node, if there is such a node
 # associated with that token type, perhaps without all of its elements yet
 # filled-in.
-# 
+#
 # Instead of using a regular tuple a namedtuple called DataTuple is used.  This
 # allows the fields to be indexed by names (in addition to numerical indices),
 # and so produces more readable and maintainable code.  The two fields are
@@ -56,7 +56,7 @@ class RegexTrieDictLexer(object):
     """A simple, nonbuffered lexer based on the RegexTrieDict data structure."""
 
     def __init__(self, textStream, trieDict, whitespace=""):
-        """The trieDict is assumed to define the tokens and have a stored data
+        """The `trieDict` is assumed to define the tokens and have a stored data
         element with each token which exactly equals the data which should be
         returned when the token is recognized.  Text is taken character by
         character from the textStream and insertSeqElem is called on a
@@ -194,7 +194,7 @@ class BufferedRegexTrieDictLexer(object):
         return retval
 
     def expect_char(self, charStr, ignore_whitespace=True):
-        # TODO rewrite or eliminate; should look at label.  Used in old parser.py as 
+        # TODO rewrite or eliminate; should look at label.  Used in old parser.py as
         # if not lex.expectChar(whitespace, False):
         #       print("Error: whitespace required after type '"+echoString+"'.")
 
@@ -392,7 +392,7 @@ class BufferedRegexTrieDictLexer(object):
 #  Run test cases.
 #
 
-   
+
 if __name__ == "__main__":
 
     # exit(0) # comment this out to test interactive
@@ -402,9 +402,9 @@ if __name__ == "__main__":
 
     ts = TextStream()
     ts.set_raw_in()  # reads data from raw_input
-    
+
     td = RegexTrieDict()
-    
+
     tdlex = BufferedRegexTrieDictLexer(ts, td, " \n") # ignore space and newline
 
     #tdlex = BufferedRegexTrieDictLexer(ts, td)

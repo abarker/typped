@@ -26,11 +26,12 @@ To use the `PrattParser` class you need to do these things:
           parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
     3. Define the syntactical elements of the language that you are parsing.
-       Any necessary token labels must have already been defined in the previous
-       step.  The predefined syntax-definition methods of `PrattParser` take as
-       arguments token labels, type information, etc.  They also take a string
-       as a label for the resulting AST node (but this label can be used in any
-       way desired, including in preconditions).  Examples::
+       Any necessary token labels must have already been defined in the
+       previous step.  The predefined syntax-definition methods of
+       `PrattParser` take as arguments token labels, type information, etc.
+       They also take an arbitrary piece of data such as a label for the
+       resulting AST node which can be used in any way desired (including in
+       preconditions).  Examples::
 
           t_number = parser.def_type("t_number")
           parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
@@ -237,21 +238,22 @@ from .shared_settings_and_exceptions import (ParserException,
 from .lexer import (Lexer, TokenNode, TokenTable, multi_funcall)
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
-# TODO: Consider allowing the chosen type to vary for different token labels,
-# based on the value of the subtree root token as well as on the token label of
-# the token (as now).  Save a dict with the token subclass which is used to
-# look up the actual typesig; use None by default but let the user manage it
-# and add labels.  So, e.g., a particular identifier could be declared a variable
-# of some type, and then the user could add that to the dict stored with the
-# identifier token subclass.  Would then check if value in the dict, and if not
-# use the None value (or set a dict default value, easier).
+# TODO: Consider allowing overloading (or at least the chosen eval_fun/ast_data
+# for a token) to vary based on the VALUE of the subtree root token as well as
+# on the token_label of the token (as it is now).  Save a dict with the token
+# subclass which is used to look up the actual typesig; use None by default but
+# let the user manage it and add labels.  So, e.g., a particular identifier
+# could be declared a variable of some type, and then the user could add that
+# to the dict stored with the identifier token subclass.  Would then check if
+# value in the dict, and if not use the None value (or set a dict default
+# value, easier).
 #
 # Note that this would have to be able to switch to different handlers, like
 # when an identifier is defined to be a function name versus a variable name.
-# Currently overloading is only done on repeated calls when type differs.
-# When precond fun differs you can get a different handlers.  So, one approach
-# would be to include the current value as a precondition in a call with
-# a new precond fun.  Might not be the most efficient way, though.
+# Currently overloading is only done on repeated calls when type differs.  When
+# precond fun differs you can get a different handlers.  So, one approach would
+# be to include the current value as a precondition in a call with a new
+# precond fun.  Might not be the most efficient way, though.
 
 # TODO: Maybe define some common helper preconditions.  They are boolean so
 # they can easily be composed.  Can store them in a separate module,
@@ -259,62 +261,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # space.  Could store helpers like match_next with them (or similarly) if it is
 # determined that they shouldn't be in TokenSubclass namespace.
 
-# TODO: if PrattParser requires tokens defined from itself, it should mark them
-# and refuse to deal with any others.  It implicitly does, with whatever
-# attributes it adds.... but a nice early warning would be good before an
-# unexpected fail.  Currently checked at one place in recursive_parse, but
-# nowhere else.  CONSIDER, though, how this works with parsers that call
-# other parsers in handler funs.
-
 # NOTE that you could use the evaluate function stuff to also do the conversion
 # to AST.
-
-# TODO: Do preconditions really need labels?  Can the users just be left to
-# manage their own preconditions, or maybe a separate class can be defined to
-# manage them in a dict, maybe with some predefined ones?  Why can't you just
-# use the function names (fully qualified)?
-#
-# f.__module__ + "." + f.__name__
-#
-# Seems like it could be separated out, and reduce complexity.  Is equality
-# testing of preconditions ever truly required?  Will using function name fail
-# somehow?  If not, why not just use the function objects and leave the user to
-# manage their functions however they want.
-#
-# Main problems:
-#
-# 1) Presumably you need to keep some handle on them in order to undefine them
-# and their related handlers, etc.  Seems fair to require users to provide all
-# the information for an undo operation of, say, stdfun.  I.e., the token, the
-# actual precond function (or just name) as well as the typesig info.  Could be
-# saved inside the original routines and then looked up and deleted, but what
-# handle to use to do so?  The token can have multiple overrides stored with
-# it; you may want to just delete one.  But, the token class (not instance)
-# does store all the typesigs with it.
-#
-# 2) Lambdas get defined each time and all have the same name.  You might have
-# to disallow use of lambdas when expecting function equality...  Lambdas just
-# get a `__name__ == <lambda>`.  Rule: Handler functions are equal iff their
-# fully-qualified name is the same.  Note that __module__ is always
-# fully-qualified, BUT can get into bugs when file imported differently because
-# of sys.path (Python problem, though).
-#
-# --> Implement the undo function for, say, a stdfun.  See what is needed to be
-# kept.
-#
-# Consider requiring users to paste precond labels onto any functions that they
-# want to use as precond labels.  Keeps it localized, and keeps the same
-# function each time (at least if done right after definition).  (Do it inside
-# the function?  No that only works at runtime.) Can easily be checked and give
-# error message, too.  Then just register them in the hidden dictionary.  Users
-# never need to know it is there.  This also makes it clear that the
-# precond_label is really a "part" of the function, and defines what it means
-# for function equality.
-#
-# UPDATE: See logic example.  There, you NEED different precond names for the
-# same function.  So at the least if you use function name attribute you would
-# have to change it just after defining the function (inside the other fun).
-# You also have two preconds with equal priorities, but mutually exclusive.
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
 # something like "TermParser" or "parser for terms", "WffParser", etc.  When
@@ -473,14 +421,14 @@ def token_subclass_factory():
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Set from lex.token_generator; static value=None.
 
-            # The `expanded_formal_sig` is set upon parsing.  It is the
+            # The `expanded_formal_sig` attr is set upon parsing.  It is the
             # expanded form of one of the formal sigs which were registered
             # with the token (the expansion handles wildcards, repeat options,
-            # etc.)  If is the signature which matched the actual args.  The
+            # etc.)  It is the signature which matched the actual args.  The
             # `self.expanded_formal_sig` has an attribute `original_formal_sig`
             # which is the original, unexpanded formal signature that matched
             # (after expansion) the actual arguments.  This is important
-            # because the eval_fun and ast_data for tokens are saved in dicts
+            # because the `eval_fun` and `ast_data` for tokens are saved in dicts
             # keyed by the original signature at the time when they are
             # defined.  So we need the resolved original signature to look up
             # the value.  (Note that if overloading on return types is turned
@@ -528,9 +476,14 @@ def token_subclass_factory():
             Data is saved on lists keyed by the value of `head_or_tail`
             (either `HEAD` or `TAIL`) in a dict, along with any specified
             precondition information.  The lists are sorted by priority."""
-            # Todo: Consider this possible optimization.  Instead of using just
-            # head_or_tail to hash the handler funs, what about a tuple of
-            # several common conditions:
+
+            # Todo: Consider this possible optimization in looking up handler
+            # functions, instead of always linear search.  Some very commonly
+            # used preconditions can be hashed on and will often give a unique
+            # result.  Instead of using just `head_or_tail` to hash the handler
+            # funs and then linear search, what about a tuple of several common
+            # conditions:
+            #
             #    (head_or_tail, peek_token_label, pstate_stack_top)
             # Then you need to check for those values and the None values,
             # so three hashes:
@@ -538,30 +491,32 @@ def token_subclass_factory():
             #    (head_or_tail, peek_token_label, None)
             #    (head_or_tail, None, None)
             #
-            # Then in `lookup_handler_fun` sequentially go through all three
-            # sorted sublists from the beginning, by priority, running the
-            # precond funs.  Almost like a real `case` statement.  To get the
-            # optimized version you would need to specially register that the
-            # token uses the precondition, and give a value for it to look for.
+            # Then in `lookup_handler_fun` go through all three of these sorted
+            # sublists in parallel, from the beginning, taking by top priority
+            # and running the precond funs.  Almost like a real `case`
+            # statement with jumps.  To get the optimized version you would
+            # need to specially register that the token uses the precondition,
+            # and give a value for it to look for (i.e., to be hashed under).
             # Probably should pass precond assertions list to the
-            # modify_token_subclass routine (maybe something like
-            # `precond_optimize_assert=(None,None,"wff")`).  Also, you still
-            # need a precond function itself, at least for the unique name, but
-            # can leave off testing the asserted conditions.
+            # `modify_token_subclass` routine, maybe something like:
+            #    precond_optimize_assert=(None,None,"wff")
+            # For those which register the optimization you still need a precond
+            # function itself, at least for the unique name, but you can leave off
+            # testing the asserted conditions because they won't be considered if
+            # the hash doesn't match.
             #
             # Note that the fallback behavior is the same as before (very
-            # slight performance penalty).
+            # slight performance penalty, a few hashes, especially with careful coding).
+            # On the other hand, how long will the list of handlers ever get?  Is
+            # it worth it?  Probably for doing recursive descent it is.
             #
-            # Be sure to also update the unregister method.
-            #
-            # This could speed things up significantly when a lot of tokens use
-            # the commonly-used preconds.
+            # Be sure to also update the unregister method if implemented.
 
             # Get and save any previous type sig data (for overloaded sigs
             # corresponding to a single precond_label).
-            #assert None not in cls.handler_funs[head_or_tail] # DEBUG
             if precond_label in cls.handler_funs[head_or_tail]:
-                prev_handler_data_for_precond = cls.handler_funs[head_or_tail][precond_label]
+                prev_handler_data_for_precond = cls.handler_funs[
+                                                       head_or_tail][precond_label]
                 prev_type_sigs_for_precond = (
                               prev_handler_data_for_precond.handler_fun.type_sigs)
             else:
@@ -605,10 +560,10 @@ def token_subclass_factory():
             #
             # TODO: Note that WE MAY NOT WANT TO DO THIS AT ALL, or just give a
             # warning.  See case of preconds for quantifiers in logic example
-            # which use mutually exclusive handlers and have the same priority.
+            # which use MUTUALLY EXCLUSIVE handlers which have the same priority.
             # Code below works but isn't being run... consider what it should
             # do and delete if no use.
-            pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT RUN?
+            pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT EVER RUN?
             if pre_check_for_same_priority:
                 for p_label, data_item in sorted_handler_dict.items():
                     if p_label == precond_label:
@@ -804,7 +759,6 @@ def token_subclass_factory():
                                                  prev_eval_fun, prev_ast_data)
                 # Force the final, actual typesig to be the override sig.
                 self.expanded_formal_sig = typesig_override
-
             return
 
         def _check_types(self, all_possible_sigs, repeat_args, first_pass_of_two=False):
@@ -814,7 +768,8 @@ def token_subclass_factory():
             a list (or iterable) of all the possible signatures for the
             node."""
             # Note that self.all_possible_sigs is now saved (currently for error
-            # messages) so the all_possible_sigs argument to this function really isn't needed.
+            # messages) so the all_possible_sigs argument to this function really
+            # isn't needed.
 
             if not first_pass_of_two:
                 # Ordinary case, each child c has a unique c.expanded_formal_sig already set.
@@ -827,15 +782,19 @@ def token_subclass_factory():
             self.matching_sigs = TypeSig.get_all_matching_expanded_sigs(
                                       all_possible_sigs, list_of_child_sig_lists,
                                       tnode=self, repeat_args=repeat_args)
-            self.all_possible_sigs = all_possible_sigs # Saved ONLY for printing error messages.
+            # Below all_possible_sigs is saved ONLY for printing error messages.
+            self.all_possible_sigs = all_possible_sigs
 
             if not first_pass_of_two:
                 if len(self.matching_sigs) != 1:
                     self._raise_type_mismatch_error(self.matching_sigs,
                             "Actual argument types match multiple signatures.")
 
-                # Found a unique signature; set the node's type_sig attribute.
-                self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
+                # Found a unique signature; set the node's expanded_formal_sig attribute.
+                # Saved sig used for eval_fun resolution, ast_data, semantic action, etc.
+                self.expanded_formal_sig = self.matching_sigs[0]
+
+                # Delete some temporary attributes no longer needed since final pass.
                 delattr(self, "matching_sigs")
                 delattr(self, "all_possible_sigs")
             return
@@ -855,8 +814,11 @@ def token_subclass_factory():
                 child.check_types_in_tree_second_pass()
             # Delete childrens' matching_sigs lists after they are no longer needed.
             # This also acts as an indicator that the node has been resolved.
-            for child in unresolved_children: delattr(child, "matching_sigs")
+            for child in unresolved_children:
+                delattr(child, "matching_sigs")
             if root:
+                # The final pass in _check_types that deletes these attrs doesn't get
+                # run on root, so it is explicitly done here when `root` flag is true.
                 delattr(self, "matching_sigs")
                 delattr(self, "all_possible_sigs")
 
@@ -957,27 +919,30 @@ def token_subclass_factory():
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
-            if cls.parser_instance.overload_on_arg_types:
-                # Save in dicts hashed with full signature.
-                dict_key = (precond_label, type_sig)
-                cls.ast_data_dict[dict_key] = ast_data
-                cls.eval_fun_dict[dict_key] = eval_fun
-                # Save in dicts hashed only on args.
-                dict_key = (precond_label, type_sig.arg_types)
-                cls.ast_data_dict[dict_key] = ast_data
-                cls.eval_fun_dict[dict_key] = eval_fun
+            # Save in dicts hashed with full signature (full overload with return).
+            dict_key = (precond_label, type_sig)
+            cls.ast_data_dict[dict_key] = ast_data
+            cls.eval_fun_dict[dict_key] = eval_fun
+            # Also save in dicts hashed only on args (overloading only on args).
+            dict_key = (precond_label, type_sig.arg_types)
+            cls.ast_data_dict[dict_key] = ast_data
+            cls.eval_fun_dict[dict_key] = eval_fun
+            # Also save in dicts hashed only on precond label (no overloading).
+            dict_key = (precond_label,)
+            cls.ast_data_dict[dict_key] = ast_data
+            cls.eval_fun_dict[dict_key] = eval_fun
 
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
             Must be called after parsing because the `precond_label` attribute must
             be set on the token instance."""
-            precond_label = self.precond_label # Set during parsing.
+            precond_label = self.precond_label # Attribute set during parsing.
             if self.parser_instance.overload_on_ret_types:
                 dict_key = (precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
                 dict_key = (precond_label, orig_sig.arg_types)
             else:
-                return None
+                dict_key = (precond_label,)
             return self.eval_fun_dict.get(dict_key, None)
 
         def _get_ast_data(self, orig_sig):
@@ -989,8 +954,8 @@ def token_subclass_factory():
                 dict_key = (precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
                 dict_key = (precond_label, orig_sig.arg_types)
-            else:
-                return None
+            else: # No overloads allowed.
+                dict_key = (precond_label,)
             return self.ast_data_dict.get(dict_key, None)
 
         def eval_subtree(self):
@@ -1119,7 +1084,7 @@ def token_subclass_factory():
             return curr_token, handler_fun
 
         def recursive_parse(self, subexp_prec,
-                            # Below parameters only used in null-string handler funs.
+                            # Below parameters ONLY used in null-string handler funs.
                             processed_left=None, lookbehind=None):
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
@@ -1148,21 +1113,19 @@ def token_subclass_factory():
             tail-handling loop part using the passed-in values of
             `processed_left` and `lookbehind`.  These parameters should
             generally not be set.  They are only used by certain null-string
-            tokens tail-handlers so they can relay their call as a tail-handler
+            tokens' tail-handlers so they can relay their call as a tail-handler
             to the actual token (which does the real work)."""
-            # Note that with a good, efficient pushback function the modifiable
-            # prec for different handler functions might be doable: just do a
-            # next then evaluate the prec, then pushback.
 
-            # Note: It is tempting to define a jop and null-string token
-            # instance, save it, and only use it when necessary (and replace it
-            # only when used).  But, some things need to be considered.  What
-            # if new head handlers are dynamically registered?  Is there any
-            # special attribute or other thing that is assigned on creation
-            # which changes?  (Either way, should probably add extra things
-            # like line numbers to mimic ordinary tokens.) Note that currently
-            # you only really pay the creation cost if you actually use the
-            # corresponding feature, but you incur it more than necessary.
+            # Note on below code: It is tempting for efficiency to define a jop
+            # and null-string token instance, save it, and only use it when
+            # necessary (and replace it only when used).  But some things need
+            # to be considered.  What if new head handlers are dynamically
+            # registered for the token?  Is there any special attribute or
+            # other thing that is assigned on creation which might change?
+            # Either way, you should probably add extra things like line numbers
+            # to mimic ordinary tokens. Note that currently you only really pay
+            # the creation cost if you actually use the jop or null-string
+            # feature, but a lot of dummy instances are created if you do.
 
             # Set some convenience variables (the lexer and parser instances).
             lex = self.token_table.lex
@@ -1219,11 +1182,11 @@ def token_subclass_factory():
             return processed_left
 
         #
-        # Shortcut for copying instances of tokens (deep copies should not be used).
+        # Copying instances of tokens (deep copies should not be used).
         #
 
         def copy(self):
-            """Return a shallow copy."""
+            """Return a shallow copy of the token."""
             # TODO, consider whether to reset parent and children and whether to
             # overload __copy__ magic method.
             return copy.copy(self)

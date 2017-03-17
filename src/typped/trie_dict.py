@@ -1,31 +1,31 @@
 """
 
-The TrieDict data structure is based on keys which are sequences of elements
+The `TrieDict` data structure is based on keys which are sequences of elements
 (i.e., the keys are iterable and can be concatenated with "+").  It provides an
 efficient way to recognize or map key-sequences of (hashable) items in time
 linear with the length of the sequence.  For example, a sequence of characters
 forming a string can be recognized or mapped to some output in linear time.  A
-TrieDict can be used either as a dict or as a set (like using only the has_key
+`TrieDict` can be used either as a dict or as a set (like using only the has_key
 part of a dict).  Inserting and deleting key-sequences from the tree is also
 linear in the length of the key-sequence.
 
 In the usual applications, elements are characters and sequences are strings.
 This module is written generically, however, so that arbitrary hashable objects
 can be used as the elements.  Iterable sequences these elements are the items
-stored in the TrieDict.  Except for pattern-matching, arbitrary sequences of
-arbitrary hashable elements can be inserted and deleted freely in the TrieDict.
+stored in the `TrieDict`.  Except for pattern-matching, arbitrary sequences of
+arbitrary hashable elements can be inserted and deleted freely in the `TrieDict`.
 (When regexp pattern-matching is to be used the default assumes characters and
 sequences are strings, but that can be changed.)
 
 The keys method assumes that the plus operator combines elements, but setting
 as_lists=True returns the list version without attempting the "addition."
 
-The usage of a TrieDict is as follows.  First create an empty TrieDict::
+The usage of a `TrieDict` is as follows.  First create an empty `TrieDict`::
 
    td = TrieDict()
 
 Now insert some items.  The insert method inserts a key and an optional second
-argument (default is None) which is the value associated with the key.
+argument (default is `None`) which is the value associated with the key.
 Alternately, the dict-style bracket notation can be used.  Any iterable items
 which iterate over hashable elements can be inserted.  The nodes of the trie
 will be built up from the pieces obtained by iterating over each inserted item.
@@ -132,11 +132,11 @@ class TrieDict(collections.MutableMapping):
 
     def insert(self, key_seq, data=None):
         """Store the data item in the dict with the key key_seq.  Any existing
-        data at that key is overwritten.  This method is aliased to __setitem__."""
+        data at that key is overwritten.  This method is aliased to `__setitem__`."""
         if len(key_seq) == 0:
             raise KeyError("The empty element is not a valid key.")
         node = self.root
-        for elem in key_seq:
+        for elem in key_seq: # Could use setdefault dict method here instead.
             if elem in node.children:
                 node = node.children[elem]
             else:
@@ -149,10 +149,9 @@ class TrieDict(collections.MutableMapping):
         node.data = data
 
     __setitem__ = insert # Allow bracket-indexing assignment like: d["key"] = 4
-    #setitem = insert # Some people may prefer this name.
 
     def get(self, key_seq, default=None):
-        """Return the data element stored with key key_seq, returning the default
+        """Return the data element stored with key `key_seq`, returning the default
         if the key is not in the dict."""
         node = self.get_node(key_seq)
         if node == None or not node.is_last_elem_of_key: return default
@@ -160,7 +159,7 @@ class TrieDict(collections.MutableMapping):
 
     def __getitem__(self, key_seq):
         """Same as get without the default value and using the bracket-indexing
-        notation.  Raises a KeyError if the key is not stored."""
+        notation.  Raises a `KeyError` if the key is not stored."""
         node = self.get_node(key_seq)
         if node == None or not node.is_last_elem_of_key:
             raise KeyError("key "+key_seq+" is not in the TrieDict")
@@ -237,7 +236,7 @@ class TrieDict(collections.MutableMapping):
         return bool(node)
 
     def some_key_is_prefix(self, seq):
-        """ Very efficient determination of whether some key in the TrieDict
+        """ Very efficient determination of whether some key in the `TrieDict`
         is a prefix of the sequence seq.  Equality is considered a prefix."""
         if len(seq) == 0: return False
         node = self.root
@@ -254,8 +253,8 @@ class TrieDict(collections.MutableMapping):
         return len(node.children)
 
     def delitem(self, key):
-        """Delete the stored key and its data.  Raises KeyError if the key wasn't
-        found in the trie.  If d is a dict, the syntax del d[key] also invokes
+        """Delete the stored key and its data.  Raises `KeyError` if the key wasn't
+        found in the trie.  If `d` is a dict, the syntax `del d[key]` also invokes
         this function."""
 
         node = self.root
