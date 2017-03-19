@@ -30,9 +30,9 @@ class TextStream(object):
         """Initialize the basic object.  Some set method must also be called to
         determine the type of input before next() can be called."""
         self.clear()
-        return
 
     def clear(self):
+        """Clear and reset the text stream."""
         self.ts = None # the text stream object, set by the set methods
         self.EOF = True # false while a stream is open and not at end
         self.curr_line_num = 1 # count lines for error reporting, starts at 1
@@ -40,29 +40,28 @@ class TextStream(object):
         self.increment_line_on_next_char = False # used in counting lines
         self.char_buffer = collections.deque()
         self.raw_in = False
-        return
 
     def set_string_in(self, str_val):
+        """Set a string to be the text source."""
         self.clear()
         self.ts = io_module.StringIO(str_val) # in-memory text stream
         #self.ts = StringIO.StringIO(str_val) # in-memory text stream
         self.raw_in = False
         self.EOF = False
-        return
 
     def set_file_in(self, f_name):
+        """Set a file to be the text source."""
         self.clear()
         self.ts = open(f_name, "r")
         self.raw_in = False
         self.EOF = False
-        return
 
     def set_raw_in(self):
+        """Read input interactively for text source."""
         self.clear()
         print("Type ^D to leave raw input mode.")
         self.raw_in = True
         self.EOF = False
-        return
 
     def __iter__(self):
         """So statements like: for char in textStr: etc., and comprehensions,
@@ -70,14 +69,17 @@ class TextStream(object):
         return self # implies that the next() method will be used for iterations
 
     def next(self):
-        """
-        Get the next character in the text stream. Can be used as
+        """Get the next character in the text stream. Can be used as::
+
                while not ts.end_of_text_stream():
                   char = ts.next()
                   ...
-        or else as
+
+        or else as::
+
                for char in ts:
                   ...
+
         """
         self.refill_char_buffer_if_empty()
         if len(self.char_buffer) == 0:
@@ -88,12 +90,13 @@ class TextStream(object):
     __next__ = next
 
     def refill_char_buffer_if_empty(self):
-        """Read a line to refill the char buffer.  Return False if end of stream
-        is encountered, True otherwise."""
+        """Read a line to refill the char buffer.  Return `False` if end of stream
+        is encountered, `True` otherwise."""
         if len(self.char_buffer) != 0: # buffer not empty, return
             return True
         if self.raw_in:
-            try: line = get_input("|- ") 
+            try:
+                line = get_input("|- ")
             except: # got an EOFError or some other unspecified exception
                 self.EOF = True
                 self.char_buffer.clear()
@@ -110,8 +113,8 @@ class TextStream(object):
         return True
 
     def peek(self):
-        """Peeks one character ahead in the text stream.  Returns "" if peek is
-        attempted after end_of_text_stream() is True."""
+        """Peeks one character ahead in the text stream.  Returns empty string if
+        peek is attempted after `end_of_text_stream()` is `True`."""
         self.refill_char_buffer_if_empty()
         if len(self.char_buffer) == 0:
             return ""
@@ -151,11 +154,11 @@ if __name__ == "__main__":
 
     #import py.test
     #py.test.main(["-v", "test/test_text_stream.py"]) # this needs pytest 2.0
-    
+
     # exit(0) # comment this out to test interactive
     print("\nTest interactive...\n")
     readline.parse_and_bind('set editing-mode vi')
 
     ts = TextStream()
     ts.set_raw_in()  # reads data from raw_input
-    
+

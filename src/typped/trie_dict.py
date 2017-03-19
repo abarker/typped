@@ -1,24 +1,27 @@
 """
 
 The `TrieDict` data structure is based on keys which are sequences of elements
-(i.e., the keys are iterable and can be concatenated with "+").  It provides an
-efficient way to recognize or map key-sequences of (hashable) items in time
-linear with the length of the sequence.  For example, a sequence of characters
-forming a string can be recognized or mapped to some output in linear time.  A
-`TrieDict` can be used either as a dict or as a set (like using only the has_key
+(i.e., the keys are iterable).  It provides an efficient way to recognize or
+map key-sequences of hashable items in time linear with the length of the
+sequence.  For example, a sequence of characters forming a string can be
+recognized or mapped to some output in linear time.  A `TrieDict` can be used
+either as a dict or as a set (like using only the `has_key` or `__contains__`
 part of a dict).  Inserting and deleting key-sequences from the tree is also
 linear in the length of the key-sequence.
 
-In the usual applications, elements are characters and sequences are strings.
+In the usual applications elements are characters and sequences are strings.
 This module is written generically, however, so that arbitrary hashable objects
-can be used as the elements.  Iterable sequences these elements are the items
+can be used as the elements.  Iterable sequences of these elements are the items
 stored in the `TrieDict`.  Except for pattern-matching, arbitrary sequences of
 arbitrary hashable elements can be inserted and deleted freely in the `TrieDict`.
-(When regexp pattern-matching is to be used the default assumes characters and
-sequences are strings, but that can be changed.)
 
-The keys method assumes that the plus operator combines elements, but setting
-as_lists=True returns the list version without attempting the "addition."
+By default it is assumed that elements separated out into a list can be
+recombined using the `+=` operator.  For example, a list of characters can be
+recombined into a string in this way.  An arbitrary combination function can
+instead be specified by setting it as the `combine_elems_fun` in the
+initializer.  Some methods assume that the list of elements should be
+recombined before they are returned, but setting `as_lists=True` will cause the
+list version to be returned without attempting the "addition."
 
 The usage of a `TrieDict` is as follows.  First create an empty `TrieDict`::
 
@@ -46,10 +49,14 @@ with a dict::
 Many of the basic dict operations can be applied, but the full dict interface
 is not currently supported.
 
-Note that this data structure is called a "trie," usually pronounced "try."
-For this application the basic implementation here is sufficient and allows for
-more control over the interface and implementation (and is subclassed to
-recognize regex patterns in the `RegexTrieDict`).
+Data structure and implementation
+---------------------------------
+
+This data structure is called a "trie," pronounced "try" (or "tree" but the
+latter can be confused with ordinary trees).  For this application the basic
+implementation here is sufficient and allows for more control over the
+interface and implementation (and is subclassed to recognize regex patterns in
+the `RegexTrieDict`).
 
 The data structure in this implementation makes heavy use of Python's built-in
 dict.  It is basically just a dict of dicts of dicts, etc., arranged into a
@@ -66,8 +73,11 @@ http://kmike.ru/python-data-structures/
 
 For usual dict applications the standard hashed dict would be faster.  The
 `TrieDict` data structure is especially good for the case where keys are
-concatenations of hashable objects, such as in a lexical analyzer to tokenize
-character strings, when prefixes are being searched.
+concatenations of hashable objects and prefixes are being searched, such as in
+a lexical analyzer to tokenize character strings.
+
+Code
+----
 
 """
 
@@ -82,18 +92,26 @@ import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
 
-
 ##
 ## TrieDict and supporting classes.
 ##
 
 
-class TrieDictNode(object):
+def default_combine_elems_fun(elem_list):
+    """The default function to combine the elements in the list `elem_list`
+    into a single key.  Uses the `+=` operator, which must be defined.
+    This results in string concatenation when the elements are characters
+    of strings)."""
+    combined = elem_list[0] # We don't know the empty element in general.
+    for e in elem_list[1:]:
+        combined += e # This is where plus operator on elements is assumed.
+    return combined
 
+
+class TrieDictNode(object):
     """This class is used internally, as the nodes of the tree.  It is just used as
     a record to hold the child data, match information, and arbitrary node data."""
     __slots__ = ["children", "is_last_elem_of_key", "data"] # no __dict__, save space
-
     def __init__(self):
         self.children = {} # dict of the node's children
         self.is_last_elem_of_key = False # whether this node represents the end of a key
@@ -102,7 +120,6 @@ class TrieDictNode(object):
 
 
 class TrieDict(collections.MutableMapping):
-
     """This is a dict where the keys are made up of sequences of elements.  It
     is stored as a tree from the root with each element of a key indexing some
     child node.  The sequence of elements is a walk down the tree.  In a lexical
@@ -113,15 +130,18 @@ class TrieDict(collections.MutableMapping):
     or longest match in a sequence.  These results from insertSeqElem
     are stored and returned to the user as a deque, since pops on both ends may
     be useful."""
-
-    def __init__(self):
-        """Initialize the basic data elements."""
+    def __init__(self, combine_elems_fun=default_combine_elems_fun):
+        """Initialize the basic data elements.  If set the `combine_elems_fun`
+        function will be used to combine elements.  The default uses the
+        `+=` operator, which must be defined for the elements."""
+        self.combine_elems_fun = combine_elems_fun
         self.clear()
 
     def clear(self):
         """Reset the tree to its initial condition, empty of any stored strings.
         Any meta-element redefinitions are retained."""
-        self.root = TrieDictNode() # the root of the recognizer tree
+        # Note that the root of the trie contains the first-elems of keys as children.
+        self.root = TrieDictNode()
         self.root.is_last_elem_of_key = False # for consistency only, give root a value
         self.num_keys = 0
 
@@ -140,12 +160,12 @@ class TrieDict(collections.MutableMapping):
             if elem in node.children:
                 node = node.children[elem]
             else:
-                # next line is the only place where non-root nodes are added to the tree
+                # Next line is the only place where non-root nodes are added to the tree.
                 node.children[elem] = TrieDictNode()
                 node = node.children[elem]
-        if not node.is_last_elem_of_key: # don't increment if just resetting data
+        if not node.is_last_elem_of_key: # Don't increment if just resetting data.
             self.num_keys += 1
-        node.is_last_elem_of_key = True # end of key_seq, is_last_elem_of_key is True
+        node.is_last_elem_of_key = True # End of key_seq, is_last_elem_of_key is True.
         node.data = data
 
     __setitem__ = insert # Allow bracket-indexing assignment like: d["key"] = 4
@@ -154,8 +174,10 @@ class TrieDict(collections.MutableMapping):
         """Return the data element stored with key `key_seq`, returning the default
         if the key is not in the dict."""
         node = self.get_node(key_seq)
-        if node == None or not node.is_last_elem_of_key: return default
-        else: return node.data
+        if node == None or not node.is_last_elem_of_key:
+            return default
+        else:
+            return node.data
 
     def __getitem__(self, key_seq):
         """Same as get without the default value and using the bracket-indexing
@@ -163,15 +185,18 @@ class TrieDict(collections.MutableMapping):
         node = self.get_node(key_seq)
         if node == None or not node.is_last_elem_of_key:
             raise KeyError("key "+key_seq+" is not in the TrieDict")
-        else: return node.data
+        else:
+            return node.data
 
     def has_key(self, key_seq):
         """A boolean for whether the string is stored; doesn't handle anything else
         such as multiple matches or longest prefix match.  Leaves the tree and all
         saved data unaltered."""
         node = self.get_node(key_seq)
-        if node == None or node.is_last_elem_of_key == False: return False
-        else: return True
+        if node == None or node.is_last_elem_of_key == False:
+            return False
+        else:
+            return True
 
     __contains__ = has_key # Allow use of "in" syntax for testing for keys.
 
@@ -183,7 +208,8 @@ class TrieDict(collections.MutableMapping):
         return [i for i in self.iteritems(as_lists=as_lists)]
 
     def iteritems(self, as_lists=False):
-        """An iterator over the items in the trie, see the items method for details."""
+        """An iterator over the items in the trie, see the `items` method for
+        details."""
         if self.num_keys != 0:
             item_gen = self.get_dfs_gen(self.root, yield_on_match=True)
             for i in item_gen:
@@ -191,7 +217,7 @@ class TrieDict(collections.MutableMapping):
                 if as_lists:
                     yield (elem_list, i[-1][1].data)
                 else:
-                    yield (combine_key_elems(elem_list), i[-1][1].data)
+                    yield (self.combine_elems_fun(elem_list), i[-1][1].data)
 
     def keys(self, as_lists=False):
         """Return a list of all the keys stored in the trie.  Note that the plus
@@ -203,7 +229,8 @@ class TrieDict(collections.MutableMapping):
 
     def iterkeys(self, as_lists=False):
         """An iterator over the keys in the trie, see the keys method for details."""
-        for item in self.iteritems(as_lists=as_lists): yield item[0]
+        for item in self.iteritems(as_lists=as_lists):
+            yield item[0]
 
     __iter__ = iterkeys # Iterators go over keys, like with Python dicts.
 
@@ -212,26 +239,29 @@ class TrieDict(collections.MutableMapping):
         return [val for val in self.itervalues()]
 
     def itervalues(self):
-        """Return a list of all the values stored in the trie."""
-        for item in self.iteritems(as_lists=True): yield item[1]
+        """Iterate over the values stored in the trie."""
+        for item in self.iteritems(as_lists=True):
+            yield item[1]
 
     def get_node(self, key_seq):
-        """Return the node indexed by using the sequence key_seq as the key.  Does
-        not test whether is_last_elem_of_key is True, so it also returns a node for any prefix
-        of a key.  Returns None if there is no corresponding node.  This is
-        mainly used by other methods to walk down the tree to find a keyed
-        node."""
+        """Return the node indexed by using the sequence key_seq as the key.
+        Does not test whether `is_last_elem_of_key` is True, so it also returns
+        a node for any prefix of a key.  Returns `None` if there is no
+        corresponding node.  This is mainly used by other methods to walk down
+        the tree to find a keyed node."""
         node = self.root
         for elem in key_seq:
             if not elem in node.children:
                 return None
-            else: node = node.children[elem]
+            else:
+                node = node.children[elem]
         return node
 
     def is_prefix_of_key(self, seq):
         """Is the sequence seq a prefix of some key-sequence in the trie?
         Equality is considered a prefix."""
-        if len(seq) == 0: return True
+        if len(seq) == 0:
+            return True
         node = self.get_node(seq)
         return bool(node)
 
@@ -241,10 +271,12 @@ class TrieDict(collections.MutableMapping):
         if len(seq) == 0: return False
         node = self.root
         for elem in seq:
-            if not elem in node.children: return False
+            if not elem in node.children:
+                return False
             else:
                 node = node.children[elem]
-                if node.is_last_elem_of_key: return True
+                if node.is_last_elem_of_key:
+                    return True
         return False
 
     def num_children(self, node):
@@ -256,59 +288,55 @@ class TrieDict(collections.MutableMapping):
         """Delete the stored key and its data.  Raises `KeyError` if the key wasn't
         found in the trie.  If `d` is a dict, the syntax `del d[key]` also invokes
         this function."""
+        # This method could be done recursively in less code (but more function calls).
 
+        # Walk down the tree for elems in elem_list, saving node info.
+        elem_node_list = [] # Node and elem tuples going down the tree.
         node = self.root
-        node_list = [self.root] # Save the nodes down the tree path, to back up later.
-        elem_list = [e for e in key] # the elements corresponding to path nodes
-
-        # Walk down the tree for elems in elem_list, saving the nodes in node_list.
-        for elem in elem_list:
+        for elem in key:
             if not elem in node.children:
                 raise KeyError("Key is not in the TrieDict.")
             else:
+                elem_node_list.append((elem, node))
                 node = node.children[elem]
-                node_list.append(node)
+        final_node = node
 
-        # We now know that key is "in the tree," see if is_last_elem_of_key is True.
-        if node.is_last_elem_of_key:
-            node.is_last_elem_of_key = False # matched, turn off the flag to delete key
+        # We now know key is "in the tree," make sure `is_last_elem_of_key` is True.
+        if final_node.is_last_elem_of_key:
+            final_node.is_last_elem_of_key = False # Turn off flag to delete key.
             self.num_keys -= 1
         else:
-            # The key is a prefix of something, but is not a match.
+            # The key is a prefix of something, but is not in the trie.
             raise KeyError("Key is not in the TrieDict.")
 
-        #
-        # Now cut loose any unneeded nodes for the garbage collector.
-        #
+        # If `final_node` isn't at a leaf node (only a `is_last_elem_of_key` elem)
+        # then key is a prefix of something still in tree and nothing can be deleted.
+        if final_node.children:
+            return
 
-        # If not at a leaf node (only at a is_last_elem_of_key elem) then key is a prefix
-        # of something and nothing can be deleted.
-        if node.children: return
-
-        # On the forward path after the last is_last_elem_of_key, all only-child children can be
-        # deleted.  We use the backward path and find the first node that can't be
-        # deleted.
-        for i in reversed(range(len(node_list))):
-            node = node_list[i]
-            # The can't-kill conditions: break when such a node found, otherwide free
-            # node.
-            if self.num_children(node) > 1 or node.is_last_elem_of_key or node == self.root:
-                kill_next = node        # the node to keep but kill one child
-                kill_elem = elem_list[i] # the corresponding element to kill
-                break
-            else: node.children = None # just to break up the tree for garbage collector
-        del kill_next.children[kill_elem]
-
-        return
+        # On the forward path, AFTER the last `is_last_elem_of_key`, all
+        # only-child children can be deleted.  No others can be.  In the reversed
+        # path find the first node that can't be deleted and delete its children.
+        for elem, node in reversed(elem_node_list):
+            # The can't-kill conditions: return when such a node found, otherwide free
+            # the node.
+            if len(node.children) > 1 or node.is_last_elem_of_key or node is self.root:
+                del node.children[elem]
+                return
+            else:
+                node.children = None # Just to break up the tree for garbage collector.
 
     __delitem__ = delitem # Allows the syntax: del d[key]
 
-    def get_next_node(self, query_elem, node): # TODO really not used, but could be, but overhead
-        """Return the next node in the trie from node when the key-query element
-        query_elem is received.  This routine treats meta-characters as ordinary
+    def get_next_node(self, query_elem, node):
+        """Return the next node in the trie from `node` when the key-query element
+        `query_elem` is received.  This routine treats meta-characters as ordinary
         characters."""
-        if query_elem in node.children: return node.children[query_elem]
-        else: return None
+        # This is not used internally because of the overhead.
+        if query_elem in node.children:
+            return node.children[query_elem]
+        else:
+            return None
 
     def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
                     yield_on_leaves=True, yield_on_match=False, copies=True,
@@ -423,12 +451,4 @@ class TrieDict(collections.MutableMapping):
         return do_indent
 
 
-# TODO: Document this, and let users pass in their own version if they want to.
-def combine_key_elems(elem_list):
-    """Combine all the elements in the list `elem_list` into a single key using
-    the plus operator (string concatenation when strings are passed in)."""
-    combined = elem_list[0] # We don't know the empty element in general.
-    for e in elem_list[1:]:
-        combined += e # This is where plus operator on elements is assumed.
-    return combined
 

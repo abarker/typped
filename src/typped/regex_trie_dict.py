@@ -3,8 +3,6 @@
 Introduction to `RegexTrieDict`
 ===============================
 
-TODO: document the `PrefixMatcher` interface.
-
 The `RegexTrieDict` class is a subclass of `TrieDict` which adds
 pattern-matching capabilities.  To use these capabilities, you first create a
 key which contains some special meta-elements (which are meta-characters when
@@ -208,17 +206,6 @@ So the pattern ::
 would not match `"abcDDefg"`, would match `"abcDDDDefg"` and `"abcDDDDDDefg"`, and
 would not match `"abcDDDDDDDDefg"`.
 
-<TODO below para not implemented>
-
-The grouping meta-elements must occur just after the start and at the end of
-the repetition pattern itself.  For efficiency, repetition can be limited such
-that it always "breaks out" of the "loop" at the first chance it gets.   This
-occurs when, at the end of a loop, the next element scanned matches the next
-pattern element after the closing repetition meta-element.  So the shortest
-valid repetition sequence followed by some other valid element is always
-chosen.  This restriction essentially requires the end of any repeated-pattern
-segment to be unambiguous (or else no looping-back will occur).
-
 Greediness and non-greediness in Python regexes
 ===============================================
 
@@ -413,7 +400,8 @@ entries.  Then zero-repetition states could be started but just set the stacks
 for the first loop, fixing the children in `append_child_node` if the stack is
 not empty.
 
-# TODO: move any "future implementation" stuff to comments in the code itself.
+.. TODO: move any "future implementation" stuff to comments in the code itself.
+   This stuff below is questionable for the docs proper but still useful.
 
 .. note::
 
@@ -435,6 +423,28 @@ not empty.
     node (but note the importance of keeping track of which ones were initially
     in the same pattern to avoid crosstalk amongst the patterns).
 
+Prefix matcher class
+====================
+
+The class `PrefixMatcher` is closely related to the `RegexTrieDict` class.
+Every instance of a `PrefixMatcher` is associated with a particular instance of
+a `RegexTrieDict`.  The `PrefixMatcher` class is used to search for prefix
+matches in the keys of the `RegexTrieDict`, where the keys are treated as
+meta-sequences representing regex patterns.
+
+To use the `PrefixMatcher` class you sequentially add elements (characters when
+strings are stored in the trie) to an instance using the `add_key_elem` method.
+You can then use the `get_meta` method to get the data associated with a
+meta-pattern, if any.  The data associated with the matching pattern string is
+returned.  The `has_key_meta` method is similar, but returns the number of
+matches (which acts as `False` when it is zero).
+
+In order to find the first prefix match in an ongoing sequence, such as one
+typed by a user, you need to determine when no further prefix matches are
+possible.  The `cannot_match` boolean method determines this.  When all of the
+parallel match searches are exhausted, i.e., when there are no more active
+match states, it returns true.
+
 """
 
 from __future__ import print_function, division, absolute_import
@@ -450,8 +460,9 @@ import re
 import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
 
-# TODO: Consider adding the '\.' symbol that matches anything.  Shouldn't
-# be too hard; just make sure it doesn't match the MagicElem.
+# TODO: Consider adding the '\.' symbol that matches anything to the
+# implemented pattern language.  Shouldn't be too hard; just make sure it
+# doesn't match the MagicElem.
 
 # Todo: Consider a preprocessing routine like the Python regex one `escape`.
 # This one would take an unescaped string and escape all the special chars.
@@ -460,7 +471,8 @@ from .trie_dict import TrieDict, TrieDictNode
 
 class NodeStateData(object):
     """This class is used in pattern-searches.  It is just a fancy data-record,
-    essentially a named tuple.  It holds one state of a multi-state recognizer.
+    essentially a mutable named tuple.  Each state of a multi-state recognizer
+    is represented by an instance of this class.
 
     A `NodeStateData` is initialized by passing all the stored items to the
     initializer, just like initializing a tuple.  Alternately, you can use
@@ -513,16 +525,18 @@ class NodeStateData(object):
     # over NodeStateData objects in for-loops, convert to a tuple or list, etc.
     # If slots are causing problems (such as with pickling) you can just globally
     # substitute some other variable name, like _slots, for __slots__ and
-    # things should still work (but more space will be used in the trie).
+    # things should still work (but more space will be used in pattern matches).
     __slots__ = ["node", "node_is_escape", "loopback_stack",
                  "loop_counter_stack", "loop_bounds_stack",
                  "bound_node_child_dict", "visited_rep_node_id_set"]
 
     def __init__(self, *val_list, **kw_vals):
+        """Initialize the instance.  This just sets the values to the ones passed
+        in by calling `set_vals`."""
         self.set_vals(*val_list, **kw_vals)
-        return
 
     def set_vals(self, *val_list, **kw_vals):
+        """Set the values in the `NodeStateData` instance."""
         if val_list: # either list or kwargs, not both
             if len(val_list) != 7:
                 raise IndexError
@@ -531,7 +545,6 @@ class NodeStateData(object):
         else:
             for key in kw_vals.iterkeys():
                 self.__setattr__(key, kw_vals[key])
-        return
 
     def __getitem__(self, index):
         return self.__getattribute__(self.__slots__[index])
@@ -553,7 +566,6 @@ class NodeStateData(object):
         if node is None: node = self.node
         node_id = id(node)
         self.bound_node_child_dict[node_id] = {child_elem: node.children[child_elem]}
-        return
 
     def children(self, node=None):
         """During patern matches the children of a node are temporarily modified,
@@ -574,11 +586,12 @@ class NodeStateData(object):
 class NodeStateDataList(collections.MutableSequence):
     """This is essentially just a list, used to hold a collection of
     `NodeStateData` objects representing the full (nondeterministic) state.  A
-    derived class is used so that additional information can be saved.  The
-    initialization arguments, if any, are the same as for a list.  In
-    particular, this class allows for checking whether or not the state-data is
-    still valid in the underlying trie (there might have been insertions and/or
-    deletions."""
+    derived class is used so that extra attributes and methods can be added.
+    The initialization arguments, if any, are the same as for a list.
+
+    Using this class instead of a list allows for checking whether or not the
+    state-data is still valid in the underlying trie (since there might have
+    been insertions and/or deletions)."""
     def __init__(self, regex_trie_dict, *arg, **kwds):
         # The list node_data_list does the real work.
         self.node_data_list = list(*arg, **kwds)
@@ -586,7 +599,6 @@ class NodeStateDataList(collections.MutableSequence):
         self.delete_count = regex_trie_dict.delete_count
         self.regex_trie_dict_instance_id = id(regex_trie_dict)
         self.regex_trie_dict = regex_trie_dict
-        return
 
     def is_valid_in(self, regex_trie_dict):
         """Test whether or not the state-data stored in a node data list is still
@@ -596,17 +608,23 @@ class NodeStateDataList(collections.MutableSequence):
                 regex_trie_dict.insert_count == self.insert_count and
                 regex_trie_dict.delete_count == self.delete_count)
 
-    def __delitem__(self, index): del self.node_data_list[index]
+    def __delitem__(self, index):
+        del self.node_data_list[index]
 
-    def __getitem__(self, index): return self.node_data_list[index]
+    def __getitem__(self, index):
+        return self.node_data_list[index]
 
-    def __setitem__(self, index, value): self.node_data_list[index] = value
+    def __setitem__(self, index, value):
+        self.node_data_list[index] = value
 
-    def __len__(self): return len(self.node_data_list)
+    def __len__(self):
+        return len(self.node_data_list)
 
-    def insert(self, index, obj): return self.node_data_list.insert(index, obj)
+    def insert(self, index, obj):
+        return self.node_data_list.insert(index, obj)
 
-    def append(self, item): return self.node_data_list.append(item)
+    def append(self, item):
+        return self.node_data_list.append(item)
 
     def append_child_node(self, query_elem, node_data, node_is_escape=None):
         """A utility routine that appends a `NodeStateData` instance for a
@@ -661,8 +679,6 @@ class MagicElem(object):
 # have a break-as-soon-as-possible flag, though if the syntax is
 # unambiguous the other way won't branch, anyway.
 
-# TODO add a clear method to the both TrieDicts.
-
 class RegexTrieDict(TrieDict):
     """Subclass of the `TrieDict` class which adds regex processing for patterns
     stored in the trie."""
@@ -670,6 +686,8 @@ class RegexTrieDict(TrieDict):
     magic_elem = MagicElem # A static element that is considered unique (by its id).
 
     def __init__(self, *args, **kwds):
+        """Initialize the `RegexTrieDict` instance.  All arguments are simply passed
+        to the base `TrieDict` initializer."""
         super(RegexTrieDict, self).__init__(*args, **kwds)
         self.clear()
 
@@ -758,8 +776,10 @@ class RegexTrieDict(TrieDict):
             found_error("Empty open and close group elements in pattern."
                        + get_string_for_key_seq())
 
-        if raise_errors: return escaped_key_elem_list
-        else: return True
+        if raise_errors:
+            return escaped_key_elem_list
+        else:
+            return True
 
     def insert(self, key_seq, data=None):
         """Store the data item in the dict with the key key_seq.  Any existing
@@ -791,7 +811,6 @@ class RegexTrieDict(TrieDict):
             self.insert_count += 1
         node.is_last_elem_of_key = True # End of key_seq, isLastElemOfKey is True.
         node.data = data
-        return
 
     __setitem__ = setitem = insert # Alias for insert, to use `rtd[patt] = val`
 
@@ -802,7 +821,6 @@ class RegexTrieDict(TrieDict):
         update a deletion counter to test pattern-match state validity."""
         self.delete_count -= 1
         TrieDict.delitem(self, key)
-        return
 
     __delitem__ = delitem # Alias for delitem, to use `del rtd[patt]`
 
@@ -826,8 +844,6 @@ class RegexTrieDict(TrieDict):
         else: self.elem_to_digit_fun = char_elem_to_int
         self.escape_meta_elems = {
             repetition, l_group, r_group, l_wildcard, r_wildcard, range_elem}
-        return
-
 
     def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
                   yield_on_leaves=True, yield_on_match=False, copies=True,
@@ -1255,7 +1271,7 @@ class RegexTrieDict(TrieDict):
                         "\nQuery element is: " + str(query_elem) +
                         "\nNode's children are:\n   " + str(next_meta_elems))
 
-        return
+        return # `from process_node_data`
 
     def handle_wildcards(self, node_data, query_elem, next_node_data_list):
         """Handle wildcard patterns in meta-processing the trie."""
@@ -1503,8 +1519,6 @@ class RegexTrieDict(TrieDict):
         for node_data in node_data_list:
             self.process_node_data(query_elem, node_data, next_node_data_list)
 
-        return
-
     def process_repetition_params(self, seq):
         """Process the sequence between the begin-repetition and the open-group
         that necessarily follows it.  Return a tuple (minIter, maxIter), with
@@ -1530,7 +1544,8 @@ class RegexTrieDict(TrieDict):
                 digit = self.elem_to_digit_fun(elem)
                 val = 10*val + digit
                 val_set = True
-        if not first_val: return (val, -1)
+        if not first_val:
+            return (val, -1)
         return (first_val, val)
 
     def handle_beginning_of_or_group(self, node_data, query_elem,
@@ -1613,7 +1628,7 @@ class RegexTrieDict(TrieDict):
                 self.process_node_data(
                     query_elem, or_section_begin, next_node_data_list)
                 escaped = False
-
+        return # from `handle_beginning_of_or_group`
 
 class PrefixMatcher(object):
     """Initialized with an instance of a `RegexTrieDict`.  Allows for
@@ -1649,7 +1664,8 @@ class PrefixMatcher(object):
         """Test whether the current match process is still valid.  After any elements
         are inserted in the matcher any inserts or deletes from the trie will invalidate
         the current match.  The `reset` method must be called to make return to a valid
-        match."""
+        match.  This is called by the other methods, when necessary, so usually does not
+        need to be explicitly done."""
         if not self.node_data_list:
             return True
         return self.node_data_list.is_valid_in(self.rtd)
@@ -1868,7 +1884,8 @@ def generic_wildcard_match_fun(query_elem, patt_list, range_elem, escape_elem,
     return False
 
 
-def process_elem_list_for_escapes(elem_list, escape_char, open_group=None, close_group=None):
+def process_elem_list_for_escapes(elem_list, escape_char,
+                                  open_group=None, close_group=None):
     """A utility routine which takes a list of possibly-escaped elements as an
     argument and returns a list of two-tuples.  The first element of a two-tuple
     is the actual character, and the second a boolean for whether or not it is
