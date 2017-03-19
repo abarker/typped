@@ -674,8 +674,8 @@ class NodeStateDataList(collections.MutableSequence):
 
     def __repr__(self):
         string = "NodeStateDataList(["
-        string += ", ".join(state.__repr__ for state in self.node_data_list)
-        return string + ")]"
+        string += ", ".join(state.__repr__() for state in self.node_data_list)
+        return string + "])"
 
 class MagicElem(object):
     """A special element considered unique (checked by id) and which always

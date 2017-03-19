@@ -27,6 +27,11 @@ def test_TrieDictScannerBasic():
 
     # TODO this mostly works but needs better API for using in practice.
     # Needs close inspection, though, to make sure cannot_match is correctly done...
+    # It should recognize the string eggbert BEFORE the x is inserted... what
+    # are the criteria?  No active loops and all else at a trie leaf?
+    #
+    # Worst case you could temporarily insert a magic elem that matches anything
+    # and see if anything is left.  More expensive, though.
 
     print("\nquerying 'eggbert' character by character")
     for c in "eggbert" + "x": # NOTE x also added for now
@@ -36,7 +41,7 @@ def test_TrieDictScannerBasic():
         last_matches = scanner.matching_nodes
         print("Last matches on inserting", c, "are", last_matches)
         all_states = scanner.matcher.node_data_list
-        print("All states on inserting", c, "are", last_matches)
+        print("All states on inserting", c, "are", all_states)
         print()
 
     fail() # TODO above here gives fail due to trie modification.

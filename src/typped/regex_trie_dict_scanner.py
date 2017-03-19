@@ -223,6 +223,7 @@ class RegexTrieDictScanner(object):
         # Currently assumes longest match.
         # TODO: for non-greedy looping we need the full NodeDataStateList,
         # and to figure out exactly how to analyze it...
+        print("DEBUG inserting char in scanner:", elem)
 
         if not self.is_valid():
             raise TrieDictScannerError("The trie of regex has been modified since"
@@ -239,16 +240,18 @@ class RegexTrieDictScanner(object):
 
         # If no more matches possible get the last match to return, remove the
         # text from the curr_prefix_text, reset the matcher, and then re-add the
-        # remaining elems of text.
+        # remaining elems of text (calling this routine recursively).
         if self.matcher.cannot_match():
             final_matches = self.last_matching_nodes
             match_text = self.curr_prefix_text[:self.last_matching_index + 1]
             print("DEBUG match text in scanner is", match_text)
 
-            new_prefix = self.curr_prefix_text[self.last_matching_index:]
+            new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
+            print("DEBUG new prefix is", new_prefix)
             self.reset_seq()
             for elem in new_prefix:
-                self.matcher.add_key_elem(elem)
+                print("DEBUG re-inserting recursively....", elem)
+                self.add_text_elem(elem)
             return match_text, final_matches
         else:
             return None
