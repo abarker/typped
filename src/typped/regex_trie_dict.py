@@ -43,24 +43,6 @@ There is no method to get the actual matching patterns themselves, but since
 the query keys must match from beginning to end they are always known
 beforehand.
 
-In order to get the equivalent of the Python regex function/method `match` --
-which always matches from the beginning of the pattern but not necessarily to
-the end -- you use a `PrefixMatcher` object initialized with the
-`RegexTrieDict` instance containing the pattern sequences.  By checking
-`cannot_match` after each element is added and returning the last result when
-`cannot_match` is `True` you get the equivalent of `match` on the prefix.  You
-can also look at the matches along the way using the `get` method.
-
-In order to match the next prefix when using a `PrefixMatcher` you need clear
-the `PrefixMatcher` and start again after removing the matched prefix removed
-from the query key sequence.  While this seems inefficient, it works online and
-returns the prefix as spoon as it can be determined based on the patterns in
-the trie and the key to be matched.  Remember, also, that it is efficiently
-comparing against a large "or" of many different patterns such as in a lexical
-scanning/tokenizing situation.  While doing this it retains the ability to
-insert/delete patterns very efficiently.  The `TrieDictScanner` is an
-implementation of a scanner using this method.
-
 Terminology
 ===========
 
@@ -445,6 +427,25 @@ possible.  The `cannot_match` boolean method determines this.  When all of the
 parallel match searches are exhausted, i.e., when there are no more active
 match states, it returns true.
 
+In order to get the equivalent of the Python regex function/method `match` --
+which always matches from the beginning of the pattern but not necessarily to
+the end -- you use a `PrefixMatcher` object initialized with the
+`RegexTrieDict` instance containing the pattern sequences.  By checking
+`cannot_match` after each element is added and returning the last result when
+`cannot_match` is `True` you get the equivalent of `match` on the prefix.  You
+can also look at the matches along the way using the `get` method.  The
+separate `RegexTrieDictScanner` module does this.
+
+In order to match the next prefix when using a `PrefixMatcher` you need to
+clear the `PrefixMatcher` and start again after removing the matched prefix
+removed from the query key sequence.  While this seems inefficient, it works
+online and returns the prefix as spoon as it can be determined based on the
+patterns in the trie and the key to be matched.  Remember, also, that it is
+efficiently comparing against a large "or" of many different patterns such as
+in a lexical scanning/tokenizing situation.  While doing this it retains the
+ability to insert/delete patterns very efficiently.  The `TrieDictScanner` is
+an implementation of a scanner using this method.
+
 """
 
 from __future__ import print_function, division, absolute_import
@@ -459,6 +460,7 @@ import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
+from .shared_settings_and_exceptions import TyppedBaseException
 
 # TODO: Consider adding the '\.' symbol that matches anything to the
 # implemented pattern language.  Shouldn't be too hard; just make sure it
@@ -582,6 +584,11 @@ class NodeStateData(object):
         else:
             return node.children
 
+    def __repr__(self):
+        string = "NodeStateData("
+        string += ", ".join("{0}={1}".format(slotname,
+                    getattr(self, slotname).__repr__()) for slotname in self.__slots__)
+        return string + ")"
 
 class NodeStateDataList(collections.MutableSequence):
     """This is essentially just a list, used to hold a collection of
@@ -605,8 +612,8 @@ class NodeStateDataList(collections.MutableSequence):
         valid in the current trie.  If any insertions or deletions have occurred
         since its creation this routine returns False, otherwise True."""
         return (self.regex_trie_dict_instance_id == id(regex_trie_dict) and
-                regex_trie_dict.insert_count == self.insert_count and
-                regex_trie_dict.delete_count == self.delete_count)
+                    regex_trie_dict.insert_count == self.insert_count and
+                    regex_trie_dict.delete_count == self.delete_count)
 
     def __delitem__(self, index):
         del self.node_data_list[index]
@@ -665,6 +672,10 @@ class NodeStateDataList(collections.MutableSequence):
         self.node_data_list.append(node_data_copy)
         return True
 
+    def __repr__(self):
+        string = "NodeStateDataList(["
+        string += ", ".join(state.__repr__ for state in self.node_data_list)
+        return string + ")]"
 
 class MagicElem(object):
     """A special element considered unique (checked by id) and which always
@@ -1904,11 +1915,14 @@ def process_elem_list_for_escapes(elem_list, escape_char,
             if open_group and elem == open_group: p_count += 1
         else:
             bool_val = False
-        if open_group or close_group: tuple_list.append((elem, bool_val, p_count))
-        else: tuple_list.append((elem, bool_val))
+        if open_group or close_group:
+            tuple_list.append((elem, bool_val, p_count))
+        else:
+            tuple_list.append((elem, bool_val))
         if escaped:
             escaped = False
-            if close_group and elem == close_group: p_count -= 1
+            if close_group and elem == close_group:
+                p_count -= 1
     return tuple_list
 
 
@@ -1917,7 +1931,10 @@ def process_elem_list_for_escapes(elem_list, escape_char,
 #
 
 
-class RegexTrieDictError(Exception):
+class RegexTrieDictError(TyppedBaseException):
+    pass
+
+class PrefixMatcherError(TyppedBaseException):
     pass
 
 class PatternMatchError(RegexTrieDictError):

@@ -116,8 +116,17 @@ class TrieDictNode(object):
         self.children = {} # dict of the node's children
         self.is_last_elem_of_key = False # whether this node represents the end of a key
         self.data = None # some arbitrary piece of data stored as a key/data pair
-        return
 
+    def __repr__(self):
+        """Print out the representation.  Don't recurse on all children, though, since
+        it would print the whole tree."""
+        child_string = [c.__repr__() + ":" for c in self.children.keys()]
+        child_string = "{" + ", ".join(child_string) + "}"
+        string = "TrieDictNode({0}={1}, ".format("children", child_string)
+        string += ", ".join("{0}={1}".format(slotname,
+                      getattr(self, slotname).__repr__())
+                      for slotname in self.__slots__ if slotname != "children")
+        return string + ")"
 
 class TrieDict(collections.MutableMapping):
     """This is a dict where the keys are made up of sequences of elements.  It

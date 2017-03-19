@@ -130,7 +130,8 @@ if __name__ == "__main__":
     pytest_helper.script_run("../../test/test_regex_trie_dict_scanner.py", pytest_args="-v")
 
 import collections # to use deque and MutableSequence abstract base class
-from .regex_trie_dict import PrefixMatcher
+from .regex_trie_dict import PrefixMatcher, RegexTrieDictError
+#from .shared_settings_and_exceptions import TyppedBaseException
 
 #class TokenData(object):
 #
@@ -171,13 +172,13 @@ class RegexTrieDictScanner(object):
     for tokens."""
 
     def __init__(self, regex_trie_dict):
-        """User must pass in a valid `RegexTrieDict` containing the tokens."""
+        """User must pass in a valid `RegexTrieDict` containing the token regex
+        patterns."""
         # TODO note that at certain times changes to trie are allowed, others not...
         # after getting a token you can modify before inserting more....
         self.rtd = regex_trie_dict
         self.matcher = PrefixMatcher(self.rtd)
         self.clear()
-        return
 
     def clear(self):
         """Reset the tokenizer to its initial condition."""
@@ -191,64 +192,72 @@ class RegexTrieDictScanner(object):
         back at the root node of the `RegexTrieDict`.  This is called when a
         prefix is "accepted" as a token and the detection shifts to the next
         token."""
-        self.matcher._set_to_root()
-        self.rtd_insert_count = self.rtd.insert_count # to make sure Trie doesn't change
-        self.rtd_delete_count = self.rtd.delete_count # to make sure Trie doesn't change
-
         self.matching_nodes = None # Currently-matching nodes for current prefix.
-        self.prev_matching_nodes = None # Last node collection containing a match.
-
+        self.last_matching_nodes = None # Last node collection containing a match.
+        self.last_matching_index = None # Prefix index for last match.
+        self.curr_prefix_text = [] # The list of elems in current prefix being scanned.
         self.matcher.reset() # Reset the matcher.
 
     def is_valid(self):
-        """Return True if the current sequence being tokenized is still valid.
-        Return False otherwise.  A sequence becomes invalid if there are any
-        inserts or deletes in the underlying Trie.  This is just for informational
-        purposes, since any attempt to insert an element in an invalid sequence
-        will automatically call resetSeqAfterFlushing first and reset the sequence."""
+        """Return true if the current sequence being tokenized is still valid.
+        Return false otherwise.  A sequence becomes invalid if there are any
+        inserts or deletes in the underlying trie."""
         return self.matcher.is_valid()
 
-    def insert_seq_elem(self, elem, misc_data=None):
-        """Insert `elem` as the next element from the sequence being scanned.
-        If inserting the element results in a match (including detecting that
-        the sequence is unrecognizable) then `TokenData` instances for the
-        matching tokens (i.e., sequences of elements) are appended to the
-        result deque, which the `get_token_data_deque` method returns.  This
-        function returns `True` until some string has been recognized as not
-        matching any pattern stored in the trie, after which it returns False
-        (this signals that some higher-level error-handling needs to be done).
+    def add_text_elem(self, elem, misc_data=None):
+
+        """Insert `elem` as the next element from the text prefix sequence
+        being scanned.  If inserting the element results in a match (including
+        detecting that the sequence is unrecognizable) then `TokenData`
+        instances for the matching tokens (i.e., sequences of elements) are
+        appended to the result deque, which the `get_token_data_deque` method
+        returns.  This function returns `True` until some string has been
+        recognized as not matching any pattern stored in the trie, after which
+        it returns False (this signals that some higher-level error-handling
+        needs to be done).
 
         The format of the `token_data_deque` is a deque containing `TokenData`
         namedtuple instances for each match that was found.  That is, it
         contains a data tuple for each prefix of the current sequence of
         elements that matched a pattern."""
-
-        if not self.is_valid():
-            # TODO import or define the real exception
-            raise Exception("The trie of regex has been modified since starting"
-                    "this prefix search, so the search is now invalid.")
-
         # Currently assumes longest match.
-
-        if self.matching_nodes: # Save last non-empty matches.
-            self.prev_matching_nodes = self.matching_nodes
-
-        self.matcher.add_key_elem(elem)
         # TODO: for non-greedy looping we need the full NodeDataStateList,
         # and to figure out exactly how to analyze it...
+
+        if not self.is_valid():
+            raise TrieDictScannerError("The trie of regex has been modified since"
+                    " starting this prefix search, so the search is now invalid.")
+
+        self.curr_prefix_text.append(elem)
+
+        self.matcher.add_key_elem(elem)
         self.matching_nodes = self.matcher.get_meta(default=[], raw_nodes=True)
-        if not self.matching_nodes:
-            if self.prev_matching_nodes:
-                return_matches = self.prev_matching_nodes
-                self.matcher.reset()
-                return return_matches
-            else:
-                return None
+
+        if self.matching_nodes:
+            self.last_matching_nodes = self.matching_nodes
+            self.last_matching_index = len(self.curr_prefix_text) - 1
+
+        # If no more matches possible get the last match to return, remove the
+        # text from the curr_prefix_text, reset the matcher, and then re-add the
+        # remaining elems of text.
+        if self.matcher.cannot_match():
+            final_matches = self.last_matching_nodes
+            match_text = self.curr_prefix_text[:self.last_matching_index + 1]
+            print("DEBUG match text in scanner is", match_text)
+
+            new_prefix = self.curr_prefix_text[self.last_matching_index:]
+            self.reset_seq()
+            for elem in new_prefix:
+                self.matcher.add_key_elem(elem)
+            return match_text, final_matches
+        else:
+            return None
 
     def assert_end_of_seq(self):
         """Asserts that there are no more elements in the current sequence.
-        Makes the results immediately available assuming that."""
-        return self.insert_seq_elem(self.rgt.magic_elem)
+        Adds an element that cannot match to force any current states to
+        terminate with a match or not."""
+        return self.add_text_elem(self.rgt.magic_elem)
 
 
 class OldRegexTrieDictScanner(object):
@@ -480,4 +489,10 @@ class OldRegexTrieDictScanner(object):
         print("]")
 
 
+#
+# Exceptions specific to this module.
+#
+
+class TrieDictScannerError(RegexTrieDictError):
+    pass
 

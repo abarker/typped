@@ -112,7 +112,7 @@ class RegexTrieDictLexer(object):
                 else:
                     query_char = self.text_stream.next()
                     query_char_pos = self.text_stream.get_pos_of_last_next()
-                    self.trie_tok.insert_seq_elem(query_char, query_char_pos)
+                    self.trie_tok.add_text_elem(query_char, query_char_pos)
         return
 
     def end_of_token_stream(self):
