@@ -2,8 +2,7 @@
 RegexTrieDictScanner
 ----------------------
 
-TODO: this is an earler class, that doesn't yet use the newer features
-of RegexTrieDict like PrefixMatcher objects...
+TODO: Update this intro to reflect new implementation using PrefixMatcher.
 
 The `RegexTrieDictScanner` uses a `RegexTrieDict` for tokenizing a sequence of
 elements.  The underlying `RegexTrieDict`  essentially does the same thing that
@@ -120,8 +119,6 @@ situations that are currently ambiguous as far as finding the longest match.
 
 """
 
-#TODO: rewrite using the RegexTrieDict and PrefixMatcher classes
-
 from __future__ import print_function, division, absolute_import
 
 # Run test cases below when invoked as a script.
@@ -132,40 +129,6 @@ if __name__ == "__main__":
 import collections # to use deque and MutableSequence abstract base class
 from .regex_trie_dict import PrefixMatcher, RegexTrieDictError
 #from .shared_settings_and_exceptions import TyppedBaseException
-
-#class TokenData(object):
-#
-#    """This class is the basic container used by the RegexTrieDictScanner.  It
-#    holds a token (which may be an invalid token) and also some related data.
-#    The token_data_deque of the `RegexTrieDictScanner` (such as from
-#    `get_token_data_deque()` calls) contains `TokenData` objects."""
-#
-#    def __init__(self, is_valid, matched_seq, data, elem_data):
-#        self.is_valid = is_valid # False if the "token" was not in the RegexTrieDict
-#        self.matched_seq = matched_seq # the string of the token which resulted in the match
-#        self.data = data # some arbitrary piece of data stored as a key/data pair
-#        self.elem_data = elem_data # some arbitrary data stored on a query with each elem
-#
-#    def __repr__(self):
-#        return "TokenData("+str(self.is_valid)+", "+str(self.matched_seq) + \
-#            ", "+str(self.data)+", "+str(self.elem_data)+")"
-#
-#    def __bool__(self):
-#        """Allow for testing a TokenData object in conditionals, converting to bool."""
-#        return self.is_valid
-
-
-# This `namedtuple` is the basic container used by the `RegexTrieDictScanner`.
-# It holds a token (which may be an invalid token) and also some related data.
-# The `token_data_deque` of the `RegexTrieDictScanner` (such as from
-# `get_token_data_deque()` calls) contains `TokenData` objects."""
-TokenData = collections.namedtuple("TokenData", [
-            "is_valid", # False if the "token" was not in the RegexTrieDict.
-            "matched_seq", # The sequence of elements (string) which resulted in the match.
-            "data", # Whatever data was stored in the trie with matched pattern as key.
-            "elem_data", # Some arbitrary data stored when adding an elem.
-            ])
-
 
 class RegexTrieDictScanner(object):
     """This class implements a scanner using the keys of a `RegexTrieDict` as patterns
@@ -181,7 +144,7 @@ class RegexTrieDictScanner(object):
         self.clear()
 
     def clear(self):
-        """Reset the tokenizer to its initial condition."""
+        """Reset the scanner to its initial condition."""
         #self.match_longest = True # Whether to always look for longest match.
         self.no_invalid_tokens_found = True # Whether unstored string found on curr query.
         self.token_data_deque = collections.deque() # The deque of query matches.
@@ -207,19 +170,10 @@ class RegexTrieDictScanner(object):
     def add_text_elem(self, elem, misc_data=None):
 
         """Insert `elem` as the next element from the text prefix sequence
-        being scanned.  If inserting the element results in a match (including
-        detecting that the sequence is unrecognizable) then `TokenData`
-        instances for the matching tokens (i.e., sequences of elements) are
-        appended to the result deque, which the `get_token_data_deque` method
-        returns.  This function returns `True` until some string has been
-        recognized as not matching any pattern stored in the trie, after which
-        it returns False (this signals that some higher-level error-handling
-        needs to be done).
+        being scanned."""
+        # TODO: work on API, what to return and when?
+        # MOST IMPORTANT NOW, that is the confusing thing, what is spec?
 
-        The format of the `token_data_deque` is a deque containing `TokenData`
-        namedtuple instances for each match that was found.  That is, it
-        contains a data tuple for each prefix of the current sequence of
-        elements that matched a pattern."""
         # Currently assumes longest match.
         # TODO: for non-greedy looping we need the full NodeDataStateList,
         # and to figure out exactly how to analyze it...
@@ -243,10 +197,15 @@ class RegexTrieDictScanner(object):
         # remaining elems of text (calling this routine recursively).
         if self.matcher.cannot_match():
             final_matches = self.last_matching_nodes
-            match_text = self.curr_prefix_text[:self.last_matching_index + 1]
+            if self.last_matching_index:
+                match_text = self.curr_prefix_text[:self.last_matching_index + 1]
+                new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
+            else:
+                raise PrefixCannotMatch("RegexTrieDictScanner: It is"
+                             " impossible for the text sequence to match the patterns"
+                             " in the current RegexTrieDict.")
             print("DEBUG match text in scanner is", match_text)
 
-            new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
             print("DEBUG new prefix is", new_prefix)
             self.reset_seq()
             for elem in new_prefix:
@@ -263,239 +222,14 @@ class RegexTrieDictScanner(object):
         return self.add_text_elem(self.rgt.magic_elem)
 
 
-class OldRegexTrieDictScanner(object):
-    """This class uses the keys of a RegexTrieDict as tokens."""
-
-    def __init__(self, regex_trie_dict):
-        """User must pass in a valid RegexTrieDict containing the tokens."""
-        self.rtd = regex_trie_dict
-        self.matcher = PrefixMatcher(self.rtd)
-        self.clear()
-        return
-
-    def clear(self):
-        """Reset the tokenizer to its initial condition."""
-        self.match_longest = True # Whether to always look for longest match.
-        self.no_invalid_tokens_found = True # Whether unstored string found on curr query.
-        self.token_data_deque = collections.deque() # The deque of query matches.
-
-        self.reset_seq()
-        return
-
-    def reset_seq(self):
-        """Reset the sequence being inserted, i.e., start the next insertion
-        back at the root node of the `RegexTrieDict`.  This is called when a
-        prefix is "accepted" as a token and the detection shifts to the next
-        token."""
-        self.td_insert_count = self.rtd.insertCount # to make sure Trie doesn't change
-        self.td_delete_count = self.rtd.deleteCount # to make sure Trie doesn't change
-        self.matcher.reset() # Reset the matcher.
-        return
-
-    def reset_seq_after_flushing(self):
-        """This flushes out the buffer of possible saved token matches before
-        resetting the sequence of elements (back to start at the root)."""
-        self.assert_end_of_seq()
-        self.reset_seq() # done by self.assert_end_of_seq(), but do again to be safe
-        return
-
-    def set_match_longest(self, bool_val):
-        """Set True if longest matches should be found in `insert_seq_elem` queries,
-        `False` if shortest.  The default in initialization and after a `clear()`
-        is `True`."""
-        self.match_longest = bool_val
-        return
-
-    def current_seq_is_valid(self):
-        """Return True if the current sequence being tokenized is still valid.
-        Return False otherwise.  A sequence becomes invalid if there are any
-        inserts or deletes in the underlying Trie.  This is just for informational
-        purposes, since any attempt to insert an element in an invalid sequence
-        will automatically call resetSeqAfterFlushing first and reset the sequence."""
-        return (self.td_insert_count == self.rtd.insertCount
-                and self.td_delete_count == self.rtd.deleteCount)
-
-    #
-    # Note that shortest match in insert_seq_elem works easily, but what about
-    # finding the longest match?  We save the most recent possible match, and
-    # make it the actual match if a mismatch occurs after it.  How do
-    # we reset the tree after getting a mismatch?  We don't always learn
-    # immediately on the next elem if the earlier match is good or not.
-    # E.g., suppose "egg" and "eggbert" are stored and we query sequentially on
-    # the characters in "eggberb".  We first find "egg" as a possible match.
-    # Then when we get to the final "b" we know that it is the longest match.
-    # At that point we remove the prefix "egg" from "eggberb" and re-query
-    # the characters in the string "berb", starting again at the root of the
-    # tree.  Fortunately, the needed data is already being saved in
-    # curr_token, which has been built up to "eggberb" after the final "b"
-    # has had insert_seq_elem called on it.
-    #
-    digits = set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"])
-
-    def insert_seq_elem(self, elem, misc_data=None): # NOTE this is the OLD method.
-        # NOTE see new_insert_seq_elem method below, after this one...
-        # updating to use PrefixMatcher.
-        """Insert `elem` as the next element from the sequence being scanned.
-        If inserting the element results in a match (including detecting that
-        the sequence is unrecognizable) then `TokenData` instances for the
-        matching tokens (i.e., sequences of elements) are appended to the
-        result deque, which the `get_token_data_deque` method returns.  This
-        function returns `True` until some string has been recognized as not
-        being stored in the tree, after which it returns False (this signals
-        that some higher-level error-handling needs to be done).
-
-        A future modification might allow multiple query instances,
-        essentially a wrapper-class for pointers to nodes in the tree.
-
-        The format of the `token_data_deque` is a deque containing `TokenData`
-        namedtuple instances for each match that was found.  That is, it
-        contains a data tuple for each prefix of the current sequence of
-        elements that matched a pattern.
-
-        In lexical analysis:
-
-        The optional misc_data argument is miscellaneous data which is associated
-        with the query chars (in particular, line numbers can be stored and
-        "passed up" for better error reporting).
-
-        Inserting the empty string "" is equivalent to asserting the end of the
-        query string (and is how assertEndOfSeq() is implemented)."""
-        # TODO: what if multiple pattern matches for query string?  Seems like you
-        # need a list of TokenData namedtuples at each index of the deque....
-        # Also, how are these elements being combined, if at all?  Test data on
-        # strings looks like they are being added together... presumed + operator.
-
-        # Automatically reset after flushing if underlying Trie is no longer valid.
-        if not self.current_seq_is_valid() and elem != "":
-            self.reset_seq_after_flushing()
-
-        # Now handle any ordinary tree matches for the queryChar elem.
-        if not elem in self.curr_node.children: # mismatch beyond current node
-            # empty string queryInserts always take this path from conditional above
-            if self.possible_match:
-                self.token_data_deque.append(TokenData(
-                                           is_valid=True,
-                                           matched_seq=self.possible_token,
-                                           data=self.possible_data,
-                                           elem_data=self.possible_misc_list
-                                           ))
-                self.possible_match = False
-                # remove recognized possibleMatch prefix from currToken
-                # note that suffix is saved in a local var for recursion
-                suffix = self.curr_token[len(self.possible_token):]
-                suffix += elem
-                suffix_misc = self.curr_misc_list[len(self.possible_token):]
-                if elem != "": suffix_misc.append(misc_data)
-                # reset query and re-query each elem of the suffix string
-                self.reset_seq()
-                for index in range(len(suffix)):
-                    self.insert_seq_elem(suffix[index], suffix_misc[index])
-                return self.no_invalid_tokens_found
-            else:
-                # Char doesn't match a child, no saved match, but currToken
-                # matched a prefix of something up to here.  So there is
-                # some error in the currToken.  There are various ways to
-                # handle error recovery.
-                #
-                fast_recover = True # this could be a settable class variable
-                #
-                # To fast_recover, ditch all of the currToken rather than
-                # trying to reinsert various parts to do "maximum recovery."
-                # Reset and try re-querying the fail-elem if currToken had
-                # nonzero length.  Slower, we can just report the first elem
-                # of currToken as a fail, and reinsert all else + elem.
-                if len(self.curr_token) > 0:
-                    self.no_invalid_tokens_found = False # set error return flag
-                    if fast_recover:
-                        self.token_data_deque.append(TokenData(
-                                  is_valid=False,
-                                  matched_seq=self.curr_token,
-                                  data=None,
-                                  elem_data=self.curr_misc_list))
-                    else:
-                        self.token_data_deque.append(TokenData(
-                                  is_valid=False,
-                                  matched_seq=self.curr_token[0],
-                                  data=None,
-                                  elem_data=self.curr_misc_list[0]))
-                    saved_curr_token = self.curr_token
-                    saved_curr_misc_list = self.curr_misc_list
-                    self.reset_seq()
-                    if fast_recover:
-                        if elem != "": self.insert_seq_elem(elem, misc_data)
-                    else:
-                        saved_curr_token = saved_curr_token[1:] + elem
-                        saved_curr_misc_list = saved_curr_misc_list[1:]
-                        if elem != "":
-                            saved_curr_misc_list.append(misc_data)
-                        self.insert_seq_elem(saved_curr_token, saved_curr_misc_list)
-                else: # only the current elem doesn't match, at root
-                    if elem != "":
-                        self.no_invalid_tokens_found = False # set error return flag
-                        self.token_data_deque.append(
-                            TokenData(
-                                     is_valid=False,
-                                     matched_seq=elem,
-                                     data=None,
-                                     elem_data=[misc_data]))
-                    self.reset_seq()
-                return self.no_invalid_tokens_found
-
-        # At this point we know there is another node below the current one.
-        self.curr_token = self.curr_token + elem
-        self.curr_misc_list.append(misc_data)
-        self.curr_node = self.curr_node.children[elem] # move currNode down tree
-        if self.curr_node.is_last_elem_of_key:
-            # to match longest we must wait before concluding, unless we are at a leaf
-            num_children = len(self.curr_node.children)
-            if self.match_longest and num_children != 0:
-                # matchLongest and not at a leaf
-                self.possible_match = True
-                self.possible_token = self.curr_token
-                self.possible_data = self.curr_node.data
-                self.possible_misc_list = self.curr_misc_list
-            else:
-                # match shortest or else at a leaf
-                self.token_data_deque.append(TokenData(
-                               is_valid=True,
-                               matched_seq=self.curr_token,
-                               data=self.curr_node.data,
-                               elem_data=self.curr_misc_list))
-                self.reset_seq()
-        return self.no_invalid_tokens_found
-
-    def get_token_data_deque(self):
-        """Get the deque of matches generated by insert_seq_elem calls."""
-        return self.token_data_deque
-
-    def clear_token_data_deque(self):
-        """Sets the current deque of matches empty.  This may be useful in an
-        algorithm, or to free memory in a long sequence.  Does not alter anything
-        else, including the current query and any saved possible-match value."""
-        self.token_data_deque.clear()
-
-    def assert_end_of_seq(self):
-        """Asserts that there are no more elements in the current sequence.
-        Will empty out the buffer of elements and of possible matches."""
-        # TODO do we still want null string, or special end token?
-        return self.insert_seq_elem("")
-
-    def print_token_deque(self):
-        """Debugging routine, print out all the strings in `token_data_deque`."""
-        #print("token data deque is", self.token_data_deque)
-        print("TokenDeque[", end="")
-        for i in range(len(self.token_data_deque)):
-            if i != len(self.token_data_deque)-1:
-                print(self.token_data_deque[i].matched_seq+",", end="")
-            else:
-                print(self.token_data_deque[i].matched_seq, end="")
-        print("]")
-
-
 #
 # Exceptions specific to this module.
 #
 
 class TrieDictScannerError(RegexTrieDictError):
+    pass
+
+class PrefixCannotMatch(TrieDictScannerError):
+    """Raised when a prefix match is determined to be impossible."""
     pass
 
