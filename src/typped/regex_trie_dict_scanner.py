@@ -28,35 +28,23 @@ will match cause a match).
 
 .. code-block:: python
 
-   # FIX THIS EXAMPLE
-
    td = RegexTrieDict()
-   # ... insert patterns in td
+   scanner = RegexTreeDictScanner(td)
 
-   tok = RegexTreeDictScanner(td)
+   text_string = "test string here"
+   for char in text_string: # May instead be a realtime string of chars.
+       prefix_match_list = scanner.add_text_elem(text)
+       if prefix_match_list:
+           for match in prefix_match_list:
+               print("Matched a prefix:", match)
 
-   for c in "eggbert":
-      tok.insert_seq_elem(c)
-      tok.print_token_deque()
-
-   for c in "eggber":
-      tok.insert_seq_elem(c)
-      tok.print_token_deque()
-
-   tok.insert_seq_elem("x")
 
 The results of the tokenization are automatically placed in a deque which is
 stored with the `RegexTreeDictScanner` instance.  Users can manipulate this
 deque in any way they want; it is only used for reporting tokens as they are
 detected (i.e., they are inserted when matched).  Note that it may be necessary
-to call `tok.assert_end_of_sequence()` in order for the tokenizer to deal with
+to call `tok.assert_end_of_text()` in order for the tokenizer to deal with
 situations that are currently ambiguous as far as finding the longest match.
-
-.. code-block:: python
-
-   tok.assert_end_of_sequence()
-   tok.print_token_deque()
-   tok.clear_deque()
 
 .. topic:: Revise this stuff later...
 
@@ -140,14 +128,14 @@ class RegexTrieDictScanner(object):
         # TODO note that at certain times changes to trie are allowed, others not...
         # after getting a token you can modify before inserting more....
         self.rtd = regex_trie_dict
+        self.string_joiner = self.rtd.combine_elems_fun
         self.matcher = PrefixMatcher(self.rtd)
         self.clear()
 
     def clear(self):
         """Reset the scanner to its initial condition."""
         #self.match_longest = True # Whether to always look for longest match.
-        self.no_invalid_tokens_found = True # Whether unstored string found on curr query.
-        self.token_data_deque = collections.deque() # The deque of query matches.
+        #self.token_data_deque = collections.deque() # The deque of query matches.
         self.reset_seq()
 
     def reset_seq(self):
@@ -167,25 +155,48 @@ class RegexTrieDictScanner(object):
         inserts or deletes in the underlying trie."""
         return self.matcher.is_valid()
 
-    def add_text_elem(self, elem, misc_data=None):
+    def current_prefix(self, join_elems=True):
+        """Return the current (not yet matched) prefix sequence.
+
+        If `join_elems` is true the elements are joined using the default
+        element joiner of the underlying `RegexTrieDict`.  Otherwise the result
+        is a list of elements."""
+        if not self.curr_prefix_text:
+            return None
+        if join_elems:
+            return self.combine_elems_fun(self.curr_prefix_text)
+        return self.curr_prefix_text
+
+    def add_text_elem(self, elem, join_elems=True, reinsert_on_match=True):
 
         """Insert `elem` as the next element from the text prefix sequence
-        being scanned."""
-        # TODO: work on API, what to return and when?
-        # MOST IMPORTANT NOW, that is the confusing thing, what is spec?
+        being scanned.  If a longest-match is found it saves the match, resets,
+        reinserts all the remaining text elements, and so forth until no
+        prefix matches can be found.  The list of prefix matches is
+        then returned.  More characters can then be inserted, with the same
+        behavior.  To access the remaining suffix
 
+        If `join_elems` is true (the default) then any returned element
+        sequences are joined using the element-joining operation for the
+        underlying `RegexTrieDict` instance.
+
+        If `reinsert_on_match` is false (not the default) then on a longest
+        prefix match the scanner is reset to be empty and the return value a
+        two-tuple containing the prefix sequence that matched and the remaining
+        suffix sequence."""
         # Currently assumes longest match.
         # TODO: for non-greedy looping we need the full NodeDataStateList,
         # and to figure out exactly how to analyze it...
         print("DEBUG inserting char in scanner:", elem)
 
+        # TODO TODO: Implement the API defined above!
         if not self.is_valid():
-            raise TrieDictScannerError("The trie of regex has been modified since"
+            raise TrieDictScannerError("The trie of regexes has been modified since"
                     " starting this prefix search, so the search is now invalid.")
 
         self.curr_prefix_text.append(elem)
 
-        self.matcher.add_key_elem(elem)
+        self.matcher.add_key_elem(elem) # Add the key to the regex trie PrefixMatcher.
         self.matching_nodes = self.matcher.get_meta(default=[], raw_nodes=True)
 
         if self.matching_nodes:
@@ -215,11 +226,11 @@ class RegexTrieDictScanner(object):
         else:
             return None
 
-    def assert_end_of_seq(self):
+    def assert_end_of_text(self):
         """Asserts that there are no more elements in the current sequence.
         Adds an element that cannot match to force any current states to
         terminate with a match or not."""
-        return self.add_text_elem(self.rgt.magic_elem)
+        return self.add_text_elem(self.rgt.magic_elem_never_matches)
 
 
 #

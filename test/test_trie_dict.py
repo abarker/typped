@@ -28,11 +28,11 @@ def mappingInvariants(m):
 def test_basicTrieDict():
     """Very basic inserts, deletes, etc."""
     td = TrieDict()
-    assert sorted(td.keys(as_lists=True)) == []
+    assert sorted(td.keys(join_elems=False)) == []
     assert sorted(td.keys()) == []
     assert len(td) == 0
     td["eggsalad"] = "x"
-    assert td.keys(as_lists=True) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
+    assert td.keys(join_elems=False) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
     assert len(td) == 1
     mappingInvariants(td)
     td["egg"] = "eeee"
@@ -100,7 +100,7 @@ def test_basicTrieDict():
 
 def test_randomInsertionsAndDeletions():
     """Generate some random strings and insert and delete them."""
-    td = TrieDict()
+    td = TrieDict(char_elems=True)
 
     def genRandomString():
         strlen = random.randint(1, 20)
@@ -175,11 +175,11 @@ def test_TrieDictWithNonStringSequences():
 
     td = TrieDict()
 
-    # keys, note this fails without as_lists=True because we have not properly defined
+    # keys, note this fails without join_elems=False because we have not properly defined
     # the plus operator to "add" two elements into a sequence.
     td.insert([("A"), ("B"), ("C")])
     td.insert([("D"), ("E"), ("F")])
-    print(td.keys(as_lists=True))
-    keys = td.keys(as_lists=True)
+    print(td.keys(join_elems=False))
+    keys = td.keys(join_elems=False)
     assert (keys == [[("A"), ("B"), ("C")], [("D"), ("E"), ("F")]] or
             keys == [[("D"), ("E"), ("F")], [("A"), ("B"), ("C")]])

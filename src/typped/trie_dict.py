@@ -20,7 +20,7 @@ recombined using the `+=` operator.  For example, a list of characters can be
 recombined into a string in this way.  An arbitrary combination function can
 instead be specified by setting it as the `combine_elems_fun` in the
 initializer.  Some methods assume that the list of elements should be
-recombined before they are returned, but setting `as_lists=True` will cause the
+recombined before they are returned, but setting `join_elems=False` will cause the
 list version to be returned without attempting the "addition."
 
 The usage of a `TrieDict` is as follows.  First create an empty `TrieDict`::
@@ -91,6 +91,7 @@ if __name__ == "__main__":
 import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
+from .shared_settings_and_exceptions import TyppedBaseException
 
 ##
 ## TrieDict and supporting classes.
@@ -102,11 +103,19 @@ def default_combine_elems_fun(elem_list):
     into a single key.  Uses the `+=` operator, which must be defined.
     This results in string concatenation when the elements are characters
     of strings)."""
+    if not elem_list:
+        raise TrieDictError("Attempt to combine elements on an empty list.")
     combined = elem_list[0] # We don't know the empty element in general.
     for e in elem_list[1:]:
         combined += e # This is where plus operator on elements is assumed.
     return combined
 
+def default_combine_chars_fun(elem_list):
+    """The default function for joining together characters as elements.  Just
+    uses string join."""
+    if not elem_list:
+        raise TrieDictError("Attempt to combine characters on an empty list.")
+    return "".join(elem_list)
 
 class TrieDictNode(object):
     """This class is used internally, as the nodes of the tree.  It is just used as
@@ -139,11 +148,24 @@ class TrieDict(collections.MutableMapping):
     or longest match in a sequence.  These results from insertSeqElem
     are stored and returned to the user as a deque, since pops on both ends may
     be useful."""
-    def __init__(self, combine_elems_fun=default_combine_elems_fun):
-        """Initialize the basic data elements.  If set the `combine_elems_fun`
-        function will be used to combine elements.  The default uses the
-        `+=` operator, which must be defined for the elements."""
-        self.combine_elems_fun = combine_elems_fun
+    def __init__(self, char_elems=False, combine_elems_fun=default_combine_elems_fun):
+        """Initialize the basic data elements.
+
+        If `char_elems` is true (the default is false) then the elements are
+        assumed to be characters, i.e., Python strings of length one.  String
+        join will be used to combine them when necessary.  This should be more
+        efficient than using the default `+=` operator.
+
+        If `combine_elems_fun` is set to a function and `char_elems` is not
+        true then this function will be used to combine elements.  The default
+        uses the `+=` operator, which must be defined for the elements or else
+        no `join_elems` options can be used."""
+        if char_elems:
+            self.char_elems = True
+            self.combine_elems_fun = default_combine_chars_fun
+        else:
+            self.char_elems = False
+            self.combine_elems_fun = combine_elems_fun
         self.clear()
 
     def clear(self):
@@ -209,36 +231,36 @@ class TrieDict(collections.MutableMapping):
 
     __contains__ = has_key # Allow use of "in" syntax for testing for keys.
 
-    def items(self, as_lists=False):
+    def items(self, join_elems=True):
         """Return a list of all the `(key,value)` tuples stored in the trie.  Note
         that the plus operator is assumed to be overloaded to combine separate
-        elements into a single key.  Setting `as_lists=True` can be used to return
+        elements into a single key.  Setting `join_elems=False` can be used to return
         the keys as lists of elements, without attempting to combine them."""
-        return [i for i in self.iteritems(as_lists=as_lists)]
+        return [i for i in self.iteritems(join_elems=join_elems)]
 
-    def iteritems(self, as_lists=False):
+    def iteritems(self, join_elems=True):
         """An iterator over the items in the trie, see the `items` method for
         details."""
         if self.num_keys != 0:
             item_gen = self.get_dfs_gen(self.root, yield_on_match=True)
             for i in item_gen:
                 elem_list = [e[0] for e in i]
-                if as_lists:
+                if not join_elems:
                     yield (elem_list, i[-1][1].data)
                 else:
                     yield (self.combine_elems_fun(elem_list), i[-1][1].data)
 
-    def keys(self, as_lists=False):
+    def keys(self, join_elems=True):
         """Return a list of all the keys stored in the trie.  Note that the plus
         operator is assumed to be overloaded to combine separate elements into a
-        single key.  Setting as_lists=True can be used to return the keys as lists
+        single key.  Setting join_elems=False can be used to return the keys as lists
         of elements, without attempting to combine them."""
-        #return [ item[0] for item in self.iteritems(as_lists=as_lists) ]
-        return [key for key in self.iterkeys(as_lists=as_lists)]
+        #return [ item[0] for item in self.iteritems(join_elems=join_elems) ]
+        return [key for key in self.iterkeys(join_elems=join_elems)]
 
-    def iterkeys(self, as_lists=False):
+    def iterkeys(self, join_elems=True):
         """An iterator over the keys in the trie, see the keys method for details."""
-        for item in self.iteritems(as_lists=as_lists):
+        for item in self.iteritems(join_elems=join_elems):
             yield item[0]
 
     __iter__ = iterkeys # Iterators go over keys, like with Python dicts.
@@ -249,7 +271,7 @@ class TrieDict(collections.MutableMapping):
 
     def itervalues(self):
         """Iterate over the values stored in the trie."""
-        for item in self.iteritems(as_lists=True):
+        for item in self.iteritems(join_elems=False):
             yield item[1]
 
     def get_node(self, key_seq):
@@ -459,5 +481,10 @@ class TrieDict(collections.MutableMapping):
         if node == self.root: print("\n")
         return do_indent
 
+#
+# Exceptions.
+#
 
+class TrieDictError(TyppedBaseException):
+    pass
 

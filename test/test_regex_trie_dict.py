@@ -267,11 +267,11 @@ def mapping_invariants(m):
 def test_basic_RegexTrieDict_operations():
     """Very basic inserts, deletes, etc."""
     td = RegexTrieDict()
-    assert sorted(td.keys(as_lists=True)) == []
+    assert sorted(td.keys(join_elems=False)) == []
     assert sorted(td.keys()) == []
     assert len(td) == 0
     td["eggsalad"] = "x"
-    assert td.keys(as_lists=True) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
+    assert td.keys(join_elems=False) == [["e", "g", "g", "s", "a", "l", "a", "d"]]
     assert len(td) == 1
     mapping_invariants(td)
     td["egg"] = "eeee"
@@ -951,12 +951,12 @@ def test_TrieDict_with_non_string_sequences():
                          l_wildcard=("[",), r_wildcard=("]",), range_elem=("-",),
                          wildcard_patt_match_fun=myPattMatchFun, canonicalize_fun=None)
 
-    # keys, note this fails without as_lists=True because we have not properly defined
+    # keys, note this fails without join_elems=False because we have not properly defined
     # the plus operator to "add" two elements into a sequence.
     rtd.insert([("A",), ("B",), ("C",)])
     rtd.insert([("D",), ("E",), ("F",)])
-    #print(rtd.keys(as_lists=True))
-    keys = rtd.keys(as_lists=True)
+    #print(rtd.keys(join_elems=False))
+    keys = rtd.keys(join_elems=False)
     assert (keys == [[("A",), ("B",), ("C",)], [("D",), ("E",), ("F",)]] or
             keys == [[("D",), ("E",), ("F",)], [("A",), ("B",), ("C",)]])
 

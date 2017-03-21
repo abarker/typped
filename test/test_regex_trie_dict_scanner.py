@@ -14,6 +14,30 @@ from py.test import raises, fail
 # Test TrieDictScanner.
 #
 
+def test_usage_example():
+    """Test example usage from intro documentation."""
+
+    td = RegexTrieDict()
+    scanner = RegexTreeDictScanner(td)
+
+    # Text string may instead be a realtime string of chars.
+    text_string = "test string here"
+
+    for char in text_string:
+        prefix_match_list = scanner.add_text_elem(text)
+        if prefix_match_list:
+            for match in prefix_match_list:
+                print("Matched a prefix:", match)
+
+    # For a fixed-length string we need to assert that all the characters
+    # have been entered to get any final matches.
+    final_matches = scanner.assert_end_of_text()
+    for match in final_matches:
+        print("Matched a prefix:", match)
+
+    print("The prefix of this suffix-sequence of characters never matched:")
+    print("".join(scanner.curr_prefix_text))
+
 def test_TrieDictScannerBasic():
     td = RegexTrieDict()
     scanner = RegexTrieDictScanner(td)
@@ -66,7 +90,7 @@ def test_TrieDictScannerBasic():
 def test_trieDictTokenizeMore():
     skip()
     td = RegexTrieDict()
-    tok = RegexTrieDictScanner(td)
+    scanner = RegexTrieDictScanner(td)
     bugString = "oneonefive\none"
     td["\n"] = ("whitespace", None)
     td["one"] = ("var", 1); td["two"] = ("var", 2); td["three"] = ("var", 3)
@@ -76,10 +100,10 @@ def test_trieDictTokenizeMore():
     td["fourfour"] = ("var2", 4); td["fivefive"] = ("var2", 5)
     td.print_tree()
     for st in bugString:
-        tok.add_text_elem(st)
-    tok.assert_end_of_seq()
+        scanner.add_text_elem(st)
+    scanner.assert_end_of_seq()
     print()
-    print(tok.get_token_data_deque())
+    print(scanner.get_token_data_deque())
     print()
     print(td["one"])
 
