@@ -18,13 +18,13 @@ def test_usage_example():
     """Test example usage from intro documentation."""
 
     td = RegexTrieDict()
-    scanner = RegexTreeDictScanner(td)
+    scanner = RegexTrieDictScanner(td)
 
     # Text string may instead be a realtime string of chars.
     text_string = "test string here"
 
     for char in text_string:
-        prefix_match_list = scanner.add_text_elem(text)
+        prefix_match_list = scanner.add_text_elem(char)
         if prefix_match_list:
             for match in prefix_match_list:
                 print("Matched a prefix:", match)
@@ -36,7 +36,8 @@ def test_usage_example():
         print("Matched a prefix:", match)
 
     print("The prefix of this suffix-sequence of characters never matched:")
-    print("".join(scanner.curr_prefix_text))
+    print(scanner.curr_prefix_text)
+    fail()
 
 def test_TrieDictScannerBasic():
     td = RegexTrieDict()
@@ -64,7 +65,7 @@ def test_TrieDictScannerBasic():
         print("Current scanner prefix:", scanner_text)
         last_matches = scanner.matching_nodes
         print("Last matches on inserting", c, "are", last_matches)
-        all_states = scanner.matcher.node_data_list
+        all_states = scanner.prefix_matcher.node_data_list
         print("All states on inserting", c, "are", all_states)
         print()
 
@@ -78,13 +79,13 @@ def test_TrieDictScannerBasic():
     scanner.add_text_elem("x")
     scanner.print_token_deque()
 
-    scanner.reset_seq()
+    scanner.reset_text()
     scanner.clear_token_data_deque()
     testString = "moneypursemoneysxegg"
     print(testString)
     for char in testString:
         scanner.add_text_elem(char)
-    scanner.assert_end_of_seq()
+    scanner.assert_end_of_text()
     print(scanner.get_token_data_deque())
 
 def test_trieDictTokenizeMore():
@@ -101,7 +102,7 @@ def test_trieDictTokenizeMore():
     td.print_tree()
     for st in bugString:
         scanner.add_text_elem(st)
-    scanner.assert_end_of_seq()
+    scanner.assert_end_of_text()
     print()
     print(scanner.get_token_data_deque())
     print()
@@ -121,7 +122,7 @@ def test_trieDictTokenizeMore():
    print("test string:", testStr)
    for char in testStr:
       tok.add_text_elem(char)
-   tok.assert_end_of_seq()
+   tok.assert_end_of_text()
    tok.print_token_deque()
 
    """

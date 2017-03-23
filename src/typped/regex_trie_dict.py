@@ -474,7 +474,9 @@ from .shared_settings_and_exceptions import TyppedBaseException
 class NodeStateData(object):
     """This class is used in pattern-searches.  It is just a fancy data-record,
     essentially a mutable named tuple.  Each state of a multi-state recognizer
-    is represented by an instance of this class.
+    is represented by an instance of this class.  The main component is a node
+    in the trie, but other data is also kept.  The state "moves" in the trie
+    as part of pattern matching by updating its current node.
 
     A `NodeStateData` is initialized by passing all the stored items to the
     initializer, just like initializing a tuple.  Alternately, you can use
@@ -493,7 +495,7 @@ class NodeStateData(object):
     stores a dict for looking up the children of any visited state, and they
     are all restricted to the single path that they took previously.  This way,
     looping back in a repetition always gives the same pattern prefix.  (States
-    are also split into two or more states, as necessary, and run in parallel
+    can also split into two or more states, as necessary, and run in parallel
     essentially as an NFA.)  Patterns within 'or' groups inside a repetition
     need to be treated similarly, since they may match a different section on
     each repetition.
@@ -504,29 +506,28 @@ class NodeStateData(object):
     element `self.escape`.
 
     The stacks attributes are used to keep track of looping in repetition
-    patterns.
+    patterns.  A stack is used because the loops can be nested.  The
+    `loopback_stack` contains a pointer to the place in the trie where the
+    loop should loop back to, like with a goto.  The `loop_counter_stack`
+    contains the current loop count.  The `loop_bounds_stack` contains the
+    defined bounds for the loop.
 
-    The `bound_node_child_dict` is used to overload the children of the node,
+    The `bound_node_child_dict` is used to override the children of the node,
     so that the same path down the trie is always followed in a repetition
     loop.  With only one regex this would not be needed, but remember that the
-    trie contains many regexes.  A repetition loop which goes back in the trie
-    must be fixed to a single pattern, i.e., the path it took the first time
-    through the loop.  Otherwise there will be "crosstalk" between the
-    different stored patterns.
+    trie contains many regexes being searched in parallel with an implicit "or"
+    between them.  A repetition loop which goes back in the trie must be fixed
+    to a single pattern, i.e., the path it took the first time through the
+    loop.  Otherwise there will be "crosstalk" between the different stored
+    patterns.
 
     The `visited_rep_node_id_set` set is a set of the ids of all the loopback
     repetition nodes visited, but it is reset each time a literal element
     matches the query element (i.e., on a literal or a wildcard match).  This
     is used to avoid infinite recursion in processing repetition patterns which
-    match zero elements."""
-
-    # Note that this does not inherit from collections.Sequence because then
-    # arbitrary attribute assignments are the allowed.  That misses spelling
-    # errors and presumably defeats the purpose of __slots__ by having a dict
-    # per instance.  Note that the implemented methods are sufficient to loop
-    # over NodeStateData objects in for-loops, convert to a tuple or list, etc.
+    match zero elements, i.e., which match the empty string."""
     # If slots are causing problems (such as with pickling) you can just globally
-    # substitute some other variable name, like _slots, for __slots__ and
+    # substitute some other variable name, like `_slots`, for `__slots__` and
     # things should still work (but more space will be used in pattern matches).
     __slots__ = ["node", "node_is_escape", "loopback_stack",
                  "loop_counter_stack", "loop_bounds_stack",
@@ -539,13 +540,14 @@ class NodeStateData(object):
 
     def set_vals(self, *val_list, **kw_vals):
         """Set the values in the `NodeStateData` instance."""
-        if val_list: # either list or kwargs, not both
+        if val_list: # Either args or kwargs, not both.  If args then all args.
             if len(val_list) != 7:
-                raise IndexError
+                raise IndexError("Need seven arguments for NodeStateData object, only"
+                        " {0} found.".format(len(val_list)))
             for count, var in enumerate(self.__slots__):
                 self.__setattr__(var, val_list[count])
         else:
-            for key in kw_vals.iterkeys():
+            for key in kw_vals.keys():
                 self.__setattr__(key, kw_vals[key])
 
     def __getitem__(self, index):
@@ -591,6 +593,7 @@ class NodeStateData(object):
         string += ", ".join("{0}={1}".format(slotname,
                     getattr(self, slotname).__repr__()) for slotname in self.__slots__)
         return string + ")"
+
 
 class NodeStateDataList(collections.MutableSequence):
     """This is essentially just a list, used to hold a collection of
@@ -664,7 +667,7 @@ class NodeStateDataList(collections.MutableSequence):
             #if node_data.loop_counter_stack[-1] == 1 and len(children_dict) > 1:
             node_data_copy.set_child(query_elem) # fix to one child
         else:
-            node_data_copy.bound_node_child_dict = {} # can't loop back, free the memory
+            node_data_copy.bound_node_child_dict = {} # Can't loop back, free the memory.
         node_data_copy.node = children_dict[query_elem]
 
         # Set node_is_escape if that arg is given.
@@ -690,7 +693,8 @@ class MagicElem(object):
         return "({0})".format(self.type_of_magic)
 
 magic_elem_never_matches = MagicElem("never_matches")
-magic_elem_always_matches = MagicElem("always_matches") # Not implemented, consider...
+# TODO: Always match is partially implemented, get working or delete all places.
+magic_elem_always_matches = MagicElem("always_matches")
 
 # TODO maybe add a non-greedy flag which will work on prexix-matches
 # and return the first matches only.  Maybe.  Still might be nice to
@@ -701,6 +705,7 @@ class RegexTrieDict(TrieDict):
     """Subclass of the `TrieDict` class which adds regex processing for patterns
     stored in the trie."""
     magic_elem_never_matches = magic_elem_never_matches # Convenient in class namespace.
+    magic_elem_always_matches = magic_elem_always_matches # Convenient in class namespace.
 
     def __init__(self, *args, **kwds):
         """Initialize the `RegexTrieDict` instance.  All arguments are simply passed
@@ -1015,7 +1020,7 @@ class RegexTrieDict(TrieDict):
         matcher = PrefixMatcher(self)
         for elem in key_seq:
             matcher.add_key_elem(elem)
-            if matcher.cannot_match():
+            if not matcher.node_data_list: # No more states in matcher.
                 matcher.reset()
                 return 0 # No more nodes, can't match.
         retval = matcher.has_key_meta()
@@ -1032,7 +1037,7 @@ class RegexTrieDict(TrieDict):
         matcher = PrefixMatcher(self)
         for elem in key_seq:
             matcher.add_key_elem(elem)
-            if matcher.cannot_match():
+            if not matcher.node_data_list: # No more states in matcher.
                 matcher.reset()
                 return default # No more nodes, can't match.
         retval = matcher.get_meta(default=default)
@@ -1186,6 +1191,13 @@ class RegexTrieDict(TrieDict):
             if query_elem is self.magic_elem_never_matches:
                 next_node_data_list.append(node_data) # Just keep the node itself.
 
+            elif query_elem is self.magic_elem_always_matches:
+                children_dict = node_data.children()
+                for query_elem in children_dict:
+                    # TODO: consider breaking after first if only testing for cannot_match
+                    next_node_data_list.append_child_node(query_elem, node_data,
+                                                 node_is_escape=False)
+
             elif query_elem == self.escape:
                 # Can't match because node is neither an escaped escape char nor
                 # a meta-pattern.  TODO, is this really needed?  Explain more if so,
@@ -1304,17 +1316,20 @@ class RegexTrieDict(TrieDict):
         return # `from process_node_data`
 
     def handle_wildcards(self, node_data, query_elem, next_node_data_list):
-        """Handle wildcard patterns in meta-processing the trie."""
-        # Generate all the subtree `r_wildcard` nodes, checking that the
-        # pattern matches.
-
+        """Handle wildcard patterns in meta-processing the trie.  The
+        `next_node_data` list is appended to for all matches."""
         node_data.visited_rep_node_id_set = set() # got an actual elem, reset
 
         # Magic elem doesn't match any char; just put current node on
         # next_node_data_list (so `is_last_elem_of_key` can be checked).
+        always_match = False
         if query_elem is self.magic_elem_never_matches:
             next_node_data_list.append(node_data) # just keep the node itself
+            return
+        elif query_elem is self.magic_elem_always_matches:
+            always_match = True
 
+        # Generate all the wildcard patterns (several can share same prefix in trie).
         wildcard_patt_gen = self.get_dfs_gen(node_data.children()[self.l_wildcard],
                               include_root=True, copies=False,
                               child_fun=node_data.children,
@@ -1336,8 +1351,8 @@ class RegexTrieDict(TrieDict):
             #    end-element to have one child (the new NodeStateData now
             #    represents just one pattern instance, not the full subtree).
             # 3) Append the node to next_node_data_list.
-            if self.wildcard_patt_match_fun(query_elem, pattern,
-                                         self.range_elem, self.escape):
+            if always_match or self.wildcard_patt_match_fun(query_elem, pattern,
+                                                    self.range_elem, self.escape):
                 node_data_copy = node_data.copy()
                 node_data_copy.set_child(self.l_wildcard)
 
@@ -1710,11 +1725,19 @@ class PrefixMatcher(object):
 
     def cannot_match(self):
         """Return `True` if no matches are possible with further elements
-        inserted with `next_key_elem`.  This is determined by whether or not
-        there are any active patterns in next state, by passing it a magic
-        element that matches anything."""
+        inserted with `next_key_elem`."""
+        # Consider or delete: This is determined by whether or not
+        # there are any active patterns in next state, by passing it a magic
+        # element that matches anything."""
         # TODO: Need more analysis of the data to tell sooner!
-        return not self.node_data_list
+
+        if not self.node_data_list: # No states at all remain; definitely cannot match.
+            return True
+
+        # Some states active, see if a magic always-match leaves any of them.
+        # Some may be loops that would expire on the next iteration, for example.
+        always_match_next_data_list = self.get_always_match_node_state_data_list()
+        return not always_match_next_data_list
 
     def _set_to_root(self):
         """Utility routine to set the state back to the root of the trie."""
@@ -1774,11 +1797,27 @@ class PrefixMatcher(object):
         tmp_node_data_list = self.rtd.get_next_nodes_meta(magic_elem,
                                                           self.node_data_list)
         valid_match_node_data_list = []
-        for node in tmp_node_data_list:
-            if not node[0].is_last_elem_of_key:
+        for node_data in tmp_node_data_list:
+            node = node_data[0]
+            if not node.is_last_elem_of_key:
                 continue
-            valid_match_node_data_list.append(node)
+            valid_match_node_data_list.append(node_data)
         return valid_match_node_data_list
+
+    def get_always_match_node_state_data_list(self):
+        """Get the next node state data list assuming a magic "always match"
+        character is entered."""
+        # First use `get_next_nodes_meta` to "insert" a magic element in the
+        # trie which always matches.
+        # Note that the trie itself is not modified: The resulting
+        # node data list is saved in a temporary list (not affecting the real,
+        # persistent `self.node_data_list` for this `PrefixMatcher` instance).
+        # This has the side-effect of moving us past any `self.r_group` closing
+        # elements, as well as past any patterns which can match zero times.
+        magic_elem = self.rtd.magic_elem_always_matches
+        new_node_data_list = self.rtd.get_next_nodes_meta(magic_elem,
+                                                          self.node_data_list)
+        return new_node_data_list
 
     def get_meta(self, default=[], raw_nodes=False):
         """Return a list of the data items of all the stored strings which
@@ -1830,15 +1869,16 @@ def char_pattern_match_test(query_elem, patt_list, range_elem, escape_elem):
     characters in Python regex wildcards (character sets) to be used.  This is
     the default routine set in `define_meta_elems` as `wildcard_patt_match_fun`, for
     when elements are characters."""
-    # Can this ever be passed a MagicElem?  Handle below, just in case.
-    if query_elem is magic_elem_never_matches:
-        return False
-
     if not patt_list:
         raise PatternMatchError("No pattern in wildcard brackets.")
 
     # print("debug char_pattern_match_test, query elem is", query_elem, "patt_list
     # is", patt_list)
+
+    # Can this ever be passed a MagicElem?  Handle below, just in case.
+    #if query_elem is magic_elem_never_matches:
+    #    return False
+
 
     patt_tuple_list = process_elem_list_for_escapes(patt_list, escape_elem)
     #print("debug elemList processed for escapes is", patt_tuple_list)
@@ -1879,11 +1919,11 @@ def generic_wildcard_match_fun(query_elem, patt_list, range_elem, escape_elem,
     needs to be defined.  The argument patt_list is the content of a wildcard
     bracket, as a list of elements.  This function tests whether query_elem
     matches the character pattern.  To simply redefine the range-test function
-    for elements, use something like:
+    for elements, use something like::
 
        def myPattMatchFun(query_elem, patt_list, range_elem, escape_elem):
-          return generic_wildcard_match_fun(query_elem, patt_list, range_elem, escape_elem,
-                                         range_test_fun=myRangeTestFun)
+           return generic_wildcard_match_fun(query_elem, patt_list, range_elem,
+                                    escape_elem, range_test_fun=myRangeTestFun)
 
     Then in calling `define_meta_elems` define `wildcard_patt_match_fun=myPattMatchFun`.
     """
