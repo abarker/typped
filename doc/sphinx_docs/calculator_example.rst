@@ -118,8 +118,11 @@ The read-evaluate-print loop
 
 Continuing with the top-down presentation, the REP loop is shown next.  The
 code is basic Python, and can be skimmed by people familiar with the language.
-(The `cmd` module in the standard Python library could have been used instead.)
 The code does show how a Typped parser is used at the higher level.
+
+The `cmd` module in the standard Python library be used instead.  The actual
+example file also has a version of the function that is implemented using that
+library.
 
 .. code-block:: python
 
@@ -132,7 +135,7 @@ The code does show how a Typped parser is used at the higher level.
        except NameError:
            read_input = input # Python 3.
 
-       print("Enter ^C to exit, and 'toggletree' to toggle tree display.")
+       print("Enter ^C to exit, and 'toggle' to toggle tree display.")
 
        show_tree = False # Toggled in the loop below.
        while True:
@@ -143,24 +146,22 @@ The code does show how a Typped parser is used at the higher level.
                break
            if not line:
                continue
-
-           if line == "toggletree":
+           if line == "toggle":
                show_tree = not show_tree
+           elif line.strip().startswith("#"): # Tries to parse empty line.
                continue
 
            try:
                parse_tree = parser.parse(line)
                eval_value = parse_tree.eval_subtree()
-           except pp.CalledEndTokenHandler:
-               continue # Comment on empty line, don't show error message.
            except (ValueError, ZeroDivisionError,
                    pp.ParserException, pp.LexerException) as e:
                print(e)
                continue
-           else:
-               if show_tree:
-                   print("\n", parse_tree.tree_repr(), sep="")
-               print(eval_value)
+
+           if show_tree:
+               print("\n", parse_tree.tree_repr(), sep="")
+           print(eval_value)
 
 The code starts by importing ``readline``.  Just importing that module provides
 nice features for the Python ``input`` command, such as command history with the
@@ -168,7 +169,7 @@ up and down arrows.  The code then prints a prompt and waits for the user to
 enter a line, which should contain an expression in the calculator language.
 
 Notice that ^C can be used to exit the program.  If the user types in the
-command ``toggletree`` it will toggle the printing of expression trees for the
+command ``toggle`` it will toggle the printing of expression trees for the
 user-entered expressions.
 
 The passed-in ``parser`` argument is used inside a ``try`` loop in order to catch
@@ -339,12 +340,13 @@ Each overload can have a different evaluation function.  In this case the
 two-place version takes an extra argument giving the base, like in the Python
 math library (which uses a default argument).  The default base is e.
 
-At this point we have a working calculator.  The calculator can run just using
-the language defined so far.  The next functions just add extra features.
+At this point we have a working calculator.  The code up to here can be run to
+do basic operations.  The next group of functions just add extra features to
+the calculator.
 
-The previous function defined all the usual functions, but it did not define
-the juxtaposition operator.  This function defines the juxtaposition operator
-as a synonym for multiplication.
+The previous function defined all the usual arithmetic functions, but it did
+not define the juxtaposition operator.  This function defines the juxtaposition
+operator as a synonym for multiplication.
 
 .. code-block:: python
 

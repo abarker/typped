@@ -1,68 +1,97 @@
 # -*- coding: utf-8 -*-
 """
 
-The `Lexer` class is a general lexer/scanner/tokenizer module.  It was meant to
-be used by the `PrattParser` class, but it could also be used for other lexical
-scanning applications.
+A `Lexer` class instance is a general lexer/scanner/tokenizer.  It was designed
+to be used by the `PrattParser` class, but it can also be used for other
+lexical scanning applications.
 
 The general purpose of the `Lexer` is to take a string of text and produce a
-corresponding string of tokens.  The tokens themselves are defined by the user,
-with a string label and a regex pattern that is searched for in the program
-text.  A `Lexer` class is a generator that sequentially produces tokens.  It is
-also an iterator, so after initialization with text it can be used in loops,
-etc.
+corresponding sequence of tokens from the text.  The set of possible tokens is
+defined by the user, with a string label and a regex pattern that is searched
+for in the program text.  Once initialized with text a `Lexer` instance is a
+generator which sequentially produces tokens with its `next` method.  It is
+also an iterator, so it can be used in loops, etc.
 
-With some lexers the order in which tokens are defined is significant.  The
+With some lexers the order in which tokens are defined is significant.  They
+match regexes from a list of regexes, taking the first match without regard
+to the length of the match.  The
 `Lexer` class was designed to function independently of the order in which
-tokens are defined.  This allows token definitions to be either put in one
+tokens are defined.  The longest match is always returned, with ties broken
+by an explicit priority mechanism.  This allows token definitions to be
+organized in various ways.   They can all be done in one
 place or spread around in the code in any order, however the programmer wants
-to organize things.  It makes priorities explicit rather than being implicitly
-defined by ordering.
+to do it.
 
-A token for a left parenthesis, for example, would be defined like this::
+Defining tokens
+===============
 
-    lexer.def_token("k_lpar", r"lpar")
+This section describes the low-level definition of tokens when using `Lexer` as
+a standalone application.  To use tokens with a `PrattParser` instance, though,
+you need to use the corresponding `def_token` method of the `PrattParser`
+class.  That class adds extra attributes, methods, etc., to the tokens.  The
+interface is generally the same.
 
-The string `k_lpar` is a label for the token.  (The use of the string prefix
-`k_` is a naming convention for string token labels).  Similarly, an identifier
-could be defined like this::
+A token for a left parenthesis would be defined like this::
 
-    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    lex = typped.Lexer()
+    lex.def_token("k_lpar", r"lpar")
+
+The string `k_lpar` is a label for the token.  The use of the string prefix
+"`k_`" is a naming convention for token labels.  An identifier token could be
+defined like this::
+
+    lex.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
 Notice that in the definition of the identifier the keyword argument `on_ties`
-is set to -1.  The lexer will by default always match the longest string which
-matches some defined regex pattern for a token.  If there is a tie then by
-default an exception will be raised.  The `on_ties` value is used to break
-ties; strings with the same length are sorted by that value.  The default
-`on_ties` value is 0.  Suppose you also wanted a token for the string `mod`,
-and defined it as::
+is set to -1.  The lexer will by default always choose the longest string which
+matches a defined regex pattern for a token.  If there is a tie then, by
+default, an exception will be raised.  The `on_ties` value is used to break
+ties; strings of the same length are sorted by that value and the
+highest-priority string is chosen.  The default `on_ties` value is `0`.  Suppose
+you also wanted a token for the string `mod`, and defined it as::
 
-    lexer.def_token("k_mod", r"mod")
+    lex.def_token("k_mod", r"mod")
 
 Since this token has a higher `on_ties` value, it will always take precedence over
-the identifier token (even though both match and have the same length).
+the identifier token, even though both match and have the same length.
 
-The lexer assumes sentinel begin-token and end-token tokens, which must be
-explicitly defined using either the `def_begin_end_tokens` method or else by
-setting the `default_begin_end_tokens` flag to `True` when initializing the
-lexer.  The begin-token is never explicitly returned.  After the call to
-`set_text`, before any calls to `next`, the begin-token is the current token
-`lexer.token`.  After the end of the text the `next` method explicitly returns
-one end-token.  Calling `next` on that end-token raises `StopIteration` and
-halts the lexing of the currently-set text.  All peeks beyond the end of the
-text are reported as end-tokens.
+Begin and end tokens
+====================
+
+The lexer uses sentinel begin-token and end-token tokens for the beginning and
+the end of the token sequence for text.  These tokens must be explicitly
+defined (i.e., given string labels) either by calling `def_begin_end_tokens`::
+
+    lex.def_begin_end_tokens("k_begin", "k_end")
+
+or else by setting the `default_begin_end_tokens` flag to `True` when
+initializing the lexer::
+
+    lex = Lexer(def_begin_end_tokens=True)
+
+The default tokens have the labels `k_begin` and `k_end`.
+
+The begin-token is never explicitly returned.  After the call to `set_text` to
+define the text to tokenize and before any calls to `next` the begin-token is
+the current token `lexer.token`.  So `lex.token` and `lex.peek(0)` would both
+return the begin token.
+
+After the end of the text the `next` method explicitly returns one end-token.
+Calling `next` again raises `StopIteration` and halts the lexing of the
+currently-set text.  All peeks beyond the end of the text are reported as
+end-tokens.
 
 Using the lexer
----------------
+===============
 
 This is a simple example of using the lexer.  Notice that multiple token definitions
 can be combined using the `def_multi_tokens` method.::
 
     lex = Lexer()
 
-    lex.def_begin_end_tokens("begin", "end")
-    lex.def_token("space", r"[ \\t]+", ignore=True) # note + NOT *
-    lex.def_token("newline", r"[\\n\\f\\r\\v]+", ignore=True) # note + NOT *
+    lex.def_begin_end_tokens("k_begin", "k_end")
+    lex.def_token("k_space", r"[ \\t]+", ignore=True) # note + NOT *
+    lex.def_token("k_newline", r"[\\n\\f\\r\\v]+", ignore=True) # note + NOT *
     tokens = [
         ("k_identifier", r"[a-zA-Z_](?:\w*)")
         ("k_plus", r"\+")
@@ -80,12 +109,48 @@ The result is as follows:
     <k_identifier,x>
     <k_plus,+>
     <k_identifier,y>
-    <end,None>
+    <k_end,None>
 
 Notice that the end-token is actually returned, but the begin-token is not.
+The method `def_default_whitespace` could alternately be used to define the
+whitespace tokens.
+
+User-accessible methods and attributes of `Lexer`
+=================================================
+
+The lexer class has many utility methods and user-accessible attributes.  Some
+of the main ones are listed here.  One of the most commonly-accessed attributes
+of a lexer `lex` is the current token, `lex.token`.
+
+General methods:
+
+* `next` --- return the next token
+* `peek` --- peek at the next token without consuming it
+* `go_back` --- go back in the text stream by some number of tokens
+
+Helper methods:
+
+* `match_next` --- matches the specified token, with various options
+* `in_ignored_tokens` --- test if some specified token is ignored after the current one
+* `no_ignored_after` --- true if no ignored tokens immediately follow current token
+* `no_ignored_before` --- true if no ignored tokens immediately preceed current token
+
+Some boolean-valued informational methods:
+
+* `curr_token_is_first` --- true if the current token is the first returned
+* `text_is_set` --- true only when text is currently set for scanning
+
+Other attributes:
+
+* `token` --- the current token (the most recent one returned by `next`)
+* `all_tokens_count` --- num of tokens since text was set (begin and end not counted)
+* `default_helper_exception` --- the default exception for helpers like `match_next`
+* `text_is_set` --- whether or not text has been set for the lexer
+
+TODO, list more, and why not make some of these methods of `TokenNode` instead?
 
 User-accessible attributes of tokens
-------------------------------------
+====================================
 
 The tokens returned by the lexer are instances of a subclass of the class
 `TokenNode` (named that since the parser combines them into the nodes of a
@@ -98,59 +163,26 @@ identifiers.
 
 User-accessible methods of tokens.
 
-* `is_begin_token` -- true when tokens is a begin token
-* `is_end_token` -- true when tokens is a end token
-* `is_begin_or_end_token` -- true when tokens is a begin_or_end_token
-* `ignored_before_labels` -- just the token labels of the tokens ignored before
+* `is_begin_token` --- true when tokens is a begin token
+* `is_end_token` --- true when tokens is a end token
+* `is_begin_or_end_token` --- true when tokens is a begin_or_end_token
+* `ignored_before_labels` --- just the token labels of the tokens ignored before
 For a token named `t`, these attributes are available:
 
-* `t.token_label` -- the string label of the token (which was defined with it)
-* `t.value` -- the string value for the token, found in the lexed text
-* `t.is_first` -- true iff this is the first non-begin token in the text
-* `t.parent` -- can be set to the parent in a tree; set by the lexer to `None`
-* `t.children` -- can be set to a list of children; set by the lexer to `[]`
-* `t.original_matched_string` -- the original text that was consumed for this token
-* `t.line_and_char` -- tuple of line number and character where the token started
-* `t.char_index_in_program` -- the index of this token into the set program text
-* `t.ignored_before` -- a tuple of all tokens ignored immediately before this one
+* `t.token_label` --- the string label of the token (which was defined with it)
+* `t.value` --- the string value for the token, found in the lexed text
+* `t.is_first` --- true iff this is the first non-begin token in the text
+* `t.parent` --- can be set to the parent in a tree; set by the lexer to `None`
+* `t.children` --- can be set to a list of children; set by the lexer to `[]`
+* `t.original_matched_string` --- the original text that was consumed for this token
+* `t.line_and_char` --- tuple of line number and character where the token started
+* `t.char_index_in_program` --- the index of this token into the set program text
+* `t.ignored_before` --- a tuple of all tokens ignored immediately before this one
 
 TODO, list other methods, too.
 
-User-accessible methods and attributes of `Lexer`
--------------------------------------------------
-
-There are many utility methods of the lexer that users can call.  Only the main
-ones are listed here.  See the full documentation below.
-
-General methods:
-
-* `next` -- return the next token
-* `peek` -- peek at the next token without consuming it
-* `go_back` -- go back in the text stream by some number of tokens
-
-Helper methods:
-
-* `match_next` -- matches the specified token, with various options
-* `in_ignored_tokens` -- test if some specified token is ignored after the current one
-* `no_ignored_after` -- true if no ignored tokens immediately follow current token
-* `no_ignored_before` -- true if no ignored tokens immediately preceed current token
-
-Some boolean-valued informational methods:
-
-* `is_first` -- true only if the token passed in is the first token
-* `text_is_set` -- true only when text is currently set for scanning
-
-Other attributes:
-
-* `token` -- the current token (the most recent one returned by `next`)
-* `all_tokens_count` -- num of tokens since text was set (begin and end not counted)
-* `default_helper_exception` -- the default exception for helpers like `match_next`
-* `text_is_set` -- whether or not test has been set for the lexer
-
-TODO, list more, why not make some methods of `TokenNode` instead?
-
 Initialization options
-----------------------
+======================
 
 There are several options that can be set on initialization, including the
 level of token lookahead that is supported.
@@ -158,7 +190,7 @@ level of token lookahead that is supported.
 TODO
 
 Code
-----
+====
 
 """
 
@@ -240,10 +272,9 @@ class TokenNode(object):
         convenient type of node for the AST of a given application.  The
         function `convert_TokenNode_to_AST_node_fun` should take one argument,
         a `TokenNode` instance, and return an AST node instance for the
-        corresponding AST node.  Note that `ast_label` is an attribute of all
-        `TokenNode` instances in the final tree.  Any other attributes can be
-        copied over.  The AST nodes are only assumed to have an append_children
-        method which appends a child AST node."""
+        corresponding AST node.  The only requirement for the AST nodes is that
+        they have a method called `append_children`.  The `ast_data` attribute
+        of a node can be used to save information useful in the transformation."""
         ast_node = convert_TokenNode_to_AST_node_fun(self)
         for child in self.children:
             ast_node.append_children(
@@ -503,11 +534,15 @@ class TokenTable(object):
 
 class TokenBuffer(object):
     """An abstraction of the token buffer.  This is used internally by the
-    `Lexer` class and should usually not be accessed by users.  It is basically
-    a nice wrapper over an underlying deque.  Previous tokens are stored in
-    the same deque as the current and lookahead tokens.  The default indexing
-    is relative to the current token, at `current_offset`."""
+    `Lexer` class and should not usually be accessed by users.  It is basically
+    a nice wrapper over an underlying deque, but is complicated by the need to
+    save persistent state pointers into the buffer.  Previous tokens are stored
+    in the same deque as the current token and any lookahead tokens.  The
+    default indexing is relative to the current token, at `current_offset`,
+    which is zero for the current token.  (The current offset is itself
+    relative to a reference point, but users do not need to known that)."""
     def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
+        """Initialize the buffer."""
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
         self.max_peek = max_peek
@@ -515,12 +550,13 @@ class TokenBuffer(object):
         self.token_buffer = collections.deque(maxlen=None)
 
         # Indices are relative to current_offset, and current_offset is
-        # relative to reference_point.  A fixed-size deque can drop elements.
-        # The current_offset is not relative to 0 because then a saved one
-        # would become invalid when items are popped off the left of the deque.
-        # The reference point is decremented for every deque element popped off
-        # the left, and at no other time.  That way, the current offset can be
-        # saved and remain valid until the `TokenBuffer` is reset.
+        # relative to reference_point.  This is because a fixed-size deque can
+        # drop elements.  The current_offset is not relative to 0 because then
+        # a saved offset would become invalid when items are popped off the
+        # left of the deque.  The reference point is decremented for every
+        # deque element popped off the left, and at no other time.  That way,
+        # the current offset can be saved and remain valid until the
+        # `TokenBuffer` is reset (though the referenced item may get deleted).
         self.current_offset = 0
         self.reference_point = 0
 
@@ -539,8 +575,8 @@ class TokenBuffer(object):
         return state - self.reference_point
 
     def get_state(self):
-        """Return a state that will allow the `go_back` or `push_back` to return
-        to it later."""
+        """Return a buffer state indicator that can be returned to later.  The
+        `go_back` or `push_back` methods of the lexer use this."""
         return self._offset_to_absolute(self.current_offset)
 
     def __getitem__(self, index):
@@ -685,14 +721,13 @@ class GenTokenState:
     end = 2
     uninitialized = 3
 
-# The beginnings of a state tuple for the Lexer.  Not yet used at all.
+# The beginnings of a state tuple for the Lexer.  NOT YET USED AT ALL.
 LexerState = collections.namedtuple("LexerState", [
                            "x",
                            "y",
                         ])
 
 class Lexer(object):
-
     """Scans text and returns tokens, represented by instances of `TokenNode`
     subclass instances. There is one subclass for each kind of token, i.e., for
     each token label.  These subclasses themselves are assumed to have been
@@ -735,7 +770,7 @@ class Lexer(object):
 
     def reset(self, token_table=None, max_peek_tokens=None,
                  max_deque_size=None, default_begin_end_tokens=False):
-        """Return the parser to the initial state.  Takes the same arguments as
+        """Return the lexer to the initial state.  Takes the same arguments as
         the initializer."""
         self.text_is_set = False
         self.token = None
@@ -745,7 +780,7 @@ class Lexer(object):
             token_table = TokenTable()
         self.set_token_table(token_table)
 
-        self.token_buffer = TokenBuffer(self.unbuffered_token_getter,
+        self.token_buffer = TokenBuffer(self._unbuffered_token_getter,
                                                  max_peek=max_peek_tokens,
                                                  max_deque_size=max_deque_size)
 
@@ -882,9 +917,9 @@ class Lexer(object):
     def peek(self, num_toks=1):
         """Peek ahead in the token stream without consuming any tokens.  The
         argument `num_toks` is the number of tokens ahead to peek.  The default
-        peek of `numtoks=1` peeks at the token just beyond the current token.
+        peek of `num_toks=1` peeks at the token just beyond the current token.
         Peeking zero shows the current token.  Negative peeks are allowed, and
-        look back at the previous tokens (up to the number in the token
+        look back at the previous tokens (up to the number saved in the token
         buffer).
 
         Tokens are read into the buffer on-demand to satisfy any requested
@@ -900,13 +935,16 @@ class Lexer(object):
         return retval
 
     def move_back(self, num_toks=1, num_is_raw=False):
-        """Move the current token back in the token stream.  This is similar
-        to `go_back` but tokens are not rescanned.  The current position is
-        just moved within the token buffer.  This is more efficient
-        but it assumes that there have been no modifications, additions,
-        or deletions to the token definitions.  If the parser is guaranteed
-        to be static with respect to the tokens then this is the routine to
-        use.  Otherwise, use `go_back`.
+        """NOT YET IMPLEMENTED
+
+        Move the current token back in the token stream.  This method is
+        similar to methods commonly called `push_back`. It is similar to
+        `go_back` except that tokens are not rescanned.  The current position
+        in the token buffer is just moved back.  This is more efficient than
+        `go_back` but it assumes that there have been no modifications,
+        additions, or deletions to the token definitions.  If the parser is
+        guaranteed to be static with respect to the defined tokens then this is
+        the routine to use.  Otherwise, use `go_back`.
 
         The optional parameter `num_toks` is the number of tokens to move
         back.  Negative numbers move forward, consuming more tokens if
@@ -918,9 +956,10 @@ class Lexer(object):
         #
         # TODO use the token buffer's move_forward and move_back methods;
         # finish implementing them...
+        raise NotImplementedError
         if not self.text_is_set:
             raise LexerException(
-                    "Attempt to call lexer's go_back method when no text is set.")
+                    "Attempt to call lexer's move_back method when no text is set.")
         if self.token_generator_state == GenTokenState.uninitialized:
             raise LexerException("The token generator has not been initialized "
                   "or has reached `StopIteration` by reading past the end-token.")
@@ -1121,8 +1160,8 @@ class Lexer(object):
         `None` if no text is currently set.  The current token is assumed
         to have been processed.
 
-        By default this is relative to the current peek token, but the `peek`
-        number can be set to a previous or later one if available in the
+        By default this is relative to the token at a peek of `1`, but the
+        `peek` number can be set to a previous or later one if available in the
         buffer."""
         if not self.text_is_set:
             return None
@@ -1215,8 +1254,8 @@ class Lexer(object):
         This method consumes a token from the lexer if and only if there is a
         match.  Either way, a boolean is returned indicating the match status.
 
-        If `consume` is false then no tokens will ever be consumed.  Otherwise
-        a token will be consumed if and only if it matches.
+        If `consume` is false then no tokens will ever be consumed.  Otherwise,
+        and by default, a token will be consumed if and only if it matches.
 
         The parameter `peeklevel` is passed to the peek function for how far
         ahead to look; the default is one.
@@ -1288,9 +1327,9 @@ class Lexer(object):
         return retval
 
     def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
-        """Boolean function to test if any tokens were ignored between current token
-        and lookahead.  Like `match_next`, this method can be set to raise an
-        exception on success or failure."""
+        """A boolean utility function to test if any tokens were ignored
+        between current token and lookahead.  Like `match_next`, this method
+        can be set to raise an exception on success or failure."""
         retval = True
         if self.peek().ignored_before:
             retval = False
@@ -1315,7 +1354,7 @@ class Lexer(object):
         return retval
 
     def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
-        """Boolean function to test if any tokens were ignored between
+        """A boolean utility function to test if any tokens were ignored between
         previous token and current token.  Like `match_next`, this method
         can be set to raise an exception on success or failure."""
         retval = True
@@ -1342,7 +1381,7 @@ class Lexer(object):
     # Lower-level routine for token generation
     #
 
-    def unbuffered_token_getter(self):
+    def _unbuffered_token_getter(self):
         """This routine generates tokens from the program text in the attribute
         `self.program`.  It does not modify the program itself, but keeps slice
         indices in a list `self.prog_unprocessed` indexing the unprocessed

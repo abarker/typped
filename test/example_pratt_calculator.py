@@ -181,7 +181,7 @@ def read_eval_print_loop(parser):
     except NameError:
         read_input = input # Python 3.
 
-    print("Enter ^C to exit, and 'toggletree' to toggle tree display.")
+    print("Enter ^C to exit, and 'toggle' to toggle tree display.")
 
     show_tree = False # Toggled in the loop below.
     while True:
@@ -192,31 +192,73 @@ def read_eval_print_loop(parser):
             break
         if not line:
             continue
-
-        if line == "toggletree":
+        if line == "toggle":
             show_tree = not show_tree
+        elif line.strip().startswith("#"): # Tries to parse empty line.
             continue
 
         try:
             parse_tree = parser.parse(line)
             eval_value = parse_tree.eval_subtree()
-        except pp.CalledEndTokenHandler:
-            continue # Comment on empty line, don't show error message.
         except (ValueError, ZeroDivisionError,
                 pp.ParserException, pp.LexerException) as e:
             print(e)
             continue
-        else:
-            if show_tree:
+
+        if show_tree:
+            print("\n", parse_tree.tree_repr(), sep="")
+        print(eval_value)
+
+def cmd_read_evaluate_print_loop(parser):
+    """Use the Python library module `cmd` to do the read, evaluate, print loop."""
+    import cmd
+    import readline
+
+    class CalculatorREPL(cmd.Cmd):
+        """Simple command processor example."""
+        prompt = "> "
+        intro = ("Enter ^D to exit the calculator, 'help' for help. "
+                 " Toggle tree display with 'toggle'.")
+
+        def __init__(self):
+            self.show_tree = False
+            super(CalculatorREPL, self).__init__()
+
+        def default(self, line):
+            """Default action, parse and evaluate and expression."""
+            if line.strip().startswith("#"): # Tries to parse empty line.
+                return
+            try:
+                parse_tree = parser.parse(line)
+                eval_value = parse_tree.eval_subtree()
+            except (ValueError, ZeroDivisionError,
+                    pp.ParserException, pp.LexerException) as e:
+                print(e)
+
+            if self.show_tree:
                 print("\n", parse_tree.tree_repr(), sep="")
+
             print(eval_value)
+
+        def do_toggle(self, line):
+            """Toggle printing of expression trees."""
+            self.show_tree = not self.show_tree
+
+        def do_EOF(self, line):
+            """Exit on EOF."""
+            print("\nBye.")
+            return True
+
+    CalculatorREPL().cmdloop()
+
 
 def define_and_run_basic_calculator():
     """Get a parser, define the calculator language, and start the REP loop."""
 
     parser = pp.PrattParser()
     define_basic_calculator(parser)
-    read_eval_print_loop(parser)
+    #read_eval_print_loop(parser)
+    cmd_read_evaluate_print_loop(parser)
 
 if __name__ == "__main__":
 

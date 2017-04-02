@@ -2,7 +2,7 @@
 """
 
 Introduction
-------------
+============
 
 This module implements a nice frontend for parsing grammars using EBNF-like
 Python expressions.  The backend is the recursive-descent parsing capabilities
@@ -33,7 +33,7 @@ produce a parse tree.
 For more, see https://wiki.python.org/moin/LanguageParsing
 
 Terminology
------------
+===========
 
 * **Production rules**
   are the individual rewrite rules such as `<expression> ::= <term>` in a BNF
@@ -81,7 +81,7 @@ grammar is similar to a **parsing expression grammar (PEG)** rather than a
 https://en.wikipedia.org/wiki/Parsing_expression_grammar
 
 Implementation
---------------
+==============
 
 .. note::
 
@@ -118,7 +118,7 @@ Implementation
        Undo compile in the `Grammar` class.
 
 Wrapper functions
------------------
+=================
 
 Strings in the rule-defining expressions must be wrapped by some function call,
 even though allowing the plains strings would be convenient for rules or for
@@ -148,7 +148,7 @@ Function       Arguments                   Shortcut
 ============   =========================== ==========
 
 Overloaded operator API
------------------------
+=======================
 
 The basic objects that make up rule definitions are `Item` objects, `ItemList`
 objects, and `CaseList` objects.  The latter two are just list-like objects
@@ -237,7 +237,7 @@ TODO:
 
 
 Modifiers for items
--------------------
+===================
 
 Items can have several begin/end modifiers to indicate when special processing
 starts or ends.  These are stored in a list attribute called
@@ -250,7 +250,7 @@ Item or ItemList):
 * `"ZeroOrMore("`
 
 Operator precedences expressed in grammar
------------------------------------------
+=========================================
 
 In order to use Pratt-parser style operator precedences in a grammar two things
 must be done.
@@ -312,10 +312,10 @@ work...
 So the expression `x + y * z` will be evalated as `x + (y*z)`.
 
 Optimizing the grammar
-----------------------
+======================
 
 predictive parsing
-~~~~~~~~~~~~~~~~~~
+------------------
 
 In order to optimize the parsing of a recursive descent grammar, many
 grammars allow the use of **predictive parsing**, which requires no
@@ -339,7 +339,7 @@ Maybe also consider packrat parsing:
 https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars
 
 grammar transformations
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
 Not implemented.  Just an idea for now, but you could do any number of
 grammar transformations on the rules of a `Grammar` object.

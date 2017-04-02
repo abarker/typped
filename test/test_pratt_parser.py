@@ -595,4 +595,31 @@ def test_types_overloaded_return():
         parser.parse("f_nb2b(f_nb2b(2, f_nb2b(1,False)), 3)")
     assert str(e.value).startswith("Token node has multiple signatures with")
 
+def test_example_from_pratt_parser_dot_py_file():
+    parser = typped.PrattParser()
+
+    parser.def_default_whitespace() # Define default "k_space" and "k_newline" tokens.
+    parser.def_token("k_number", r"\d+")
+    parser.def_token("k_lpar", r"\(")
+    parser.def_token("k_rpar", r"\)")
+    parser.def_token("k_ast", r"\*")
+    parser.def_token("k_plus", r"\+")
+    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+
+    t_number = parser.def_type("t_number")
+    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
+    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+    parser.def_infix_op("k_plus", 10, "left",
+                     val_type=t_number, arg_types=[t_number, t_number],
+                     ast_data="a_add")
+    parser.def_infix_op("k_ast", 20, "left",
+                     val_type=t_number, arg_types=[t_number, t_number],
+                     ast_data="a_mult")
+    parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
+
+
+    result_tree = parser.parse("x + (4 + 3)*5")
+    print(result_tree.tree_repr())
+    #fail()
+
 

@@ -14,62 +14,77 @@ To use the `PrattParser` class you need to do these things:
           parser = PrattParser()
 
     2. Define each token that will appear in the language, including a string
-       label and a regex for to recognize that kind of token.  If necessary,
+       label and a regex to recognize that kind of token.  If necessary,
        the appropriate `on_ties` values can be set to break ties in case of equal
        match lengths (the lexer will always take the longest match over all the
        defined tokens, with ties broken by any `on_ties` values, defaulting to zero).
        Examples::
 
-          parser.def_token("k_number", r"\d+")
-          parser.def_token("k_lpar", r"\(")
-          parser.def_token("k_ast", r"\*")
-          parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+            parser.def_default_whitespace()
+            parser.def_token("k_number", r"\d+")
+            parser.def_token("k_lpar", r"\(")
+            parser.def_token("k_rpar", r"\)")
+            parser.def_token("k_ast", r"\*")
+            parser.def_token("k_plus", r"\+")
+            parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
-    3. Define the syntactical elements of the language that you are parsing.
-       Any necessary token labels must have already been defined in the
-       previous step.  The predefined syntax-definition methods of
-       `PrattParser` take as arguments token labels, type information, etc.
-       They also take an arbitrary piece of data such as a label for the
-       resulting AST node which can be used in any way desired (including in
-       preconditions).  Examples::
+    3. Define the syntactical elements of the language being parsed.  Any
+       necessary token labels must have already been defined as in the previous
+       step.  The predefined syntax-definition methods of `PrattParser` take as
+       arguments token labels, type information, etc.  They also allow for an
+       arbitrary piece of data `ast_data` which can be used in any way desired
+       (including in preconditions).  Example code, assuming the above tokens::
 
-          t_number = parser.def_type("t_number")
-          parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-          parser.def_infix_op("k_plus", 10, "left",
-                           val_type="number", arg_types=[t_number, t_number],
-                           ast_data="a_add")
+            t_number = parser.def_type("t_number") # Define a type.
+            parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
+            parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+            parser.def_infix_op("k_plus", 10, "left",
+                             val_type=t_number, arg_types=[t_number, t_number],
+                             ast_data="a_add")
+            parser.def_infix_op("k_ast", 20, "left",
+                             val_type=t_number, arg_types=[t_number, t_number],
+                             ast_data="a_mult")
+            parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
 
-       If the predefined methods are not sufficient you might need to create a
-       subclass of `PrattParser` to provide additional methods.  Note that
-       literal tokens must be defined as syntax in the grammar being parsed
-       after being defined as tokens (which are scanning scanned and returned
-       by the lexer).  If typing is being used then any type information should
-       also be set for the literal tokens, as syntax elements.
+       If the predefined parsing methods are not sufficient you might need to
+       write some custom parsing functions.  (Those are documented elsewhere
+       but you can look at the code of the predefined methods to see how it
+       works.)
 
-    4. Pass the parser a string of text to parse and save the resulting token
-      tree. ::
+       Note that literal tokens must still be defined as syntactical elements
+       of the grammar being parsed after being defined as tokens --- tokens
+       alone are simply scanned and returned by the lexer.  If typing is being
+       used then any type information should also be set for the literal
+       tokens since they are the leaves of the expression tree.
+
+       Defining types and using `val_type` and `arg_types` is optional, and in
+       this simple example does not really do anything since there is only one
+       type.
+
+       The `ast_data` fields set above are purely optional.  The ones set above
+       might be used, for example, to convert the returned expression tree to
+       an AST.
+
+    4. Pass the parser a string of text to parse and save the returned expression
+       tree.  The returned tree has token instances as its nodes. ::
 
           result_tree = parser.parse("x + (4 + 3)*5")
           print(result_tree.tree_repr())
 
+       The result of running the above code is::
+
+        <k_plus,'+'>
+            <k_identifier,'x'>
+            <k_ast,'*'>
+                <k_lpar,'('>
+                    <k_plus,'+'>
+                        <k_number,'4'>
+                        <k_number,'3'>
+                <k_number,'5'>
+
     5. You can optionally evaluate the resulting tree (if evaluate functions
        were supplied as kwargs for the appropriate methods), or convert it to an
-       AST with a different type of nodes.
-
-In reading the code, the correspondence between the naming convention used here
-and Pratt's original naming conventions is given in this table:
-
-+----------------------------------+--------------------------+
-| this code                        | Pratt's terminology      |
-+==================================+==========================+
-| token precedence                 | left binding power, lbp  |
-+----------------------------------+--------------------------+
-| subexpression precedence         | right binding power, rbp |
-+----------------------------------+--------------------------+
-| head handler function            | null denotation, nud     |
-+----------------------------------+--------------------------+
-| tail handler function            | left denotation, led     |
-+----------------------------------+--------------------------+
+       AST with some other kind of nodes.
 
 API details
 ===========
@@ -214,6 +229,21 @@ language but then fails to match a handler function.
 
 Code
 ====
+
+In reading the code, the correspondence between the naming convention used here
+and Pratt's original naming conventions is given in this table:
+
++----------------------------------+--------------------------+
+| This code                        | Pratt's terminology      |
++==================================+==========================+
+| token precedence                 | left binding power, lbp  |
++----------------------------------+--------------------------+
+| subexpression precedence         | right binding power, rbp |
++----------------------------------+--------------------------+
+| head handler function            | null denotation, nud     |
++----------------------------------+--------------------------+
+| tail handler function            | left denotation, led     |
++----------------------------------+--------------------------+
 
 """
 

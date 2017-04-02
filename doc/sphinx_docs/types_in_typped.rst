@@ -7,15 +7,24 @@ When types are defined and set up properly (using either the built-in methods
 of the ``PrattParser`` class or custom methods) the language will be
 automatically type-checked at parse-time.
 
+Only simple types are currently implemented (though the mechanism can easily be
+made more general).  As of now type are essentially just string labels which
+are equivalent iff the labels are the same.  At some point type heirarchies and
+type conversions may be added.
+
 The type system also allows for operator overloading, including optional
-overloading on return types.  Overloading currently has the mild restriction
-that all overloads defined for an infix operator must share the same precedence
-value.  Overloading is done by re-defining a handler for a token which already
-has a handler, but with a new type.  The default is to allow overloading only
-on argument types.  To disable all overloading, set
-``overload_on_arg_types=False`` in the ``PrattParser`` initializer.  To allow
-overloading on return types as well as argument types, set
-``overload_on_ret_types=True`` in the initializer.
+overloading on return types.  The default is to allow overloading only on
+argument types.  Overloading currently has the mild restriction that all
+overloads defined for an infix operator must share the same precedence value.
+To disable all overloading, set ``overload_on_arg_types=False`` in the
+``PrattParser`` initializer.  To allow overloading on return types as well as
+argument types, set ``overload_on_ret_types=True`` in the initializer.
+
+Overloading is specified by re-defining a handler for a token which already has
+a handler.  If the preconditions function is the same but the type of the
+arguments are different then an overloaded type specification is created.  If
+overloading on return types is allowed then the types are also considered
+different if the return type is different.
 
 Each handler function, head or tail, can have type information associated with
 it.  Recall that handler functions are one-to-one with tuples of the form
@@ -37,11 +46,6 @@ parse tree as it is constructed, making sure that the types of the children of
 a node (if any) match the declared argument types, and that the types of the
 nodes themselves match their declared value type.
 
-Only simple types are currently implemented (though the mechanism can easily be
-made more general).  As of now type are essentially just string labels which
-are equivalent iff the labels are the same.  At some point type heirarchies and
-type conversions may be added.
-
 Type signatures
 ---------------
 
@@ -55,37 +59,39 @@ if ``parser`` is a ``PrattParser`` instance then a type is declared as follows:
 After that, the Python variable ``t_int`` can be used as a type.  The
 individual types are instances of the class ``TypeObject``.
 
-The basic type specification for a node in the parse tree is the represented as
-an instance of the ``TypeSig`` class.  This data structure stores the value
-type of the node as an attribute ``val_type``, and stores the types of the
-children nodes (i.e., the function arguments) as a tuple ``arg_types``.
+The type specification for a node in the parse tree (which is also a token
+instance) is stored in an instance of the ``TypeSig`` class.  This data
+structure stores the value type of the node as an attribute ``val_type``, and
+stores the types of the children nodes (i.e., any function arguments) as a
+tuple ``arg_types``.
 
 The built-in parsing methods of the ``PrattParser`` class take arguments which
 correspond to the ``val_type`` and ``arg_types`` specifications, so many users
-will not need to use the ``TypeSig`` class explicitly.  This information is
-internally stored as a ``TypeSig`` instance, though, and the conventions (such
-as for wildcards with ``None``) also apply to the argument and value type
-specifications.
+will not need to explicitly use the ``TypeSig`` class.  That information is
+internally stored as a ``TypeSig`` instance, though, and the basic conventions
+(such as for wildcards with ``None``) also apply to the argument and value type
+parameters.
 
-These type specifications are fairly easy to use.  For example, using the type
-``t_int`` defined above, we might have:
+Using the type ``t_int`` defined above, we might have:
 
 .. code-block:: python
 
    sig = TypeSig(t_int, [t_int, t_int])
 
-This specifies a value type at a parse-tree node of ``t_int``, and two children
-which also both have type ``t_int``.  This specification would, for example, be
-used for a function of two variables such as ``gcd``, which takes two integers
-and returns another integer.  This type signature would be associated with the
-handler function of the token which ends up as the root of the parse-subtree
-representing the expression.
+This specifies a function (in the abstract sense) which takes two integer
+arguments and returns an integer.  In terms of the corresponding parse-tree
+node, it specifies that the node itself has a value of type ``t_int``, and that
+it has two child nodes which also both have values of type ``t_int``.  This
+might be used, for example, for a function of two variables such as ``gcd``
+which takes two integers and returns another integer.  Type signatures are
+associated with the handler function of the token which ends up as the root of
+the parse-subtree representing the expression.
 
-If the ``arg_types`` list (or iterable) is an individual type (a ``TypeObject``
-instance) rather than a list then any number of arguments/children are allowed,
-and they must all have that type.  For example, this would be the type
-specification for a function taking any number if ``t_int`` arguments and
-returning a ``t_int``:
+If the ``arg_types`` list (or iterable) is an individual type (i.e., a
+``TypeObject`` instance) rather than a list then any number of
+arguments/children are allowed, and they must all have that type.  For example,
+this would be the type specification for a function taking any number if
+``t_int`` arguments and returning a ``t_int``:
 
 .. code-block:: python
 
@@ -116,7 +122,7 @@ This one takes exactly three arguments, all unchecked:
 
 .. code-block:: python
 
-   TypeSig(None, [None, None, None]) == TypeSig(None, None*3)
+   TypeSig(None, [None, None, None]) == TypeSig(None, [None]*3)
 
 Finally, this type specification is for a function that takes two arguments,
 with the first a ``t_int`` and the second unchecked, returning a value that

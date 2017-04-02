@@ -309,9 +309,9 @@ def test_documentation_example():
 
     lex = Lexer()
 
-    lex.def_begin_end_tokens("begin", "end")
-    lex.def_token("space", r"[ \t]+", ignore=True) # note + NOT *
-    lex.def_token("newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
+    lex.def_begin_end_tokens("k_begin", "k_end")
+    lex.def_token("k_space", r"[ \t]+", ignore=True) # note + NOT *
+    lex.def_token("k_newline", r"[\n\f\r\v]+", ignore=True) # note + NOT *
     tokens = [
         ("k_identifier", r"[a-zA-Z_](?:\w*)"),
         ("k_plus", r"\+"),
@@ -330,7 +330,7 @@ def test_documentation_example():
     assert lst[0] == "<k_identifier,'x'>"
     assert lst[1] == "<k_plus,'+'>"
     assert lst[2] == "<k_identifier,'y'>"
-    assert lst[3] == "<end,None>"
+    assert lst[3] == "<k_end,None>"
 
     lex.set_text("x  + y")
     t = next(lex)
