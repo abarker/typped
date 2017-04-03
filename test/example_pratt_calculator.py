@@ -20,6 +20,9 @@ def define_general_tokens_and_literals(parser):
     """Define some general tokens and literals in the calculator language.
     Other tokens such as for functions in the language will be defined
     later."""
+    #
+    # Tokens.
+    #
 
     #whitespace_tokens = [
     #        ("k_space", r"[ \t]+"),       # Note + symbol, one or more, NOT * symbol.
@@ -92,7 +95,7 @@ def define_functions_and_operators(parser):
                       eval_fun=lambda t: math.sqrt(t[0].eval_subtree()))
 
     # Note that log is overloaded because different numbers of arguments are
-    # specified, and they have different eval funs.
+    # specified.  The two versions have different eval funs.
     parser.def_token("k_log", r"log")
     parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", num_args=1,
                       eval_fun=lambda t: math.log(t[0].eval_subtree()))
@@ -165,7 +168,6 @@ def define_comments(parser):
 
 def define_basic_calculator(parser):
     """Define the calculator language in the parser instance."""
-
     define_general_tokens_and_literals(parser)
     define_functions_and_operators(parser)
     define_juxtaposition_operators(parser)
@@ -254,11 +256,10 @@ def cmd_read_evaluate_print_loop(parser):
 
 def define_and_run_basic_calculator():
     """Get a parser, define the calculator language, and start the REP loop."""
-
     parser = pp.PrattParser()
     define_basic_calculator(parser)
-    #read_eval_print_loop(parser)
-    cmd_read_evaluate_print_loop(parser)
+    read_eval_print_loop(parser)
+    #cmd_read_evaluate_print_loop(parser)
 
 if __name__ == "__main__":
 

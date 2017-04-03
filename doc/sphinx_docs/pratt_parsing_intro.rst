@@ -18,31 +18,30 @@ obscurity for some years, but it has recently experienced something of a
 revival as a parsing technique that is well-suited for dynamic languages.
 
 The well-known recursive descent parsing algorithm is also a top-down,
-recursive parsing method.  In recursive descent parsing each *nonterminal in
-the grammar* (BNF, EBNF, etc.) of a language is associated with a function
+recursive parsing method.  In recursive descent parsing each nonterminal in
+the grammar of a language (BNF, EBNF, etc.) is associated with a function
 which is designed to parse productions for that nonterminal.  By contrast, in a
-Pratt parser each *type of token* has one or more functions associated with it.
+Pratt parser each type of token has one or more functions associated with it.
 These functions will be called **handler functions**, since they handle the
 parsing for that particular kind of token.
 
 Some of Pratt's original terminology is less-than-intuitive in a modern
 context.  That original terminology is still commonly used in descriptions of
-Pratt parsing and the code examples.  The Typped package instead uses an
-alternate terminology which is hopefully more intuitive --- at least in the
-context of a Python implementation.  The correspondences between the terms in
-Pratt's original terminology and the terms used in Typped are noted below when
-the terms are defined.  They are also summarized in a table below.
+Pratt parsing and in the example code.  The Typped package uses alternatative
+terminology which is hopefully more intuitive --- at least in the context of a
+Python implementation.  The correspondences between the terms in Pratt's
+original terminology and the terms used in Typped are noted below at the points
+where the terms are defined.  They are also summarized in a table.
 
 Basic assumptions
 -----------------
 
 In this discussion it is assumed that a lexical scanner (lexer) has been
-defined as ``lex`` and instantiated with the text to be parsed.  The lexer is
-assumed to provide a ``lex.next()`` function which returns the next token, and
-a ``lex.peek()`` function which peeks at the next token without consuming it.
-The **current token** is the last one returned by ``next``, and is also assumed
-to be available as ``lex.token`` from the lexer.  The parser will consume tokens
-from the lexer.
+defined as ``lex``.  The lexer is assumed to provide a ``lex.next()`` function
+which returns the next token, and a ``lex.peek()`` function which peeks at the
+next token without consuming it.  The **current token** is the last one
+returned by ``next``, and is also assumed to be available as ``lex.token`` from
+the lexer.  The parser will consume tokens from the lexer.
 
 Many of the presentations of the Pratt parser essentially fake a lexer with
 one-token ``peek`` lookahead from a lexer without built-in lookahead.  This is
@@ -54,29 +53,36 @@ function it requires slightly less code, and, more importantly, is easier to
 follow.
 
 A parser parses a **program** or an **expression** from text that is passed to
-the parser's ``parse`` function.   In this writeup we tend to refer to parsing
-expressions, but it could also be a full program.  Every expression is assumed
-to be made up of **subexpressions**.  Subexpressions are defined by the
-particular handler-function implementations and by **operator precedences**.
+the parser's ``parse`` function or method.  We assume that ``parse`` will be
+passed both a lexer instance (initialized to recognize the tokens of the
+language) and the expression to be parsed.  The ``parse`` function  initializes
+the lexer with this text in order to tokenize it.  In this implementation of
+Pratt parsing the ``parse`` method just sets things up and then calls
+``recursive_parse`` to recursively do the actual parsing.
+
+In this writeup we tend to refer to the parsing of expressions, but it could
+also be a full program being parsed.  Every expression is assumed to be made up
+of **subexpressions**.  Subexpressions are defined by the grammar of the
+language being parsed, including **operator precedences** for infix operators.
 Subexpressions can be made up of sub-subexpressions, and so forth.  A Pratt
 parser recursively parses these expressions, subexpressions, etc., top-down.
 
 An **expression tree** is a tree for an expression such that each function or
 operator corresponds to an interior node of the tree, and the
 arguments/parameters of the function are the ordered child nodes.  The leaves
-of an expression tree are the **literal tokens**, i.e., the tokens which are
-also their own subtrees in the final expression tree.  The other tokens appear
-in the tree as interior nodes.
+of an expression tree are the **literal tokens**, i.e., the tokens which act as
+single-node subtrees in the final expression tree.  The other tokens appear in
+the tree as interior nodes.
 
 A **parse tree** or **derivation tree**, on the other hand, corresponds to a
-grammar.  The internal nodes all correspond to grammar productions.  In a parse
-tree the leaves of the tree are all tokens (literal and non-literal) returned
-from the lexer.  An **abstract syntax tree (AST)** is an abstract
-representation of the information in a parse tree or expression tree, in some
-format chosen to be convenient.  A Pratt parser can produce any of the above
-kinds of trees, depending on how the handler functions are defined, but
-naturally produces expression trees.  The term **syntax tree** will generally
-refer to any of the above types of trees.
+grammar.  The internal nodes all correspond to **production rules** in a
+grammar.  In a parse tree each non-ignored token returned by the lexer (literal
+and non-literal) ends up as a leaf node in the parse tree.  An **abstract
+syntax tree (AST)** is an abstract representation of the information in a parse
+tree or expression tree, in some format chosen to be convenient.  A Pratt
+parser can produce any of the above kinds of trees, depending on how the
+handler functions are defined, but naturally produces expression trees.  The
+term **syntax tree** can generally refer to any of the above types of trees.
 
 In common usage the **parsing** of text tends to refer to any kind of formal
 decomposition into a predefined structure, particularly into a tree structure.
@@ -84,15 +90,13 @@ This may include parsing text to a derivation tree, an expression tree, an
 AST, or the use of various ad hoc methods for breaking the text down into
 components.  Informally, expression trees are often referred to as parse trees.
 
-We assume that a function called ``parse`` will be passed both a lexer instance
-(initialized to recognize the tokens of the language) and the expression to be
-parsed.  The ``parse`` function should then return a syntax tree for the
-expression.  In general, many parsers do not return a syntax tree but instead
+The ``parse`` function is assumed to return a syntax tree for the expression it
+parses.  In general, many parsers do not return a syntax tree but instead
 evaluate, interpret, or otherwise process the expressions as they go along.  We
 assume that any such evaluation or interpretation is applied at a later stage,
 based on the returned syntax tree.  (Pratt parsers in general can easily
 interpret or evaluate languages on-the-fly, but for simplicity the Typped
-package always first forms a syntax tree.)
+package always forms a syntax tree by default.)
 
 .. _Operator precedence:
 
@@ -101,7 +105,7 @@ Operator precedence
 
 Consider this simple expression: ``2 + 5 * 8`` There are five tokens in this
 expression: ``2``, ``+``, ``5``, ``*``, and ``8``.  Parsing this expression
-should produce the expression tree represented by::
+should produce this expression tree::
 
    +
       2
@@ -109,22 +113,20 @@ should produce the expression tree represented by::
          5
          8
          
-where an indented column under a token represent its children/arguments.  Note
-that the leaves of the tree are always literal tokens such as ``2`` and ``5``
+Here an indented column under a token represent its children/arguments.  Note
+that the leaves of the tree are always literal tokens such as ``2`` and ``5``,
 which form their own subtrees.
 
 In producing the parse tree above it has been assumed that the usual operator
 precedence rules in mathematics hold: ``*`` has higher precedence than ``+``.
 In most computer languages this is implemented by assigning a fixed
-**precedence** value to each operator, and the Pratt parser does the same
-thing.
+**precedence** value to each operator, and the Pratt parser works the same way.
 
 Every kind of token has a fixed, non-changing precedence value associated with
 it.  This is called its **token precedence**.  The default token precedence
 value is zero, which is also the minimum possible token precedence value.
 Infix operators *must* have a token precedence > 0, as we will see.  When it is
-clear in the context the token precedence will simply be called **precedence** or
-**prec**.
+clear in the context the token precedence will simply be called the precedence.
 
 .. note::
 
@@ -134,19 +136,21 @@ clear in the context the token precedence will simply be called **precedence** o
 Subexpressions
 --------------
 
-By definition, every subtree in a parse tree represents a subexpression.  In
-this sense, the token precedence values define the subexpression structure of
-infix operators.  In the simple example above, the top-level expression is
-represented by the full tree, with root at the operator ``+``.  Each literal
-token also defines a (trivial) subexpression.  The operator ``*`` defines a
-non-trivial subexpression which corresponds to the text ``5 * 8``.
+By definition, every subtree in a parse tree represents a subexpression.  The
+token precedence values define the subexpression tree structure of
+subexpressions with infix operators.  In the simple example expression above
+the top-level expression is represented by the full tree, with root at the
+operator ``+``.  Each literal token also defines a (trivial) subexpression.
+The subtree rooted at operator ``*`` defines a non-trivial subexpression which
+corresponds to the string ``5 * 8`` in the full expression.
 
-In Pratt parsing, recursion is used to parse subexpressions (starting top-down,
+In Pratt parsing recursion is used to parse subexpressions (starting top-down,
 from the full expression).  A crucial distinction in this parsing method is
-whether or not the token is the *first* token in the current subexpression or
-is a *later* one (e.g., the infix operator in subexpression ``5 * 8``).  Every
-subexpression has a first token, and some have later tokens after the first
-one.
+whether or not a token is the *first* token of the current subexpression or is
+a *later* one.  Every subexpression has a first token, and some have later
+tokens after the first one.  In the subexpression ``5 * 8`` the token for ``5``
+is the first token, called the **head** token, and ``*`` and ``8`` are later
+tokens, called **tail** tokens.
 
 It was mentioned earler that in Pratt parsing each token can have one or more
 **handler functions** defined for it.  The handler function for when the token
@@ -172,20 +176,26 @@ lexer.  The top-down recursion used in the main function ``parse`` is
 implemented by calling another function, called ``recursive_parse``.  Each call
 of the ``recursive_parse`` function returns the parse tree for the largest
 subexpression to the right of the current token (which is usually one subtree
-of the full parse tree).  Thus, the ``parse`` function itself only needs to do
-some initialization and then call ``recursive_parse`` and return the result.
-So this is the basic code for ``parse``
+of the full parse tree).  The ``parse`` function itself only performs some
+initialization and then calls ``recursive_parse`` to obtain the parsed tree.
+This is the basic code for ``parse``:
 
 .. code-block:: python
 
     def parse(lex, program):
         lex.set_text(program)
-        output = PrattParser.recursive_parse(lex, 0)
-        return(output)
+        parse_tree = recursive_parse(lex, 0)
+        return(parse_tree)
 
-Since the code for ``parse`` basically just makes a recursive call to
-``recursive_parse``, we really need to focus on how ``recursive_parse`` works.
-Here is the code for ``recursive_parse``, which will be discussed next
+Since the code for ``parse`` basically just makes a call to
+``recursive_parse``, we need to focus on how ``recursive_parse`` works.  The
+code for ``recursive_parse`` will be discussed next.  Notice that there are no
+explicit recursive calls to ``recursive_parse`` inside ``recursive_parse``.
+This is because the recursion is really a mutual recursion: the head and tail
+handler functions can call ``recursive_parse`` to evaluate subexpressions, and,
+in turn, the ``recursive_parse`` function is the only place where head and tail
+handler functions are ever called.  Head and tail handler functions will be
+discussed after ``recursive_parse``:
 
 .. code-block:: python
 
@@ -200,32 +210,35 @@ Here is the code for ``recursive_parse``, which will be discussed next
         return processed_left
 
 The first thing that ``recursive_parse`` does is get a token from the lexer as
-the current token.  This token will always be the first token of a
-subexpression (the full expression is a trivial subexpression, and by
-definition it is only called at other times when that condition holds).  So,
-the next thing that ``recursive_parse`` does is call the head handler for that
-token (and a head must be defined for it).  Recall that the head handler for a
-token is a function that defines the meaning of the token when it is the first
-token in a subexpression.  The result is stored as ``processed_left``, which is
-the processed leftmost part of the current subexpression, currently just the
-result of the head handler evaluation on the first token.
+the current token.  This token will always be the head token of the
+subexpression, i.e., the first token of the subexpression (the full expression
+is also considered a subexpression).  By definition ``recursive_parse`` is only
+called when that condition holds.
 
-The ``recursive_parse`` function now needs to evaluate the rest of its
-subexpression, calling the tail handler in a while loop for each token that is
-not the first in its subexpression.  The results each time will be combined
-with the current ``processed_left`` to produce the new ``processed_left``
-(which will eventually be returned at the end as the final result).  The only
+The next thing that ``recursive_parse`` does is call the head handler function
+for that head token --- and a head handler must be defined for it.  The head
+handler for a token is a function that defines the meaning of the token when it
+is the first token in a subexpression.  It returns a partial parse tree.  The
+result is stored as ``processed_left``, which holds the processed leftmost part
+of the current subexpression (currently just the result of the head handler
+evaluation on the first token).
+
+The ``recursive_parse`` function now needs to evaluate the rest of its current
+subexpression, calling the tail handler in a while loop for each remaining
+token in the tail of the subexpression.  The results each time will be combined
+with the current ``processed_left`` to produce the new ``processed_left``,
+which will eventually be returned at the end as the final result.  The only
 tricky part is how ``recursive_parse`` determines when it has reached the end
 of its subexpression and should return its result.  This is where precedences
 come into play.
 
 Each call of ``recursive_parse`` is passed both a lexer and a numerical value
-called the **subexpression precedence** or **subexp-prec** for short.  The
-subexpression precedence is just a number that gives the precedence of the
-subexpression that this call of ``recursive_parse`` is processing.  The
-subexpression precedence value passed in is fixed within the function
-evaluation, and is compared to the fixed token precedence for individual
-tokens.
+called the **subexpression precedence**.  The subexpression precedence is just
+a number that gives the precedence of the subexpression that this call of
+``recursive_parse`` is processing.  This subexpression precedence value does
+not change within a particular invocation of ``recursive_parse``.  The
+subexpression precedence is compared to the fixed token precedence for
+individual tokens.
 
 .. note::
 
@@ -234,40 +247,43 @@ tokens.
    binding power of the next token (to the right) is compared to the current
    subexpression on the left's precedence or right binding power.
 
-In particular, the while loop continues getting tokens and calling their tail
+In particular, the while loop continues consuming tokens and calling their tail
 handler functions until the subexpression precedence ``subexp_prec`` is less
-than the prec of the upcoming token, given by ``lex.peek().prec()``.  You can
-think of the loop ending when the power of the subexpression to bind to the
+than the precedence of the upcoming token, given by ``lex.peek().prec()``.  You
+can think of the loop ending when the power of the subexpression to bind to the
 right and get another token (the subexpression's precedence) is not strong
 enough to overcome the power of the next token to bind to the left (the next
-token's prec value).  The subexpression ends when that occurs, and the result
-``processed_left`` is returned.
+token's token precedence value).  The subexpression ends when that occurs, and
+``processed_left`` is returned as the resulting subtree for the subexpression.
 
 The initial call of ``recursive_parse`` from ``parse`` always starts with a
-subexpression precedence of 0.  Literal tokens and the end token always have a
-token precedence of 0, so subexpressions always end when the next token is the
-end token or the next token is a literal token.  That makes sense, since all
-subexpressions need to end on the end token, and literal tokens form their own
-subexpressions, i.e., subtrees (leaves) of the parse tree.
+precedence of 0 for the full expression.  Literal tokens and the end token
+always have a token precedence of 0, and those are the only tokens with that
+precedence.  So the full expression always ends when the next token is the end
+token or the next token is a literal token, and the latter is an error
+condition (unless multi-expression parsing is being used).
 
-Generally, any token with only a head handler definition must have a prec of 0.
-Only tokens which have a tail handler ever use the token prec value.  The prec
-of a token with a tail *must* be greater than 0, or else it will always fail the
-test in the while loop of ``recursive_parse`` and thus never be called (since
-tail handlers are only called inside the while loop).
+Generally, any token with only a head handler definition has a token precedence
+of 0 and any token with a tail handler definition has a precedence greater than
+0.  This can be seen in the while loop of ``recursive_parse``: Since tail
+handlers are only called inside the while loop the precedence of a token
+with a tail *must* be greater than 0, or else it will always fail the test
+and thus will never be called.  A token with only a head handler that does
+pass the test will not have a tail handler to call.
 
-This completes the discussion of the higher-level top-down recursion
-routines ``parse`` and ``recursive_parse``.  You might have noticed, though,
-that there are no explicit recursive calls to ``recursive_parse``.  This is
-because the recursion is really a mutual recursion: the head and tail handlers
-can call ``recursive_parse`` to evaluate subexpressions, and, in turn, the
-``recursive_parse`` function is the only place where head and tail handlers
-are called.
-
-In the next section we discuss the head and tail handlers, to complete the
-recursion.
+This completes the discussion of the higher-level top-down recursion routines
+``parse`` and ``recursive_parse``.  The next section discusses head and tail
+handlers, to complete the mutual recursion.
 
 .. topic:: Some notes on this subsection.
+
+   - In the current implementation the ``recursive_parse`` function is a method
+     of the class which represents tokens.  This is not necessary, since it is
+     essentially a static function.  The namespace is convenient, though, since
+     ``recursive_parse`` is generally called from handler functions which are
+     passed a token instance as an argument.  This also allows the lexer to be
+     looked up rather than explicitly passed since tokens know the lexer that
+     produced them.
 
    - The current implementation of ``recursive_parse`` in this package is
      actually a generalization which calls ``head_dispatcher`` instead of
@@ -284,7 +300,7 @@ recursion.
      precedence of a token having only a head handler (i.e., a token which can
      only occur in the beginning position of an expression).  The precedence of
      such a head-only token is usually taken to be 0, but it really does not
-     need to be defined at all.  So, precedences can be treated as properties
+     need to be defined at all.  So precedences can be treated as properties
      associated with tail-handler functions.
 
 This table summarizes the correspondence between Pratt's terminology and the
@@ -293,7 +309,7 @@ terminology that is used in this documentation and in the code:
    +----------------------------------+--------------------------+
    | This description                 | Pratt's terminology      |
    +==================================+==========================+
-   | token precedence, prec           | left binding power, lbp  |
+   | token precedence                 | left binding power, lbp  |
    +----------------------------------+--------------------------+
    | subexpression precedence         | right binding power, rbp |
    +----------------------------------+--------------------------+
@@ -491,12 +507,31 @@ The parse is roughly described in the box below.
 
 Note that when ``recursive_parse`` is called recursively in the tail of an
 infix operator it is called with a ``subexp_prec`` argument equal to the
-current node's prec.  That gives left-to-right precedence evaluation (left
-associative) for infix operators with equal prec values.  To get right-to-left
+current node's precedence.  That gives left-to-right precedence evaluation (left
+associative) for infix operators with equal precedence values.  To get right-to-left
 evaluation (right associative), ``recursive_parse`` should instead be passed
-the current prec *minus one* as the value for ``subexp_prec``.  Interested
+the current precedence *minus one* as the value for ``subexp_prec``.  Interested
 readers can consider the evaluation of ``2 ^ 5 ^ 8`` (similar to the box above)
 in the case where for ``^`` is defined as left associative.
+
+Summary
+-------
+
+In this section we introduced some basic parsing terminology, including heads
+and tails of subexpressions.  The Pratt parser was then defined as a top-down,
+mutually-recursive parsing algorithm.  The routines ``parse`` and
+``recursive_parse`` were defined and discussed.  Finally, head and tail handler
+functions were discussed and an example parse was described in detail.
+
+The Typped parser package generalizes this basic Pratt parser in a few ways.
+These generalizations are discussed in later sections.  A generalization
+allowing multiple, dispatched head and tail handler functions for tokens, based
+on preconditions, is described in the next section.  Another generalization
+modifies ``recursive_parse`` slightly to allow implicit juxtaposition operators
+between tokens.  Type-definition and type-checking routines are also added.
+Types are checked inside head and tail handlers by calling a function
+``process_and_check_node`` on the subtrees before they are returned.  Operator
+overloading is also allowed, and is resolved during these checks.
 
 .. _References:
 

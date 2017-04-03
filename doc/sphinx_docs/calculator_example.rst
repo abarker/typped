@@ -7,7 +7,7 @@ Example: Implementing a simple calculator
 
 This section shows how to implement a simple calculator language using the
 Typped package.  It is an evaluating calculator with a simple
-read-evaluate-print (REP) loop.  It implements basic math operations.  It does
+read-evaluate-print loop (REPL).  It implements basic math operations.  It does
 not have many predefined functions, but it would be simple to add them
 according to the pattern of the current ones.  The juxtaposition operator is
 defined for multiplication, so any two terms next to each other (by default
@@ -23,8 +23,8 @@ out for readability in the code blocks below.
 The main function
 -----------------
 
-The main function is called ``define_and_run_basic_calculator``.  This function
-is called as the last line of the file.  The function is defined as follows.
+The main function is called ``define_and_run_basic_calculator``.  It
+is called as the last line of the calculator module.
 
 .. code-block:: python
 
@@ -34,7 +34,6 @@ is called as the last line of the file.  The function is defined as follows.
 
    def define_and_run_basic_calculator():
        """Get a parser, define the calculator language, and start the REP loop."""
-
        parser = pp.PrattParser()
        define_basic_calculator(parser)
        read_eval_print_loop(parser)
@@ -49,7 +48,7 @@ give a preview of what the calculator does, here is a simple dialog of the
 program running::
 
    Press ENTER or type command to continue
-   Enter ^C to exit, and 'toggletree' to toggle tree display.
+   Enter ^C to exit, and 'toggle' to toggle tree display.
    > 5
    5.0
    > 5 + 5
@@ -67,7 +66,7 @@ program running::
    6.283185307179586
    > sin(tau)
    -2.4492935982947064e-16
-   > toggletree
+   > toggle
    > 2 pi cos(tau) - 1E3 # Scientific notation.
 
    <k_minus,'-'>
@@ -101,7 +100,7 @@ program running::
    > 
    Bye.
 
-Notice that when the ``toggletree`` command is given the program prints out the
+Notice that when the ``toggle`` command is given the program prints out the
 expression tree for the expressions.  Each line is a token in the tree.  The
 representation ``<k_minus,'-'>`` is for the token that was assigned the string
 label ``k_minus``.  The convention of starting token labels with ``k_`` is
@@ -118,11 +117,11 @@ The read-evaluate-print loop
 
 Continuing with the top-down presentation, the REP loop is shown next.  The
 code is basic Python, and can be skimmed by people familiar with the language.
-The code does show how a Typped parser is used at the higher level.
+The code shows how a Typped parser is used at the higher level.
 
-The `cmd` module in the standard Python library be used instead.  The actual
-example file also has a version of the function that is implemented using that
-library.
+The ``cmd`` module in the standard Python library can also be used to write the
+REP loop.  The example file also has a version of the function that is
+implemented using that library.
 
 .. code-block:: python
 
@@ -187,9 +186,9 @@ of an expression tree of tokens.  These are the expression trees that were
 displayed in the above dialog when the ``toggletree`` command was issued.
 
 After the expression tree is returned it is evaluated with the line
-``parse_tree.eval_subtree()``, which calls a recursive evaluation function on the
-root of the expression tree.  Evaluation functions are provided when the
-grammar for the language is defined, which is discussed in the next section.
+``parse_tree.eval_subtree()``, which is a recursive evaluation function started
+at the root of the expression tree.  Evaluation functions are provided when the
+grammar for the language is defined, in the next section.
 
 Finally, the values are printed out and the loop continues.
 
@@ -198,7 +197,7 @@ Defining the grammar
 
 The only function left to describe is the ``define_basic_calculator`` function.
 This is the function that really shows how to set up and use the
-``PrattParser`` class -- at least the basic parts of it.  To keep the function
+``PrattParser`` class --- at least the basic parts of it.  To keep the function
 from being too long it has been broken up into several sub-functions doing
 particular tasks.  Here is the main function:
 
@@ -206,16 +205,15 @@ particular tasks.  Here is the main function:
 
    def define_basic_calculator(parser):
        """Define the calculator language in the parser instance."""
-
        define_general_tokens_and_literals(parser)
        define_functions_and_operators(parser)
        define_juxtaposition_operators(parser)
        define_assignment_operator(parser)
        define_comments(parser)
 
-Each function does what the name implies.  We now show the code for each
-sub-function.  The first function defines some general tokens and literals in
-the calculator language.
+Each function does what the name implies.  The code for each sub-function, in
+sequence, will be shown and discussed next.  The first function defines some
+general tokens and literals in the calculator language.
 
 .. code-block:: python
 
@@ -223,6 +221,10 @@ the calculator language.
        """Define some general tokens and literals in the calculator language.
        Other tokens such as for functions in the language will be defined
        later."""
+
+       #
+       # Tokens.
+       #
 
        parser.def_default_whitespace() # Default whitespace tokens k_space and k_newline.
 
@@ -257,9 +259,9 @@ tokens and give them the same function definition.
 
 Floating point literals are defined and provided with an evaluation function.
 This evaluation function just takes the token ``t`` with label ``k_float`` and
-converts the string value that the lexer found into a Python float.
+converts the string value returned by the lexer into a Python float.
 
-The next function for the calculator language definition defines almost all the
+The next group of definitions for the calculator language define almost all the
 functions in the language.  This includes standard functions like ``sin`` and
 operators like ``*`` and ``!``.  The definitions are made using built-in
 methods of the ``PrattParser`` class.  Note the precedences assigned to the
@@ -302,7 +304,7 @@ arguments of a function with node ``t`` in the expression tree are the children
                          eval_fun=lambda t: math.sqrt(t[0].eval_subtree()))
 
        # Note that log is overloaded because different numbers of arguments are
-       # specified, and they have different eval funs.
+       # specified.  The two versions have different eval funs.
        parser.def_token("k_log", r"log")
        parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", num_args=1,
                          eval_fun=lambda t: math.log(t[0].eval_subtree()))
@@ -338,11 +340,12 @@ The definitions above actually define the ``log`` function twice, with a
 different number of arguments each time.  This results in function overloading.
 Each overload can have a different evaluation function.  In this case the
 two-place version takes an extra argument giving the base, like in the Python
-math library (which uses a default argument).  The default base is e.
+math library (which uses a default parameter value for the single-argument
+form).  The default base is `e`.
 
-At this point we have a working calculator.  The code up to here can be run to
-do basic operations.  The next group of functions just add extra features to
-the calculator.
+At this point we have a working calculator.  The code up to this point can be
+run to do basic operations.  The next groups of definitions just add extra
+features to the calculator.
 
 The previous function defined all the usual arithmetic functions, but it did
 not define the juxtaposition operator.  This function defines the juxtaposition
@@ -358,9 +361,11 @@ operator as a synonym for multiplication.
        parser.def_jop(20, "left", # Same precedence and assoc. as ordinary multiplication.
                eval_fun=lambda t: operator.mul(t[0].eval_subtree(), t[1].eval_subtree()))
 
-The ``jop_required_token`` in the function above is set to a token which is
-required to be present in order for a juxtaposition operator to be inferred.
-The setting above requires a space.
+The ``jop_required_token`` argument to the method ``def_jop_token`` is a token
+which is required to be present in order for a juxtaposition operator to be
+inferred.  The setting above requires a space between two tokens in order for a
+jop to possibly be inferred.  After these definitions strings like ``2
+sin(3.3)`` can be evaluated with implicit multiplication.
 
 Next, the grammar for and implementation of simple assignment statements is
 defined for the calculator language.  Two symbols, for ``pi`` and ``e`` are
@@ -393,7 +398,11 @@ predefined to the associated math constants.
        parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
                            eval_fun=eval_assign)
 
-The last part which will be added to the calculator language is comments.
+Once simple variables are defined expressions like ``sin(2 pi)``, ``x = 5``,
+and ``x^2`` can be defined.  Uninitialized variables default to zero, and
+``pi`` and ``e`` are predefined.  Assignment returns the assigned value.
+
+The last feature which will be added to the calculator language is comments.
 Comments are just like comments in Python.  They are defined by defining a
 token with a regex that recognizes comments, and telling the lexer to ignore
 all such tokens.

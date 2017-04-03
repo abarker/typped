@@ -132,13 +132,39 @@ is unchecked:
 
    TypeSig(None, [t_int, None])
 
+Defining handlers which check types
+-----------------------------------
+
+Type checking is performed in the head and tail handler functions just before
+they return their partially-processed result (which is set to the new
+``processed_left`` in ``recursive_parse``).  When writing custom
+handlers for languages which use type checking there are a few rules for
+how to incorporate type-checking.
+
+1. Just before returning a subtree of the final expression tree handler
+   functions should call ``process_and_check_node``.  The first argument it
+   takes is always the handler function itself (i.e., the "def" name of the
+   handler function, which points to the function object).  The type signatures
+   associated with a handler function are stored as attributes of the function
+   object, and this reference is used to look them up.  That is usually all
+   that is required, but ``process_and_check_node`` also takes some optional
+   arguments ``typesig_override``, ``check_override_sig``, ``in_tree``, and
+   ``repeat_args``, which are documented in the API for ``TokenNode`` objects.
+
+2. When handler functions are registered with a token using the
+   ``modify_token_subclass`` method of a ``PrattParser`` instance that function
+   should also be passed the value type as the keyword argument ``val_type``
+   and the argument types as the keyword argument ``arg_types``.   That method
+   creates a ``TypeSig`` object, so ``val_type`` should be a type, i.e., a
+   ``TypeObject`` instance, and ``arg_types`` should be a list or iterable of
+   types.  The value ``None`` is allowed as a type, and the convention that a
+   single type passed as the argument list repeats it as many times as required
+   also holds.
+
+See the built-in methods of the ``PrattParser`` class for examples.
+
 Implementation details
 ----------------------
-
-Type checking is performed when the handler functions first produce subtrees
-of the final expression tree.  The function ``process_and_check_node`` is
-called at the end of handler functions, before returning the token which has been
-processed into the root of the subtree.
 
 See this page for low-level implementation details:
 

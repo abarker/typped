@@ -7,7 +7,7 @@ This section describes the use of preconditioned dispatching in the
 techniques described here, since the Typped parser comes with various built-in
 methods which hide the use of precondition functions.  The calulator example,
 for example, uses only built-in methods of the ``PrattParser`` class.  This
-description is mainly for users who plan to extend the built-in collection of
+description is mainly for users who need to define their own, custom parsing
 methods or those who are simply interested in the details of how dispatching
 works.
 
@@ -16,7 +16,7 @@ What is preconditioned dispatching?
 
 In a standard Pratt parser each token can have associated with it a single,
 fixed head handler function, a single, fixed tail handler function, or one of
-each.  Preconditioned dispatching generalizes this:  each token can have
+each.  Preconditioned dispatching generalizes this: Each token can have
 multiple possible head and/or tail handler functions associated with it.  The
 choice of which of the possible handler functions to use to process a token is
 made at at the time the token is parsed, based on the conditions (i.e., the
@@ -45,19 +45,33 @@ choices are not mutually exclusive.  A runtime exception is raised if there is
 no clear winner among the choices of preconditions functions, so if there are
 cases where that can happen then tie-breaking priority values are required.
 
-This fits into the ``recursive_parse`` routine of the standard Pratt parser as
-follows.  Instead of directly calling a fixed head or tail handler for a token,
-the ``recursive_parse`` function instead calls a function ``dispatch_handler``
-(which also takes an argument specifying whether to fetch a head or tail
+A slightly simplified version of the modified ``recursive_parse`` is shown
+here:
+
+.. code-block:: python
+
+   def recursive_parse(lex, subexp_prec):
+       curr_token = lex.next()
+       head_handler = curr_token.dispatch_handler(HEAD, lex)
+       processed_left = head_handler()
+
+       while lex.peek().prec() > subexp_prec:
+           curr_token = lex.next()
+           tail_handler = curr_token.dispatch_handler(TAIL, lex, processed_left)
+           processed_left = tail_handler()
+
+Instead of directly calling a fixed head or tail handler for a token, the
+``recursive_parse`` function instead calls a function ``dispatch_handler``
+(which also takes an argument specifying whether to fetch a head or a tail
 handler).  This dispatching function goes down a priority-sorted list of
 boolean-valued precondition-testing functions which have been registered for
 the current token, each of which is associated with a particular handler
 function.  The handler function associated with the highest-priority
 precondition-testing function which evaluates to true in the current conditions
-is chosen to handle the token in the given context (i.e., the first match in
-the sorted list is used).  The selected handler function is then returned (with
-its arguments bound, since they are known) and is called in ``recursive_parse``
-in the usual way.  See the example below for an example of the code.
+is chosen to handle the token in the given context.  That is, the first match
+in the sorted list is used.  The selected handler function is then returned
+(with its arguments bound, since they are known) and is called in the usual
+way.
 
 The typing system which is implemented in the Typped parser is also based on
 the preconditioned dispatching design.  Type-signature information can
@@ -316,8 +330,7 @@ The function defined above could be called as follows.
 .. code-block:: python
 
     parser = MyParser()
-    parser.def_token("k_space", r"[ \t]+", ignore=True) # note + NOT *
-    parser.def_token("k_newline", r"[\n\f\r\v]+", ignore=True) # note + NOT
+    parser.def_default_whitespace()
 
     tokens = [("k_number", r"\d+"),
               ("k_lpar", r"\("),
@@ -349,91 +362,19 @@ When run, the above code produces this output:
            <k_number,'5'>
            <k_number,'6'>
 
-This example works, but is simplified from the actual `def_stdfun` method of
+This example works, but is simplified from the actual ``def_stdfun`` method of
 the Pratt parser class.  It assumes a fixed number of arguments and does not
 make use of type data.  The function is still fairly general, though.  Note
 that this function does not allow whitespace (ignored tokens) to occur between
 the function name and the left parenthesis.  The preconditions function is
 defined as a nested function, but it could alternately be passed in as another
-argument to `def_stdfun` (along with its label). 
+argument to ``def_stdfun`` (along with its label). 
 
-Implementation
---------------
+Implementation details
+----------------------
 
-This section contains some low-level implementation details and can be skipped
-by most users of the Typped package.
+Some of the low-level implementation details are discussed on the linked page
+below.  Most users will not need to be concerned with these.
 
-As far as the implementation of dispatching, the method ``dispatch_handler`` of
-``TokenNode`` does the lookup and call of the handler functions.  Most users
-will have no need to modify the basic parsing routines ``parse`` and
-``recursive_parse``.  Nevertheless, this is what the code looks like when
-dispatching is used.  It is a little simplified from the actual code in Typped
-because it does not handler jops, null-string tokens, or error-checking.
-
-.. code-block:: python
-
-   def recursive_parse(subexp_prec):
-       lex = self.token_table.lex
-       curr_token = lex.next()
-       head_handler = curr_token.dispatch_handler(HEAD, lex)
-       processed_left = head_handler()
-       lookbehind = [processed_left]
-
-       while lex.peek().prec() > subexp_prec:
-           curr_token = lex.next()
-           tail_handler = curr_token.dispatch_handler(
-                                  TAIL, lex, processed_left, lookbehind)
-           processed_left = tail_handler()
-           lookbehind.append(processed_left)
-
-The lookup is performed by getting the list of precondition functions, ordered
-by priority, and calling each one until one returns ``True`` based on the
-current conditions.  The associated handler function is then executed.  Note
-that the dispatch handler binds the arguments of the function it returns (i.e.,
-it returns a partial function since it knows the arguments).
-
-All the registered handler functions for a token label are stored in a static
-``OrderedDict`` attribute of the corresponding ``TokenNode`` subclass (after
-being passed into ``modify_token_subclass`` via keyword arguments).  The dict
-is called ``handler_funs`` and is keyed first by ``HEAD`` or ``TAIL`` and then
-by precondition label strings.  For each type of handler function, head or
-tail, the ordered dict holds a named tuple keyed by precondition labels and
-having the following format::
-
-     (precond_fun, precond_priority, handler_fun)
-
-Each such ordered dict is ordered by the precondition priorities.
-
-Internally the preconditions functions for a token label are stored in a static
-dict attribute of the corresponding ``TokenNode`` subclass called
-``preconditions_dict``.  There are methods to register handler functions and
-unregister them.  This dict is keyed by the unique labels required for unique
-preconditions functions and contains data tuples as items.
-
-Defined type signatures (possibly overloaded, as a list) are stored as
-attributes of the handler functions themselves.  Duplicates are not allowed,
-and equality is defined by the definition of operator ``==`` for the
-``TypeSig`` class (only exact match).
-
-Remember these points:
-
-- Head or tail handler functions are in one-to-one correspondence with
-  ``(token_label, precond_label)`` tuples (possibly a default label if one is
-  not specified), not overloaded signatures.
-
-- In order to have a unique head or tail handler function there must be a
-  unique precondition label associated with its handler function.
-
-- Each defined type signature is stored with its corresponding handler
-  function.  Currently a list of signatures is actually pasted onto the
-  function as an attribute, **so function objects used as handlers cannot ever
-  be reused**.  Use a factory function if you need to use the same code for
-  different handler functions.  In the built-in methods such as ``def_stdfun``
-  the handlers are defined inside the method, so a different function object is
-  created each time.
-
-- Evaluation functions are saved with tokens keyed by the precondition label
-  and the formal type that they are defined with.  They are looked up based on
-  the information resolved at parse time (the winning precond label and the
-  winning formal signature).
+   :doc:`dispatching_implementation_details`
 

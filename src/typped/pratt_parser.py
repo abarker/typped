@@ -324,6 +324,103 @@ DEFAULT_PRECOND_LABEL = ("always-true-default-precondition",)
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     return True
 
+#
+# TODO: Since TokenNode now has a metaclass anyway, why not just use it to
+# generate the new instances instead of the factory function?  The factory
+# function is maybe simpler, but Sphinx does not properly document the
+# TokenNode class defined inside it.
+#
+
+class TokenSubclassMeta(type):
+    """A trivial metaclass that will actually create the `TokenSubclass`
+    objects.  Since tokens are represented by classes, rather than instances,
+    this is necessary in order to change their `__repr__` (the defalt one is
+    ugly for tokens) or to overload operators to work for token operands."""
+    def __new__(mcs, name, bases, dct):
+        new_class = super(TokenSubclassMeta, mcs).__new__(mcs, name, bases, dct)
+
+        # Below is ugly, but avoids mutual import problems.  Used as an easy
+        # way to define token addition so that it works in the grammars defined
+        # by the production_rules module.
+        from .production_rules import (Tok, Not, Prec,
+                                       nExactly, nOrMore)
+        # These are saved in a dict below because if they are made attributes
+        # then Python 2 complains about "TypeError: unbound method Tok() must
+        # be called with TokenClass_k_lpar instance as first argument (got
+        # TokenSubclassMeta instance instead)".
+        #new_class.Tok = Tok
+        #new_class.Not = Not
+        #new_class.Prec = Prec
+        new_class.prod_rule_funs = {}
+        new_class.prod_rule_funs["Tok"] = Tok
+        new_class.prod_rule_funs["Not"] = Not
+        new_class.prod_rule_funs["Prec"] = Prec
+        new_class.prod_rule_funs["nExactly"] = nExactly
+        new_class.prod_rule_funs["nOrMore"] = nOrMore
+        return new_class
+
+    #
+    # Define a nicer-looking __repr__, since the classes represent tokens.
+    #
+
+    def __repr__(cls):
+        """The representation for tokens.  Tokens are commonly used in the
+        code but, being classes, have an ugly default `__repr__` when printed out.
+        In this metaclass we can define a better `__repr__` for tokens."""
+        string = "TokenClass_{0}".format(cls.token_label)
+        return string
+
+    #
+    # These overloads work with the production_rules module.
+    #
+
+    # TODO: Could have a flag to turn off overloads, maybe... tokens know
+    # their parser_instance at runtime, so they can look at instance.  If
+    # Grammar is passed a parser and initialized before it could turn on
+    # overloads and compile could turn them off.  Kind of restrictive,
+    # though.  But could just put calls to a function to check and raise an
+    # error... Catches accidental uses, and can suggest maybe they need to
+    # init Grammar first...  These all return Item or related anyway,
+    # should catch most accidentals just because of that.
+
+    def __add__(cls, other):
+        """Addition of two tokens is defined to simply return a tuple of
+        both tokens.  This is so raw tokens can be used in the operator
+        overloaded form of defining production rules for a grammar."""
+        return cls.prod_rule_funs["Tok"](cls) + other
+
+    def __radd__(cls, left_other):
+        """The right version of `__add__` above."""
+        return left_other + cls.prod_rule_funs["Tok"](cls)
+
+    def __or__(cls, other):
+        """The `|` symbol simply converts this object into an `ItemList`
+        and then calls `__or__` for those objects."""
+        return cls.prod_rule_funs["Tok"](cls) | other
+
+    def __ror__(cls, left_other):
+        """The right version of `__or__` above."""
+        return left_other | cls.prod_rule_funs["Tok"](cls)
+
+    def __rmul__(cls, left_other):
+        """The expression `n*token` for an int `n` is "n occurrences of"
+        `token`."""
+        return cls.prod_rule_funs["nExactly"](left_other, cls)
+
+    def __rpow__(cls, left_other):
+        """The expression `n**token` for an int `n` is "n or more occurrences of"
+        `token`."""
+        return cls.prod_rule_funs["nOrMore"](left_other, cls)
+
+    def __invert__(cls):
+        """Define the `~` operator for production rule grammars."""
+        return cls.prod_rule_funs["Not"](cls)
+
+    def __getitem__(cls, arg):
+        """Define the bracket indexing operator for production rule grammars
+        to set the precedence."""
+        return cls.prod_rule_funs["Prec"](cls, arg)
+
 def token_subclass_factory():
     """This function is called from the `create_token_subclass` method of
     `TokenTable` when it needs to create a new subclass to begin
@@ -339,94 +436,6 @@ def token_subclass_factory():
     specific to a kind of token (including head and tail handler methods) to
     later be added to the class itself without conflicts.  This function
     returns a bare-bones subclass without any head or tail functions, etc."""
-
-    class TokenSubclassMeta(type):
-        """A trivial metaclass that will actually create the `TokenSubclass`
-        objects.  Since tokens are represented by classes, rather than
-        instances, this is necessary in order to change their `__repr__` (the
-        defalt one is ugly for tokens) or to overload operators to work for
-        token operands."""
-        def __new__(mcs, name, bases, dct):
-            new_class = super(TokenSubclassMeta, mcs).__new__(mcs, name, bases, dct)
-
-            # Below is ugly, but avoids mutual import problems.  Used as an
-            # easy way to define token addition so that it works in the
-            # grammars defined by the production_rules module.
-            from .production_rules import (Tok, Not, Prec,
-                                           nExactly, nOrMore)
-            # These are saved in a dict below because if they are made
-            # attributes then Python 2 complains about "TypeError: unbound
-            # method Tok() must be called with TokenClass_k_lpar instance as
-            # first argument (got TokenSubclassMeta instance instead)".
-            #new_class.Tok = Tok
-            #new_class.Not = Not
-            #new_class.Prec = Prec
-            new_class.prod_rule_funs = {}
-            new_class.prod_rule_funs["Tok"] = Tok
-            new_class.prod_rule_funs["Not"] = Not
-            new_class.prod_rule_funs["Prec"] = Prec
-            new_class.prod_rule_funs["nExactly"] = nExactly
-            new_class.prod_rule_funs["nOrMore"] = nOrMore
-            return new_class
-
-        def __repr__(cls):
-            """The representation for tokens.  Tokens are commonly used in the
-            code but, being classes, have an ugly default `__repr__` when printed out.
-            In this metaclass we can define a better `__repr__` for tokens."""
-            string = "TokenClass_{0}".format(cls.token_label)
-            return string
-
-        #
-        # Representations.  These overloads work with the production_rules module.
-        #
-
-        # TODO: Could have a flag to turn off overloads, maybe... tokens know
-        # their parser_instance at runtime, so they can look at instance.  If
-        # Grammar is passed a parser and initialized before it could turn on
-        # overloads and compile could turn them off.  Kind of restrictive,
-        # though.  But could just put calls to a function to check and raise an
-        # error... Catches accidental uses, and can suggest maybe they need to
-        # init Grammar first...  These all return Item or related anyway,
-        # should catch most accidentals just because of that.
-
-        def __add__(cls, other):
-            """Addition of two tokens is defined to simply return a tuple of
-            both tokens.  This is so raw tokens can be used in the operator
-            overloaded form of defining production rules for a grammar."""
-            return cls.prod_rule_funs["Tok"](cls) + other
-
-        def __radd__(cls, left_other):
-            """The right version of `__add__` above."""
-            return left_other + cls.prod_rule_funs["Tok"](cls)
-
-        def __or__(cls, other):
-            """The `|` symbol simply converts this object into an `ItemList`
-            and then calls `__or__` for those objects."""
-            return cls.prod_rule_funs["Tok"](cls) | other
-
-        def __ror__(cls, left_other):
-            """The right version of `__or__` above."""
-            return left_other | cls.prod_rule_funs["Tok"](cls)
-
-        def __rmul__(cls, left_other):
-            """The expression `n*token` for an int `n` is "n occurrences of"
-            `token`."""
-            return cls.prod_rule_funs["nExactly"](left_other, cls)
-
-        def __rpow__(cls, left_other):
-            """The expression `n**token` for an int `n` is "n or more occurrences of"
-            `token`."""
-            return cls.prod_rule_funs["nOrMore"](left_other, cls)
-
-        def __invert__(cls):
-            """Define the `~` operator for production rule grammars."""
-            return cls.prod_rule_funs["Not"](cls)
-
-        def __getitem__(cls, arg):
-            """Define the bracket indexing operator for production rule grammars
-            to set the precedence."""
-            return cls.prod_rule_funs["Prec"](cls, arg)
-
 
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
@@ -1136,7 +1145,7 @@ def token_subclass_factory():
             This function is made a method of `TokenSubclass` so that handler
             functions can easily call it by using `tok.recursive_parse`, and
             also so that it can access the lexer without it needing to be
-            passed as an argument.
+            passed as an argument.  It is basically a static function, though.
 
             If `processed_left` is set (evaluates to true) then the first part
             of `recursive_parse` is skipped and it jumps right to the
@@ -1212,13 +1221,11 @@ def token_subclass_factory():
             return processed_left
 
         #
-        # Copying instances of tokens (deep copies should not be used).
+        # Copying instances of tokens.
         #
 
-        def copy(self):
+        def __copy__(self):
             """Return a shallow copy of the token."""
-            # TODO, consider whether to reset parent and children and whether to
-            # overload __copy__ magic method.
             return copy.copy(self)
 
         #
@@ -1996,11 +2003,11 @@ class PrattParser(object):
         if not skip_lex_setup:
             self.lex.set_text(program)
         begin_tok = self.lex.token # Get the first token to access recursive_parse.
-        output = begin_tok.recursive_parse(0)
+        parse_tree = begin_tok.recursive_parse(0)
 
         # Finalize type-checking for root when overloading on return types.
         if self.overload_on_ret_types:
-            output.check_types_in_tree_second_pass(root=True)
+            parse_tree.check_types_in_tree_second_pass(root=True)
 
         # See if we reached the end of the token stream.
         if not self.lex.peek().is_end_token() and not partial_expressions:
@@ -2012,11 +2019,11 @@ class PrattParser(object):
                 " result returned is:\n{4}"
                 .format(self.lex.token.token_label, self.lex.token.value,
                         self.lex.peek().token_label, self.lex.peek().value,
-                        output.tree_repr()))
+                        parse_tree.tree_repr()))
 
         if pstate:
             self.pstate_stack = []
-        return output
+        return parse_tree
 
 
 def sort_handler_dict(d):

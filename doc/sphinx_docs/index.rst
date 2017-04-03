@@ -65,15 +65,15 @@ Content
    :numbered:
 
    pratt_parsing_intro
-   dispatching.rst
-   recursive_descent.rst
+   dispatching
    calculator_example
    types_in_typped
    juxtaposition_operators
-   extending_prattparser
-   multiple_parsers
-   templates
-   lookbehind.rst
+   recursive_descent
+   .. extending_prattparser
+   parsers_calling_other_parsers
+   .. templates
+   lookbehind
    typped
    other_possible_generalizations
 
