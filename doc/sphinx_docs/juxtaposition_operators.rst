@@ -1,5 +1,5 @@
 Juxtaposition operators (jops)
-=============================
+==============================
 
 In mathematics it is common to define implicit operators between two objects.
 The most common example is implicit multiplication between variables when they

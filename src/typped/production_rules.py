@@ -103,13 +103,15 @@ Implementation
        `Prec` and precedences in productions
        `Sig` type handling
        `Pratt` calls to the Pratt parser
-       `Optional`
+       `Opt`
        `OneOrMore`
        `ZeroOrMore`
        `Not`
        `AnyOf`
        `Hide`
-       `Repeat(n, itemlist)`, exactly n repeats
+       `Exactly(n, itemlist)`, exactly n repeats
+       `nOrMore(n, itemlist)`, n or more repeats
+       `nOrFewer(n, itemlist)`, n or fewer repeats
        Overload * as in `3 * k_rpar` for `Repeat`
        `RepeatAtLeast(n, itemlist)`, n or more repeats
        Overload ** as in `3 ** k_rpar` for `RepeatAtLeast`.
@@ -137,9 +139,10 @@ Function       Arguments                   Shortcut
 `Prec`         item, prec                  item[prec]
 `Sig`          item, type sig              item(sig)
 `Pratt`        (optional) pstate, type sig
-`Optional`     item
+`Opt`     item
 `nExactly`     int, item                   n * item
 `nOrMore`      int, item                   n ** item
+`nOrFewer`     int, item                   n // item
 `OneOrMore`    item
 `ZeroOrMore`   item
 `Hide`         item
@@ -217,21 +220,28 @@ Summary of the operations:
 TODO:
 
     Update: Implement this: Use `3 * k_digit` for exactly 3, and `3 ** k_digit`
-    for three or more.  Then ZeroOrMore is `0**k_digit` and OneOrMore is
-    `1**k_digit`.  The `**` operator can be read as `OrMore`.  Both have high
-    precedence, shouldn't be a problem!!!  The extra asterisk "adds more" to
+    for three or more.  Then ZeroOrMore is `0 ** k_digit` and OneOrMore is
+    `1 ** k_digit`.  The `**` operator can be read as `OrMore`.  Both have high
+    precedence, shouldn't be a problem!!!  Consider, though, if left vs. right
+    association will be a problem.  The extra asterisk "adds more" to
     the expression.  Also, `Not` is `0*k_comma`.
 
-    * `*` = "occurrences of"
-    * `**` = "or more occurrences of"
+    * `*` = "occurrences of" or "exactly"
+    * `**` = "or more occurrences of" or "or more"
 
     Applies to groups in parens for free; the + operators turn the all
     into an `ItemList`.
 
-    Implement as `Repeat(n, itemlist)` and `RepeatAtLeast(n, itemlist)`.
+    Implement as `nExactly(n, itemlist)` and `nOrMore(n, itemlist)`.
 
-    Note, though, that 3*_<"wff">_ will grab the 3*_, which must return
-    something that works.
+    Consider `3 // k_digit` as "3 or fewer".  Then Opt is `1 // k_digit`,
+    but you need parens for larger expression.  Implement as `nOrFewer`.
+    Then does between 4 and 10 work as: `10 // 4 ** k_digit`?  No, it is 10 or
+    fewer groups of 4 or more.  Then:
+
+    * `//` = "or fewer occurrences of" or "or fewer"
+
+    Consider shortening `Opt` to `Opt`.
 
     https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 
@@ -245,7 +255,7 @@ starts or ends.  These are stored in a list attribute called
 modifiers can be any of these (set by the corresponding function applied to the
 Item or ItemList):
 
-* `"Optional("`
+* `"Opt("`
 * `"OneOrMore("`
 * `"ZeroOrMore("`
 
@@ -372,6 +382,10 @@ See some of those articles and maybe do a simple thing.
 # do `ItemList` and `CaseList` handle this?  What about just a postprocessing
 # to gather them up or mark them somehow?  Could mark them as a TokenGroup(...)
 # or similar.
+
+# Interesting discussion of precedence in recursive descent.  Does this essentially
+# use one of those methods (assume precedence is implemented)?
+# http://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
 
 from __future__ import print_function, division, absolute_import
 import pytest_helper
@@ -597,7 +611,7 @@ class Item(object):
         self.prec = 0
         self.pstate = None
         self.type_sig = None
-        self.modifiers = [] # Things like "Optional(" and ")" added by funs.
+        self.modifiers = [] # Things like "Opt(" and ")" added by funs.
 
         if value is None: # A dummy Item; must be set to something else to be used.
             self.kind_of_item = "dummy"
@@ -965,9 +979,9 @@ def Pratt(pstate=None, type_sig=None):
     item.pstate = pstate
     return item
 
-def Optional(arg):
+def Opt(arg):
     itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "Optional(")
+    itemlist[0].modifiers.insert(0, "Opt(")
     itemlist[-1].modifiers.append(")")
     return itemlist
 
@@ -994,6 +1008,13 @@ def nExactly(n, arg):
 
 def nOrMore(n, arg):
     # Same as n ** arg.
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "nOrMore({0},".format(n))
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
+def nOrFewer(n, arg):
+    # Same as n // arg.
     itemlist = ItemList(arg)
     itemlist[0].modifiers.insert(0, "nOrMore({0},".format(n))
     itemlist[-1].modifiers.append(")")

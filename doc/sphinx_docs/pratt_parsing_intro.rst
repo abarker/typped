@@ -543,10 +543,11 @@ Vaughan R. Pratt, "`Top down operator precedence
 The original article, at the ACM site (paywall).
 
 Fredrik Lundh, "`Simple Top-Down Parsing in Python
-<http://effbot.org/zone/simple-top-down-parsing.htm>`_," July 2008.  Excellent explanation
-and good code examples in Python.  Influenced the design and implementation of
-the Typped package.  See also the `related articles by Lundh on Pratt parsing
-and lexing with regexes <http://effbot.org/zone/tdop-index.htm>`_.
+<http://effbot.org/zone/simple-top-down-parsing.htm>`_," July 2008.  Excellent
+explanation and good code examples in Python.  Influenced the design and
+implementation of the Typped package.  Includes an example of parsing a subset
+of Python expressions.  See also the `related articles by Lundh on Pratt
+parsing and lexing with regexes <http://effbot.org/zone/tdop-index.htm>`_.
 
 Eli Bendersky, "`Top-Down operator precedence parsing
 <http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/>`_,"

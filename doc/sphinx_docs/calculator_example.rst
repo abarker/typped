@@ -47,7 +47,6 @@ an argument.  The three functions above will be described shortly.  First, to
 give a preview of what the calculator does, here is a simple dialog of the
 program running::
 
-   Press ENTER or type command to continue
    Enter ^C to exit, and 'toggle' to toggle tree display.
    > 5
    5.0

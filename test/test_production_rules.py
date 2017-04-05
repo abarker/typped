@@ -262,12 +262,12 @@ def test_shortcut_operator_overloads_in_expression_grammar():
     wff = ( Rule("wff") + ~k_plus + Rule("wff")
           | Pratt() | k_ast
           | Rule("wff") + ~k_ast  + Rule("wff")
-          | Optional(Rule("wff") + OneOrMore(k_plus + k_plus))
+          | Opt(Rule("wff") + OneOrMore(k_plus + k_plus))
           )
 
     assert str(wff) == (
         'CaseList(ItemList(Rule("wff"), Not(Tok("k_plus")), Rule("wff")), '
         'ItemList(Pratt("None")), ItemList(Tok("k_ast")), '
         'ItemList(Rule("wff"), Not(Tok("k_ast")), Rule("wff")), '
-        'ItemList(Optional(Rule("wff"), OneOrMore(Tok("k_plus"), Tok("k_plus")))))')
+        'ItemList(Opt(Rule("wff"), OneOrMore(Tok("k_plus"), Tok("k_plus")))))')
 

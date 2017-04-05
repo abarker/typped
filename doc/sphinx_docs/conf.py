@@ -330,3 +330,7 @@ epub_exclude_files = ['search.html']
 
 # If false, no index is generated.
 #epub_use_index = True
+
+# See http://www.sphinx-doc.org/en/stable/ext/autodoc.html
+autodoc_member_order = "bysource" # alb added
+

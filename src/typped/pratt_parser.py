@@ -330,6 +330,9 @@ def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
 # function is maybe simpler, but Sphinx does not properly document the
 # TokenNode class defined inside it.
 #
+# Alternative: Define the base class in module scope in the usual way, and
+# then have the factory function just subclass it again (from some trivial
+# stub) to represent particular kinds of tokens.
 
 class TokenSubclassMeta(type):
     """A trivial metaclass that will actually create the `TokenSubclass`
@@ -761,7 +764,7 @@ def token_subclass_factory():
 
             self.in_tree = in_tree
 
-            # Process the children to implement in_tree, if set.
+            # Process the children to implement `in_tree`, if set.
             modified_children = []
             for child in self.children:
                 if child.in_tree: modified_children.append(child)
