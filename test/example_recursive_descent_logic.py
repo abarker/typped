@@ -362,7 +362,7 @@ def define_logic_language(parser):
         tok.parser_instance.pstack.append("wff_prime")
         return tok
 
-    parser.modify_token_subclass("k_not", prec=0,
+    parser.modify_token("k_not", prec=0,
                      head=head_handler, precond_label=precond_label,
                      precond_fun=logical_not_token_precond_wff_state,
                      precond_priority=precond_priority,
@@ -386,7 +386,7 @@ def define_logic_language(parser):
         tok.process_and_check_node(head_handler)
         return tok
 
-    parser.modify_token_subclass("k_implies", prec=0, # PREC??????????
+    parser.modify_token("k_implies", prec=0, # PREC??????????
                      head=head_handler, precond_label=precond_label,
                      precond_fun=implies_token_in_wff_prime_state_precond,
                      precond_priority=precond_priority,

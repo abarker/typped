@@ -493,7 +493,7 @@ def token_subclass_factory():
                              type_sig=TypeSig(None, None)):
             """Register a handler function (either head or tail) with the
             subclass for this kind of token, setting the given properties.
-            This method is only ever called from the `modify_token_subclass`
+            This method is only ever called from the `modify_token`
             method of a `PrattParser` instance.
 
             If no precondition label or function is provided a dummy
@@ -540,7 +540,7 @@ def token_subclass_factory():
             # need to specially register that the token uses the precondition,
             # and give a value for it to look for (i.e., to be hashed under).
             # Probably should pass precond assertions list to the
-            # `modify_token_subclass` routine, maybe something like:
+            # `modify_token` routine, maybe something like:
             #    precond_optimize_assert=(None,None,"wff")
             # For those which register the optimization you still need a precond
             # function itself, at least for the unique name, but you can leave off
@@ -1375,13 +1375,18 @@ class PrattParser(object):
     # Methods defining tokens.
     #
 
-    token_kinds = ("regular", "ignored", "begin", "end", "jop", "null-string")
-
     def def_token_master(self, token_label, regex_string=None, on_ties=0, ignore=False,
                          ignored_token_label=None, token_kind="regular"):
-        """The master method for defining tokens that all the convenience methods
-        must call.  Allows for factoring out some common code and keeping the
-        attributes of all the different kinds of tokens up-to-date."""
+        """The master method for defining tokens; all the convenience methods
+        actually call it.  Allows for factoring out some common code and
+        keeping the attributes of all the different kinds of tokens up-to-date.
+        This routine calls the underlying lexer's `def_token` to get tokens and
+        then adds extra attributes needed by the `PrattParser` class.
+
+        The `token_kind` argument must be one of the following strings:
+        `"regular"`, `"ignored"`, `"begin"`, `"end"`, `"jop"`, or
+        `"null-string"`.
+        """
         token_table = self.token_table
 
         if token_kind == "regular":
@@ -1400,7 +1405,7 @@ class PrattParser(object):
                 raise CalledBeginTokenHandler("Called head-handler for begin token.")
             def begin_tail(self, lex, left):
                 raise CalledBeginTokenHandler("Called tail-handler for begin token.")
-            tok = self.modify_token_subclass(
+            tok = self.modify_token(
                                    token_label, head=begin_head, tail=begin_tail)
             self.begin_token_subclass = tok
 
@@ -1412,7 +1417,7 @@ class PrattParser(object):
                 raise CalledEndTokenHandler("Called head-handler for end token.")
             def end_tail(self, lex, left):
                 raise CalledEndTokenHandler("Called tail-handler for end token.")
-            tok = self.modify_token_subclass(
+            tok = self.modify_token(
                                       token_label, head=end_head, tail=end_tail)
             self.end_token_subclass = tok
 
@@ -1551,7 +1556,7 @@ class PrattParser(object):
         looking at the `token_label` attribute of the token."""
         return self.token_table.get_token_subclass(token_label)
 
-    def modify_token_subclass(self, token_label, prec=None, head=None, tail=None,
+    def modify_token(self, token_label, prec=None, head=None, tail=None,
                        precond_label=None, precond_fun=None,
                        precond_priority=0, val_type=None, arg_types=None,
                        eval_fun=None, ast_data=None):
@@ -1574,6 +1579,22 @@ class PrattParser(object):
         `arg_types` alone for when overloading on return values is not used.
         This allows for different overloads to have different evaluation
         functions and AST-associated data."""
+        # Why not make this a method of TokenNode?  Keep in mind the
+        # distinction between the subclass (representing the token in general)
+        # and the instances (representing particular lexed tokens).  For now
+        # this seems better, as a consequence of using token labels rather than
+        # token instances in the API.  The label needs to be looked up in the
+        # token table (which this could actually be a method of instead, but
+        # the lexer's TokenTable would need to be subclassed to add PrattParser
+        # related methods and the call would be less convenient or need a
+        # convenience wrapper).  If token instances were used in the API then
+        # it would be better as a method of TokenNode, but tokens need to be
+        # stored under labels and using labels makes things like multi-def work
+        # better.
+
+        # Note that the parser_instance attribute of tokens is not necessarily
+        # set yet when this is called from token_master.  It gets set at the end
+        # of that routine.
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
@@ -1593,11 +1614,8 @@ class PrattParser(object):
             raise ParserException("In call to mod_token_subclass: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
                     " calling `def_token` first.".format(token_label))
-            # Below line used to just create a subclass, but that can mask errors!
+            # Below line formerly just created a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
-
-        # Save a reference to the PrattParser, so nodes can access it if they need to.
-        token_subclass.parser_instance = self # maybe weakref later
 
         if tail:
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
@@ -1670,7 +1688,7 @@ class PrattParser(object):
         def head_handler_literal(tok, lex):
             tok.process_and_check_node(head_handler_literal)
             return tok
-        return self.modify_token_subclass(token_label, head=head_handler_literal,
+        return self.modify_token(token_label, head=head_handler_literal,
                                val_type=val_type, arg_types=(),
                                precond_label=precond_label, precond_fun=precond_fun,
                                eval_fun=eval_fun, ast_data=ast_data)
@@ -1719,7 +1737,7 @@ class PrattParser(object):
             tok.process_and_check_node(tail_handler, in_tree=in_tree,
                                                      repeat_args=repeat)
             return tok
-        return self.modify_token_subclass(operator_token_labels[0], prec=prec,
+        return self.modify_token(operator_token_labels[0], prec=prec,
                                 tail=tail_handler, val_type=val_type,
                                 arg_types=arg_types, eval_fun=eval_fun,
                                 ast_data=ast_data)
@@ -1750,7 +1768,7 @@ class PrattParser(object):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler)
             return tok
-        return self.modify_token_subclass(operator_token_label, head=head_handler,
+        return self.modify_token(operator_token_label, head=head_handler,
                             precond_label=precond_label, precond_fun=precond_fun,
                             val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                             ast_data=ast_data)
@@ -1767,7 +1785,7 @@ class PrattParser(object):
             tok.append_children(left)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token_subclass(operator_token_label, prec=prec,
+        return self.modify_token(operator_token_label, prec=prec,
                         tail=tail_handler, val_type=val_type, arg_types=arg_types,
                         eval_fun=eval_fun, ast_data=ast_data)
 
@@ -1787,7 +1805,7 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler,
                     typesig_override=TypeSig(child_type, [child_type]))
             return tok
-        return self.modify_token_subclass(lbrac_token_label, head=head_handler,
+        return self.modify_token(lbrac_token_label, head=head_handler,
                                    eval_fun=eval_fun, ast_data=ast_data)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
@@ -1836,7 +1854,7 @@ class PrattParser(object):
             lex.match_next(rpar_token_label, raise_on_fail=True)
             tok.process_and_check_node(head_handler)
             return tok
-        return self.modify_token_subclass(fname_token_label, prec=0,
+        return self.modify_token(fname_token_label, prec=0,
                      head=head_handler, precond_label=precond_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
@@ -1886,7 +1904,7 @@ class PrattParser(object):
             lex.match_next(rpar_token_label, raise_on_fail=True)
             left.process_and_check_node(tail_handler)
             return left
-        return self.modify_token_subclass(lpar_token_label,
+        return self.modify_token(lpar_token_label,
                                           prec=prec_of_lpar, tail=tail_handler,
                                           precond_label=precond_label,
                                           precond_fun=precond_fun,
@@ -1920,7 +1938,7 @@ class PrattParser(object):
             tok.append_children(left, right_operand)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token_subclass(self.jop_token_label, prec=prec,
+        return self.modify_token(self.jop_token_label, prec=prec,
                 tail=tail_handler, precond_label=precond_label,
                 precond_fun=precond_fun, precond_priority=precond_priority,
                 val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
