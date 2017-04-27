@@ -1,4 +1,4 @@
-Appendix I: Possible (but unimplemented) generalizations
+Appendix A: Possible (but unimplemented) generalizations
 ========================================================
 
 The following subsections discuss some possible generalizations which are not

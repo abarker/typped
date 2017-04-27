@@ -15,7 +15,7 @@ import typped # Test as a full package.
 # Syntax:
 #    types:     t_int
 # AST labels:
-#    a_number
+#    d_number
 
 # TOKEN DEFINITIONS #################################################################
 
@@ -84,32 +84,32 @@ def define_syntax(parser):
             #("k_imag_number", "t_imag_number"),
             ("k_identifier",),
             ]
-    #parser.def_literal("k_number", ast_data="a_number")
-    #parser.def_literal("k_imag_number", ast_data="a_imag_number")
-    #parser.def_literal("k_identifier", ast_data="a_variable")
+    #parser.def_literal("k_number", ast_data="d_number")
+    #parser.def_literal("k_imag_number", ast_data="d_imag_number")
+    #parser.def_literal("k_identifier", ast_data="d_variable")
     parser.def_multi_literals(literals)
 
     # Operators
     parser.def_stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
-                                ast_data="a_std_function")
+                                ast_data="d_std_function")
     #parser.def_stdfun_lpar_tail("k_identifier", "k_lpar", "k_rpar", "k_comma", 20,
-    #                            ast_data="a_std_function") # 20 is prec of (
+    #                            ast_data="d_std_function") # 20 is prec of (
 
-    parser.def_infix_op("k_plus", 10, "left", ast_data="a_add")
-    parser.def_infix_op("k_minus", 10, "left", ast_data="a_subtract")
+    parser.def_infix_op("k_plus", 10, "left", ast_data="d_add")
+    parser.def_infix_op("k_minus", 10, "left", ast_data="d_subtract")
 
-    parser.def_infix_op("k_ast", 20, "left", ast_data="a_mult")
-    parser.def_infix_op("k_fslash", 20, "left", ast_data="a_divide")
+    parser.def_infix_op("k_ast", 20, "left", ast_data="d_mult")
+    parser.def_infix_op("k_fslash", 20, "left", ast_data="d_divide")
 
-    parser.def_prefix_op("k_plus", 100, ast_data="a_positive")
-    parser.def_prefix_op("k_minus", 100, ast_data="a_negative")
+    parser.def_prefix_op("k_plus", 100, ast_data="d_positive")
+    parser.def_prefix_op("k_minus", 100, ast_data="d_negative")
 
     parser.def_postfix_op("k_bang", 100, allow_ignored_before=False, ast_data="factorial")
 
-    parser.def_infix_op("k_double_ast", 30, "right", ast_data="a_exp")
+    parser.def_infix_op("k_double_ast", 30, "right", ast_data="d_exp")
 
     parser.def_infix_multi_op(["k_question", "k_colon"], 90, "right",
-                              ast_data="a_ternary_conditional")
+                              ast_data="d_ternary_conditional")
 
     # Note we have two exp operators, and we might want exp() standard fun too...
     # They should probably all have the same AST node which saves how they were
@@ -117,12 +117,12 @@ def define_syntax(parser):
 
     parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="paren_brackets")
 
-    #parser.define_comma_list("k_comma", 5, "right", ast_data="comma_list")
+    #parser.define_commd_list("k_comma", 5, "right", ast_data="comma_list")
     parser.def_infix_multi_op(["k_comma"], 5, "left",
                               in_tree=False, repeat=True, ast_data="comma_list")
 
     parser.def_infix_multi_op(["k_semicolon"], 3, "left",
-                                   repeat=True, ast_data="a_statements")
+                                   repeat=True, ast_data="d_statements")
 
 # OLD PRINT TESTS ####################################################################
 
@@ -306,7 +306,7 @@ def test_jop(basic_setup):
 
     print("parser token table is", parser.token_table.token_subclass_dict.keys())
     parser.def_jop_token("k_jop", "k_space")
-    parser.def_jop(20, "left", ast_data="a_mult")
+    parser.def_jop(20, "left", ast_data="d_mult")
     expr = "5  9"
     #print("\nworking on", expr)
     #print(parser.parse(expr))
@@ -350,18 +350,18 @@ def test_types_mixed_numerical_bool_expressions():
     t_bool = parser.def_type("t_bool")
 
     # define initial syntax
-    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+    parser.def_literal("k_number", val_type=t_number, ast_data="d_number")
+    parser.def_literal("k_identifier", val_type=t_number, ast_data="d_variable")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma",
-                      val_type=t_number, arg_types=[t_number], ast_data="a_exp")
+                      val_type=t_number, arg_types=[t_number], ast_data="d_exp")
     parser.def_infix_op("k_plus", 10, "left", val_type=t_number,
-                      arg_types=[t_number,t_number], ast_data="a_add")
+                      arg_types=[t_number,t_number], ast_data="d_add")
     parser.def_infix_op("k_minus", 10, "left", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_subtract")
+                        arg_types=[t_number,t_number], ast_data="d_subtract")
     parser.def_infix_op("k_ast", 20, "left", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_mult")
+                        arg_types=[t_number,t_number], ast_data="d_mult")
     parser.def_infix_op("k_double_ast", 30, "right", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_exp")
+                        arg_types=[t_number,t_number], ast_data="d_exp")
 
     # run simple tests with just one type
     assert parser.parse("5 + 100").string_tree_repr() == \
@@ -376,8 +376,8 @@ def test_types_mixed_numerical_bool_expressions():
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
     parser.def_token("k_false", r"False")
-    parser.def_literal("k_true", val_type=t_bool, ast_data="a_true")
-    parser.def_literal("k_false", val_type=t_bool, ast_data="a_false")
+    parser.def_literal("k_true", val_type=t_bool, ast_data="d_true")
+    parser.def_literal("k_false", val_type=t_bool, ast_data="d_false")
     # define some new functions, first giving them unique tokens (required for
     # types to work correctly????????????? what are requirements?  where is
     # type info stored exactly, to see what can conflict?)
@@ -385,11 +385,11 @@ def test_types_mixed_numerical_bool_expressions():
     parser.def_token("f_bn2n", r"f_bn2n")
     parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_number, arg_types=[t_bool,t_number],
-                                ast_data="a_test_fun_bool_number_to_number")
+                                ast_data="d_test_fun_bool_number_to_number")
     parser.def_token("f_nb2b", r"f_nb2b")
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_bool, arg_types=[t_number, t_bool],
-                                ast_data="a_test_fun_number_bool_to_bool")
+                                ast_data="d_test_fun_number_bool_to_bool")
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
@@ -409,15 +409,15 @@ def test_types_mixed_numerical_bool_expressions():
 
     # more functions
 
-    # parser.def_literal("a_true", "k_true", val_type=t_bool) # redefinition
+    # parser.def_literal("d_true", "k_true", val_type=t_bool) # redefinition
     parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_bool,t_number],
-                               ast_data="a_test_fun_bool_number_to_number")
+                               ast_data="d_test_fun_bool_number_to_number")
 
     parser.def_token("g_bn2n", r"g_bn2n")
     parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_bool,t_number],
-                               ast_data="a_test_fun_bool_number_to_number")
+                               ast_data="d_test_fun_bool_number_to_number")
 
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
@@ -430,7 +430,7 @@ def test_types_mixed_numerical_bool_expressions():
     # both number,bool and bool,number args (they could have diff tokens, too)
     parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number,t_bool],
-                               ast_data="a_test_fun_bool_number_to_number")
+                               ast_data="d_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
     assert tree.children[0].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
@@ -449,7 +449,7 @@ def test_types_mixed_numerical_bool_expressions():
     # test multiple matches without fun overloading: give f_nb2b a number return version
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number, t_bool],
-                               ast_data="a_test_fun_number_bool_to_bool")
+                               ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Actual argument types match multiple signatures.")
@@ -471,18 +471,18 @@ def test_types_overloaded_return():
     t_bool = parser.def_type("t_bool")
 
     # define initial syntax
-    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+    parser.def_literal("k_number", val_type=t_number, ast_data="d_number")
+    parser.def_literal("k_identifier", val_type=t_number, ast_data="d_variable")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma",
-                      val_type=t_number, arg_types=[t_number], ast_data="a_exp")
+                      val_type=t_number, arg_types=[t_number], ast_data="d_exp")
     parser.def_infix_op("k_plus", 10, "left", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_add")
+                        arg_types=[t_number,t_number], ast_data="d_add")
     parser.def_infix_op("k_minus", 10, "left", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_subtract")
+                        arg_types=[t_number,t_number], ast_data="d_subtract")
     parser.def_infix_op("k_ast", 20, "left", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_mult")
+                        arg_types=[t_number,t_number], ast_data="d_mult")
     parser.def_infix_op("k_double_ast", 30, "right", val_type=t_number,
-                        arg_types=[t_number,t_number], ast_data="a_exp")
+                        arg_types=[t_number,t_number], ast_data="d_exp")
 
     # run simple tests with just one type
     assert parser.parse(" 5 + 100").string_tree_repr() == \
@@ -497,18 +497,18 @@ def test_types_overloaded_return():
     # define "True" and "False" as boolean value literals.
     parser.def_token("k_true", r"True")
     parser.def_token("k_false", r"False")
-    parser.def_literal("k_true", val_type=t_bool, ast_data="a_true")
-    parser.def_literal("k_false", val_type=t_bool, ast_data="a_false")
+    parser.def_literal("k_true", val_type=t_bool, ast_data="d_true")
+    parser.def_literal("k_false", val_type=t_bool, ast_data="d_false")
     # define some new functions, first giving them unique tokens
     # define a function taking t_bool and t_number args returning t_number
     parser.def_token("f_bn2n", r"f_bn2n")
     parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_bool,t_number],
-                               ast_data="a_test_fun_bool_number_to_number")
+                               ast_data="d_test_fun_bool_number_to_number")
     parser.def_token("f_nb2b", r"f_nb2b")
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_bool, arg_types=[t_number, t_bool],
-                               ast_data="a_test_fun_number_bool_to_bool")
+                               ast_data="d_test_fun_number_bool_to_bool")
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
@@ -528,15 +528,15 @@ def test_types_overloaded_return():
 
     # more functions
 
-    # parser.def_literal("a_true", "k_true", val_type=t_bool) # redefinition
+    # parser.def_literal("d_true", "k_true", val_type=t_bool) # redefinition
     parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_number, arg_types=[t_bool,t_number],
-                                ast_data="a_test_fun_bool_number_to_number")
+                                ast_data="d_test_fun_bool_number_to_number")
 
     parser.def_token("g_bn2n", r"g_bn2n")
     parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_number, arg_types=[t_bool,t_number],
-                                ast_data="a_test_fun_bool_number_to_number")
+                                ast_data="d_test_fun_bool_number_to_number")
 
     tree = parser.parse("f_bn2n(True,100) + g_bn2n(False,20)")
     assert tree.token_label == "k_plus"
@@ -549,7 +549,7 @@ def test_types_overloaded_return():
     # both number,bool and bool,number args (they could have diff tokens, too)
     parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number,t_bool],
-                               ast_data="a_test_fun_bool_number_to_number")
+                               ast_data="d_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
     assert tree.children[0].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
@@ -569,7 +569,7 @@ def test_types_overloaded_return():
     print("========== defining first overload of f_nb2b")
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number, t_bool],
-                               ast_data="a_test_fun_number_bool_to_bool")
+                               ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)") # fails since two possibilities
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
@@ -581,7 +581,7 @@ def test_types_overloaded_return():
     # overload f_nb2b again, to also take two number arguments
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_number, t_number],
-                               ast_data="a_test_fun_number_number_to_bool")
+                               ast_data="d_test_fun_number_number_to_bool")
     # now args are ambiguous in this order
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(4, f_nb2b(4,False))")
@@ -595,31 +595,66 @@ def test_types_overloaded_return():
         parser.parse("f_nb2b(f_nb2b(2, f_nb2b(1,False)), 3)")
     assert str(e.value).startswith("Token node has multiple signatures with")
 
-def test_example_from_pratt_parser_dot_py_file():
+def test_example_from_overview_docs():
+    """An example from the Sphinx docs overview section.  A simple language
+    that uses `+` to add numbers and concatenate strings.  Multiplication of a
+    number by a string repeats the string.  Multiplication of a string by a
+    string is not defined.  It also has simple variables which can represent
+    either numbers or strings."""
+    # TODO: Maybe later make standalone example file and import from it to test.
     parser = typped.PrattParser()
 
     parser.def_default_whitespace() # Define default "k_space" and "k_newline" tokens.
+    #parser.def_token("k_space", r"[ \t]+")
+    #parser.def_token("k_newline", r"[\n\f\r\v]+")
+
     parser.def_token("k_number", r"\d+")
     parser.def_token("k_lpar", r"\(")
     parser.def_token("k_rpar", r"\)")
     parser.def_token("k_ast", r"\*")
     parser.def_token("k_plus", r"\+")
+    parser.def_token("k_equals", r"=")
     parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    parser.def_token("k_string", r"(\"(.|[\r\n])*?\")")
 
     t_number = parser.def_type("t_number")
-    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+    t_string = parser.def_type("t_string")
+
+    parser.def_literal("k_number", val_type=t_number, ast_data="d_number")
+    parser.def_literal("k_identifier", val_type=t_number, ast_data="d_variable")
+    parser.def_literal("k_string", val_type=t_string, ast_data="d_string")
+
+    parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="d_grouping_paren")
+
+    # TODO: Change ast_data to eval_fun.
     parser.def_infix_op("k_plus", 10, "left",
                      val_type=t_number, arg_types=[t_number, t_number],
-                     ast_data="a_add")
+                     ast_data="d_add_numbers")
+    parser.def_infix_op("k_plus", 10, "left",
+                     val_type=t_string, arg_types=[t_string, t_string],
+                     ast_data="d_add_strings")
+
     parser.def_infix_op("k_ast", 20, "left",
                      val_type=t_number, arg_types=[t_number, t_number],
-                     ast_data="a_mult")
-    parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
+                     ast_data="d_mult_numbers")
+    parser.def_infix_op("k_ast", 20, "left",
+                     val_type=t_string, arg_types=[t_string, t_number],
+                     ast_data="d_mult_numbers")
 
+    parser.def_infix_op("k_equals", 20, "left",
+                     val_type=t_number, arg_types=[t_number, t_number],
+                     ast_data="d_assign_strings")
+    parser.def_infix_op("k_equals", 20, "left",
+                     val_type=t_string, arg_types=[t_string, t_string],
+                     ast_data="d_mult_numbers")
 
     result_tree = parser.parse("x + (4 + 3)*5")
     print(result_tree.tree_repr())
+    print(result_tree.string_repr_with_types())
+    assert result_tree.string_repr_with_types() == "<k_plus,+,TypeObject(t_number)>(<k_identifier,x,TypeObject(t_number)>,<k_ast,*,TypeObject(t_number)>(<k_lpar,(,TypeObject(t_number)>(<k_plus,+,TypeObject(t_number)>(<k_number,4,TypeObject(t_number)>,<k_number,3,TypeObject(t_number)>)),<k_number,5,TypeObject(t_number)>))"
+    result_tree = parser.parse('"foo" + "bar"')
+    print(result_tree.tree_repr())
+    print(result_tree.string_repr_with_types())
+    assert result_tree.string_repr_with_types() == """<k_plus,+,TypeObject(t_string)>(<k_string,"foo",TypeObject(t_string)>,<k_string,"bar",TypeObject(t_string)>)"""
     #fail()
-
 

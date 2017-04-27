@@ -351,15 +351,13 @@ class TokenSubclassMeta(type):
         # then Python 2 complains about "TypeError: unbound method Tok() must
         # be called with TokenClass_k_lpar instance as first argument (got
         # TokenSubclassMeta instance instead)".
-        #new_class.Tok = Tok
-        #new_class.Not = Not
-        #new_class.Prec = Prec
-        new_class.prod_rule_funs = {}
-        new_class.prod_rule_funs["Tok"] = Tok
-        new_class.prod_rule_funs["Not"] = Not
-        new_class.prod_rule_funs["Prec"] = Prec
-        new_class.prod_rule_funs["nExactly"] = nExactly
-        new_class.prod_rule_funs["nOrMore"] = nOrMore
+        new_class.prod_rule_funs = {
+                "Tok": Tok,
+                "Not": Not,
+                "Prec": Prec,
+                "nExactly": nExactly,
+                "nOrMore": nOrMore,
+                }
         return new_class
 
     #
@@ -1669,10 +1667,13 @@ class PrattParser(object):
     # Methods defining syntax elements.
     #
 
-    # TODO these define and undefine methods each need a corresponding
-    # undefine method (or one that does all); should be easy with undef_handler method.
+    # TODO these define and undefine methods each need a corresponding undefine
+    # method (or one that does all); should be easy with undef_handler method.
     # Is it necessary to call undef_handler, or does undef the token do that
     # too?  Look at undef_handler and see........ use below if needed.
+    #
+    # ALSO, consider defining them in a separate file and then importing them
+    # and pasting them onto the class, just to keep the code separate.
 
     def def_literal(self, token_label, val_type=None, precond_label=None,
                           precond_fun=None, precond_priority=1,
@@ -1797,6 +1798,7 @@ class PrattParser(object):
         effectively gets the highest evaluation precedence.  As far as types,
         it is treated as a function that takes one argument of wildcard type
         and returns whatever type the argument has."""
+        # TODO: Maybe allow optional comma_token_label for comma-separated.
         # Define a head for the left bracket of the pair.
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
@@ -1807,6 +1809,23 @@ class PrattParser(object):
             return tok
         return self.modify_token(lbrac_token_label, head=head_handler,
                                    eval_fun=eval_fun, ast_data=ast_data)
+
+    def def_string(self, lquot_token_label, rquot_token_label, esc_token_label=None,
+                                               eval_fun=None, ast_data=None):
+        """Define a string that begins with the symbol `lquot_token_label` and
+        ends with the symbol `rquot_token_label`.  Defines a head handler for
+        the left quote token."""
+        # NOTE Not working.....
+        def head_handler(tok, lex):
+            # TODO: this needs to read raw chars!  How to do?
+            tok.append_children(tok.recursive_parse(0))
+            lex.match_next(rbrac_token_label, raise_on_fail=True)
+            child_type = tok.children[0].expanded_formal_sig.val_type
+            tok.process_and_check_node(head_handler,
+                    typesig_override=TypeSig(child_type, [child_type]))
+            return tok
+        return self.modify_token(lbrac_token_label, head=head_handler,
+                                 eval_fun=eval_fun, ast_data=ast_data)
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,

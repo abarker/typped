@@ -119,6 +119,18 @@ The ``factor`` production could be implemented either as a handler for the
 null-string token or by head handlers for the identifier, number, and left
 paren token types.
 
+TODO: consider also this version of the simple expression grammar.
+https://en.wikipedia.org/wiki/Syntax_diagram
+
+.. productionlist::
+
+   expression : term | expression "+"  term;
+   term       : factor | term "*"  factor;
+   factor     : constant | variable | "("  expression  ")";
+   variable   : "x" | "y" | "z"; 
+   constant   : digit  {digit};
+   digit      : "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+
 Recursive descent with Typped's EBNF grammar
 --------------------------------------------
 

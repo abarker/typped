@@ -20,10 +20,15 @@ the reverse order.  The working code can be found in the file
 file to start up the calculator.  A few the lines of that file have been left
 out for readability in the code blocks below.
 
-The main function
------------------
+The Python code below is broken up into various sub-functions for readability
+and to simplify the display and discussion.  These high-level functions will be
+called "procedures" to avoid confusion with the functions in the calculator
+language and lower-level Python functions inside the parser.
 
-The main function is called ``define_and_run_basic_calculator``.  It
+The main procedure
+------------------
+
+The main procedure is called ``define_and_run_basic_calculator``.  It
 is called as the last line of the calculator module.
 
 .. code-block:: python
@@ -39,11 +44,11 @@ is called as the last line of the calculator module.
        read_eval_print_loop(parser)
 
 The code first defines a ``PrattParser`` instance.  It then passes that
-instance to a function which sets up the parser with the grammar and evaluation
+instance to a procedure which sets up the parser with the grammar and evaluation
 functions for the calculator language.
 
 Finally, the read-evaluate-print loop is called, passed the parser instance as
-an argument.  The three functions above will be described shortly.  First, to
+an argument.  The three procedures above will be described shortly.  First, to
 give a preview of what the calculator does, here is a simple dialog of the
 program running::
 
@@ -119,8 +124,8 @@ code is basic Python, and can be skimmed by people familiar with the language.
 The code shows how a Typped parser is used at the higher level.
 
 The ``cmd`` module in the standard Python library can also be used to write the
-REP loop.  The example file also has a version of the function that is
-implemented using that library.
+REP loop.  The example file also has an alternative version of the procedure
+which is implemented using that library.
 
 .. code-block:: python
 
@@ -194,11 +199,11 @@ Finally, the values are printed out and the loop continues.
 Defining the grammar
 --------------------
 
-The only function left to describe is the ``define_basic_calculator`` function.
-This is the function that really shows how to set up and use the
-``PrattParser`` class --- at least the basic parts of it.  To keep the function
-from being too long it has been broken up into several sub-functions doing
-particular tasks.  Here is the main function:
+The only high-level procedure left to describe is the
+``define_basic_calculator`` procedure.  This is the procedure that really shows
+how to set up and use the ``PrattParser`` class (at least the basic usage).  To
+keep the procedure from being too long it has been broken up into several
+sub-procedures doing particular tasks.  This is the top-level procedure:
 
 .. code-block:: python
 
@@ -210,9 +215,9 @@ particular tasks.  Here is the main function:
        define_assignment_operator(parser)
        define_comments(parser)
 
-Each function does what the name implies.  The code for each sub-function, in
-sequence, will be shown and discussed next.  The first function defines some
-general tokens and literals in the calculator language.
+Each procedure does what the name implies.  The code for each sub-procedure, in
+sequence, will be shown and discussed next.  The first procedure defines some
+general tokens and literals in the calculator language:
 
 .. code-block:: python
 
@@ -251,25 +256,29 @@ general tokens and literals in the calculator language.
 
        parser.def_literal("k_float", eval_fun=lambda t: float(t.value))
 
-So this just defines some operators and basic symbols in the language.  Notice
-that ``^`` and ``**`` are both defined to produce the token labeled
+We now have tokens for operators and other basic symbols in the language.
+Notice that ``^`` and ``**`` are both defined to produce the token labeled
 ``double_ast``.  An alternate way to do this would be to define two separate
 tokens and give them the same function definition.
 
 Floating point literals are defined and provided with an evaluation function.
-This evaluation function just takes the token ``t`` with label ``k_float`` and
-converts the string value returned by the lexer into a Python float.
+This evaluation function just takes a token with label ``k_float`` as its
+argument ``t`` and converts the string value (returned by the lexer) into a
+Python float.  The floating point value is returned.
 
-The next group of definitions for the calculator language define almost all the
-functions in the language.  This includes standard functions like ``sin`` and
-operators like ``*`` and ``!``.  The definitions are made using built-in
-methods of the ``PrattParser`` class.  Note the precedences assigned to the
-operators.
+The next procedure contains a group of definitions for the calculator language
+which will define almost all of the functions in the language.  This includes
+standard functions like ``sin`` and operators like ``*`` and ``!``.  The
+definitions are made using built-in methods of the ``PrattParser`` class.  Note
+in particular the precedence values assigned to the operators.
 
 Every function is also provided with an evaluation function, which, at
 evaluation time, runs the Python version of the function on the arguments.  The
-arguments of a function with node ``t`` in the expression tree are the children
-``t[0]``, ``t[1]``, etc., depending on how many arguments there are.
+evaluation functions are passed a node ``t``, which is a node in the final
+expression tree.  The children of the node are then accessed as ``t[0]``,
+``t[1]``, etc., depending on how many arguments there are.  The evaluations are
+top-down recursive, and call the method ``eval_subtree`` on the child or
+children (i.e., to evaluate the function arguments).
 
 .. code-block:: python
 
@@ -340,14 +349,14 @@ different number of arguments each time.  This results in function overloading.
 Each overload can have a different evaluation function.  In this case the
 two-place version takes an extra argument giving the base, like in the Python
 math library (which uses a default parameter value for the single-argument
-form).  The default base is `e`.
+form).  The default base is ``e``.
 
-At this point we have a working calculator.  The code up to this point can be
-run to do basic operations.  The next groups of definitions just add extra
-features to the calculator.
+At this point we have a working calculator.  The code up to this point can
+already be run to do basic operations.  The next three procedures just add
+extra features to the calculator.
 
-The previous function defined all the usual arithmetic functions, but it did
-not define the juxtaposition operator.  This function defines the juxtaposition
+The previous procedure defined all the usual arithmetic functions, but it did
+not define the juxtaposition operator.  This procedure defines the juxtaposition
 operator as a synonym for multiplication.
 
 .. code-block:: python
@@ -414,8 +423,8 @@ all such tokens.
 
        parser.def_ignored_token("k_comment_to_EOL", r"\#[^\r\n]*$", on_ties=10)
 
-The language has now been defined and the calculator can be run as above in the
-interactive dialog.
+The language has now been defined and the calculator can be run as shown above
+in the interactive dialog.
 
 Extending the calculator
 ------------------------

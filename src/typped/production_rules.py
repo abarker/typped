@@ -30,7 +30,8 @@ produce a parse tree.
 * **Lark** -- Passed a string. Implements Earley & LALR(1) and returns a parse tree.
   https://github.com/erezsh/Lark
 
-For more, see https://wiki.python.org/moin/LanguageParsing
+For more, see https://wiki.python.org/moin/LanguageParsing and
+https://github.com/webmaven/python-parsing-tools.
 
 Terminology
 ===========
@@ -133,7 +134,7 @@ Wrapper functions:
 ============   =========================== ==========
 Function       Arguments                   Shortcut
 ============   =========================== ==========
-`Rule`         rule-label (string)
+`Rule`         rule-label (a string)
 `Tok`          token                       token
 `Root`         item
 `Prec`         item, prec                  item[prec]
@@ -170,10 +171,12 @@ argument list it just takes the elements within that list and puts them on its
 list.  The `CaseList` class works similarly.
 
 So the initializers basically form the concatenation of all the passed-in
-arguments, after converting to the one type that the list-like object holds.
-The addition and "or" operations are essentially shorthand for putting both
-operands on an initializer list of the appropriate return type.  Appending
-to a list gives the in-place result of adding the list and that item.
+arguments, after converting each one to the type of object that the list-like
+object holds (each holds only one type of object).  The addition and "or"
+operations are essentially shorthand for putting both operands on an
+initializer list of the appropriate return type.  Appending to a list works the
+same except it gives the in-place result of appending that item after
+converting it.
 
 Summary of the operations:
 
@@ -527,7 +530,25 @@ class Grammar(object):
     def _recursive_set_first_sets(self, nonterm_label, rule):
         """Recursively compute the first set for each rule and store it with that
         rule object."""
+
+        # TODO Only partial implementation below.  Need to work out how to map
+        # the concepts to a regex token based parser.  Suppose we base things
+        # on the token label of the token returned by the lexer?
         #
+        # To prune the tree based on lookahead we need to guarantee that all
+        # the regexes are DISJOINT in the sense that their languages are
+        # disjoint.  An intersection would disallow the pruning cutoff.  This
+        # could still be interpreted in various ways.  The token labels,
+        # though, could be used as a simple way to determine disjointness.
+        # This would probably work in most cases, and the tokens could be
+        # defined slightly differently if necessary...  Note that priorities
+        # could also come into play...
+        #
+        # Consider using the first token-literal label as the thing to compare
+        # with.  This assumes one-token lookahead.  Can this be proved to work?
+        # How about sequences of token-literal labels when multiple
+        # token-literals start a rule, multiple token lookahead, etc?
+
         # See algorithm on this page:
         # http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
         # http://www.csd.uwo.ca/~moreno/CS447/Lectures/Syntax.html/node12.html

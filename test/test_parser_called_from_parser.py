@@ -55,6 +55,7 @@ import pytest_helper
 pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
 #pytest_helper.sys_path("../src")
+pytest_helper.sys_path("../examples")
 
 import typped as pp
 from example_parser_called_from_parser import *

@@ -1,8 +1,8 @@
-typped package
-==============
+APIs and code for the modules in the Typped package
+===================================================
 
-Submodules
-----------
+.. Modules
+   -------
 
 .. toctree::
 
@@ -14,13 +14,14 @@ Submodules
    typped.register_grammar_with_parser
    typped.regex_trie_dict
    typped.regex_trie_dict_scanner
-   typped.text_stream
+   .. typped.text_stream
    typped.trie_dict
 
-Module contents
----------------
+.. Module contents
+   ---------------
 
 .. automodule:: typped
     :members:
     :undoc-members:
     :show-inheritance:
+

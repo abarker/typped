@@ -152,10 +152,10 @@ how to incorporate type-checking.
    ``repeat_args``, which are documented in the API for ``TokenNode`` objects.
 
 2. When handler functions are registered with a token using the
-   ``modify_token_subclass`` method of a ``PrattParser`` instance that function
-   should also be passed the value type as the keyword argument ``val_type``
-   and the argument types as the keyword argument ``arg_types``.   That method
-   creates a ``TypeSig`` object, so ``val_type`` should be a type, i.e., a
+   ``modify_token`` method of a ``PrattParser`` instance that function should
+   also be passed the value type as the keyword argument ``val_type`` and the
+   argument types as the keyword argument ``arg_types``.   That method creates
+   a ``TypeSig`` object, so ``val_type`` should be a type, i.e., a
    ``TypeObject`` instance, and ``arg_types`` should be a list or iterable of
    types.  The value ``None`` is allowed as a type, and the convention that a
    single type passed as the argument list repeats it as many times as required

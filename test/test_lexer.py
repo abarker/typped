@@ -306,6 +306,7 @@ def test_some_error_conditions():
     assert str(e.value).startswith("No matches in Lexer")
 
 def test_documentation_example():
+    """This tests an example in the `Lexer` class' documentation."""
 
     lex = Lexer()
 
@@ -335,4 +336,5 @@ def test_documentation_example():
     lex.set_text("x  + y")
     t = next(lex)
     assert str(t) == "<k_identifier,'x'>"
+
 

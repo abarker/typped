@@ -199,6 +199,9 @@ Code
 # workings (just calculate the right slices into self.program).  Slight complication
 # with lookahead and how to define it.
 
+# TODO: Look at the shlex package and see if anything that could be used or ideas to
+# borrow.  https://docs.python.org/3.6/library/shlex.html
+
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -727,6 +730,14 @@ LexerState = collections.namedtuple("LexerState", [
                            "y",
                         ])
 
+# TODO: Consider if it is a good idea to have a method like `next_raw` which
+# would just return tokens for raw characters.  This would be useful in
+# parsing, say, C-style comments using the parser rather than a complicated
+# regex.  Would need a special token kind to return for it.  This effectively
+# modifies the token set scanned for, and would require flushing the buffer
+# with go_back.  Other than that it should work. Not especially efficient to
+# create a token for each char, but still linear in text size.
+
 class Lexer(object):
     """Scans text and returns tokens, represented by instances of `TokenNode`
     subclass instances. There is one subclass for each kind of token, i.e., for
@@ -1248,6 +1259,8 @@ class Lexer(object):
     def match_next(self, token_label_to_match, peeklevel=1, consume=True,
                    raise_on_fail=False, raise_on_true=False,
                    err_msg_tokens=3):
+        # TODO: Consider a way for users to define custom error strings for
+        # better error-reporting.
         """A utility function that tests whether the value of the next token
         label equals a given token label.
 

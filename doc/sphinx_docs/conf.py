@@ -89,7 +89,8 @@ exclude_patterns = ['_build']
 #show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = 'sphinx'
+#pygments_style = 'sphinx'
+pygments_style = 'alb'
 
 # A list of ignored prefixes for module index sorting.
 #modindex_common_prefix = []
@@ -102,7 +103,103 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'default'
+#html_theme = 'default'
+
+html_theme = 'classic'
+"""
+http://www.sphinx-doc.org/en/stable/theming.html#builtin-themes
+
+classic – This is the classic theme, which looks like the Python 2
+documentation. It can be customized via these options:
+
+    rightsidebar (true or false): Put the sidebar on the right side. Defaults to False.
+    stickysidebar (true or false): Make the sidebar “fixed” so that it doesn’t scroll
+          out of view for long body content. This may not work well with all browsers.
+          Defaults to False.
+    collapsiblesidebar (true or false): Add an experimental JavaScript snippet that
+          makes the sidebar collapsible via a button on its side. Doesn’t work with
+          “stickysidebar”. Defaults to False.
+    externalrefs (true or false): Display external links differently from internal
+    links. Defaults to False.
+
+There are also various color and font options that can change the color scheme
+without having to write a custom stylesheet:
+
+    footerbgcolor (CSS color): Background color for the footer line.
+    footertextcolor (CSS color): Text color for the footer line.
+    sidebarbgcolor (CSS color): Background color for the sidebar.
+    sidebarbtncolor (CSS color): Background color for the sidebar collapse button
+          (used when collapsiblesidebar is True).
+    sidebartextcolor (CSS color): Text color for the sidebar.
+    sidebarlinkcolor (CSS color): Link color for the sidebar.
+    relbarbgcolor (CSS color): Background color for the relation bar.
+    relbartextcolor (CSS color): Text color for the relation bar.
+    relbarlinkcolor (CSS color): Link color for the relation bar.
+    bgcolor (CSS color): Body background color.
+    textcolor (CSS color): Body text color.
+    linkcolor (CSS color): Body link color.
+    visitedlinkcolor (CSS color): Body color for visited links.
+    headbgcolor (CSS color): Background color for headings.
+    headtextcolor (CSS color): Text color for headings.
+    headlinkcolor (CSS color): Link color for headings.
+    codebgcolor (CSS color): Background color for code blocks.
+    codetextcolor (CSS color): Default text color for code blocks, if not set
+          differently by the highlighting style.
+    bodyfont (CSS font-family): Font for normal text.
+    headfont (CSS font-family): Font for headings.
+"""
+
+# BG colors.
+#codebgcolor = "#FCF9F7" # use if no better
+code_bgcolor = "#F3F0EE" # slightly darker, probably better...
+header_bgcolor = "oldlace"
+sidebar_bgcolor = "#DFD9D0"
+relbar_bgcolor = "darkslategrey"
+
+# Text colors.
+header_textcolor = "#003000"
+linkcolor = "#006000"
+sidebar_linkcolor = "#006000"
+bgcolor = "white"
+
+html_theme_options = {
+    # The bar at the top.
+    "relbarbgcolor": relbar_bgcolor,
+    "relbartextcolor": "#999999",
+    "relbarlinkcolor": header_bgcolor,
+
+    # Footer at the very bottom.
+    "footerbgcolor": "dimgrey",
+    "footertextcolor": "white",
+
+    # Headers for sections.
+    "headbgcolor": header_bgcolor,
+    "headtextcolor": header_textcolor,
+    "headlinkcolor": "darkslategrey",
+
+    # Sidebar.
+    "sidebarbgcolor": sidebar_bgcolor,
+    "sidebartextcolor": header_textcolor,
+    "sidebarlinkcolor": sidebar_linkcolor,
+    "rightsidebar": "false",
+    "collapsiblesidebar": "true",
+    "sidebarbtncolor": bgcolor,
+
+    # Code blocks.
+    "codebgcolor": code_bgcolor,
+    "codetextcolor": "default",
+
+    # General text.
+    "textcolor": "default",
+    "visitedlinkcolor": "darkolivegreen",
+    "linkcolor": linkcolor,
+
+    "bgcolor": bgcolor,
+    "textcolor": "black",
+}
+
+#html_theme = "sphinxdoc"
+#html_theme_options = {}
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

@@ -29,11 +29,10 @@ ignored if one wants to use only standard Pratt parser techniques.
 The preconditions which trigger the use of a particular head or tail handler
 function for a token are defined by the user at the time when that handler
 function is registered/associated with the token.  The ``PrattParser`` method
-which registers a handler function with a token (called
-``modify_token_subclass``) is additionally passed the precondition function and
-any other required information.  Preconditions functions are essentially
-arbitrary boolean-valued functions which are called to look at the state at the
-time a token is parsed.
+which registers a handler function with a token (called ``modify_token``) is
+additionally passed the precondition function and any other required
+information.  Preconditions functions are essentially arbitrary boolean-valued
+functions which are called to look at the state at the time a token is parsed.
 
 A preconditions function which returns true when evaluated is said to **match**
 in the current state.  If only one preconditions function matches then its
@@ -200,6 +199,29 @@ the final signature (and in looking up evaluation functions, etc.)
    So while the Typped parser can be used in either way, it is worth
    considering the use of dynamic token definitions.
 
+Precondition functions versus overloading
+-----------------------------------------
+
+Overloading is implemented for cases where the token and the preconditions
+functions are the same (i.e., they both have the same label) but the types
+differ.  An alternative way to do this would be to simply use a unique
+preconditions function label for each definition (perhaps by appending a string
+representation of the type).  The same function object could be used each
+time, or a copy could be given the same label (at the cost of some space).
+
+Using unique preconditions functions would result in a single type associated
+with each registered preconditions function.  Upon choosing the preconditions
+function there would necessarily be ties among all the ones with labels
+associated with a common function object.  The particular one could not be
+narrowed-down until after parsing the arguments and getting their types.  This
+could be done by modifying the selection algorithm slightly, but then ties in
+general would have to be allowed in selecting handler functions.  The function
+object could be *required* to be identical in that case, but that would limit
+the use of functions redefined inside other functions.
+
+Which way is better in which circumstances?  Why not a single way?  Describe.
+TODO TODO TODO.
+
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
 
@@ -306,11 +328,11 @@ space.
 
            # Register the handler function with the token, associated with the
            # preconditions function.
-           self.modify_token_subclass(fname_token_label, prec=0,
-                                      head=head_handler,
-                                      precond_label=precond_label,
-                                      precond_fun=preconditions,
-                                      precond_priority=precond_priority)
+           self.modify_token(fname_token_label, prec=0,
+                             head=head_handler,
+                             precond_label=precond_label,
+                             precond_fun=preconditions,
+                             precond_priority=precond_priority)
 
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and

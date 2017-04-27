@@ -32,7 +32,7 @@ is a crucial factor.
 
    This is alpha-level software.  Many features are only partially implemented,
    and the documentation is incomplete.  The user API can still change ---
-   probably in minor ways but not necessarily.
+   probably in minor ways, but not necessarily.
 
 Installation
 ============
@@ -64,6 +64,7 @@ Content
    :maxdepth: 3
    :numbered:
 
+   basic_usage
    pratt_parsing_intro
    dispatching
    calculator_example

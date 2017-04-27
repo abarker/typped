@@ -79,11 +79,11 @@ For type signatures we need to be able to do the following.
 More implementation details
 ---------------------------
 
-Type signatures can be declared whenever a head or tail is defined (or redefined
-for overloading).  It is passed in kwargs to the ``modify_token_subclass``
-routine whenever a head or tail is defined.  That routine then looks up the token
-subclass in the symbol table for token subclasses and stored the provided head
-or tail in one of the dictionaries for the token.  It also pastes the type
+Type signatures can be declared whenever a head or tail is defined (or
+redefined for overloading).  It is passed in kwargs to the ``modify_token``
+routine whenever a head or tail is defined.  That routine then looks up the
+token subclass in the symbol table for token subclasses and stored the provided
+head or tail in one of the dictionaries for the token.  It also pastes the type
 information onto the head and/or tail handlers as an attribute (in a set of
 function signature tuples).  If the head or tail already exists it assumes that
 overloading is intended, and the type signature is unioned with any existing
