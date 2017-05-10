@@ -176,7 +176,7 @@ For a token named `t`, these attributes are available:
 * `t.children` --- can be set to a list of children; set by the lexer to `[]`
 * `t.original_matched_string` --- the original text that was consumed for this token
 * `t.line_and_char` --- tuple of line number and character where the token started
-* `t.char_index_in_program` --- the index of this token into the set program text
+* `t.char_index_in_program` --- the index of this token into the text set via `set_text`
 * `t.ignored_before` --- a tuple of all tokens ignored immediately before this one
 
 TODO, list other methods, too.

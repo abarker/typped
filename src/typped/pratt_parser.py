@@ -15,18 +15,27 @@ Extra attributes added to tokens
 --------------------------------
 
 Token instances straight from a `Lexer` instance have certain attributes set,
-as documented in the `lexer` module.  The `pratt_parser` module defines its own
-subclass of the `TokenNode` class, which sets some extra attributes.  The
-parsing process also sets several user-accessible attributes.
+as documented in the `lexer` module.  In particular, the `token_label`,
+`value`, and `children` attributes are commonly used.  The `pratt_parser` module defines its
+own subclass of the `TokenNode` class, which additionally assigns some extra
+attributes when tokens are defined.  The parsing process also sets several
+user-accessible attributes.
 
 Attributes set on the `TokenNode` subclass:
 
 Attributes set on token instances during parsing:
 
-* `expanded_formal_sig` -- a `TypeSig` instance with the expanded formal sig
+* `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
+* `expanded_formal_sig` -- a `TypeSig` instance of the expanded formal signature
 * `precond_label` -- the preconditions label of the winning preconditions function
 
-TODO: document more
+Note that both `original_formal_sig` and `expanded_formal_sig` are set to the
+string `"Unresolved"` before the token is parsed.  The actual signature is
+found during parsing and type-checking.  Out of all possible overloads in the
+original formal signatures associated with the token (via `modify_token`) the
+one which matches the actual arguments is chosen.  The expanded formal
+signature is the same as the original formal signature except that wildcards,
+etc., are expanded in the attempt to match the actual arguments.
 
 Implementation details
 ======================
@@ -386,14 +395,16 @@ def token_subclass_factory():
             # etc.)  It is the signature which matched the actual args.  The
             # `self.expanded_formal_sig` has an attribute `original_formal_sig`
             # which is the original, unexpanded formal signature that matched
-            # (after expansion) the actual arguments.  This is important
-            # because the `eval_fun` and `ast_data` for tokens are saved in dicts
-            # keyed by the original signature at the time when they are
-            # defined.  So we need the resolved original signature to look up
-            # the value.  (Note that if overloading on return types is turned
-            # off then these dicts are keyed only on the argument portion of
-            # the original typesig.)
-            self.expanded_formal_sig = "Unresolved" # The full sig.  Set after parsing.
+            # (after expansion) the actual arguments.  After parsing it is set
+            # as the token attribute `original_formal_sig`.  This is important
+            # because the `eval_fun` and `ast_data` for tokens are saved in
+            # dicts keyed by the original signature at the time when they are
+            # defined (via `modify_token`).  So we need the resolved original
+            # signature to look up the value.  (Note that if overloading on
+            # return types is turned off then these dicts are keyed only on the
+            # argument portion of the original typesig.)
+            self.original_formal_sig = "Unresolved" # The matching orig sig.
+            self.expanded_formal_sig = "Unresolved" # Expanded version of above.
             #self.actual_sig = {} # Currently just look at tree, can read off the types.
 
         @classmethod
@@ -699,6 +710,7 @@ def token_subclass_factory():
                     all_possible_sigs = fun_object.type_sigs
                 self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
 
+                # Do the actual checking.
                 if not self.parser_instance.overload_on_ret_types: # One-pass.
                     self._check_types(all_possible_sigs, repeat_args)
                 else: # Two-pass.
@@ -707,18 +719,24 @@ def token_subclass_factory():
                     # subtree.  In this case, since the signature is fixed by
                     # argument types (regardless of where the top-down pass
                     # starts from) we can in this case resolve the types in the
-                    # subtree early.
+                    # subtree early.  Note `check_types_in_tree_second_pass` is
+                    # also called on the root node from the `parse` method.
                     if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                         self.check_types_in_tree_second_pass()
 
-            if typesig_override and not check_override_sig:
-                orig_sig = self.expanded_formal_sig.original_formal_sig
-                prev_eval_fun = self._get_eval_fun(orig_sig)
-                prev_ast_data = self._get_ast_data(orig_sig)
-                self._save_eval_fun_and_ast_data(self.precond_label, typesig_override,
-                                                 prev_eval_fun, prev_ast_data)
-                # Force the final, actual typesig to be the override sig.
-                self.expanded_formal_sig = typesig_override
+                # Do the override in the case where no checking is done on the
+                # override sig.  Only the `expanded_formal_sig` is set to the
+                # override sig; the `original_formal_sig` is the one found in
+                # the actual checking above.
+                if typesig_override and not check_override_sig:
+                    orig_sig = self.expanded_formal_sig.original_formal_sig
+                    self.original_formal_sig = orig_sig
+                    prev_eval_fun = self._get_eval_fun(orig_sig)
+                    prev_ast_data = self._get_ast_data(orig_sig)
+                    self._save_eval_fun_and_ast_data(self.precond_label, typesig_override,
+                                                     prev_eval_fun, prev_ast_data)
+                    # Force the final, actual typesig to be the override sig.
+                    self.expanded_formal_sig = typesig_override
             return
 
         def _check_types(self, all_possible_sigs, repeat_args, first_pass_of_two=False):
@@ -753,6 +771,7 @@ def token_subclass_factory():
                 # Found a unique signature; set the node's expanded_formal_sig attribute.
                 # Saved sig used for eval_fun resolution, ast_data, semantic action, etc.
                 self.expanded_formal_sig = self.matching_sigs[0]
+                self.original_formal_sig = self.expanded_formal_sig.original_formal_sig
 
                 # Delete some temporary attributes no longer needed since final pass.
                 delattr(self, "matching_sigs")
@@ -828,6 +847,7 @@ def token_subclass_factory():
 
             # We have a unique signature; set the node's type attributes
             self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
+            self.original_formal_sig = self.expanded_formal_sig.original_formal_sig
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
@@ -923,7 +943,7 @@ def token_subclass_factory():
             registered with it.  Will raise an error if with no such function
             is found."""
             sig = self.expanded_formal_sig
-            orig_sig = self.expanded_formal_sig.original_formal_sig
+            orig_sig = self.original_formal_sig
 
             eval_fun = self._get_eval_fun(orig_sig)
 
