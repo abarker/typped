@@ -1,90 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 
-A general Pratt parser module that uses dispatching of handler functions
-and can check types.
-
-Basic usage
-===========
-
-To use the `PrattParser` class you need to do these things:
-
-    1. Create an instance of the PrattParser class.  Example::
-
-          parser = PrattParser()
-
-    2. Define each token that will appear in the language, including a string
-       label and a regex to recognize that kind of token.  If necessary,
-       the appropriate `on_ties` values can be set to break ties in case of equal
-       match lengths (the lexer will always take the longest match over all the
-       defined tokens, with ties broken by any `on_ties` values, defaulting to zero).
-       Examples::
-
-            parser.def_default_whitespace()
-            parser.def_token("k_number", r"\d+")
-            parser.def_token("k_lpar", r"\(")
-            parser.def_token("k_rpar", r"\)")
-            parser.def_token("k_ast", r"\*")
-            parser.def_token("k_plus", r"\+")
-            parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
-
-    3. Define the syntactical elements of the language being parsed.  Any
-       necessary token labels must have already been defined as in the previous
-       step.  The predefined syntax-definition methods of `PrattParser` take as
-       arguments token labels, type information, etc.  They also allow for an
-       arbitrary piece of data `ast_data` which can be used in any way desired
-       (including in preconditions).  Example code, assuming the above tokens::
-
-            t_number = parser.def_type("t_number") # Define a type.
-            parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-            parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
-            parser.def_infix_op("k_plus", 10, "left",
-                             val_type=t_number, arg_types=[t_number, t_number],
-                             ast_data="a_add")
-            parser.def_infix_op("k_ast", 20, "left",
-                             val_type=t_number, arg_types=[t_number, t_number],
-                             ast_data="a_mult")
-            parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
-
-       If the predefined parsing methods are not sufficient you might need to
-       write some custom parsing functions.  (Those are documented elsewhere
-       but you can look at the code of the predefined methods to see how it
-       works.)
-
-       Note that literal tokens must still be defined as syntactical elements
-       of the grammar being parsed after being defined as tokens --- tokens
-       alone are simply scanned and returned by the lexer.  If typing is being
-       used then any type information should also be set for the literal
-       tokens since they are the leaves of the expression tree.
-
-       Defining types and using `val_type` and `arg_types` is optional, and in
-       this simple example does not really do anything since there is only one
-       type.
-
-       The `ast_data` fields set above are purely optional.  The ones set above
-       might be used, for example, to convert the returned expression tree to
-       an AST.
-
-    4. Pass the parser a string of text to parse and save the returned expression
-       tree.  The returned tree has token instances as its nodes. ::
-
-          result_tree = parser.parse("x + (4 + 3)*5")
-          print(result_tree.tree_repr())
-
-       The result of running the above code is::
-
-        <k_plus,'+'>
-            <k_identifier,'x'>
-            <k_ast,'*'>
-                <k_lpar,'('>
-                    <k_plus,'+'>
-                        <k_number,'4'>
-                        <k_number,'3'>
-                <k_number,'5'>
-
-    5. You can optionally evaluate the resulting tree (if evaluate functions
-       were supplied as kwargs for the appropriate methods), or convert it to an
-       AST with some other kind of nodes.
+A general Pratt parser module that uses dispatching of handler functions and
+can check types.  The API is documented here.  See the general Sphinx
+documentation for Typped for how to use the class and examples.
 
 API details
 ===========
@@ -770,6 +689,7 @@ def token_subclass_factory():
             self.children = modified_children
 
             # Perform the type-checking unless the skip option is set.
+            # TODO: Can checking safely be turned off?  Haven't tested recently.....
             if not self.parser_instance.skip_type_checking:
 
                 # Get all the sigs for the node while we have access to fun_object.
@@ -1675,9 +1595,10 @@ class PrattParser(object):
     # ALSO, consider defining them in a separate file and then importing them
     # and pasting them onto the class, just to keep the code separate.
 
-    def def_literal(self, token_label, val_type=None, precond_label=None,
-                          precond_fun=None, precond_priority=1,
-                          eval_fun=None, ast_data=None):
+    def def_literal(self, token_label, val_type=None,
+                    precond_label=None, precond_fun=None, precond_priority=1,
+                    typesig_override_fun=None,
+                    eval_fun=None, ast_data=None):
         """Defines the token with label `token_label` to be a literal in the
         syntax of the language being parsed.  This method adds a head handler
         function to the token.  Literal tokens are the leaves of the expression
@@ -1685,13 +1606,27 @@ class PrattParser(object):
         expression.  They always occur as the first (and only) token in a
         subexpression being evaluated by `recursive_parse`, so they need a head
         handler but not a tail handler.  (Though note that the token itself
-        might also have a tail handler.)"""
+        might also have a tail handler.)
+
+        A function `typesig_override_fun` can be passed in, taking a token and
+        a lexer as its two arguments and returning a `TypeSig` object.  If it
+        is set then it will be called from the head handler and the type
+        signature of the node will be assigned the returned signature.  Can be
+        useful for dynamic typing such as when identifiers in an interpreted
+        language are generic variables."""
+
         def head_handler_literal(tok, lex):
-            tok.process_and_check_node(head_handler_literal)
+            if typesig_override_fun:
+                tok.process_and_check_node(head_handler_literal,
+                                check_override_sig=True,
+                                typesig_override=typesig_override_fun(tok, lex))
+            else:
+                tok.process_and_check_node(head_handler_literal)
             return tok
         return self.modify_token(token_label, head=head_handler_literal,
                                val_type=val_type, arg_types=(),
                                precond_label=precond_label, precond_fun=precond_fun,
+                               precond_priority=precond_priority,
                                eval_fun=eval_fun, ast_data=ast_data)
 
     def def_multi_literals(self, tuple_list):
@@ -1699,26 +1634,33 @@ class PrattParser(object):
         tuples.  The `def_literal` method will be called for each tuple, unpacked
         in the order in the tuple.  Unspecified optional arguments get their default
         values."""
+        # TODO: This unfortunately makes it difficult to change the order in the
+        # def_literal function arguments...
         return multi_funcall(self.def_literal, tuple_list)
 
-    def def_infix_multi_op(self, operator_token_labels, prec,
-                                    assoc, repeat=False, in_tree=True,
-                                    val_type=None, arg_types=None, eval_fun=None,
-                                    ast_data=None):
-        # TODO only this type currently supports "in_tree" kwarg.  General and easy
+    def def_infix_multi_op(self, operator_token_labels, prec, assoc,
+                           repeat=False, in_tree=True,
+                           precond_label=None, precond_fun=None, precond_priority=0,
+                           val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+        # TODO only this utility method currently supports "in_tree" kwarg.  General and easy
         # mechanism, though.  Test more and add to other methods.
         # Does in-tree keep the first one? how is it defined for this thing?
         # Comma operator is example of in_tree=False, but how does it handle
         # the root??
         # TODO: How about in-tree that works at root iff the node only has one child?
         """Takes a list of operator token labels and defines a multi-infix
-        operator.  If `repeat=True` it will accept any number of repetitions of
+        operator.
+
+        If `repeat=True` it will accept any number of repetitions of
         the list of operators (but type-checking for that is not implemented
         yet).  For a single operator, repeating just has the effect of putting
         the arguments in a flat argument/child list instead of as nested binary
         operations based on left or right association.  Any argument-checking
         is done after any node removal, which may affect the types that should
-        be passed-in in the list arg_types of parent constructs."""
+        be passed-in in the list arg_types of parent constructs.
+
+        If `in_tree` is false.......
+        """
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
         recurse_bp = prec
@@ -1738,10 +1680,11 @@ class PrattParser(object):
             tok.process_and_check_node(tail_handler, in_tree=in_tree,
                                                      repeat_args=repeat)
             return tok
-        return self.modify_token(operator_token_labels[0], prec=prec,
-                                tail=tail_handler, val_type=val_type,
-                                arg_types=arg_types, eval_fun=eval_fun,
-                                ast_data=ast_data)
+        return self.modify_token(operator_token_labels[0], prec=prec, tail=tail_handler,
+                                precond_label=precond_label, precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun, ast_data=ast_data)
 
     # TODO: allow these to take "extra" precond functions which are called inside
     # and a the end of the current precond... maybe.  Or could just allow
@@ -1749,15 +1692,18 @@ class PrattParser(object):
     # the different conditions did not clash unintentionally.
 
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
+                     precond_label=None, precond_fun=None, precond_priority=0,
                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
         """This just calls the more general method `def_multi_infix_op`."""
-        return self.def_infix_multi_op([operator_token_label], prec,
-                              assoc, in_tree=in_tree,
-                              val_type=val_type, arg_types=arg_types,
-                              eval_fun=eval_fun, ast_data=ast_data)
+        return self.def_infix_multi_op([operator_token_label], prec, assoc, in_tree=in_tree,
+                                       precond_label=precond_label, precond_fun=precond_fun,
+                                       precond_priority=precond_priority,
+                                       val_type=val_type, arg_types=arg_types,
+                                       eval_fun=eval_fun, ast_data=ast_data)
 
-    def def_prefix_op(self, operator_token_label, prec, precond_label=None,
-                      precond_fun=None, val_type=None, arg_types=None,
+    def def_prefix_op(self, operator_token_label, prec,
+                      precond_label=None, precond_fun=None, precond_priority=0,
+                      val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None):
         """Define a prefix operator.  Note that head handlers do not have
         precedences, only tail handlers.  (With respect to the looping in
@@ -1770,11 +1716,13 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler)
             return tok
         return self.modify_token(operator_token_label, head=head_handler,
-                            precond_label=precond_label, precond_fun=precond_fun,
-                            val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                            ast_data=ast_data)
+                                 precond_label=precond_label, precond_fun=precond_fun,
+                                 precond_priority=precond_priority,
+                                 val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                                 ast_data=ast_data)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
+                       precond_label=None, precond_fun=None, precond_priority=0,
                        val_type=None, arg_types=None, eval_fun=None,
                        ast_data=None):
         """Define a postfix operator.  If `allow_ignored_before` is false then
@@ -1786,12 +1734,15 @@ class PrattParser(object):
             tok.append_children(left)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token(operator_token_label, prec=prec,
-                        tail=tail_handler, val_type=val_type, arg_types=arg_types,
-                        eval_fun=eval_fun, ast_data=ast_data)
+        return self.modify_token(operator_token_label, prec=prec, tail=tail_handler,
+                                 precond_label=precond_label, precond_fun=precond_fun,
+                                 precond_priority=precond_priority,
+                                 val_type=val_type, arg_types=arg_types,
+                                 eval_fun=eval_fun, ast_data=ast_data)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
-                                               eval_fun=None, ast_data=None):
+                         precond_label=None, precond_fun=None, precond_priority=0,
+                         eval_fun=None, ast_data=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of
         the brackets).  Defines a head handler for the left bracket token, so
@@ -1805,27 +1756,16 @@ class PrattParser(object):
             lex.match_next(rbrac_token_label, raise_on_fail=True)
             child_type = tok.children[0].expanded_formal_sig.val_type
             tok.process_and_check_node(head_handler,
-                    typesig_override=TypeSig(child_type, [child_type]))
+                             check_override_sig=True, # TODO debug
+                             typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.modify_token(lbrac_token_label, head=head_handler,
-                                   eval_fun=eval_fun, ast_data=ast_data)
-
-    def def_string(self, lquot_token_label, rquot_token_label, esc_token_label=None,
-                                               eval_fun=None, ast_data=None):
-        """Define a string that begins with the symbol `lquot_token_label` and
-        ends with the symbol `rquot_token_label`.  Defines a head handler for
-        the left quote token."""
-        # NOTE Not working.....
-        def head_handler(tok, lex):
-            # TODO: this needs to read raw chars!  How to do?
-            tok.append_children(tok.recursive_parse(0))
-            lex.match_next(rbrac_token_label, raise_on_fail=True)
-            child_type = tok.children[0].expanded_formal_sig.val_type
-            tok.process_and_check_node(head_handler,
-                    typesig_override=TypeSig(child_type, [child_type]))
-            return tok
-        return self.modify_token(lbrac_token_label, head=head_handler,
+                                 precond_label=precond_label, precond_fun=precond_fun,
+                                 precond_priority=precond_priority,
                                  eval_fun=eval_fun, ast_data=ast_data)
+
+    #def def_assignment_operator(assignment_operator_label, prec, assoc, in_tree=True,
+    #                     val_type=None, arg_types=None, eval_fun=None, ast_data=None):
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
@@ -1957,11 +1897,11 @@ class PrattParser(object):
             tok.append_children(left, right_operand)
             tok.process_and_check_node(tail_handler)
             return tok
-        return self.modify_token(self.jop_token_label, prec=prec,
-                tail=tail_handler, precond_label=precond_label,
-                precond_fun=precond_fun, precond_priority=precond_priority,
-                val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                ast_data=ast_data)
+        return self.modify_token(self.jop_token_label, prec=prec, tail=tail_handler,
+                                 precond_label=precond_label, precond_fun=precond_fun,
+                                 precond_priority=precond_priority,
+                                 val_type=val_type, arg_types=arg_types,
+                                 eval_fun=eval_fun, ast_data=ast_data)
 
     #
     # The main parse routines.

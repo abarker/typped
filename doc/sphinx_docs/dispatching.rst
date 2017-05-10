@@ -199,29 +199,45 @@ the final signature (and in looking up evaluation functions, etc.)
    So while the Typped parser can be used in either way, it is worth
    considering the use of dynamic token definitions.
 
-Precondition functions versus overloading
------------------------------------------
+.. topic:: Overloading summary:
 
-Overloading is implemented for cases where the token and the preconditions
-functions are the same (i.e., they both have the same label) but the types
-differ.  An alternative way to do this would be to simply use a unique
-preconditions function label for each definition (perhaps by appending a string
-representation of the type).  The same function object could be used each
-time, or a copy could be given the same label (at the cost of some space).
+   Overloading is assumed and automatically used in cases where a head (tail)
+   handler function is registered with a given token (via ``modify_token``) and
+   the following conditions hold:
 
-Using unique preconditions functions would result in a single type associated
-with each registered preconditions function.  Upon choosing the preconditions
-function there would necessarily be ties among all the ones with labels
-associated with a common function object.  The particular one could not be
-narrowed-down until after parsing the arguments and getting their types.  This
-could be done by modifying the selection algorithm slightly, but then ties in
-general would have to be allowed in selecting handler functions.  The function
-object could be *required* to be identical in that case, but that would limit
-the use of functions redefined inside other functions.
+   1. The associated preconditions function has already been associated with a
+      different head (tail) handler function previously registered with the
+      token.  Remember that preconditions functions are considered identical
+      iff their labels are identical.
 
-Which way is better in which circumstances?  Why not a single way?  Describe.
-TODO TODO TODO.
+   2. The associated type specification is different from those associated
+      with all previously-registered handler function having the same label.
 
+   The last-registered handler function object is the one that is called, and
+   all type specs (and their corresponding evaluation functions and AST data
+   objects) are saved with them to be resolved and set after calling the
+   handler.
+
+.. note::
+
+   An alternative way to do overloading would be to simply use a unique
+   preconditions function label for each head and tail handler (perhaps by
+   appending a string representation of the type to the label).  Using unique
+   preconditions functions would result in a single type being associated with
+   each registered preconditions function.
+  
+   Keep in mind, though, that the usual preconditions functions are uniquely
+   resolvable at parse-time and then uniquely determine the handler function to
+   call.  If different preconditions labels are used for overloading then
+   overloading will cause multiple preconditions functions to match.  These
+   ties will not be uniquely resolvable by a priority system.  One approach
+   would be to assume that all the corresponding handler functions are
+   identical in this case and pick one to call, but that could mask some error
+   conditions.  Since type information is only resolved after the handler
+   functions are called, the particular type (and associated evaluation
+   function and AST data) would still need to then be selected from among the
+   collection of matching handlers.
+   
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
 

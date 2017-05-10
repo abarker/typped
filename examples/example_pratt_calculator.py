@@ -216,7 +216,7 @@ def cmd_read_evaluate_print_loop(parser):
     import cmd
     import readline
 
-    class CalculatorREPL(cmd.Cmd):
+    class CalculatorREPL(cmd.Cmd, object):
         """Simple command processor example."""
         prompt = "> "
         intro = ("Enter ^D to exit the calculator, 'help' for help. "
@@ -258,8 +258,8 @@ def define_and_run_basic_calculator():
     """Get a parser, define the calculator language, and start the REP loop."""
     parser = pp.PrattParser()
     define_basic_calculator(parser)
-    read_eval_print_loop(parser)
-    #cmd_read_evaluate_print_loop(parser)
+    #read_eval_print_loop(parser)
+    cmd_read_evaluate_print_loop(parser)
 
 if __name__ == "__main__":
 

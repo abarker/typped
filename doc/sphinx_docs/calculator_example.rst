@@ -20,10 +20,11 @@ the reverse order.  The working code can be found in the file
 file to start up the calculator.  A few the lines of that file have been left
 out for readability in the code blocks below.
 
-The Python code below is broken up into various sub-functions for readability
-and to simplify the display and discussion.  These high-level functions will be
-called "procedures" to avoid confusion with the functions in the calculator
-language and lower-level Python functions inside the parser.
+The Python code has been broken up into various high-level functions for
+readability and to simplify the display and discussion of the code.  These
+high-level functions will be called "procedures" in the discussion, to avoid
+confusion with the functions in the calculator language or with lower-level
+Python functions inside the parser.
 
 The main procedure
 ------------------
