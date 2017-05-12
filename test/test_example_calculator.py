@@ -14,7 +14,7 @@ pytest_helper.auto_import()
 pytest_helper.sys_path("../examples")
 
 import typped as pp
-import example_pratt_calculator
+import example_calculator
 
 #
 # Setup and utility functions.
@@ -25,7 +25,7 @@ def close_to(x, y):
 
 def setup_basic_calculator():
     parser = pp.PrattParser()
-    example_pratt_calculator.define_basic_calculator(parser)
+    example_calculator.define_basic_calculator(parser)
     return parser
 
 def parse_and_eval(parser, expr):

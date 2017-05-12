@@ -633,9 +633,9 @@ def token_subclass_factory():
                     return handler
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
-                    "token with token label '{1}' and value '{2}' in the current "
+                    "token with value '{1}' and label '{2}' in the current "
                     "preconditions."
-                    .format(head_or_tail, self.token_label, self.value))
+                    .format(head_or_tail, self.value, self.token_label))
 
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
             """Look up and return the handler function for the token."""
@@ -664,17 +664,23 @@ def token_subclass_factory():
             name of the function.
 
             The `typesig_override` argument must be a `TypeSig` instance.  It
-            will be *assigned* to the node as its actual signature after all
-            checking, overriding any other settings.  This is useful for
-            handling things like parentheses and brackets which inherit the
-            type of their child (assuming the parens and brackets are kept as
-            nodes in the parse tree and not eliminated).  The `eval_fun` and
-            `ast_data` found by the normally-resolved typesig are also
-            keyed under the override signature.
+            will be *assigned* to the node as its `expanded_formal_sig` after
+            all normal type-checking, overriding any other settings.  This is
+            useful for handling things like parentheses and brackets which
+            inherit the type of their child (assuming the parens and brackets
+            are kept as nodes in the parse tree and not eliminated).  The
+            `eval_fun` and `ast_data` found by the normally-resolved typesig
+            are also keyed under the override signature.
 
             If `check_override_sig` is true then the overridden signature will
-            be type-checked.  In checking it is assumed to be the only possible
-            signature.  It is then expanded, as usual, in the checking process.
+            be set to the only possible signature before type-checking and will
+            then be type-checked.  It is expanded as usual in the checking
+            process.  Note that this causes a conflict if evaluation functions
+            or AST data is stored with the token, because that information is
+            in a dict keyed by the original type signature.  In this case,
+            though, the override signature becomes the original type signature,
+            which will generally not have the correct information keyed under
+            it.
 
             If `in_tree` is set false then the node for this token will not
             appear in the final token tree: its children will replace it, in
@@ -700,7 +706,7 @@ def token_subclass_factory():
             self.children = modified_children
 
             # Perform the type-checking unless the skip option is set.
-            # TODO: Can checking safely be turned off?  Haven't tested recently.....
+            # TODO: Can type checking safely be turned off?  Haven't tested recently....
             if not self.parser_instance.skip_type_checking:
 
                 # Get all the sigs for the node while we have access to fun_object.
@@ -766,7 +772,8 @@ def token_subclass_factory():
             if not first_pass_of_two:
                 if len(self.matching_sigs) != 1:
                     self._raise_type_mismatch_error(self.matching_sigs,
-                            "Actual argument types match multiple signatures.")
+                            "Ambiguous type resolution: The actual argument types match"
+                            " multiple signatures.")
 
                 # Found a unique signature; set the node's expanded_formal_sig attribute.
                 # Saved sig used for eval_fun resolution, ast_data, semantic action, etc.
@@ -872,15 +879,15 @@ def token_subclass_factory():
             that `_check_types` has been called (to set `self.all_possible_sigs`)."""
             # TODO: Will the self.expanded_formal_sig *ever* be resolved when this routine is
             # called?  If not, then it is not very useful and message could be reworded.
-            diagnostic = ("  Current token node has value '{0}' and label '{1}'.  Its"
-                         " signature is {2}.  The"
-                         " children/arguments have labels and values of {3} and "
-                         "val_types {4}.  The matching signatures "
-                         "are {5}.  The possible signatures were {6}"
+            diagnostic = ("  The current token has value '{0}' and label '{1}'.  "
+                         " Its expanded formal signature is {2}.  The"
+                         " children/arguments have token labels and values of {3} and "
+                         "value types {4}.  The list of matching signatures "
+                         "is {5}.  The list of possible signatures was {6}"
                          .format(self.value, self.token_label,
                              self.expanded_formal_sig,
-                             tuple(c.summary_repr() for c in self.children),
-                             tuple(c.expanded_formal_sig.val_type
+                             list(c.summary_repr() for c in self.children),
+                             list(c.expanded_formal_sig.val_type
                                  if not isinstance(c.expanded_formal_sig, str)
                                  else c.expanded_formal_sig
                                    for c in self.children), # Note this can be "Unresolved", clean up...
@@ -948,13 +955,14 @@ def token_subclass_factory():
             eval_fun = self._get_eval_fun(orig_sig)
 
             if not eval_fun:
-                raise ParserException("Evaluation function called for token with label "
-                        "'{0}', but no defined and matching evaluation function was found."
-                        " The resolved original signature is {1} and the resolve expanded "
-                        "signature is {2}.  The resolved precond_label is {3}.  The "
-                        "token's eval_fun_dict is:\n{4}."
-                        .format(self.token_label, orig_sig, sig, self.precond_label,
-                                self.eval_fun_dict))
+                raise ParserException("An evaluation function is needed for token with "
+                        "value '{0}' and label '{1}' but no defined and matching "
+                        "evaluation function was found in the dict of eval functions.  "
+                        "The resolved original signature is {2} and the resolve expanded"
+                        " signature is {3}.  The resolved precond_label is {4}.  The "
+                        "token's eval_fun_dict is:\n   {5}."
+                        .format(self.value, self.token_label, orig_sig, sig,
+                                self.precond_label, self.eval_fun_dict))
 
             return eval_fun(self)
 
@@ -1638,8 +1646,8 @@ class PrattParser(object):
         def head_handler_literal(tok, lex):
             if typesig_override_fun:
                 tok.process_and_check_node(head_handler_literal,
-                                check_override_sig=True,
-                                typesig_override=typesig_override_fun(tok, lex))
+                                      #check_override_sig=True,
+                                      typesig_override=typesig_override_fun(tok, lex))
             else:
                 tok.process_and_check_node(head_handler_literal)
             return tok
@@ -1776,7 +1784,7 @@ class PrattParser(object):
             lex.match_next(rbrac_token_label, raise_on_fail=True)
             child_type = tok.children[0].expanded_formal_sig.val_type
             tok.process_and_check_node(head_handler,
-                             check_override_sig=True, # TODO debug
+                             #check_override_sig=True,
                              typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.modify_token(lbrac_token_label, head=head_handler,
@@ -2014,11 +2022,11 @@ class PrattParser(object):
             raise IncompleteParseException("Parsing never reached the end of"
                 " the text.  Parsing stopped with tokens still in the lexer."
                 " No syntax element was recognized. The last-parsed token had"
-                " label '{0}' and value '{1}'.  Parsing stopped before a token"
-                " in the lexer with label '{2}' and value '{3}'.  The partial"
+                " value '{0}' and label '{1}'.  Parsing stopped before a token"
+                " in the lexer with value '{2}' and label '{3}'.  The partial"
                 " result returned is:\n{4}"
-                .format(self.lex.token.token_label, self.lex.token.value,
-                        self.lex.peek().token_label, self.lex.peek().value,
+                .format(self.lex.token.value, self.lex.token.token_label,
+                        self.lex.peek().value, self.lex.peek().token_label,
                         parse_tree.tree_repr()))
 
         if pstate:

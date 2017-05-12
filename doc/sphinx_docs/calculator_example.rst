@@ -3,7 +3,7 @@ Example: Implementing a simple calculator
 =========================================
 
 .. Note: Try to keep this documentation up-to-date with the file
-   example_pratt_calculator.py
+   example_calculator.py
 
 This section shows how to implement a simple calculator language using the
 Typped package.  It is an evaluating calculator with a simple
@@ -16,7 +16,7 @@ also be set and used.
 
 This is a top-down description of the code, even though the actual file is in
 the reverse order.  The working code can be found in the file
-`example_pratt_calculator.py <http://www.df_TODO_dfdfdfd.com>`_.  Just run that
+`example_calculator.py <http://www.df_TODO_dfdfdfd.com>`_.  Just run that
 file to start up the calculator.  A few the lines of that file have been left
 out for readability in the code blocks below.
 

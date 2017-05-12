@@ -296,7 +296,7 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     assert str(e.value).startswith("Function match_next (with peeklevel=1) found unexpected")
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
-    assert str(e.value).startswith("No tail handler function matched the token with token label")
+    assert str(e.value).startswith("No tail handler function matched the token with value")
 
 def test_jop(basic_setup):
     # TODO basic setup will not work, maybe individual defs of identifiers and vars
@@ -396,16 +396,16 @@ def test_types_mixed_numerical_bool_expressions():
             "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
 
     # more functions
 
@@ -438,13 +438,16 @@ def test_types_mixed_numerical_bool_expressions():
     assert tree.children[1].expanded_formal_sig == TypeSig(t_number, (t_number, t_bool))
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
 
     # test multiple matches without fun overloading: give f_nb2b a number return version
     parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
@@ -452,7 +455,8 @@ def test_types_mixed_numerical_bool_expressions():
                                ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)")
-    assert str(e.value).startswith("Actual argument types match multiple signatures.")
+    assert str(e.value).startswith("Ambiguous type resolution: The actual argument"
+                                   " types match multiple signatures.")
 
 def test_types_overloaded_return():
     """Repeat the general tests from test_types_mixed_numerical_bool_expressions
@@ -515,16 +519,16 @@ def test_types_overloaded_return():
             "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
 
     # more functions
 
@@ -557,13 +561,13 @@ def test_types_overloaded_return():
     assert tree.children[1].expanded_formal_sig == TypeSig(t_number, (t_number, t_bool))
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
-    assert str(e.value).startswith("Actual argument types do not match any signature.")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
 
     # overload f_nb2b with a version that returns a number
     print("========== defining first overload of f_nb2b")

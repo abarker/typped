@@ -16,16 +16,28 @@ from py.test import raises, fail
 
 def test_usage_example():
     """Test example usage from intro documentation."""
+    # TODO TODO TODO: This mostly works as it is, but does NOT work when the space char
+    # is inserted into the trie instead of being a prefix of the last two inserted patterns....
+    # Also, the interface needs improvement...
 
     td = RegexTrieDict()
     scanner = RegexTrieDictScanner(td)
+    #td.insert("te")
+    td.insert("text")
+    td.insert("test")
+    #td.insert("\\*\\( \\)")
+    #td.insert(" ")
+    #assert td.has_key_meta(" ")
+    td.insert(" \\[swq\\]tring")
+    td.insert(" h\\*\\(e\\)re")
 
     # Text string may instead be a realtime string of chars.
     text_string = "test string here"
 
     for char in text_string:
-        prefix_match_list = scanner.add_text_elem(char)
+        prefix_match_list = scanner.add_text_char(char)
         if prefix_match_list:
+            print("inserted", char, "prefix match list is", prefix_match_list)
             for match in prefix_match_list:
                 print("Matched a prefix:", match)
 
@@ -38,9 +50,10 @@ def test_usage_example():
     print("The prefix of this suffix-sequence of characters never matched:")
     print(scanner.curr_prefix_text)
     # TODO: No actual tests here... need to assert.
-    #fail()
+    fail()
 
 def test_TrieDictScannerBasic():
+    skip()
     td = RegexTrieDict()
     scanner = RegexTrieDictScanner(td)
 
@@ -61,7 +74,7 @@ def test_TrieDictScannerBasic():
 
     print("\nquerying 'eggbert' character by character")
     for c in "eggbert" + "x": # NOTE x also added for now
-        scanner.add_text_elem(c)
+        scanner.add_text_char(c)
         scanner_text = scanner.curr_prefix_text
         print("Current scanner prefix:", scanner_text)
         last_matches = scanner.matching_nodes
@@ -74,10 +87,10 @@ def test_TrieDictScannerBasic():
 
     print("\nquerying 'eggber' character by character")
     for c in "eggber":
-        scanner.add_text_elem(c)
+        scanner.add_text_char(c)
         scanner.print_token_deque()
     print("\nquerying 'x' character, should cause fail and make 'egg' match")
-    scanner.add_text_elem("x")
+    scanner.add_text_char("x")
     scanner.print_token_deque()
 
     scanner.reset_text()
@@ -85,7 +98,7 @@ def test_TrieDictScannerBasic():
     testString = "moneypursemoneysxegg"
     print(testString)
     for char in testString:
-        scanner.add_text_elem(char)
+        scanner.add_text_char(char)
     scanner.assert_end_of_text()
     print(scanner.get_token_data_deque())
 
@@ -102,7 +115,7 @@ def test_trieDictTokenizeMore():
     td["fourfour"] = ("var2", 4); td["fivefive"] = ("var2", 5)
     td.print_tree()
     for st in bugString:
-        scanner.add_text_elem(st)
+        scanner.add_text_char(st)
     scanner.assert_end_of_text()
     print()
     print(scanner.get_token_data_deque())
@@ -122,7 +135,7 @@ def test_trieDictTokenizeMore():
    testStr = "oneoneone3344two\n444\nthree123\n"
    print("test string:", testStr)
    for char in testStr:
-      tok.add_text_elem(char)
+      tok.add_text_char(char)
    tok.assert_end_of_text()
    tok.print_token_deque()
 

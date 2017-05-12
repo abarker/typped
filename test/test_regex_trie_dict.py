@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, division
+from __future__ import print_function, division, absolute_import
 import pytest_helper
 
 pytest_helper.script_run(self_test=True, pytest_args="-v")
@@ -98,7 +98,7 @@ def test_greedy_vs_nongreedy_Python_repetition_semantics():
     string can be different, though."""
 
     # TODO: for testing the rtd, it might be better to test the
-    # RegexTrieDictScanner here, which uses the PrefixMatcher.
+    # RegexTrieDictScanner here, which uses the SequentialPrefixMatcher.
 
     rtd = RegexTrieDict()
 
@@ -190,7 +190,7 @@ def test_nongreedy_Python_or_group_semantics():
     would be possible."""
 
     # TODO: for testing the rtd, it might be better to test the
-    # RegexTrieDictScanner here, which uses the PrefixMatcher.
+    # RegexTrieDictScanner here, which uses the SequentialPrefixMatcher.
 
     rtd = RegexTrieDict()
 
@@ -585,9 +585,9 @@ def test_or_inside_repetition():
 
 
 def test_matcher():
-    """Tests of the `PrefixMatcher` object."""
+    """Tests of the `SequentialPrefixMatcher` object."""
     td = RegexTrieDict()
-    mat = PrefixMatcher(td)
+    mat = SequentialPrefixMatcher(td)
     # basic string insert
     td.insert("egg", ("data",))
     mat.add_key_elem("e")
@@ -607,7 +607,7 @@ def test_matcher():
 
     # pattern when pattern and ordinary string both match (also multiple patts)
     td = RegexTrieDict()
-    mat = PrefixMatcher(td)
+    mat = SequentialPrefixMatcher(td)
     td.insert("\\[\\w\\]8", "1 pattern data")
     assert td.has_key_meta("x8")
     assert not td.has_key_meta("xx")
@@ -636,7 +636,7 @@ def test_matcher():
 
     with raises(ModifiedTrieError):
         td = RegexTrieDict()
-        mat = PrefixMatcher(td)
+        mat = SequentialPrefixMatcher(td)
         td.insert("egg", ("data",))
         mat.add_key_elem("e") # this doesn't fail for now, maybe should...
         td.insert("bacon", ("data",))

@@ -693,7 +693,8 @@ class MagicElem(object):
         return "({0})".format(self.type_of_magic)
 
 magic_elem_never_matches = MagicElem("never_matches")
-# TODO: Always match is partially implemented, get working or delete all places.
+# TODO: Always match is partially implemented, either get working or delete in all places.
+# Had bugs that need to be worked out...
 magic_elem_always_matches = MagicElem("always_matches")
 
 # TODO maybe add a non-greedy flag which will work on prexix-matches
@@ -876,12 +877,12 @@ class RegexTrieDict(TrieDict):
             repetition, l_group, r_group, l_wildcard, r_wildcard, range_elem}
 
     def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
-                  yield_on_leaves=True, yield_on_match=False, copies=True,
-                  stop_at_elems=[], stop_at_escaped_elems=[],
-                  stop_at_depth=False, only_follow_elems=[],
-                  stop_if_paren_level_zero=[], first_paren_level=0,
-                  subtree_root_escaped=False, sort_children=False,
-                  subtree_root_elem=None, child_fun=None):
+                    yield_on_leaves=True, yield_on_match=False, copies=True,
+                    stop_at_elems=[], stop_at_escaped_elems=[],
+                    stop_at_depth=False, only_follow_elems=[],
+                    stop_if_paren_level_zero=[], first_paren_level=0,
+                    subtree_root_escaped=False, sort_children=False,
+                    subtree_root_elem=None, child_fun=None):
         """Returns a generator which will do a depth-first traversal of the trie,
         starting at node `subtree_root_node`.  This is a Swiss Army knife routine
         which is used in many places to do the real work.  This definition
@@ -1017,7 +1018,7 @@ class RegexTrieDict(TrieDict):
         regexp patterns stored in the `RegexTrieDict`.  Returns the number of
         matches.  Remember that any literal escapes in the trie must be
         escaped, but escapes in `key_seq` are always treated as literal."""
-        matcher = PrefixMatcher(self)
+        matcher = SequentialPrefixMatcher(self)
         for elem in key_seq:
             matcher.add_key_elem(elem)
             if not matcher.node_data_list: # No more states in matcher.
@@ -1027,20 +1028,20 @@ class RegexTrieDict(TrieDict):
         matcher.reset() # Ends match and frees memory.
         return retval
 
-    def get_meta(self, key_seq, default=[]):
+    def get_meta(self, key_seq, no_matches_retval=[]):
         """Return a list of the data items of all the stored strings which
         match the sequence of elements `key_seq` (based on the regex patterns
         stored in the `RegexTrieDict`).  The default with no matches is to
-        return the empty list.  Remember that any literal escapes in the
-        trie must be escaped, but escapes in `key_seq` are always treated as
-        literal."""
-        matcher = PrefixMatcher(self)
+        return the empty list, which can be set via `no_matches_retval`.
+        Remember that any literal escapes in the trie must be escaped, but
+        escapes in `key_seq` are always treated as literal."""
+        matcher = SequentialPrefixMatcher(self)
         for elem in key_seq:
             matcher.add_key_elem(elem)
             if not matcher.node_data_list: # No more states in matcher.
                 matcher.reset()
-                return default # No more nodes, can't match.
-        retval = matcher.get_meta(default=default)
+                return no_matches_retval # No more nodes, can't match.
+        retval = matcher.get_meta(no_matches_retval=no_matches_retval)
         matcher.reset() # Ends match and frees memory.
         return retval
 
@@ -1061,7 +1062,7 @@ class RegexTrieDict(TrieDict):
         # instead?
         match_list = []
         elem_deque = collections.deque(elem_seq) # Note this copies, too.
-        matcher = PrefixMatcher(self)
+        matcher = SequentialPrefixMatcher(self)
         while True:
             while True:
                 matcher.add_key_elem(elem_deque.pop_left())
@@ -1670,18 +1671,19 @@ class RegexTrieDict(TrieDict):
                 escaped = False
         return # from `handle_beginning_of_or_group`
 
-class PrefixMatcher(object):
-    """Initialized with an instance of a `RegexTrieDict`.  Allows for
-    sequential processing of elements from sequence-keys, and checks of whether
-    any regex patterns stored in the trie have been matched.  No trie
-    modifications are allowed between adding an element to the current key and
-    testing for matches of the current key, or `ModifiedTrieError` will
-    be raised.
+class SequentialPrefixMatcher(object):
+    """Insert prefix elements of a key sequence one by one and see what the
+    currently inserted prefix-sequence matches in the trie.  Initialized with
+    an instance of a `RegexTrieDict`.  No trie modifications are allowed
+    between adding an element to the current key and testing for matches of the
+    current key, or `ModifiedTrieError` will be raised.
 
-    Testing for `cannot_match` will indicate when no patterns can possibly
-    match by adding new elements.  This can be used for on-line matching to get_meta
-    the longest pattern match as soon as possible based on the prefixes of the
+    The method `cannot_match` returns true when the currently inserted sequence
+    of elements cannot possibly match the current trie no matter what new
+    elements are added.  This can be used for on-line matching to get the
+    longest pattern match as soon as possible based on the prefixes of the
     text."""
+
     def __init__(self, regex_trie_dict):
         """Initialize with a particular `RegexTrieDict` instance.  An instance
         is required."""
@@ -1724,12 +1726,17 @@ class PrefixMatcher(object):
         self.node_data_list = self.rtd.get_next_nodes_meta(elem, self.node_data_list)
 
     def cannot_match(self):
-        """Return `True` if no matches are possible with further elements
-        inserted with `next_key_elem`."""
-        # Consider or delete: This is determined by whether or not
+        """Return `True` if the currently inserted sequence of elements cannot
+        possibly match a regex in the trie no matter what elements are inserted
+        with `next_key_elem`."""
+
+        # Consider or delete: This could be determined by whether or not
         # there are any active patterns in next state, by passing it a magic
         # element that matches anything."""
+
         # TODO: Need more analysis of the data to tell sooner!
+        # What about states at a leaf of the trie which do not loop back?
+        # These can be detected one element sooner.
 
         if not self.node_data_list: # No states at all remain; definitely cannot match.
             return True
@@ -1738,6 +1745,10 @@ class PrefixMatcher(object):
         # Some may be loops that would expire on the next iteration, for example.
         always_match_next_data_list = self.get_always_match_node_state_data_list()
         return not always_match_next_data_list
+
+    def can_still_match(self):
+        """This is just the negation of `cannot_match` for convenience."""
+        return not self.cannot_match()
 
     def _set_to_root(self):
         """Utility routine to set the state back to the root of the trie."""
@@ -1819,7 +1830,7 @@ class PrefixMatcher(object):
                                                           self.node_data_list)
         return new_node_data_list
 
-    def get_meta(self, default=[], raw_nodes=False):
+    def get_meta(self, no_matches_retval=[], raw_nodes=False):
         """Return a list of the data items of all the stored strings which
         match the *full* sequence of elements which have been added via the
         `add_key_elem` method.  That defines the current key sequence and the
@@ -1828,10 +1839,10 @@ class PrefixMatcher(object):
         any literal escapes in the trie must be escaped, but escapes in query
         keys are always treated as literal.
 
-        If `default` is set then its value will be returned when there are no
-        matches.
+        If `no_matches_retval` is set then its value will be returned when
+        there are no matches.
 
-        If `raw_states` is true then a list of `NodeStateData` instance will be
+        If `raw_nodes` is true then a list of `NodeStateData` instance will be
         returned rather than just the list of the data attributes of the nodes
         represented in the list.  This is a shallow copy of a subset of the
         persistent list, containing all the patterns which are currently
@@ -1846,7 +1857,7 @@ class PrefixMatcher(object):
         if raw_nodes:
             return valid_match_node_data_list
         if not valid_match_node_data_list:
-            return default
+            return no_matches_retval
         return [n.node.data for n in valid_match_node_data_list]
 
 

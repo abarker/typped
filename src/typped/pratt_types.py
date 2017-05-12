@@ -355,7 +355,8 @@ class TypeSig(object):
                 matching_sigs.append(sig)
 
         if raise_err_on_empty and not matching_sigs:
-            msg = "Actual argument types do not match any signature."
+            msg = ("Type mismatch: The actual argument types do not match any type "
+                   "signature registered with the token.")
             if tnode:
                 tnode._raise_type_mismatch_error([], msg)
             else:
