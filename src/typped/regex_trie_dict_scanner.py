@@ -3,7 +3,7 @@ RegexTrieDictScanner
 ----------------------
 
 TODO: Update this intro to reflect new implementation using PrefixMatcher.
-TODO: For now, see the docs to the add_text_elem method...
+TODO: For now, see the docs to the insert_char method...
 
 This module is mainly intended for scanning text composed of characters as
 elements.  So, unlike the general `RegexTrieDict` module, it is written with
@@ -42,7 +42,7 @@ will match cause a match).
 
    text_string = "test string here"
    for char in text_string: # May instead be a realtime string of chars.
-       prefix_match_list = scanner.add_text_elem(text)
+       prefix_match_list = scanner.insert_char(text)
        if prefix_match_list:
            for match in prefix_match_list:
                print("Matched a prefix:", match)
@@ -123,9 +123,7 @@ if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run("../../test/test_regex_trie_dict_scanner.py", pytest_args="-v")
 
-import collections # to use deque and MutableSequence abstract base class
 from .regex_trie_dict import SequentialPrefixMatcher, RegexTrieDictError
-#from .shared_settings_and_exceptions import TyppedBaseException
 
 class RegexTrieDictScanner(object):
     """This class implements a scanner using the keys of a `RegexTrieDict` as patterns
@@ -139,26 +137,19 @@ class RegexTrieDictScanner(object):
         self.rtd = regex_trie_dict
         self.string_joiner = self.rtd.combine_elems_fun
         self.prefix_matcher = SequentialPrefixMatcher(self.rtd)
-        self.clear()
+        self.reset()
 
-    def clear(self):
-        """Reset the scanner to its initial condition."""
-        #self.match_longest = True # Whether to always look for longest match.
-        #self.token_data_deque = collections.deque() # The deque of query matches.
-        self.reset_text()
-
-    def reset_text(self):
+    def reset(self):
         """Reset the current character sequence being inserted, i.e., start the
-        next insertion back at the root node of the `RegexTrieDict`.  This is
-        called when a prefix is "accepted" as a token and the detection shifts
-        to the next token."""
+        next insertion back at the root node of the `RegexTrieDict`."""
         self.cannot_match = False # Set true when nothing in trie can match curr prefix.
         self.matching_nodes = None # Currently-matching nodes for current prefix.
         self.last_matching_nodes = None # Last node collection containing a match.
         self.last_matching_index = None # Prefix index for last match.
+        self.last_index_inserted_in_rtd_matcher = 0 # Last index of current pattern.
         self.end_of_text_asserted = False
         self.curr_prefix_text = [] # The list of chars in current prefix being scanned.
-        self.prefix_matcher.reset() # Reset the matcher.
+        self.prefix_matcher.reset() # Reset the regex prefix matcher.
 
     def is_valid(self):
         """Return true if the current text sequence being scanned is still valid.
@@ -169,144 +160,176 @@ class RegexTrieDictScanner(object):
     def current_prefix(self, join_chars=True):
         """Return the current (not yet matched) prefix sequence.  This is just
         the current sequence of characters which have been entered with
-        `add_text_char`, but with any already-detected prefix matches removed.
+        `append_text`, but with any already-detected prefix matches remover.
 
         If `join_chars` is true the characters are joined using the default
         character joiner of the underlying `RegexTrieDict`.  Otherwise the
         result is a list of characters."""
-        if not self.curr_prefix_text:
-            return None
         if join_chars:
             return self.combine_chars_fun(self.curr_prefix_text)
         return self.curr_prefix_text
 
-    def add_text_char(self, char, join_chars=True, reinsert_on_match=True):
+    def append_text(self, text, final_text=False):
+        """Append the string `text` to the current prefix."""
+        if self.end_of_text_asserted:
+            # TODO: could have option to delete end magic char or auto-call reset text.
+            raise TrieDictScannerError("End of text was asserted, call"
+                                       " `clear` before inserting more.""")
+        for char in text:
+            if char != self.rtd.magic_elem_never_matches:
+                self.curr_prefix_text.append(char)
+            else:
+                self.curr_prefix_text.append(char) # TODO making part of prefix for now...
+                self.end_of_text_asserted = True
 
-        """Insert `char` as the next character from the text prefix sequence
-        being scanned.  If the currently inserted characters allow a prefix match
-        to be recognized as the longest possible (with the current patterns)
-        then the match is saved.
+        if final_text:
+            self.assert_end_of_text()
 
-        The scanner then reinserts all the text characters which were inserted
-        but not part of the prefix until another known-longest match is found,
-        and so forth until no guaranteed longest prefix matches can be found.
-        The list of known-longest prefix matches is then returned.  More characters
-        can then be inserted, with the same behavior.  Any remaining suffix
-        becomes the new attribute `curr_prefix_text` of the scanner instance.
+    def assert_end_of_text(self, join_chars=True, reinsert_on_match=True):
+        """Asserts that there are no more characters in the current sequence.
+        Adds a special character that cannot match anything to the current prefix."""
+        if self.end_of_text_asserted:
+            return
+        self.end_of_text_asserted = True
+        self.curr_prefix_text.append(self.rtd.magic_elem_never_matches)
 
-        If no longest match has yet been recognized then `None` is returned.
-        Note that the longest match might have been found, but it cannot be
-        returned until it is recognized as being the longest possible.  This
-        can require more characters (such as for repetition groups) or a call
-        to `assert_end_of_text`.
+    def get_prefix_matches(self, join_chars=True, only_first=False):
+        """Get all the prexix matches for the currently-inserted prefix text.
+        If the currently-inserted characters allow a prefix
+        match to be recognized as the longest possible (with respect to the
+        current patterns in the trie) then the match is returned.
 
-        If it ever becomes impossible for the currently-inserted prefix
-        characters to match any pattern in the `RegexTrieDict` then the empty
-        list `[]` is returned, and will continue to be returned until the
-        scanner is reset.  The attribute `cannot_match` of the scanner instance
-        is also set to `True` in that case.
+        If `reinsert_on_match` is true then, after a match is found, the
+        scanner is reset and all the text characters which were inserted but
+        not part of the previously-recognized prefix are reinserted until
+        another known-longest match is found.  This continues until no
+        guaranteed longest-prefix matches can be found.  The list of
+        known-longest prefix matches is then returned.  More characters can
+        then be inserted, with the same behavior.  Any remaining suffix becomes
+        the new list attribute `curr_prefix_text` of the scanner instance.
+
+        When a longest match is found that match is returned.   Otherwise, the
+        return values are as follows:
+
+        * `None` -- No longest match has yet been recognized.  Note that the
+           longest match might actually have been found, but it cannot be
+           returned until it is recognized as being the longest possible.  This
+           can require more characters to be inserted (such as for repetition groups)
+           or a call to the `assert_end_of_text` method.
+
+        * `[]` -- No matches with respect to the current trie are possible no
+           matter what additional characters are inserted.  The empty list is
+           recognized as the list of matches.  The attribute `cannot_match` of the
+           scanner instance is also set to `True` in this case.
 
         If `join_chars` is true (the default) then any returned character
         sequences are joined using the character-joining operation for the
         underlying `RegexTrieDict` instance.
 
-        If `reinsert_on_match` is false (the default is true) then on a longest
-        prefix match the scanner is reset to be empty and the single matched
-        prefix is returned (not as a list like when there may be multiple
-        matches)."""
+        Other useful user-accessible attributes of scanner:
 
+        The `last_returned` attribute is also set to the last returned value,
+        which can be a useful way to access the matches.
+
+        The raw matching nodes in the trie are in the attribute
+        `last_matching_nodes`.
+
+        The list of appended characters which have not yet matched (and hence
+        have not yet been removed from the current prefix) is stored in the
+        attribute `curr_prefix_text`.  This prefix text list is a list of
+        unjoined characters, and includes a magic "matches nothing" character
+        if `assert_end_of_text` has been called.
+
+        The `cannot_match` attribute is set true if no further character
+        appends can cause a match."""
         # Currently assumes longest match.
-        # TODO: for non-greedy looping we need the full NodeDataStateList,
-        # and to figure out exactly how to analyze it...
-        print("DEBUG inserting char in scanner:", char)
-
+        # Figure out how to do non-greedy things...
+        print("DEBUG in get_prefix_matches with prefix of:", self.curr_prefix_text)
         if not self.is_valid():
             raise TrieDictScannerError("The trie of regexes has been modified since"
                     " starting this prefix search, so the search is now invalid.")
 
-        if char != self.rtd.magic_elem_never_matches:
-            self.curr_prefix_text.append(char)
-
         if self.cannot_match:
-            return []
+            self.last_returned = []
+            return self.last_returned
 
-        self.prefix_matcher.add_key_elem(char)
+        # TODO: This breaks on sequential inserts!  Need to save the last insertion point
+        # and start there!
+        for count in range(self.last_index_inserted_in_rtd_matcher, len(self.curr_prefix_text)):
+            char = self.curr_prefix_text[count]
+            print("   inserting character", char, "into prefix matcher")
+            self.prefix_matcher.append_key_elem(char)
+            self.last_index_inserted_in_rtd_matcher += 1
 
-        matching_nodes = self.prefix_matcher.get_meta(no_matches_retval=[], raw_nodes=True)
+            matching_nodes = self.prefix_matcher.get_meta(no_matches_retval=[],
+                                                          raw_nodes=True)
+            print("   matching nodes after char", char, "are:", matching_nodes)
+            if matching_nodes:
+                print("   Found a matching node, setting as last_matching_nodes and index")
+                self.last_matching_nodes = matching_nodes
+                self.last_matching_index = count
+                print("   DEBUG last matching index is:", count)
 
-        if matching_nodes:
-            self.last_matching_nodes = matching_nodes
-            self.last_matching_index = len(self.curr_prefix_text) - 1
+            if self.prefix_matcher.cannot_match():
+                # Note we do not need cannot match if test if we know the real next chars to insert!?!?
+                print("   DEBUG cannot_match is true in loop with index", count, self.curr_prefix_text[count])
+                self.cannot_match = True
+                if self.last_matching_nodes: # Found a previous match, use it.
+                    print("   breaking the for loop, had a prev match ending at", self.last_matching_index)
+                    break
+                else:                        # No matches were found, return empty.
+                    print("   returning from inside the loop, no prev match")
+                    self.last_returned = []
+                    return self.last_returned
 
-        # If no more matches possible get the last match to return, remove the
-        # text from the curr_prefix_text, reset the matcher, and then re-add the
-        # remaining chars of text (calling this routine recursively).
+        else: # else for the for loop; finished loop without finding a match (no break)
+            #if not self.cannot_match: # No prefixes found, but a match is still possible.
+            print("DEBUG no matches found in whole prefix string, but still can match, returning None")
+            self.last_returned = None
+            return self.last_returned
 
         #
-        # If the matcher can still match more characters return None, since indeterminate.
+        # We know some match was found; remove it, reset the scanner, and recurse if needed.
         #
 
-        if self.prefix_matcher.can_still_match():
-            return None
-
-        #
-        # We know the matcher cannot match anything else, so take the best so far.
-        #
-
-        if not self.last_matching_index: # No match was ever found.
-            self.cannot_match = True
-            return []
-
-        #
-        # We know some match was found; remove it and look for more matches.
-        #
-
-        final_matches = self.last_matching_nodes
+        # The subtraction conditional below is needed because a match of a full string ending
+        # with the magic never-matches is considered to match only the non-magic characters
+        # as a pattern.  So we decrement to not include the final magic character.
+        if self.curr_prefix_text[self.last_matching_index] == self.rtd.magic_elem_never_matches:
+            self.last_matching_index -= 1
         match_text = self.curr_prefix_text[:self.last_matching_index + 1]
+        print("match text is", match_text)
         new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
+        print("new_prefix is", new_prefix)
         end_of_text_asserted = self.end_of_text_asserted
 
-        self.reset_text()
+        # Reset the scanner.
+        self.reset()
 
-        if not reinsert_on_match:
-            return match_text, new_prefix
+        # Restore a few attributes.
+        self.append_text(new_prefix)
+        assert self.curr_prefix_text == new_prefix
+        assert self.end_of_text_asserted == end_of_text_asserted
+
+        if join_chars:
+            self.last_returned = [self.string_joiner(match_text)]
+        else:
+            self.last_returned = [match_text]
+
+        if only_first:
+            print("DEBUG returning an only_first match of", self.last_returned)
+            return self.last_returned
 
         #
         # Reinsert the unmatched text in the reset prefix matcher, calling recursively.
         #
 
-        return_list = []
-        return_list.append(match_text)
+        return_list = self.last_returned
+        while self.get_prefix_matches(join_chars=join_chars, only_first=True):
+            return_list += self.last_returned
 
-        next_prefix = new_prefix
-        print("next_prefix is", next_prefix)
-        while next_prefix:
-            print("next_prefix is", next_prefix)
-            for char in next_prefix:
-                next_match, new_prefix = self.add_text_char(char,
-                                                   join_chars=join_chars,
-                                                   reinsert_on_match=False)
-            next_prefix = new_prefix
-            print("next_match is", next_match)
-            print("next_prefix is", next_prefix)
-            if end_of_text_asserted:
-                next_match, next_prefix = self.assert_end_of_text(join_chars=join_chars,
-                                                                  reinsert_on_match=False)
-            if next_match:
-                return_list.append(next_match)
-                break
-
-        return return_list
-
-    def assert_end_of_text(self, join_chars=True, reinsert_on_match=True):
-        """Asserts that there are no more characters in the current sequence.
-        Adds an character that cannot match to force any current states to
-        terminate with a match or not.  Just calls `add_key_char` for that
-        magic character and returns the return value from that method."""
-        self.end_of_text_asserted = True
-        return self.add_text_char(self.rtd.magic_elem_never_matches, join_chars=join_chars,
-                                  reinsert_on_match=reinsert_on_match)
-
+        self.last_returned = return_list
+        return self.last_returned
 
 #
 # Exceptions specific to this module.

@@ -521,7 +521,7 @@ class NodeStateData(object):
     loop.  Otherwise there will be "crosstalk" between the different stored
     patterns.
 
-    The `visited_rep_node_id_set` set is a set of the ids of all the loopback
+    The `visited_repetition_node_id_set` set is a set of the ids of all the loopback
     repetition nodes visited, but it is reset each time a literal element
     matches the query element (i.e., on a literal or a wildcard match).  This
     is used to avoid infinite recursion in processing repetition patterns which
@@ -531,7 +531,7 @@ class NodeStateData(object):
     # things should still work (but more space will be used in pattern matches).
     __slots__ = ["node", "node_is_escape", "loopback_stack",
                  "loop_counter_stack", "loop_bounds_stack",
-                 "bound_node_child_dict", "visited_rep_node_id_set"]
+                 "bound_node_child_dict", "visited_repetition_node_id_set"]
 
     def __init__(self, *val_list, **kw_vals):
         """Initialize the instance.  This just sets the values to the ones passed
@@ -564,7 +564,7 @@ class NodeStateData(object):
         return NodeStateData(self.node, self.node_is_escape, self.loopback_stack[:],
                              self.loop_counter_stack[:], self.loop_bounds_stack[:],
                              self.bound_node_child_dict.copy(),
-                             self.visited_rep_node_id_set.copy())
+                             self.visited_repetition_node_id_set.copy())
 
     def set_child(self, child_elem, node=None):
         """Assign the node (default to self.node) to have single child child_elem."""
@@ -1020,7 +1020,7 @@ class RegexTrieDict(TrieDict):
         escaped, but escapes in `key_seq` are always treated as literal."""
         matcher = SequentialPrefixMatcher(self)
         for elem in key_seq:
-            matcher.add_key_elem(elem)
+            matcher.append_key_elem(elem)
             if not matcher.node_data_list: # No more states in matcher.
                 matcher.reset()
                 return 0 # No more nodes, can't match.
@@ -1037,7 +1037,7 @@ class RegexTrieDict(TrieDict):
         escapes in `key_seq` are always treated as literal."""
         matcher = SequentialPrefixMatcher(self)
         for elem in key_seq:
-            matcher.add_key_elem(elem)
+            matcher.append_key_elem(elem)
             if not matcher.node_data_list: # No more states in matcher.
                 matcher.reset()
                 return no_matches_retval # No more nodes, can't match.
@@ -1065,7 +1065,7 @@ class RegexTrieDict(TrieDict):
         matcher = SequentialPrefixMatcher(self)
         while True:
             while True:
-                matcher.add_key_elem(elem_deque.pop_left())
+                matcher.append_key_elem(elem_deque.pop_left())
                 # CHECK HERE IF WE GOT A MATCH
 
                 #if matcher.cannot_match():
@@ -1091,7 +1091,7 @@ class RegexTrieDict(TrieDict):
         When `query_elem` is set to the special value
         `self.magic_elem_never_matches` this routine has special behavior
         defined.  It will simply fast-forward up to the point where that
-        character would have been compared to the next one in the
+        character *would have been* compared to the next one in the
         query-pattern.  Then it stops, returning those stop-nodes.  This turns
         out to be very convenient for skipping closing right-group elements as
         well as zero-repetition-matching patterns at the end of a larger key
@@ -1187,7 +1187,7 @@ class RegexTrieDict(TrieDict):
 
         if not node_data.node_is_escape:
 
-            node_data.visited_rep_node_id_set = set() # Got a literal elem, reset.
+            node_data.visited_repetition_node_id_set = set() # Got a literal elem, reset.
 
             if query_elem is self.magic_elem_never_matches:
                 next_node_data_list.append(node_data) # Just keep the node itself.
@@ -1197,7 +1197,7 @@ class RegexTrieDict(TrieDict):
                 for query_elem in children_dict:
                     # TODO: consider breaking after first if only testing for cannot_match
                     next_node_data_list.append_child_node(query_elem, node_data,
-                                                 node_is_escape=False)
+                                                          node_is_escape=False)
 
             elif query_elem == self.escape:
                 # Can't match because node is neither an escaped escape char nor
@@ -1319,7 +1319,7 @@ class RegexTrieDict(TrieDict):
     def handle_wildcards(self, node_data, query_elem, next_node_data_list):
         """Handle wildcard patterns in meta-processing the trie.  The
         `next_node_data` list is appended to for all matches."""
-        node_data.visited_rep_node_id_set = set() # got an actual elem, reset
+        node_data.visited_repetition_node_id_set = set() # got an actual elem, reset
 
         # Magic elem doesn't match any char; just put current node on
         # next_node_data_list (so `is_last_elem_of_key` can be checked).
@@ -1454,7 +1454,7 @@ class RegexTrieDict(TrieDict):
                 pushed_node_data.loopback_stack.append(l_group_node)
                 pushed_node_data.loop_counter_stack.append(0)
                 pushed_node_data.loop_bounds_stack.append(iter_bounds)
-                pushed_node_data.visited_rep_node_id_set.add(id(l_group_node))
+                pushed_node_data.visited_repetition_node_id_set.add(id(l_group_node))
 
                 # Process the new pushed_node_data as an end-repetition.
                 self.handle_end_repetitions(query_elem, pushed_node_data,
@@ -1509,7 +1509,7 @@ class RegexTrieDict(TrieDict):
 
         if self.magic_elem_no_loop or (refuse_revisits and
                                     id(close_paren_node_data.loopback_stack[-1])
-                                    in close_paren_node_data.visited_rep_node_id_set):
+                                    in close_paren_node_data.visited_repetition_node_id_set):
             no_loop = True
 
         # The node_data for continuing the loop.  If loop_count is above
@@ -1520,7 +1520,7 @@ class RegexTrieDict(TrieDict):
             loop_node_data.node = loop_node_data.loopback_stack[
                 -1] # loop back to open-group node
             loop_node_data.loop_counter_stack[-1] += 1 # increment the loop counter
-            loop_node_data.visited_rep_node_id_set.add(id(loop_node_data.node))
+            loop_node_data.visited_repetition_node_id_set.add(id(loop_node_data.node))
             loop_node_data_list = [loop_node_data]
         else:
             loop_node_data_list = []
@@ -1712,7 +1712,7 @@ class SequentialPrefixMatcher(object):
             return True
         return self.node_data_list.is_valid_in(self.rtd)
 
-    def add_key_elem(self, elem):
+    def append_key_elem(self, elem):
         """Inserts elem as the next elem of the current key sequence.  (Note
         elem is usually a character if string patterns are stored in the
         tree.)  The first insert will start from the root of the trie.  To
@@ -1728,19 +1728,32 @@ class SequentialPrefixMatcher(object):
     def cannot_match(self):
         """Return `True` if the currently inserted sequence of elements cannot
         possibly match a regex in the trie no matter what elements are inserted
-        with `next_key_elem`."""
+        with `add_key_elem`."""
 
         # Consider or delete: This could be determined by whether or not
         # there are any active patterns in next state, by passing it a magic
         # element that matches anything."""
 
-        # TODO: Need more analysis of the data to tell sooner!
-        # What about states at a leaf of the trie which do not loop back?
-        # These can be detected one element sooner.
+        # TODO: Need better approach to tell sooner, or at least
+        # simplify the below.
+        """
+        for node_data in self.node_data_list:
+            if node_data.node.children:
+                return False # Still not at end of trie for this state.
 
-        if not self.node_data_list: # No states at all remain; definitely cannot match.
-            return True
+        # Now fast-forward past all the loop ends and "if" ends and check again.
+        matched_nodes = self.get_valid_match_node_state_data_list()
+        for node_data in matched_nodes:
+            if node_data.node.children:
+                return False # Still not at end of trie for this state.
+        return not matched_nodes
+        """
 
+        # Old way, doesn't catch nearly as much:
+        #if not self.node_data_list: # No states at all remain; definitely cannot match.
+        #    return True
+
+        # Maybe new way:
         # Some states active, see if a magic always-match leaves any of them.
         # Some may be loops that would expire on the next iteration, for example.
         always_match_next_data_list = self.get_always_match_node_state_data_list()

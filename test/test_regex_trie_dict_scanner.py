@@ -16,127 +16,71 @@ from py.test import raises, fail
 
 def test_usage_example():
     """Test example usage from intro documentation."""
-    # TODO TODO TODO: This mostly works as it is, but does NOT work when the space char
-    # is inserted into the trie instead of being a prefix of the last two inserted patterns....
-    # Also, the interface needs improvement...
 
     td = RegexTrieDict()
     scanner = RegexTrieDictScanner(td)
     #td.insert("te")
     td.insert("text")
-    td.insert("test")
-    #td.insert("\\*\\( \\)")
+    td.insert("\\(test\\|tesb\\)")
+    td.insert("\\*\\( \\)") # Any number of spaces.
     #td.insert(" ")
-    #assert td.has_key_meta(" ")
-    td.insert(" \\[swq\\]tring")
-    td.insert(" h\\*\\(e\\)re")
+    td.insert("\\[swq\\]tring")
+
+    td.insert("h\\*\\(ere\\)") # At the end of text this requires assert_end_of_text to match
 
     # Text string may instead be a realtime string of chars.
-    text_string = "test string here"
+    text_string = "test  string here"
 
-    for char in text_string:
-        prefix_match_list = scanner.add_text_char(char)
-        if prefix_match_list:
-            print("inserted", char, "prefix match list is", prefix_match_list)
-            for match in prefix_match_list:
-                print("Matched a prefix:", match)
+    # Match before asserting end of text.
+    prefix_match_list = scanner.append_text(text_string)
+    #scanner.assert_end_of_text()
+    matches = scanner.get_prefix_matches()
+    print("The matches are:", matches)
+    assert matches == ['test', '  ', 'string', ' ']
 
-    # For a fixed-length string we need to assert that all the characters
-    # have been entered to get any final matches.
-    final_matches = scanner.assert_end_of_text()
-    for match in final_matches:
-        print("Matched a prefix:", match)
+    # Now assert end of text and try again.
+    scanner.assert_end_of_text()
+    matches = scanner.get_prefix_matches()
+    assert matches == ['here']
 
-    print("The prefix of this suffix-sequence of characters never matched:")
-    print(scanner.curr_prefix_text)
-    # TODO: No actual tests here... need to assert.
-    fail()
+    # Now reset text and assert end of text before matching anything.
+    with raises(TrieDictScannerError):
+        prefix_match_list = scanner.append_text(text_string) # Can't append after asserting end.
+    scanner.reset() # So reset.
+    prefix_match_list = scanner.append_text(text_string)
+    scanner.assert_end_of_text()
+    matches = scanner.get_prefix_matches()
+    print("The matches are:", matches)
+    assert matches == ['test', '  ', 'string', ' ', 'here']
 
 def test_TrieDictScannerBasic():
-    skip()
     td = RegexTrieDict()
     scanner = RegexTrieDictScanner(td)
 
     td.insert("egg")
     td.insert("r")
-    assert "egg" in td
+    td.insert("really")
     td.insert("eggbert")
-    assert "eggbert" in td
-    assert "egg" in td
 
-    # TODO this mostly works but needs better API for using in practice.
-    # Needs close inspection, though, to make sure cannot_match is correctly done...
-    # It should recognize the string eggbert BEFORE the x is inserted... what
-    # are the criteria?  No active loops and all else at a trie leaf?
-    #
-    # Worst case you could temporarily insert a magic elem that matches anything
-    # and see if anything is left.  More expensive, though.
+    scanner.append_text("e")
+    prefix_matches = scanner.get_prefix_matches()
+    assert prefix_matches is None # None means no match yet found.
+    scanner.append_text("g")
+    prefix_matches = scanner.get_prefix_matches()
+    assert prefix_matches == None
+    scanner.append_text("g")
+    prefix_matches = scanner.get_prefix_matches()
+    assert prefix_matches == None
+    scanner.append_text("r")
+    prefix_matches = scanner.get_prefix_matches()
+    assert prefix_matches == ["egg"]
+    # Note that the scanner resets after returning ["egg"], so new prefix is ["r"]
+    scanner.append_text("xyz")
+    prefix_matches = scanner.get_prefix_matches()
+    assert prefix_matches == ["r"]
 
-    print("\nquerying 'eggbert' character by character")
-    for c in "eggbert" + "x": # NOTE x also added for now
-        scanner.add_text_char(c)
-        scanner_text = scanner.curr_prefix_text
-        print("Current scanner prefix:", scanner_text)
-        last_matches = scanner.matching_nodes
-        print("Last matches on inserting", c, "are", last_matches)
-        all_states = scanner.prefix_matcher.node_data_list
-        print("All states on inserting", c, "are", all_states)
-        print()
+    assert scanner.curr_prefix_text == ["x", "y", "z"]
+    assert scanner.get_prefix_matches() == [] # [] means no matches possible with current trie.
+    assert scanner.cannot_match
 
-    fail() # TODO above here gives fail due to trie modification.
 
-    print("\nquerying 'eggber' character by character")
-    for c in "eggber":
-        scanner.add_text_char(c)
-        scanner.print_token_deque()
-    print("\nquerying 'x' character, should cause fail and make 'egg' match")
-    scanner.add_text_char("x")
-    scanner.print_token_deque()
-
-    scanner.reset_text()
-    scanner.clear_token_data_deque()
-    testString = "moneypursemoneysxegg"
-    print(testString)
-    for char in testString:
-        scanner.add_text_char(char)
-    scanner.assert_end_of_text()
-    print(scanner.get_token_data_deque())
-
-def test_trieDictTokenizeMore():
-    skip()
-    td = RegexTrieDict()
-    scanner = RegexTrieDictScanner(td)
-    bugString = "oneonefive\none"
-    td["\n"] = ("whitespace", None)
-    td["one"] = ("var", 1); td["two"] = ("var", 2); td["three"] = ("var", 3)
-    td["four"] = ("var", 4); td["five"] = ("var", 5)
-    td["oneone"] = ("var2", 1); td["twotwo"] = ("var2", 2)
-    td["threethree"] = ("var2", 3)
-    td["fourfour"] = ("var2", 4); td["fivefive"] = ("var2", 5)
-    td.print_tree()
-    for st in bugString:
-        scanner.add_text_char(st)
-    scanner.assert_end_of_text()
-    print()
-    print(scanner.get_token_data_deque())
-    print()
-    print(td["one"])
-
-    # test delete all the way to root
-    td["abigstring"] = True
-    td.print_tree()
-    del td["abigstring"]
-    td.print_tree()
-
-    """
-   # check unsigned int recognition
-   tok.clear_token_data_deque()
-   tok.setMatchUnsignedIntAfterLeadingDigit(True, ("unsignedInt", None))
-   testStr = "oneoneone3344two\n444\nthree123\n"
-   print("test string:", testStr)
-   for char in testStr:
-      tok.add_text_char(char)
-   tok.assert_end_of_text()
-   tok.print_token_deque()
-
-   """

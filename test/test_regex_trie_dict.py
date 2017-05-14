@@ -584,25 +584,25 @@ def test_or_inside_repetition():
     assert td.has_key_meta("aZaZ")
 
 
-def test_matcher():
+def test_sequential_prefix_matcher():
     """Tests of the `SequentialPrefixMatcher` object."""
     td = RegexTrieDict()
     mat = SequentialPrefixMatcher(td)
     # basic string insert
     td.insert("egg", ("data",))
-    mat.add_key_elem("e")
+    mat.append_key_elem("e")
     assert mat.get_meta() == []
-    mat.add_key_elem("g")
+    mat.append_key_elem("g")
     assert mat.get_meta() == []
-    mat.add_key_elem("g")
+    mat.append_key_elem("g")
     assert mat.get_meta() == [("data",)]
 
     # pattern string insert
     td.insert("x\\[\\d\\]", "data9")
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.add_key_elem("x")
+    mat.append_key_elem("x")
     assert mat.get_meta() == []
-    mat.add_key_elem("9")
+    mat.append_key_elem("9")
     assert mat.get_meta() == ["data9"]
 
     # pattern when pattern and ordinary string both match (also multiple patts)
@@ -617,20 +617,20 @@ def test_matcher():
     assert td.has_key_meta("y8")
     assert td.has_key_meta("x8") == 2
     assert td.has_key_meta("y8") == 1
-    mat.add_key_elem("x") # turns on seqmeta mode
+    mat.append_key_elem("x") # turns on seqmeta mode
     assert mat.get_meta() == []
-    mat.add_key_elem("8")
+    mat.append_key_elem("8")
     assert sorted(mat.get_meta()) == sorted(["1 pattern data", "string x8 data"])
     td.insert("x\\[\\d\\]", "2 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.add_key_elem("x")
-    mat.add_key_elem("8")
+    mat.append_key_elem("x")
+    mat.append_key_elem("8")
     assert sorted(mat.get_meta()) == sorted(["1 pattern data", "2 pattern data",
                                                "string x8 data"])
     td.insert("x\\*\\(\\[\\d\\]\\)", "3 pattern data") # turns off seqmeta mode
     mat.reset() # needs to be done after insert; insert in td won't do it for mat
-    mat.add_key_elem("x")
-    mat.add_key_elem("8")
+    mat.append_key_elem("x")
+    mat.append_key_elem("8")
     assert sorted(mat.get_meta()) == sorted(["1 pattern data", "2 pattern data",
                                                "3 pattern data", "string x8 data"])
 
@@ -638,9 +638,9 @@ def test_matcher():
         td = RegexTrieDict()
         mat = SequentialPrefixMatcher(td)
         td.insert("egg", ("data",))
-        mat.add_key_elem("e") # this doesn't fail for now, maybe should...
+        mat.append_key_elem("e") # this doesn't fail for now, maybe should...
         td.insert("bacon", ("data",))
-        mat.add_key_elem("e")
+        mat.append_key_elem("e")
 
 #
 # Test case of non-halt, worst-case.
