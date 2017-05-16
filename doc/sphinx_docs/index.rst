@@ -9,6 +9,25 @@ Typped: A typed Pratt parser employing dispatching
 
 .. default-role:: code
 
+   .. role:: python(code)
+       :language: py
+       :class: highlight
+
+   .. role:: py(code)
+      :language: py
+      :class: highlight
+
+   this can :python:`trigger("python", "syntax highlight")`
+
+   .. .. role:: bash(code)
+      :language: bash
+
+   which you can then use like so:
+
+   Here is some awesome bash code :python:`a = b + c`.
+
+   Here is some awesome bash code :py:`a = b + c`.
+
 The Typped package provides a general Python framework for defining and using
 Pratt parsers.  The parsed language can optionally include basic types, and
 overloading on those types is allowed.  Default parser methods are provided for

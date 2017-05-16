@@ -47,7 +47,6 @@ will match cause a match).
            for match in prefix_match_list:
                print("Matched a prefix:", match)
 
-
 The results of the tokenization are automatically placed in a deque which is
 stored with the `RegexTreeDictScanner` instance.  Users can manipulate this
 deque in any way they want; it is only used for reporting tokens as they are
@@ -173,8 +172,8 @@ class RegexTrieDictScanner(object):
         """Append the string `text` to the current prefix."""
         if self.end_of_text_asserted:
             # TODO: could have option to delete end magic char or auto-call reset text.
-            raise TrieDictScannerError("End of text was asserted, call"
-                                       " `clear` before inserting more.""")
+            raise TrieDictScannerError("End of text was previously asserted, call"
+                                       " `clear` before inserting more text.""")
         for char in text:
             if char != self.rtd.magic_elem_never_matches:
                 self.curr_prefix_text.append(char)

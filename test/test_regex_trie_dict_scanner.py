@@ -67,10 +67,10 @@ def test_TrieDictScannerBasic():
     assert prefix_matches is None # None means no match yet found.
     scanner.append_text("g")
     prefix_matches = scanner.get_prefix_matches()
-    assert prefix_matches == None
+    assert prefix_matches is None
     scanner.append_text("g")
     prefix_matches = scanner.get_prefix_matches()
-    assert prefix_matches == None
+    assert prefix_matches is None
     scanner.append_text("r")
     prefix_matches = scanner.get_prefix_matches()
     assert prefix_matches == ["egg"]
@@ -83,4 +83,27 @@ def test_TrieDictScannerBasic():
     assert scanner.get_prefix_matches() == [] # [] means no matches possible with current trie.
     assert scanner.cannot_match
 
+def test_parse_quotes():
+    td = RegexTrieDict()
+    scanner = RegexTrieDictScanner(td)
+    td.insert(r"'\*\(\[ a-z\]\)'")
+    td.print_tree()
+
+    text = "'hello there'"
+    scanner.append_text(text)
+    prefix_matches = scanner.get_prefix_matches()
+    print(prefix_matches)
+
+    del td[r"'\*\(\[ a-z\]\)'"]
+    td.insert(r"'\*\(\[^'\]\)'")
+    td.insert(r"W\.W")
+    td.print_tree()
+    scanner.reset()
+
+    text = "'hello there'WxW"
+    scanner.append_text(text)
+    prefix_matches = scanner.get_prefix_matches()
+    print(prefix_matches)
+
+    fail()
 

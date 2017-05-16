@@ -58,7 +58,7 @@ elements=characters.  Sequences do not need to be strings, however.  For
 example, the sequences could be lists of strings.  In that case the elements
 would be the strings in those lists.  Regex patterns would then be lists of
 strings with certain of those strings designated as escape elements and the
-pattern-defining elements such as parentheses, the repetition '*", and so
+pattern-defining elements such as parentheses, the repetition "*", and so
 forth.
 
 Meta-methods
@@ -92,23 +92,25 @@ defined assuming that keys are strings of characters.  (In general, keys can be
 sequences of any kind of hashable elements.)  The default definitions are as
 follows::
 
-   define_meta_elems(escape="\\", repetition="*", l_group="(", r_group=")",
-                     l_wildcard="[", r_wildcard="]", range_elem="-", or_elem="|")
+   define_meta_elems(escape="\\\\", repetition="*", l_group="(", r_group=")",
+                     l_wildcard="[", r_wildcard="]", range_elem="-",
+                     or_elem="|", dot=".", wildcard_patt_match_fun=None,
+                     elem_to_digit_fun=None, canonicalize_fun=None)
 
 In order for an element of a key to be interpreted as a meta-symbol it **must**
-be preceded by the defined escape element.  So if the key is a string the
-meta-symbols with their default definitions above would always appear as
-`"\\*"`, `"\\("`, `"\\)"`, `"\\["`, `"\\]"`, `"\\-"`, and `"\\|"`.  If the
-backslash character is the escape then it is convenient to use raw strings like
-`r"\*"` and `"r\("`.  (But remember that in Python raw strings cannot end with
-a single backslash.)
+be preceded by the defined escape element.  So, assuming the keys are strings,
+pattern strings containing the above meta-symbols with their default
+definitions above would always appear as `"\\\\\\\\\\*"`, `"\\\\\\\\\\("`,
+`"\\\\\\\\\\)"`, `"\\\\\\\\\\["`, `"\\\\\\\\\\]"`, `"\\\\\\\\\\-"`, and
+`"\\\\\\\\\\|"`.  When the backslash character is the escape it is convenient
+to use raw strings, but remember that Python raw strings cannot end with a
+single backslash.
 
-The requirement that all meta-elements must be escaped is intended to minimize
-interference with ordinary key elements.  There are no exceptions, so it is a
-consistent rule which does not require memorization of which elements need to
-be escaped and which do not.  As usual, a double escape such as `"\\\\"` (or
-`r"\\"`) reverts to the original escape symbol, as does an escape not followed
-by any of the defined meta-elements.
+There are no exceptions to the requirement that all meta-elements must be
+escaped, so it is a consistent rule which does not require memorization of
+which elements need to be escaped and which do not.  As usual, a double escape
+such as `r"\\\\\\\\\\"` or `"\\\\\\\\\\\\\\\\"` reverts to the literal escape
+symbol, as does an escape not followed by any of the defined meta-elements.
 
 Keep in mind that when a `RegexTrieDict` is used with escaped elements in the
 keys, to be treated as meta-elements, all the literal escape-elements in the
@@ -143,12 +145,20 @@ particular, the operations like `*` which are usually postfix operations are
 instead prefix operations so they are encountered first when walking down the
 trie.
 
-The language allows for single-character wildcards, i.e., wildcards which match
-a single character from some set of possibilities.  As an example with strings,
-consider these patterns are valid meta-keys using wildcards::
+Wildcards
+~~~~~~~~~
 
-   patt1 = "abc\\[123\\]def"
-   patt2 = "abc\\[1\\-3\\]def"
+The language allows for single-character wildcards, i.e., wildcards which match
+a single character from some set of possibilities.  Like Python regexes, this
+language also recognizes an escaped dot as a metacharacter that matches
+anything (including newlines, as if `DOTALL` were set in Python).  For strings
+the default dot symbol is set to `r"\\."`.
+
+As an example of character ranges with strings, consider these patterns are
+valid meta-keys using wildcards::
+
+   patt1 = r"abc\\[123\\]def"
+   patt2 = r"abc\\[1\\-3\\]def"
 
 The first pattern, `patt1`, matches `abc1def`, `abd2def`, and `abc3def` on
 meta-queries.  The second pattern, `patt2`, matches the same strings but uses a
@@ -166,16 +176,19 @@ range-function (when the values is set to `None` in the call to
 <TODO note that user can essentially redefine the processing of the part inside
 the brackets in any way desired.>
 
+Repetition patterns
+~~~~~~~~~~~~~~~~~~~
+
 Repetition patterns match zero or more occurrences of the pattern group.  Here
 is an example with strings as keys::
 
-   patt1 = "abc\\*\\(DD\\)efg"
+   patt1 = r"abc\\*\\(DD\\)efg"
 
 This would match "abcefg", "abcDDefg", abcDDDDefg", etc.  The repetition
 pattern can also take optional numeric arguments, each separated by another
 asterick.  A single numeric argument, like in ::
 
-   patt = "abc\\*10\\(DD\\)efg
+   patt = r"abc\\*10\\(DD\\)efg
 
 specifies a minimum number of repetitions.  The previous example must have
 ten or more occurrences of `"dd"` in it.  So `"abcDDefg"` would not match,
@@ -183,10 +196,15 @@ but `"abcDDDDDDDDDDDDDDDDDDDDefg"` would match.  When two numbers are given
 they represent the minimum and the maximum number of repetitions, respectively.
 So the pattern ::
 
-   patt = "abc\\*2\\*3\\(DD\\)efg"
+   patt = r"abc\\*2\\*3\\(DD\\)efg"
 
 would not match `"abcDDefg"`, would match `"abcDDDDefg"` and `"abcDDDDDDefg"`, and
 would not match `"abcDDDDDDDDefg"`.
+
+If groups
+~~~~~~~~~
+
+<TODO, document>
 
 Greediness and non-greediness in Python regexes
 ===============================================
@@ -456,15 +474,14 @@ if __name__ == "__main__":
     pytest_helper.script_run("../../test/test_regex_trie_dict.py",
                              pytest_args="-v")
 
-import sys
 import re
 import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
 from .shared_settings_and_exceptions import TyppedBaseException
 
-# TODO: Consider adding the '\.' symbol that matches anything to the
-# implemented pattern language.  Shouldn't be too hard; just make sure it
-# doesn't match the MagicElem.
+# TODO: Added the '\.' symbol that matches anything to the
+# implemented pattern language.  Needs testing, only one preliminary test in
+# the regex scanner module.
 
 # Todo: Consider a preprocessing routine like the Python regex one `escape`.
 # This one would take an unescaped string and escape all the special chars.
@@ -853,8 +870,8 @@ class RegexTrieDict(TrieDict):
 
     def define_meta_elems(self, escape="\\", repetition="*", l_group="(", r_group=")",
                         l_wildcard="[", r_wildcard="]", range_elem="-",
-                        or_elem="|", wildcard_patt_match_fun=None, elem_to_digit_fun=None,
-                        canonicalize_fun=None):
+                        or_elem="|", dot=".", wildcard_patt_match_fun=None,
+                        elem_to_digit_fun=None, canonicalize_fun=None):
         """Define the meta-elements in pattern-matching."""
         self.escape = escape
         self.repetition = repetition
@@ -864,6 +881,7 @@ class RegexTrieDict(TrieDict):
         self.r_wildcard = r_wildcard
         self.range_elem = range_elem
         self.or_elem = or_elem
+        self.dot = dot
         self.canonicalize_fun = canonicalize_fun
         if wildcard_patt_match_fun:
             self.wildcard_patt_match_fun = wildcard_patt_match_fun
@@ -874,7 +892,7 @@ class RegexTrieDict(TrieDict):
         else:
             self.elem_to_digit_fun = char_elem_to_int
         self.escape_meta_elems = {
-            repetition, l_group, r_group, l_wildcard, r_wildcard, range_elem}
+            repetition, l_group, r_group, l_wildcard, r_wildcard, range_elem, dot}
 
     def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
                     yield_on_leaves=True, yield_on_match=False, copies=True,
@@ -1235,9 +1253,19 @@ class RegexTrieDict(TrieDict):
                     if query_elem == self.escape:
                         #print("got escaped escape, adding to trie as element")
                         next_node_data_list.append_child_node(query_elem, node_data,
-                                                         node_is_escape=False)
+                                                              node_is_escape=False)
                     else: # An escaped escape just doesn't match, no new node_data.
                         continue
+
+                #
+                # Handle the matches-anything r"\." pattern.
+                #
+                elif meta_elem == self.dot:
+                    if query_elem != self.magic_elem_never_matches:
+                        children_dict = node_data.children()
+                        for query_elem in children_dict:
+                            next_node_data_list.append_child_node(query_elem, node_data,
+                                                                  node_is_escape=False)
 
                 #
                 # Handle begin-repetitions.
@@ -1250,7 +1278,7 @@ class RegexTrieDict(TrieDict):
                 # Handle end-repetitions.
                 #
                 elif meta_elem == self.r_group:
-                    node_data_copy = node_data.copy() # debug, unnecessary? xxx
+                    node_data_copy = node_data.copy() # debug, unnecessary copy? xxx
                     node_data_copy.set_child(self.r_group) # debug, unnecessary? xxx
                     node_data_copy.node = node_data_copy.children()[self.r_group]
                     self.handle_end_repetitions(query_elem, node_data_copy,
@@ -1298,9 +1326,6 @@ class RegexTrieDict(TrieDict):
                 #
                 elif meta_elem == self.l_wildcard:
                     #print("debug processing wildcard")
-                    # Generate all the subtree r_wildcard nodes, checking that the
-                    # pattern matches.
-
                     self.handle_wildcards(node_data, query_elem, next_node_data_list)
 
                 #
@@ -1314,7 +1339,7 @@ class RegexTrieDict(TrieDict):
                         "\nQuery element is: " + str(query_elem) +
                         "\nNode's children are:\n   " + str(next_meta_elems))
 
-        return # `from process_node_data`
+        return # from `process_node_data`
 
     def handle_wildcards(self, node_data, query_elem, next_node_data_list):
         """Handle wildcard patterns in meta-processing the trie.  The
@@ -1401,7 +1426,7 @@ class RegexTrieDict(TrieDict):
                 raise PatternMatchError(
                     "No open-group element following a repetition element.")
             iter_bounds = self.process_repetition_params([t[0] for t in
-                                                       tree_path_to_open_group[1:-2]])
+                                                         tree_path_to_open_group[1:-2]])
 
             # If at least one iteration is required then we can avoid having
             # to find all the closing-group elements for the subtree and
@@ -1483,8 +1508,7 @@ class RegexTrieDict(TrieDict):
         # which is already a NodeStateDataList.
 
         # Get some preliminary values needed for conditional tests.
-        open_paren_node = close_paren_node_data.loopback_stack[
-            -1] # loop back to open-group node
+        #open_paren_node = close_paren_node_data.loopback_stack[-1] # loop back to open-group node
         loop_count = close_paren_node_data.loop_counter_stack[-1]
         loop_bound_min, loop_bound_max = close_paren_node_data.loop_bounds_stack[-1]
 
@@ -1939,8 +1963,8 @@ def generic_wildcard_match_fun(query_elem, patt_list, range_elem, escape_elem,
                             range_test_fun=char_range_test):
     """This utility routine does a generic pattern-match in the wildcard
     brackets.  This routine is for general sequences of elements and does not
-    depend on the elements being characters.  Only the function range_test_fun
-    needs to be defined.  The argument patt_list is the content of a wildcard
+    depend on the elements being characters.  Only the function `range_test_fun`
+    needs to be defined.  The argument `patt_list` is the content of a wildcard
     bracket, as a list of elements.  This function tests whether query_elem
     matches the character pattern.  To simply redefine the range-test function
     for elements, use something like::
