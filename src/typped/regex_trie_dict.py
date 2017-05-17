@@ -655,22 +655,25 @@ class NodeStateDataList(collections.MutableSequence):
     def append(self, item):
         return self.node_data_list.append(item)
 
-    def append_child_node(self, query_elem, node_data, node_is_escape=None):
+    def append_child_node(self, query_elem, node_data, node_is_escape=None, copy=True):
         """A utility routine that appends a `NodeStateData` instance for a
         child of the node in the one passed in.  The child is the one
         corresponding to the key `query_elem`.  All other data is kept the
-        same.  Return `True` if anything actually added.  If the
-        `node_is_escape` argument is not `None` then the `node_is_escape` value
-        of the `NodeStateData` instance is set to that value.  Note that if a
-        `NodeStateData` instance is added outside of this loop (such as in
-        processing wildcards) that routine must take care of any necessary
-        set_child calls for binding in repetition loops."""
+        same.  Return `True` if anything actually added.
+
+        If the `node_is_escape` argument is not `None` then the
+        `node_is_escape` value of the `NodeStateData` instance is set to that
+        value.  Note that if a `NodeStateData` instance is added outside of
+        this loop (such as in processing wildcards) that routine must take care
+        of any necessary set_child calls for binding in repetition loops."""
         children_dict = node_data.children()
         if query_elem not in children_dict:
             return False
 
-        # TODO add a copy=True flag to turn off when not needed, after debug
-        node_data_copy = node_data.copy() # Make a copy.
+        if copy:
+            node_data_copy = node_data.copy()
+        else:
+            node_data_copy = node_data
 
         # Fix the overridden children dict of states inside repetition loops
         # to the single child path which is actually traveled down (so later
@@ -1242,6 +1245,7 @@ class RegexTrieDict(TrieDict):
             # this level are errors.
 
             next_meta_elems = node_data.children().keys()
+            print("next meta elems are", next_meta_elems)
 
             # Loop through the meta-elems stored at the node and handle each one.
             for meta_elem in next_meta_elems:
@@ -1258,19 +1262,19 @@ class RegexTrieDict(TrieDict):
                         continue
 
                 #
-                # Handle the matches-anything r"\." pattern.
+                # Handle the dot pattern.
                 #
                 elif meta_elem == self.dot:
+                    # Remember that binding in Python DOES allow resetting wildcards in loops.
                     if query_elem != self.magic_elem_never_matches:
-                        children_dict = node_data.children()
-                        for query_elem in children_dict:
-                            next_node_data_list.append_child_node(query_elem, node_data,
+                            next_node_data_list.append_child_node(self.dot, node_data,
                                                                   node_is_escape=False)
 
                 #
                 # Handle begin-repetitions.
                 #
                 elif meta_elem == self.repetition:
+                    print("DEBUG got a *, meta_elem is", meta_elem)
                     self.handle_begin_repetitions(
                                       node_data, query_elem, next_node_data_list)
 

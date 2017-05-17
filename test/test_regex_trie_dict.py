@@ -53,6 +53,15 @@ def test_basic_Python_semantics():
     assert_match_agreement(patt, rtd_patt, "ab", rtd)
     assert_match_agreement(patt, rtd_patt, "abbbaaaab", rtd)
 
+    # No binding on dot in loops; they can vary on each iteration.
+    patt = r"^(.x)*$"
+    rtd_patt = r"\*\(\.x\)"
+    assert_match_agreement(patt, rtd_patt, "ax", rtd)
+    assert_match_agreement(patt, rtd_patt, "bx", rtd)
+    assert_match_agreement(patt, rtd_patt, "axax", rtd)
+    assert_match_agreement(patt, rtd_patt, "axbx", rtd)
+    assert_match_agreement(patt, rtd_patt, "axbxbxbxaxaxaxaxbx", rtd)
+
     # Similarly for pattern 'or' groups, they can vary on each iteration.
     patt = r"^((AA|BB))*$"
     rtd_patt = r"\*\(\(AA\|BB\)\)"
@@ -397,6 +406,7 @@ def test_basic_TrieDict_char_regex_sequences():
 
     # wildcards with range
     td.insert("\\[q\\-s\\]")
+    assert "\\[q\\-s\\]" == r"\[q\-s\]"
     assert not td.has_key_meta("p")
     assert td.has_key_meta("q")
     assert td.has_key_meta("r")
@@ -407,6 +417,12 @@ def test_basic_TrieDict_char_regex_sequences():
     assert td.has_key_meta("Ab")
     assert td.has_key_meta("Aac")
     assert td.has_key_meta("Abc")
+
+    # dot wildcard
+    td.insert("\\.QR\\.ST\\.")
+    assert td.has_key_meta("3QR8ST5")
+    assert td.has_key_meta("eQRbSTa")
+    assert not td.has_key_meta("eQRbSWa")
 
     # test ordinary repetition
     td.insert("abc\\*\\(dx\\)efg")
@@ -429,6 +445,18 @@ def test_basic_TrieDict_char_regex_sequences():
     # repetition after repetition
     td.insert("abc\\*\\(dx\\)\\*\\(e\\)def")
     assert td.has_key_meta("abcdxdxdxeeeedef")
+
+    # repetition with dot inside it
+    td.insert("\\*\\(A\\.\\)")
+    assert td.has_key_meta("AEAE")
+    assert td.has_key_meta("AeAe")
+    assert td.has_key_meta("AEAe") # Note does not bind, see earlier test.
+
+    # repetition with wildcard inside it (similar to dot above)
+    td.insert("\\*\\(L\\[^ \\]\\)")
+    assert td.has_key_meta("LELE")
+    assert td.has_key_meta("LeLe")
+    assert td.has_key_meta("LELe") # Note does not bind, see earlier test.
 
     # nested repetition
     td.insert("ABC\\*\\(dx\\*\\(BB\\)dx\\)DEF")
