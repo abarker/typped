@@ -215,6 +215,8 @@ sub-procedures doing particular tasks.  This is the top-level procedure:
        define_juxtaposition_operators(parser)
        define_assignment_operator(parser)
        define_comments(parser)
+       define_semicolon_separator(parser)
+
 
 Each procedure does what the name implies.  The code for each sub-procedure, in
 sequence, will be shown and discussed next.  The first procedure defines some
@@ -404,14 +406,23 @@ predefined to the associated math constants.
            symbol_dict[t[0].value] = rhs
            return rhs
 
-       parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
-                           eval_fun=eval_assign)
+       parser.def_infix_op("k_equals", 5, "right",
+                   precond_fun=lambda lex, lb: lex.peek(-1).token_label == "k_identifier",
+                   precond_label="lhs must be identifier",
+                   eval_fun=eval_assign)
 
-Once simple variables are defined expressions like ``sin(2 pi)``, ``x = 5``,
-and ``x^2`` can be defined.  Uninitialized variables default to zero, and
-``pi`` and ``e`` are predefined.  Assignment returns the assigned value.
+Notice that the ``def_infix_op`` method is used to define the ``=`` operator
+for assignment.  A preconditions function, along with a unique label for it, is
+used to restrict the definition to the case where the left hand side of the
+assignment is an identifier.
 
-The last feature which will be added to the calculator language is comments.
+Now expressions like ``sin(2 pi)``, ``x = 5``, and ``x^2`` can be used in the
+calculator language.  Uninitialized variables default to zero, and the
+variables ``pi`` and ``e`` are predefined.  Assignment returns the assigned
+value as its operator value, so, while it is probably not a good idea, you can
+have expressions like ``sin(tau = 2 pi)``.
+
+The next feature which will be added to the calculator language is comments.
 Comments are just like comments in Python.  They are defined by defining a
 token with a regex that recognizes comments, and telling the lexer to ignore
 all such tokens.
@@ -425,7 +436,25 @@ all such tokens.
        parser.def_ignored_token("k_comment_to_EOL", r"\#[^\r\n]*$", on_ties=10)
 
 The language has now been defined and the calculator can be run as shown above
-in the interactive dialog.
+in the interactive dialog.  As one final feature, we will define the semicolon
+operator as a statement separator.  This can be done simply by using an infix
+operator with a very low precedence value.
+
+.. code-block:: python
+
+   def define_semicolon_separator(parser):
+       """Define semicolon to separate expressions, returning the value of the last one."""
+
+       def eval_semicolon(t):
+           t[0].eval_subtree()
+           return t[1].eval_subtree()
+
+       parser.def_token("k_semicolon", r";")
+       parser.def_literal("k_semicolon")
+       parser.def_infix_op("k_semicolon", 1, "right",
+                           eval_fun=eval_semicolon)
+
+Now expressions like ``w = sqrt(4); w^2`` can be used.
 
 Extending the calculator
 ------------------------

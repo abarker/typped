@@ -46,7 +46,12 @@ They will probably work in the inner parser, at least.  The possible problem
 is that they check for head handlers before deciding to infer a jop.
 
 TODO: Types are not yet worked as to how they should interact in the
-type-checking.  Currently types not used in this example.
+type-checking.  Currently types not used in this example.  It should be
+possible to share types between parsers --- tokens cannot be shared only
+because pratt parsers also package them with handler methods.  (And that
+restriction could be lifted by associating handlers with tokens and parser
+instances and possibly keeping several groups of handlers with tokens, maybe
+keyed in a dict).
 
 """
 from __future__ import print_function, division, absolute_import

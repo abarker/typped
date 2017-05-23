@@ -145,11 +145,10 @@ def define_assignment_operator(parser):
     symbol_dict["e"] = math.e # Predefine e.
 
     # Note that on_ties for identifiers is set to -1, so that when string
-    # lengths are equal defined function names will take precedence over
+    # lengths are equal defined function names will take precedence over generic
     # identifiers (which are only defined as a group regex).
     parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
-    parser.def_literal("k_identifier",
-            eval_fun=lambda t: symbol_dict.get(t.value, 0.0))
+    parser.def_literal("k_identifier", eval_fun=lambda t: symbol_dict.get(t.value, 0.0))
 
     def eval_assign(t):
         """Evaluate the identifier token `t` and save the value in `symbol_dict`."""
@@ -157,14 +156,28 @@ def define_assignment_operator(parser):
         symbol_dict[t[0].value] = rhs
         return rhs
 
-    parser.def_infix_op("k_equals", 5, "right", ast_data="a_assign",
-                        eval_fun=eval_assign)
+    parser.def_infix_op("k_equals", 5, "right",
+                precond_fun=lambda lex, lb: lex.peek(-1).token_label == "k_identifier",
+                precond_label="lhs must be identifier",
+                eval_fun=eval_assign)
 
 def define_comments(parser):
     """Define comments in the calculator.  Everything from '#' to EOL is a
     comment.  Defined using an ignored token pattern."""
 
     parser.def_ignored_token("k_comment_to_EOL", r"\#[^\r\n]*$", on_ties=10)
+
+def define_semicolon_separator(parser):
+    """Define semicolon to separate expressions, returning the value of the last one."""
+
+    def eval_semicolon(t):
+        t[0].eval_subtree()
+        return t[1].eval_subtree()
+
+    parser.def_token("k_semicolon", r";")
+    parser.def_literal("k_semicolon")
+    parser.def_infix_op("k_semicolon", 1, "right",
+                        eval_fun=eval_semicolon)
 
 def define_basic_calculator(parser):
     """Define the calculator language in the parser instance."""
@@ -173,6 +186,7 @@ def define_basic_calculator(parser):
     define_juxtaposition_operators(parser)
     define_assignment_operator(parser)
     define_comments(parser)
+    define_semicolon_separator(parser)
 
 def read_eval_print_loop(parser):
     """Implement the REP loop."""
@@ -226,6 +240,9 @@ def cmd_read_evaluate_print_loop(parser):
             self.show_tree = False
             super(CalculatorREPL, self).__init__()
 
+        def emptyline(self):
+            pass
+
         def default(self, line):
             """Default action, parse and evaluate and expression."""
             if line.strip().startswith("#"): # Tries to parse empty line.
@@ -236,6 +253,7 @@ def cmd_read_evaluate_print_loop(parser):
             except (ValueError, ZeroDivisionError,
                     pp.ParserException, pp.LexerException) as e:
                 print(e)
+                return
 
             if self.show_tree:
                 print("\n", parse_tree.tree_repr(), sep="")

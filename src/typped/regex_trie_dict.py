@@ -479,10 +479,6 @@ import collections # to use deque and MutableSequence abstract base class
 from .trie_dict import TrieDict, TrieDictNode
 from .shared_settings_and_exceptions import TyppedBaseException
 
-# TODO: Added the '\.' symbol that matches anything to the
-# implemented pattern language.  Needs testing, only one preliminary test in
-# the regex scanner module.
-
 # Todo: Consider a preprocessing routine like the Python regex one `escape`.
 # This one would take an unescaped string and escape all the special chars.
 # Then people who prefer it that way could do it that way.  The default could

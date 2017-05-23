@@ -16,10 +16,10 @@ Extra attributes added to tokens
 
 Token instances straight from a `Lexer` instance have certain attributes set,
 as documented in the `lexer` module.  In particular, the `token_label`,
-`value`, and `children` attributes are commonly used.  The `pratt_parser` module defines its
-own subclass of the `TokenNode` class, which additionally assigns some extra
-attributes when tokens are defined.  The parsing process also sets several
-user-accessible attributes.
+`value`, and `children` attributes are commonly used.  The `pratt_parser`
+module defines its own subclass of the `TokenNode` class, which additionally
+assigns some extra attributes when tokens are defined.  The parsing process
+also sets several user-accessible attributes.
 
 Attributes set on the `TokenNode` subclass:
 
@@ -226,6 +226,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # something like "TermParser" or "parser for terms", "WffParser", etc.  When
 # working with parsers called from/by parsers these labels in error messages
 # would be helpful in debugging.
+
+# TODO: More useful built-in methods.  One that does assignments would be useful.
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
@@ -739,7 +741,8 @@ def token_subclass_factory():
                     self.original_formal_sig = orig_sig
                     prev_eval_fun = self._get_eval_fun(orig_sig)
                     prev_ast_data = self._get_ast_data(orig_sig)
-                    self._save_eval_fun_and_ast_data(self.precond_label, typesig_override,
+                    self._save_eval_fun_and_ast_data(self.is_head, self.precond_label,
+                                                     typesig_override,
                                                      prev_eval_fun, prev_ast_data)
                     # Force the final, actual typesig to be the override sig.
                     self.expanded_formal_sig = typesig_override
@@ -899,7 +902,7 @@ def token_subclass_factory():
         #
 
         @classmethod
-        def _save_eval_fun_and_ast_data(cls, precond_label,
+        def _save_eval_fun_and_ast_data(cls, is_head, precond_label,
                                         type_sig, eval_fun, ast_data):
             """This is a utility function that saves data in the `eval_fun_dict`
             and `ast_data_dict` associated with token `token_subclass`, keyed by
@@ -907,42 +910,44 @@ def token_subclass_factory():
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
             # Save in dicts hashed with full signature (full overload with return).
-            dict_key = (precond_label, type_sig)
+            dict_key = (is_head, precond_label, type_sig)
             cls.ast_data_dict[dict_key] = ast_data
             cls.eval_fun_dict[dict_key] = eval_fun
             # Also save in dicts hashed only on args (overloading only on args).
-            dict_key = (precond_label, type_sig.arg_types)
+            dict_key = (is_head, precond_label, type_sig.arg_types)
             cls.ast_data_dict[dict_key] = ast_data
             cls.eval_fun_dict[dict_key] = eval_fun
             # Also save in dicts hashed only on precond label (no overloading).
-            dict_key = (precond_label,)
+            dict_key = (is_head, precond_label)
             cls.ast_data_dict[dict_key] = ast_data
             cls.eval_fun_dict[dict_key] = eval_fun
 
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
             Must be called after parsing because the `precond_label` attribute must
-            be set on the token instance."""
+            be set on the token instance.  Keyed on `is_head`, `precond_label`, and
+            original signature."""
             precond_label = self.precond_label # Attribute set during parsing.
             if self.parser_instance.overload_on_ret_types:
-                dict_key = (precond_label, orig_sig)
+                dict_key = (self.is_head, precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
-                dict_key = (precond_label, orig_sig.arg_types)
+                dict_key = (self.is_head, precond_label, orig_sig.arg_types)
             else:
-                dict_key = (precond_label,)
+                dict_key = (self.is_head, precond_label)
             return self.eval_fun_dict.get(dict_key, None)
 
         def _get_ast_data(self, orig_sig):
             """Return the evaluation function saved by `_save_ast_data_and_ast_data`.
             Must be called after parsing because the `precond_label` attribute must
-            be set on the token instance."""
+            be set on the token instance.  Keyed on `is_head`, `precond_label`, and
+            original signature."""
             precond_label = self.precond_label # Set during parsing.
             if self.parser_instance.overload_on_ret_types:
-                dict_key = (precond_label, orig_sig)
+                dict_key = (self.is_head, precond_label, orig_sig)
             elif self.parser_instance.overload_on_arg_types:
-                dict_key = (precond_label, orig_sig.arg_types)
+                dict_key = (self.is_head, precond_label, orig_sig.arg_types)
             else: # No overloads allowed.
-                dict_key = (precond_label,)
+                dict_key = (self.is_head, precond_label)
             return self.ast_data_dict.get(dict_key, None)
 
         def eval_subtree(self):
@@ -1131,6 +1136,7 @@ def token_subclass_factory():
                 if not curr_token:
                     curr_token = lex.next()
                     head_handler = curr_token.dispatch_handler(HEAD, lex)
+                curr_token.is_head = True
                 # Call the head-handler looked up above.
                 processed_left = head_handler()
                 lookbehind = [processed_left]
@@ -1392,6 +1398,7 @@ class PrattParser(object):
         tok.token_kind = token_kind
         tok.parser_instance = self
         tok.token_table = self.token_table
+        tok.is_head = False # Set true in recursive_parse when instance called as a head.
         return tok
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
@@ -1574,13 +1581,13 @@ class PrattParser(object):
             token_subclass.register_handler_fun(HEAD, head,
                                precond_label=precond_label, precond_fun=precond_fun,
                                precond_priority=precond_priority, type_sig=type_sig)
+            token_subclass._save_eval_fun_and_ast_data(True, precond_label,
+                                                   type_sig, eval_fun, ast_data)
         if tail:
             token_subclass.register_handler_fun(TAIL, tail,
                                precond_label=precond_label, precond_fun=precond_fun,
                                precond_priority=precond_priority, type_sig=type_sig)
-
-        # Save the eval_fun and ast_data with the token, keyed by type_sig.
-        token_subclass._save_eval_fun_and_ast_data(precond_label,
+            token_subclass._save_eval_fun_and_ast_data(False, precond_label,
                                                    type_sig, eval_fun, ast_data)
 
         return token_subclass
@@ -1792,8 +1799,8 @@ class PrattParser(object):
                                  precond_priority=precond_priority,
                                  eval_fun=eval_fun, ast_data=ast_data)
 
-    #def def_assignment_operator(assignment_operator_label, prec, assoc, in_tree=True,
-    #                     val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+    #def def_assignment_op(assignment_operator_label, prec, assoc, in_tree=True,
+    #                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
                       rpar_token_label, comma_token_label,
@@ -2021,7 +2028,7 @@ class PrattParser(object):
         if not self.lex.peek().is_end_token() and not partial_expressions:
             raise IncompleteParseException("Parsing never reached the end of"
                 " the text.  Parsing stopped with tokens still in the lexer."
-                " No syntax element was recognized. The last-parsed token had"
+                "  No syntax element was recognized. The last-parsed token had"
                 " value '{0}' and label '{1}'.  Parsing stopped before a token"
                 " in the lexer with value '{2}' and label '{3}'.  The partial"
                 " result returned is:\n{4}"

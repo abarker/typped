@@ -24,9 +24,9 @@ Typped: A typed Pratt parser employing dispatching
 
    which you can then use like so:
 
-   Here is some awesome bash code :python:`a = b + c`.
+   Here is some awesome code :python:`a = b + c`.
 
-   Here is some awesome bash code :py:`a = b + c`.
+   Here is some awesome code :py:`a = b + c`.
 
 The Typped package provides a general Python framework for defining and using
 Pratt parsers.  The parsed language can optionally include basic types, and

@@ -196,8 +196,8 @@ the final signature (and in looking up evaluation functions, etc.)
    looking at the string value for a token in a precondition).  It can also
    help avoid problems with overloading.
 
-   So while the Typped parser can be used in either way, it is worth
-   considering the use of dynamic token definitions.
+   So, while the Typped parser can be used in either way, the use of dynamic
+   token definitions is worth considering.
 
 .. topic:: Overloading summary:
 
