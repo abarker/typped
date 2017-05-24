@@ -663,6 +663,10 @@ def token_subclass_factory():
             It sets some attributes and checks that the actual types match some
             defined type signature for the function.
 
+            (This function does not need to be called in a handler if no
+            type-checking is desired and no `in_tree` options are used.  This
+            function may later also implement other options.)
+
             The `fun_object` argument should be a reference to the function
             that called this routine.  This is needed to access signature data
             which is pasted onto the function object as attributes.  Inside a
@@ -707,8 +711,12 @@ def token_subclass_factory():
             # Process the children to implement `in_tree`, if set.
             modified_children = []
             for child in self.children:
-                if child.in_tree: modified_children.append(child)
-                else: modified_children += child.children
+                if not hasattr(child, "in_tree"):
+                    continue # Case where `process_and_check_node` not called on child.
+                if child.in_tree:
+                    modified_children.append(child)
+                else:
+                    modified_children += child.children
             self.children = modified_children
 
             #
