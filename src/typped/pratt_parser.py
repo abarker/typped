@@ -223,11 +223,15 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # to AST.
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
-# something like "TermParser" or "parser for terms", "WffParser", etc.  When
-# working with parsers called from/by parsers these labels in error messages
-# would be helpful in debugging.
+# something like "TermParser" or "parser for terms", "WffParser", etc.  Then
+# use that string in the exception messages.  When working with parsers called
+# from/by parsers these labels in error messages would be helpful for debugging.
 
-# TODO: More useful built-in methods.  One that does assignments would be useful.
+# TODO: More built-in methods.  One that does assignments would be useful.
+
+# TODO: Consider the pros and cons of moving to a centralized
+# per-parser-instance dict for storing handler functions, eval funs, and extra
+# token info.  Info currently is stored with individual tokens.
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
@@ -707,46 +711,52 @@ def token_subclass_factory():
                 else: modified_children += child.children
             self.children = modified_children
 
-            # Perform the type-checking unless the skip option is set.
-            # TODO: Can type checking safely be turned off?  Haven't tested recently....
-            if not self.parser_instance.skip_type_checking:
+            #
+            # Just return and skip type-checking if the skip option is set.
+            #
 
-                # Get all the sigs for the node while we have access to fun_object.
-                if typesig_override and check_override_sig:
-                    all_possible_sigs = [typesig_override]
-                else:
-                    all_possible_sigs = fun_object.type_sigs
-                self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
+            if self.parser_instance.skip_type_checking:
+                return
 
-                # Do the actual checking.
-                if not self.parser_instance.overload_on_ret_types: # One-pass.
-                    self._check_types(all_possible_sigs, repeat_args)
-                else: # Two-pass.
-                    self._check_types(all_possible_sigs, repeat_args, first_pass_of_two=True)
-                    # If we have a *unique* matching sig, run pass two on the
-                    # subtree.  In this case, since the signature is fixed by
-                    # argument types (regardless of where the top-down pass
-                    # starts from) we can in this case resolve the types in the
-                    # subtree early.  Note `check_types_in_tree_second_pass` is
-                    # also called on the root node from the `parse` method.
-                    if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
-                        self.check_types_in_tree_second_pass()
+            #
+            # Otherwise, do type checking below.
+            #
 
-                # Do the override in the case where no checking is done on the
-                # override sig.  Only the `expanded_formal_sig` is set to the
-                # override sig; the `original_formal_sig` is the one found in
-                # the actual checking above.
-                if typesig_override and not check_override_sig:
-                    orig_sig = self.expanded_formal_sig.original_formal_sig
-                    self.original_formal_sig = orig_sig
-                    prev_eval_fun = self._get_eval_fun(orig_sig)
-                    prev_ast_data = self._get_ast_data(orig_sig)
-                    self._save_eval_fun_and_ast_data(self.is_head, self.precond_label,
-                                                     typesig_override,
-                                                     prev_eval_fun, prev_ast_data)
-                    # Force the final, actual typesig to be the override sig.
-                    self.expanded_formal_sig = typesig_override
-            return
+            # Get all the sigs for the node while we have access to fun_object.
+            if typesig_override and check_override_sig:
+                all_possible_sigs = [typesig_override]
+            else:
+                all_possible_sigs = fun_object.type_sigs
+            self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
+
+            # Do the actual checking.
+            if not self.parser_instance.overload_on_ret_types: # One-pass.
+                self._check_types(all_possible_sigs, repeat_args)
+            else: # Two-pass.
+                self._check_types(all_possible_sigs, repeat_args, first_pass_of_two=True)
+                # If we have a *unique* matching sig, run pass two on the
+                # subtree.  In this case, since the signature is fixed by
+                # argument types (regardless of where the top-down pass
+                # starts from) we can in this case resolve the types in the
+                # subtree early.  Note `check_types_in_tree_second_pass` is
+                # also called on the root node from the `parse` method.
+                if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
+                    self.check_types_in_tree_second_pass()
+
+            # Do the override in the case where no checking is done on the
+            # override sig.  Only the `expanded_formal_sig` is set to the
+            # override sig; the `original_formal_sig` is the one found in
+            # the actual checking above.
+            if typesig_override and not check_override_sig:
+                orig_sig = self.expanded_formal_sig.original_formal_sig
+                self.original_formal_sig = orig_sig
+                prev_eval_fun = self._get_eval_fun(orig_sig)
+                prev_ast_data = self._get_ast_data(orig_sig)
+                self._save_eval_fun_and_ast_data(self.is_head, self.precond_label,
+                                                 typesig_override,
+                                                 prev_eval_fun, prev_ast_data)
+                # Force the final, actual typesig to be the override sig.
+                self.expanded_formal_sig = typesig_override
 
         def _check_types(self, all_possible_sigs, repeat_args, first_pass_of_two=False):
             """Utility function called from `process_and_check_node` to check
@@ -1789,10 +1799,13 @@ class PrattParser(object):
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
             lex.match_next(rbrac_token_label, raise_on_fail=True)
-            child_type = tok.children[0].expanded_formal_sig.val_type
-            tok.process_and_check_node(head_handler,
-                             #check_override_sig=True,
-                             typesig_override=TypeSig(child_type, [child_type]))
+            if self.skip_type_checking:
+                tok.process_and_check_node(head_handler)
+            else:
+                child_type = tok.children[0].expanded_formal_sig.val_type
+                tok.process_and_check_node(head_handler,
+                                 #check_override_sig=True,
+                                 typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.modify_token(lbrac_token_label, head=head_handler,
                                  precond_label=precond_label, precond_fun=precond_fun,
@@ -1819,7 +1832,7 @@ class PrattParser(object):
         arguments when typing is not being used.  If it is set to a nonnegative
         number then it will automatically set `arg_types` to the corresponding
         list of `None` values; if `arg_types` is set then it is ignored."""
-        if num_args is not None and arg_types is None:
+        if not self.skip_type_checking and num_args is not None and arg_types is None:
             arg_types = [None]*num_args
 
         # TODO maybe have option to match value instead of type...
@@ -1845,8 +1858,14 @@ class PrattParser(object):
                 else:
                     # This checks for errors like f(x,)
                     lex.match_next(rpar_token_label, raise_on_true=True)
-            lex.match_next(rpar_token_label, raise_on_fail=True)
+            lex.match_next(rpar_token_label, raise_on_fail=True) # Closing rpar.
             tok.process_and_check_node(head_handler)
+            if (self.skip_type_checking and num_args is not None
+                                        and len(tok.children) != num_args):
+                print("tok is", tok, "tok children are", tok.children)
+                raise ParserException("Wrong number of arguments for function {0}:"
+                            " expected {1} and got {2}.""".format(tok.token_label,
+                            num_args, len(tok.children)))
             return tok
         return self.modify_token(fname_token_label, prec=0,
                      head=head_handler, precond_label=precond_label,
@@ -1862,7 +1881,8 @@ class PrattParser(object):
         operator (i.e., with a tail handler).  This function works in the usual cases
         but the current version without preconditions may have problems distinguishing
         "b (" from "b(" when a multiplication jop is set.  The lookahead version
-        `def_stdfun` is usually preferred."""
+        `def_stdfun` is usually preferred.  This method assumes type checking is on
+        if `num_arg` is set."""
         if num_args is not None and arg_types is None:
             arg_types = [None]*num_args
 

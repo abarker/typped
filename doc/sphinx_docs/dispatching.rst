@@ -202,41 +202,49 @@ the final signature (and in looking up evaluation functions, etc.)
 .. topic:: Overloading summary:
 
    Overloading is assumed and automatically used in cases where a head (tail)
-   handler function is registered with a given token (via ``modify_token``) and
+   handler function is registered with a given token via ``modify_token`` and
    the following conditions hold:
 
-   1. The associated preconditions function has already been associated with a
-      different head (tail) handler function previously registered with the
-      token.  Remember that preconditions functions are considered identical
-      iff their labels are identical.
+   1. The associated preconditions function has previously been associated with
+      a different head (tail) handler function that is currently registered
+      with the token.  Remember that preconditions functions are considered
+      identical iff their labels are identical.
 
-   2. The associated type specification is different from those associated
-      with all previously-registered handler function having the same label.
+   2. The associated type specification is distinct from all all the type
+      specifications currently associated with the handler function.
 
-   The last-registered handler function object is the one that is called, and
-   all type specs (and their corresponding evaluation functions and AST data
-   objects) are saved with them to be resolved and set after calling the
-   handler.
+   The last-registered handler function object is the one that is stored and
+   called.  All type specs are saved with the current handler function to be
+   resolved handler is called.  Then the original formal signature that matches
+   is used to look up any evaluation function or AST data in a dict keyed on
+   the precondition label (one-to-one with handlers) and the signature.
 
-.. note::
+.. topic:: Overloading versus preconditions functions
 
-   An alternative way to do overloading would be to simply use a unique
-   preconditions function label for each head and tail handler (perhaps by
-   appending a string representation of the type to the label).  Using unique
-   preconditions functions would result in a single type being associated with
-   each registered preconditions function.
+   An alternative way to implement overloading might be to always use a unique
+   preconditions function label for each head and tail handler --- perhaps by
+   appending a string representation of the type to the label.  Using unique
+   preconditions functions would then result in a unique type signature being
+   associated with each registered preconditions function.  But this also
+   complicates the resolution of handler functions.
   
-   Keep in mind, though, that the usual preconditions functions are uniquely
-   resolvable at parse-time and then uniquely determine the handler function to
-   call.  If different preconditions labels are used for overloading then
-   overloading will cause multiple preconditions functions to match.  These
-   ties will not be uniquely resolvable by a priority system.  One approach
-   would be to assume that all the corresponding handler functions are
-   identical in this case and pick one to call, but that could mask some error
-   conditions.  Since type information is only resolved after the handler
-   functions are called, the particular type (and associated evaluation
-   function and AST data) would still need to then be selected from among the
-   collection of matching handlers.
+   Preconditions functions as currently implemented must be uniquely resolvable
+   at parse-time.  They then uniquely determine the handler function to call.
+   If different preconditions labels are used for overloading then overloading
+   will cause multiple preconditions functions to match.  These ties will not
+   be uniquely resolvable by a priority system.  The expression must be parsed
+   to find the actual types, which requires a handler function.
+   
+   One approach might be to assume that all the corresponding handler functions
+   are identical in case of ties and just pick one to call, but that could mask
+   some error conditions.  Since type information is only resolved after the
+   handler functions are called, the actual types and matching formal signature
+   would need to be found after calling the handler.  Then the associated
+   evaluation function and AST data would still need to then be selected from
+   among the collection of matching handlers.  It seems simpler to just treat
+   overloading and preconditions as separate and store all the overloaded
+   signatures for a handler (and their associated information) a common
+   handler.
    
 Example: Defining standard functions with lookahead
 ---------------------------------------------------

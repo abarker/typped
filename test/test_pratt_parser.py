@@ -14,7 +14,7 @@ import typped # Test as a full package.
 #    tokens:    k_number
 # Syntax:
 #    types:     t_int
-# AST labels:
+# AST data:
 #    d_number
 
 # TOKEN DEFINITIONS #################################################################
@@ -117,7 +117,10 @@ def define_syntax(parser):
 
     parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="paren_brackets")
 
-    #parser.define_commd_list("k_comma", 5, "right", ast_data="comma_list")
+    # TODO TODO NOTE These tests are using comma as an infix operator, and relying on
+    # the behavior of `in_tree` to set the children in the "usual" way.  Not a problem
+    # BUT should be noted and multi-arg functions need to also be tested when they
+    # consume the commas themselves.  Different exceptions are raised.
     parser.def_infix_multi_op(["k_comma"], 5, "left",
                               in_tree=False, repeat=True, ast_data="comma_list")
 
@@ -160,11 +163,15 @@ def run_local_tests():
 
 ## TESTS #############################################################################
 
-@fixture(params=[1,2])
+@fixture(params=[1,2,3])
 def basic_setup(request):
-    lookahead_num = request.param
+    """Set up basic parser with one-token lookahead, two-token lookahead, and no typing."""
     global parser
-    parser = typped.PrattParser(lookahead_num)
+    lookahead_num = request.param
+    if lookahead_num == 3:
+        parser = typped.PrattParser(skip_type_checking=True)
+    else:
+        parser = typped.PrattParser(max_peek_tokens=lookahead_num)
     define_default_tokens(parser)
     define_syntax(parser)
 
@@ -215,24 +222,26 @@ def test_stdfun_functions(basic_setup):
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma", num_args=1)
 
     # Number of arguments
-    assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("exp(33, 33)")
-    assert str(e.value).startswith("The number of arguments (2) does not match any sig")
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("exp()")
-    assert str(e.value).startswith("The number of arguments (0) does not match any sig")
+    if not parser.skip_type_checking:
+        assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("exp(33, 33)")
+        assert str(e.value).startswith("The number of arguments (2) does not match any sig")
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("exp()")
+        assert str(e.value).startswith("The number of arguments (0) does not match any sig")
 
     parser.def_token("k_add", r"add")
     parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", num_args=2)
     assert str(parser.parse(
                "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("add(33, 33, 33)")
-    assert str(e.value).startswith("The number of arguments (3) does not match any sig")
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("add(44)")
-    assert str(e.value).startswith("The number of arguments (1) does not match any sig")
+    if not parser.skip_type_checking:
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("add(33, 33, 33)")
+        assert str(e.value).startswith("The number of arguments (3) does not match any sig")
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("add(44)")
+        assert str(e.value).startswith("The number of arguments (1) does not match any sig")
 
     # General error conditions
     with raises(ParserException) as e:
@@ -262,12 +271,13 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     parser.def_stdfun_lpar_tail("k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
             num_args=1)
     assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("exp(33, 33)")
-    assert str(e.value).startswith("The number of arguments (2) does not match any sig")
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("exp()")
-    assert str(e.value).startswith("The number of arguments (0) does not match any sig")
+    if not parser.skip_type_checking:
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("exp(33, 33)")
+        assert str(e.value).startswith("The number of arguments (2) does not match any sig")
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("exp()")
+        assert str(e.value).startswith("The number of arguments (0) does not match any sig")
 
     #
     # Define addition for two arguments.
@@ -281,12 +291,13 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     assert str(parser.parse(
                "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
 
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("add(33, 33, 33)")
-    assert str(e.value).startswith("The number of arguments (3) does not match any sig")
-    with raises(TypeErrorInParsedLanguage) as e:
-        parser.parse("add(33)")
-    assert str(e.value).startswith("The number of arguments (1) does not match any sig")
+    if not parser.skip_type_checking:
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("add(33, 33, 33)")
+        assert str(e.value).startswith("The number of arguments (3) does not match any sig")
+        with raises(TypeErrorInParsedLanguage) as e:
+            parser.parse("add(33)")
+        assert str(e.value).startswith("The number of arguments (1) does not match any sig")
 
     with raises(ParserException) as e:
         parser.parse("add(30 30)") # Left out comma.
