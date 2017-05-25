@@ -216,8 +216,9 @@ the final signature (and in looking up evaluation functions, etc.)
    The last-registered handler function object is the one that is stored and
    called.  All type specs are saved with the current handler function to be
    resolved handler is called.  Then the original formal signature that matches
-   is used to look up any evaluation function or AST data in a dict keyed on
-   the precondition label (one-to-one with handlers) and the signature.
+   is used to look up any evaluation function or AST data in a dict attribute
+   of the token keyed on the precondition label (for a given token precondition
+   labels are one-to-one with handlers) and the signature.
 
 .. topic:: Overloading versus preconditions functions
 

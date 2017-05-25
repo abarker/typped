@@ -58,32 +58,9 @@ from .shared_settings_and_exceptions import ParserException
 # Formal and actual type specs for functions.
 #
 
-# TODO: If types have classes with formal args and instances with actual we may
-# want the same for TypeSig objects (like it used to be...).  But that seems
-# like a lot of machinery for what are now string labels and tuples.  It does
-# have room to get fancier, I suppose, and the classes are convenient
-# namespaces for related methods.
-#
-# Annoying complexity, but also solves an annoying problem of how to store the
-# actual versus the formal (instance has both, one static and one set in
-# instances, and can check it, etc.).  Don't really need to keep these in a
-# dict, like the TypeObjectSubclass objects representing types.  These are just
-# stored with the handlers, etc., and then and do not even have labels (i.e.,
-# dict keys).  Throwaway classes.
-#
-# All the static funs can stay with the base (convert TypeSig to TypeSigBase)
-# and then have a factory fun spit out TypeSig objects (which are classes)
-#
-# Back to prev thinking:
-#
-# TypeSig is *not* quite the same because we want user to be able to specify
-# TypeSig(.....) so maybe above isn't the right approach.... don't want another
-# dict and another label system.  Let the tokens keep track of which are actual
-# and formal... just a container with methods...
-#
-# Another note: looking ahead to templates, going to need to have an option to
-# avoid code bloat when using them as subst_funs.  Does it make sense for TypeObject
-# to take parameter?
+
+# For ideas on how to define composite types, etc., look at PEP-483:
+# https://www.python.org/dev/peps/pep-0483/
 
 class TypeSig(object):
 

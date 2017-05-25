@@ -219,15 +219,15 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # space.  Could store helpers like match_next with them (or similarly) if it is
 # determined that they shouldn't be in TokenSubclass namespace.
 
-# NOTE that you could use the evaluate function stuff to also do the conversion
-# to AST.
+# NOTE that the evaluate function stuff could also be used to also do a
+# conversion to AST.
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
 # something like "TermParser" or "parser for terms", "WffParser", etc.  Then
 # use that string in the exception messages.  When working with parsers called
 # from/by parsers these labels in error messages would be helpful for debugging.
 
-# TODO: More built-in methods.  One that does assignments would be useful.
+# TODO: Add more built-in methods.  One that does assignments would be useful.
 
 # TODO: Consider the pros and cons of moving to a centralized
 # per-parser-instance dict for storing handler functions, eval funs, and extra
@@ -378,6 +378,7 @@ def token_subclass_factory():
         handler_funs = {} # Handler functions, i.e., head and tail handlers.
         handler_funs[HEAD] = OrderedDict() # Head handlers sorted by priority.
         handler_funs[TAIL] = OrderedDict() # Tail handlers sorted by priority.
+        handler_sigs = {HEAD:{}, TAIL:{}} # Handler sigs, keyed like handler_funs dict.
         preconditions_dict = {} # Registered preconditions for this kind of token.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
@@ -528,8 +529,8 @@ def token_subclass_factory():
             sorted_handler_dict[precond_label] = data_list
 
             # Re-sort the OrderedDict, since we added an item.
-            cls.handler_funs[head_or_tail] = sort_handler_dict(sorted_handler_dict)
-            sorted_handler_dict = cls.handler_funs[head_or_tail]
+            sorted_handler_dict = sort_handler_dict(sorted_handler_dict)
+            cls.handler_funs[head_or_tail] = sorted_handler_dict
 
             # Make sure we don't get multiple definitions with the same
             # priority when the new one is inserted.
@@ -664,8 +665,9 @@ def token_subclass_factory():
             defined type signature for the function.
 
             (This function does not need to be called in a handler if no
-            type-checking is desired and no `in_tree` options are used.  This
-            function may later also implement other options.)
+            type-checking or type overloading is desired and if no `in_tree`
+            options are used.  This function may later also implement other
+            options.)
 
             The `fun_object` argument should be a reference to the function
             that called this routine.  This is needed to access signature data
@@ -705,6 +707,7 @@ def token_subclass_factory():
             signatures will be expanded to match the actual number of
             arguments, if possible, by cyclically repeating them an arbitary
             number of times."""
+            assert hasattr(self, "is_head")
 
             self.in_tree = in_tree
 
@@ -712,7 +715,7 @@ def token_subclass_factory():
             modified_children = []
             for child in self.children:
                 if not hasattr(child, "in_tree"):
-                    continue # Case where `process_and_check_node` not called on child.
+                    continue # `process_and_check_node` wasn't called on child.
                 if child.in_tree:
                     modified_children.append(child)
                 else:
@@ -1416,7 +1419,7 @@ class PrattParser(object):
         tok.token_kind = token_kind
         tok.parser_instance = self
         tok.token_table = self.token_table
-        tok.is_head = False # Set true in recursive_parse when instance called as a head.
+        tok.is_head = False # Set true in recursive_parse if instance parses as a head.
         return tok
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
