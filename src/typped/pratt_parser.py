@@ -258,7 +258,6 @@ DEFAULT_PRECOND_LABEL = ("always-true-default-precondition",)
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     return True
 
-#
 # TODO: Since TokenNode now has a metaclass anyway, why not just use it to
 # generate the new instances instead of the factory function?  The factory
 # function is maybe simpler, but Sphinx does not properly document the
@@ -375,11 +374,9 @@ def token_subclass_factory():
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
     #class TokenSubclass(TokenNode):                               # No metaclass.
-        handler_funs = {} # Handler functions, i.e., head and tail handlers.
-        handler_funs[HEAD] = OrderedDict() # Head handlers sorted by priority.
-        handler_funs[TAIL] = OrderedDict() # Tail handlers sorted by priority.
-        handler_sigs = {HEAD:{}, TAIL:{}} # Handler sigs, keyed like handler_funs dict.
-        preconditions_dict = {} # Registered preconditions for this kind of token.
+        handler_frames = {} # Handler functions, i.e., head and tail handlers.
+        handler_frames[HEAD] = OrderedDict() # Head handlers sorted by priority.
+        handler_frames[TAIL] = OrderedDict() # Tail handlers sorted by priority.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
         parser_instance = None # Set by the `PrattParser` method `def_token`.
@@ -423,9 +420,9 @@ def token_subclass_factory():
             return cls.static_prec
 
         @classmethod
-        def register_handler_fun(cls, head_or_tail, handler_fun,
-                             precond_label, precond_fun, precond_priority=0,
-                             type_sig=TypeSig(None, None)):
+        def register_handler_fun(cls, head_or_tail, new_handler_frame,
+                                 precond_label, precond_fun, precond_priority=0,
+                                 type_sig=TypeSig(None, None)):
             """Register a handler function (either head or tail) with the
             subclass for this kind of token, setting the given properties.
             This method is only ever called from the `modify_token`
@@ -491,46 +488,38 @@ def token_subclass_factory():
 
             # Get and save any previous type sig data (for overloaded sigs
             # corresponding to a single precond_label).
-            if precond_label in cls.handler_funs[head_or_tail]:
-                prev_handler_data_for_precond = cls.handler_funs[
-                                                       head_or_tail][precond_label]
-                prev_type_sigs_for_precond = (
-                              prev_handler_data_for_precond.handler_fun.type_sigs)
+            resorted_handler_dict = cls.handler_frames[head_or_tail]
+            prev_handler_frame = resorted_handler_dict.get(precond_label, None)
+            if prev_handler_frame is None:
+                prev_sigs = []
             else:
-                prev_handler_data_for_precond = None
-                prev_type_sigs_for_precond = []
+                prev_sigs = prev_handler_frame.original_sigs
 
-            if (prev_handler_data_for_precond
-                              and not cls.parser_instance.overload_on_arg_types):
+            if prev_handler_frame and not cls.parser_instance.overload_on_arg_types:
                 raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types"
                        " is False but attempt to redefine and possibly set multiple"
                        " signatures for the {0} function for token with label '{1}'"
                        " with preconditions label '{2}'."
                        .format(head_or_tail, cls.token_label, precond_label))
 
-            # TypeSig info is stored as an attribute of handler funs.  For
-            # overloading, append the type_sig to prev_type_sigs_for_precond,
+            # For overloading, append the type_sig to prev_type_sigs_for_precond,
             # saving them all.  A static method of TypeSig currently does it
             # since it depends on the definition of TypeSig equality.
-            TypeSig.append_sig_to_list_replacing_if_identical(
-                                               prev_type_sigs_for_precond, type_sig)
-            handler_fun.type_sigs = prev_type_sigs_for_precond
+            TypeSig.append_sig_to_list_replacing_if_identical(prev_sigs, type_sig)
 
-            # Get the current dict of head or tail handlers for the node,
-            # containing the (precond_fun, precond_priority, handler_fun) named
-            # tuples which have already been registered.
-            sorted_handler_dict = cls.handler_funs[head_or_tail]
-
-            # Set the new HandlerData named tuple and assign it the head or
-            # tail dict keyed by its precond label.  This removes any existing
-            # handler with the same precondition label, i.e., in that case it
-            # is assumed to be a redefinition of the existing one.
-            data_list = HandlerData(precond_fun, precond_priority, handler_fun)
-            sorted_handler_dict[precond_label] = data_list
+            # Set up the new handler frame, passing along only overload sigs if there.
+            new_handler_frame = Construct(construct_label=precond_label,
+                                               trigger_head_or_tail=head_or_tail,
+                                               trigger_token_label=cls.token_label,
+                                               handler_fun=new_handler_frame,
+                                               precond_fun=precond_fun,
+                                               precond_priority=precond_priority,
+                                               original_sigs=prev_sigs)
+            resorted_handler_dict[precond_label] = new_handler_frame
 
             # Re-sort the OrderedDict, since we added an item.
-            sorted_handler_dict = sort_handler_dict(sorted_handler_dict)
-            cls.handler_funs[head_or_tail] = sorted_handler_dict
+            resorted_handler_dict = sort_handler_dict(resorted_handler_dict)
+            cls.handler_frames[head_or_tail] = resorted_handler_dict
 
             # Make sure we don't get multiple definitions with the same
             # priority when the new one is inserted.
@@ -542,7 +531,7 @@ def token_subclass_factory():
             # do and delete if no use.
             pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT EVER RUN?
             if pre_check_for_same_priority:
-                for p_label, data_item in sorted_handler_dict.items():
+                for p_label, data_item in resorted_handler_dict.items():
                     if p_label == precond_label:
                         continue
                     if (data_item.precond_priority == precond_priority and
@@ -565,16 +554,17 @@ def token_subclass_factory():
             handlers (as selected by `head_or_tail`) are unregistered.  If
             `type_sig` is not present then all overloads are also unregistered.
             No error is raised if a matching handler function is not found."""
-            # TODO Untested method, probably needs work.
+            # TODO Untested method,  NEEDS REWRITING since handler frames used now...
 
             if precond_label is None:
-                if head_or_tail in cls.handler_funs:
-                    cls.handler_funs[head_or_tail] = OrderedDict()
+                if head_or_tail in cls.handler_frames:
+                    cls.handler_frames[head_or_tail] = OrderedDict()
+                    cls.handler_sigs[head_or_tail] = {}
                 return
 
             # Tuple format for sorted_handler_list is:
             #     (precond_fun, precond_priority, handler_fun)
-            sorted_handler_dict = cls.handler_funs[head_or_tail]
+            sorted_handler_dict = cls.handler_frames[head_or_tail]
             if not sorted_handler_dict:
                 return
 
@@ -620,24 +610,25 @@ def token_subclass_factory():
             This function also sets the attribute `precond_label` of this token
             instance to the label of the winning precondition function."""
 
-            sorted_handler_dict = self.handler_funs[head_or_tail]
-            if not sorted_handler_dict:
+            sorted_handler_frame_dict = self.handler_frames[head_or_tail]
+            if not sorted_handler_frame_dict:
                 raise NoHandlerFunctionDefined(
                         "No {0} handler functions at all are defined"
                         " for tokens with token label '{1}'.  The token's"
                         " value is '{2}'."
                         .format(head_or_tail, self.token_label, self.value))
 
-            if precond_label: # Condition not currently used in the code.
-                for pre_fun_label, data_tuple in sorted_handler_dict.items():
+            if precond_label: # This condition is not currently used in the code.
+                for pre_fun_label, handler_frame in sorted_handler_frame_dict.items():
                     if pre_fun_label == precond_label:
-                        return data_tuple.precond_fun
+                        return handler_frame.precond_fun
 
             # Sequentially run sorted precondition functions until one is true.
-            for pre_label, (pre_fun, pre_prior, handler) in sorted_handler_dict.items():
-                if pre_fun(lex, lookbehind):
-                    self.precond_label = pre_label # Save label with token instance.
-                    return handler
+            for pre_label, handler_frame in sorted_handler_frame_dict.items():
+                if handler_frame.precond_fun(lex, lookbehind):
+                    # Note precond_label is saved as a user-accesible attribute here.
+                    self.precond_label = handler_frame.construct_label
+                    return handler_frame
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
                     "token with value '{1}' and label '{2}' in the current "
@@ -645,18 +636,26 @@ def token_subclass_factory():
                     .format(head_or_tail, self.value, self.token_label))
 
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
-            """Look up and return the handler function for the token."""
+            """Look up and return the handler function for the token, with its arguments
+            bound."""
             if head_or_tail == HEAD:
-                fun = self.lookup_handler_fun(HEAD, lex)
-                return functools.partial(fun, self, lex) # Bind all known args.
+                handler_frame = self.lookup_handler_fun(HEAD, lex)
+                handler = functools.partial(handler_frame.handler_fun, self, lex)
             elif head_or_tail == TAIL:
-                fun = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
-                return functools.partial(fun, self, lex, left) # Bind all known args.
+                handler_frame = self.lookup_handler_fun(TAIL, lex, lookbehind=lookbehind)
+                handler = functools.partial(handler_frame.handler_fun, self, lex, left)
             else:
                 raise ParserException("Bad first argument to dispatch_handler"
                         " function: must be HEAD or TAIL or the equivalent.")
+            # NOTE adding a circular ref here.  Set it here since the returned fun
+            # will be immediately called -- there's no guarantee that the
+            # function object wasn't re-used.  Use weak link later if it matters.
+            # This is ONLY done so handler and process_and_check_node can access frame.
+            # Set as an attribute of the original fun, not the bound wrapper.
+            handler_frame.handler_fun.handler_frame = handler_frame
+            return handler
 
-        def process_and_check_node(self, fun_object,
+        def process_and_check_node(self, fun_object=None,
                                    typesig_override=None, check_override_sig=False,
                                    in_tree=True, repeat_args=False):
             """This routine should always be called from inside the individual
@@ -669,11 +668,20 @@ def token_subclass_factory():
             options are used.  This function may later also implement other
             options.)
 
-            The `fun_object` argument should be a reference to the function
-            that called this routine.  This is needed to access signature data
-            which is pasted onto the function object as attributes.  Inside a
-            handler function this function object is referenced simply by the
-            name of the function.
+            The `sig_tok` argument is needed when the token originally
+            registered with the type signature information (i.e., passed to
+            `modify_token`) does not end up as the root of the resulting
+            expression subtree.  In that cast `sig_tok` should be passed the
+            name of the token which was originally registered to hold the type
+            signature.  The signature will then be looked up from the dict in
+            that token.  For example, in defining a standard function using a
+            tail handler on the opening lpar the lpar token is the one which
+            activates the handler.  But the lpar token never actually appears
+            in the tree, the function name to the left does.  So on processing
+            the tree with root at the function name this routine needs to be
+            passed the lpar token as the `sig_tok` argument.
+
+            TODO: eval funs will probably have same problem as above
 
             The `typesig_override` argument must be a `TypeSig` instance.  It
             will be *assigned* to the node as its `expanded_formal_sig` after
@@ -707,8 +715,6 @@ def token_subclass_factory():
             signatures will be expanded to match the actual number of
             arguments, if possible, by cyclically repeating them an arbitary
             number of times."""
-            assert hasattr(self, "is_head")
-
             self.in_tree = in_tree
 
             # Process the children to implement `in_tree`, if set.
@@ -737,7 +743,7 @@ def token_subclass_factory():
             if typesig_override and check_override_sig:
                 all_possible_sigs = [typesig_override]
             else:
-                all_possible_sigs = fun_object.type_sigs
+                all_possible_sigs = fun_object.handler_frame.original_sigs
             self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
 
             # Do the actual checking.
@@ -1236,6 +1242,82 @@ def token_subclass_factory():
 
     return TokenSubclass # Return from token_subclass_factory function.
 
+# TODO: What if we define syntax element labels as unique per parser instance?
+# Then, key things on the syntax element labels in a parser-level dict.
+# Still, the tokens themselves are what are parsed on... but say that the
+# precond funs are also one-to-one with syntax elements.
+#
+# Easier delete, too.  Easier to understand label stuff.
+#
+# These are saved in a parser-level dict keyed first on
+#     (trigger_token_label, head_or_tail)
+# But sorted by precond priorities, just like current precond labels.
+# You know the head_or_tail and token_label in parsing.  Then just run all
+# the precond funs like currently except the winning one gives you the SyntaxElem
+# object.
+#
+# Refactor path:
+#    - Change modify_token to def_syntax.
+#    - Copy register methods to PrattParser from TokenNode and convert if needed.
+#    - Try switching over in def_syntax where register is called.
+#    - When works delete old methods in TokenNode.
+#
+#
+# --> What if instead of saving handlers you save SyntaxConstruct (or HandlerFrame).
+#     Then make it callable.  That runs the handler, but if it is a method then
+#     it now has a self that allows it to access other attributes.
+#
+# --> This might be easier to refactor, if it can work from the current TokenNode
+#     way of doing things.
+
+class Construct(object):
+
+    """A syntax construct in the language.  Usually corresponds to a subtree of
+    the final parse tree.  Essentially a data frame for a handler function
+    containing extra context information such as the preconditions function,
+    etc.  Each construct must have a unique label (one will be created if one
+    is not provided).
+
+    A construct is possibly triggered when a hander needs to be dispatched for
+    its kind of token.  The preconditions functions for all such constructs are
+    run in priority-sorted order.  A construct is triggered if its
+    preconditions function is the first to evaluate to true.  It then provides
+    the handler function to be called."""
+    unique_label_number = 0
+    DEFAULT_LABEL_PREFIX = "syntax_construct_unique_label_"
+    # Save these in a parser-level dict.  Use __slots__ later when implementation works.
+    def __init__(self, construct_label=None,
+                       trigger_head_or_tail=None,
+                       trigger_token_label=None,
+                       handler_fun=None,
+                       precond_fun=DEFAULT_ALWAYS_TRUE_PRECOND_FUN,
+                       precond_priority=0,
+                       original_sigs=None,
+                       #root_token_label=None
+                       ):
+        # Construct label can be randomly generated UNLESS they need to delete or overload.
+        if construct_label is None:
+            construct_label = self.DEFAULT_LABEL_PREFIX + str(self.unique_label_number)
+            self.unique_label_number += 1
+        self.construct_label = construct_label
+
+        self.trigger_head_or_tail = trigger_head_or_tail
+        self.trigger_token_label = trigger_token_label # Token encountered during parsing (if wins).
+
+        self.handler_fun = handler_fun
+        self.precond_fun = precond_fun
+        self.precond_priority = precond_priority
+
+
+        if original_sigs is None:
+            self.original_sigs = []
+        else:
+            self.original_sigs = original_sigs
+        # Dicts below are keyed on original sig (and looked up with one that matches actual sig.)
+        self.ast_data = {}
+        self.eval_fun = {}
+        #self.root_token_label = root_token_label # Token label that ends up at the root of the subtree.
+
 #
 # Parser
 #
@@ -1342,7 +1424,6 @@ class PrattParser(object):
         self.Item = Item
         self.ItemList = ItemList
         self.CaseList = CaseList
-
 
     #
     # Methods defining tokens.
@@ -1910,7 +1991,6 @@ class PrattParser(object):
             if the fnames are all, say, identifiers or some common token kind.
             Maybe even have a flag to indicate this when worked out better."""
             prev_tok = lex.peek(-1)
-            print("\nprev tok is", prev_tok)
             if prev_tok.token_label != fname_token_label: return False
             if lex.token.ignored_before: return False # No space allowed after fun name.
             return True
@@ -1930,11 +2010,11 @@ class PrattParser(object):
             left.process_and_check_node(tail_handler)
             return left
         return self.modify_token(lpar_token_label,
-                                          prec=prec_of_lpar, tail=tail_handler,
-                                          precond_label=precond_label,
-                                          precond_fun=precond_fun,
-                                          val_type=val_type, arg_types=arg_types,
-                                          eval_fun=eval_fun, ast_data=ast_data)
+                                 prec=prec_of_lpar, tail=tail_handler,
+                                 precond_label=precond_label,
+                                 precond_fun=precond_fun,
+                                 val_type=val_type, arg_types=arg_types,
+                                 eval_fun=eval_fun, ast_data=ast_data)
 
     def def_jop(self, prec, assoc,
                       precond_label=None, precond_fun=None, precond_priority=None,
