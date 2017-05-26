@@ -70,7 +70,7 @@ def define_parser_subclass():
 
             # Register the handler function with the token, associated with the
             # preconditions function.
-            self.modify_token(fname_token_label, prec=0,
+            self.def_construct(fname_token_label, prec=0,
                                        head=head_handler,
                                        precond_label=precond_label,
                                        precond_fun=preconditions,
