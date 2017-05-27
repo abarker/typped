@@ -19,33 +19,68 @@ fixed head handler function, a single, fixed tail handler function, or one of
 each.  Preconditioned dispatching generalizes this: Each token can have
 multiple possible head and/or tail handler functions associated with it.  The
 choice of which of the possible handler functions to use to process a token is
-made at at the time the token is parsed, based on the conditions (i.e., the
+made at at the time the token is parsed, based on the conditions (e.g., the
 parser and lexer state) at that time.  The conditions which can be taken into
 account include, for example, the actual string value that the lexer matched in
 the program text and the kind of token that is one peek ahead in the lexer.
 Note that this generalized behavior in Typped is optional and can easily be
 ignored if one wants to use only standard Pratt parser techniques.
 
-The preconditions which trigger the use of a particular head or tail handler
-function for a token are defined by the user at the time when that handler
-function is registered/associated with the token.  The ``PrattParser`` method
-which registers a handler function with a token (called ``modify_token``) is
-additionally passed the precondition function and any other required
-information.  Preconditions functions are essentially arbitrary boolean-valued
-functions which are called to look at the state at the time a token is parsed.
+Define a **syntactic construct**, or simply a **construct**, to be some
+particular kind of grammatical subexpression that is parsed and returned by a
+handler function (either head or tail).  Since Pratt parsers are top-down these
+tend to correspond to subtrees of the final expression tree.
 
-A preconditions function which returns true when evaluated is said to **match**
-in the current state.  If only one preconditions function matches then its
-associated handler function is selected and used to process the token (though
-the distinction between head and tail handlers is always maintained).   A
-priority value can also be provided for cases where multiple preconditions
-functions and their associated handlers are registered for a token but the
-choices are not mutually exclusive.  A runtime exception is raised if there is
-no clear winner among the choices of preconditions functions, so if there are
-cases where that can happen then tie-breaking priority values are required.
+In a standard Pratt parser a handler function, and hence a construct, is
+**triggered** whenever a particular kind of token is read in from the lexer in
+the ``recursive_parse`` routine.  Either the head handler or the tail handler
+associated with that kind of token is run, depending on whether or not the
+token is the first token in the subexpression being parsed or is a later one.
 
-A slightly simplified version of the modified ``recursive_parse`` is shown
-here:
+In this generalization a particular kind of token can have multiple head and
+tail handlers.  The triggering of which one to run is based on **preconditions
+functions**.  These are simply boolean-valued functions which are executed at
+the time when the choice needs to be made.  A preconditions function which
+returns true when evaluated is said to **match** in the current state.
+
+In a preconditioned dispatching Pratt parser a construct is expanded to include:
+
+* a kind of token which triggers the construct
+* a head or tail handler
+* a preconditions function
+* a preconditions priority
+* a string label for the construct
+* other data, such as evaluation functions and type signatures
+
+These constructs are **registered** with the parser by a user in order to
+define a particular grammar on the tokens.  A construct with a head handler
+may be called a head construct, and a construct with a tail handler may be
+called a tail construct.
+
+Whenever the ``recursive_parse`` routine consumes a particular kind of token
+from the lexer, in a head or tail position, it sequentially executes the
+preconditions functions for all the constructs associated with that kind of
+token, in that position.  The execution is ordered by the preconditions
+priorities.  The construct associated with the first matching preconditions
+function is triggered.  Its handler function is then dispatched as the one to
+be run by the ``recursive_parse`` routine.  If there is no clear winner among
+the choices of matching preconditions functions with equal priorities an
+exception is raised.
+
+In the case where there is at most one head construct and one tail construct
+per kind of token this algorithm clearly reduces to ordinary Pratt parsing.
+
+Using dispatching
+-----------------
+
+The ``PrattParser`` method which registers a construct with the parser is
+called ``def_construct``.  It is used inside the predefined methods after
+defining the handler functions and any preconditions functions.  To define
+custom constructs it needs to be explicitly called.
+
+In generalizing to preconditioned dispatching the ``recursive_parse`` routine
+is slightly modified from the one in the previous section.  A simplified
+version is shown here:
 
 .. code-block:: python
 
@@ -60,23 +95,16 @@ here:
            processed_left = tail_handler()
 
 Instead of directly calling a fixed head or tail handler for a token, the
-``recursive_parse`` function instead calls a function ``dispatch_handler``
-(which also takes an argument specifying whether to fetch a head or a tail
-handler).  This dispatching function goes down a priority-sorted list of
-boolean-valued precondition-testing functions which have been registered for
-the current token, each of which is associated with a particular handler
-function.  The handler function associated with the highest-priority
-precondition-testing function which evaluates to true in the current conditions
-is chosen to handle the token in the given context.  That is, the first match
-in the sorted list is used.  The selected handler function is then returned
-(with its arguments bound, since they are known) and is called in the usual
-way.
+``recursive_parse`` function instead calls a function ``dispatch_handler``.
+This function takes an argument which specifies whether to fetch a head or a
+tail handler.  This function select a construct, as described above, and
+returns the handler function.  For convenience the arguments to the handler are
+bound, since they are already known.
 
 The typing system which is implemented in the Typped parser is also based on
 the preconditioned dispatching design.  Type-signature information can
 optionally be associated with any particular head or tail handler function.
-These handler functions, in turn, are always associated with particular
-preconditions functions.  The type system is discussed more in later sections.
+The type system is discussed more in later sections.
 
 .. note::
 
@@ -88,20 +116,24 @@ preconditions functions.  The type system is discussed more in later sections.
    is that it allows for modularity in defining the head and tail handlers for
    a particular kind of token.
    
-   With dispatching, what would be the overall case statement in a handler
-   function is essentially split up into many separate functions.  So each part
-   can be defined in the place where that syntactic construct is generally
-   being defined, rather than having to be placed in one centralized and
-   separate location.  This makes it easier to create essentially independent
-   functional interfaces for different syntactical constructs.  For example,
-   the `PrattParser` class comes with methods predefined to easily perform
-   common syntax-related tasks such as defining an infix operator, define a
-   grouping operator, define a standard function, etc.  If one big case
-   statement were being used in a single head or tail hangler then it would
-   have to be modified for each such method.
+   With dispatching, what would otherwise be a case statement in a handler
+   function is essentially split up into many separate functions, one for each
+   case.  So each case in such a case statement can be defined in the place
+   where that syntactic construct is generally being defined, rather than
+   having to be placed in one centralized and separate location.  This makes it
+   easier to create essentially independent functional interfaces for different
+   syntactical constructs.  For example, the `PrattParser` class comes with
+   methods predefined to easily perform common syntax-related tasks such as
+   defining an infix operator, define a grouping operator, define a standard
+   function, etc.  If one big case statement were being used in a single head
+   or tail handler then that case statement would have to be modified for each
+   such method.
 
-Uniqueness of preconditions functions
--------------------------------------
+Uniqueness of constructs
+------------------------
+
+TODO: update from here to below to discuss in terms of the newer constructs and
+construct labels.
 
 Each preconditions function for a token is associated with a head and/or tail
 handler function.  If a head or tail handler is re-registered with the token
