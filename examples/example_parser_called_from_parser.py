@@ -196,7 +196,7 @@ def define_wff_parser(term_parser):
 
     # The not symbol, must be followed by a space.
     wff_parser.def_prefix_op("k_not", 100, val_type=None, arg_types=None,
-            precond_label="space after not",
+            construct_label="space after not",
             precond_fun=lambda lex, lb: True if lex.peek().ignored_before else False)
 
     # Note no space around "and" for now... def_infix_op doesn't take precond

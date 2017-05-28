@@ -37,13 +37,14 @@ the ``recursive_parse`` routine.  Either the head handler or the tail handler
 associated with that kind of token is run, depending on whether or not the
 token is the first token in the subexpression being parsed or is a later one.
 
-In this generalization a particular kind of token can have multiple head and
-tail handlers.  The triggering of which one to run is based on **preconditions
-functions**.  These are simply boolean-valued functions which are executed at
-the time when the choice needs to be made.  A preconditions function which
-returns true when evaluated is said to **match** in the current state.
+In a preconditioned-dispatching Pratt parser a particular kind of token can
+have multiple head and tail handlers.  The triggering of which one to run is
+based on **preconditions functions**.  These are simply boolean-valued
+functions which are executed at the time when the choice needs to be made.  A
+preconditions function which returns true when evaluated is said to **match**
+in the current state.
 
-In a preconditioned dispatching Pratt parser a construct is expanded to include:
+In this generalization a construct is expanded to include the following:
 
 * a kind of token which triggers the construct
 * a head or tail handler
@@ -52,20 +53,21 @@ In a preconditioned dispatching Pratt parser a construct is expanded to include:
 * a string label for the construct
 * other data, such as evaluation functions and type signatures
 
-These constructs are **registered** with the parser by a user in order to
-define a particular grammar on the tokens.  A construct with a head handler
-may be called a head construct, and a construct with a tail handler may be
-called a tail construct.
+A user **registers** constructs with the parser in order to define a particular
+grammar on the tokens of the construct (which were previously defined).  A
+construct with a head handler, triggered by a head token, may be called a head
+construct.  A construct with a tail handler may be called a tail construct.
+The preconditions priority is a number which defaults to zero.
 
 Whenever the ``recursive_parse`` routine consumes a particular kind of token
 from the lexer, in a head or tail position, it sequentially executes the
 preconditions functions for all the constructs associated with that kind of
-token, in that position.  The execution is ordered by the preconditions
-priorities.  The construct associated with the first matching preconditions
-function is triggered.  Its handler function is then dispatched as the one to
-be run by the ``recursive_parse`` routine.  If there is no clear winner among
-the choices of matching preconditions functions with equal priorities an
-exception is raised.
+token, in that position.  The execution sequence is ordered by the
+preconditions priorities.  The construct associated with the first matching
+preconditions function is triggered.  Its handler function is then dispatched
+as the one to be run by the ``recursive_parse`` routine.  If there is no clear
+winner among the highest-priority matching preconditions functions (i.e., more
+than one match has the highest priority) an exception is raised.
 
 In the case where there is at most one head construct and one tail construct
 per kind of token this algorithm clearly reduces to ordinary Pratt parsing.
@@ -132,46 +134,26 @@ The type system is discussed more in later sections.
 Uniqueness of constructs
 ------------------------
 
-TODO: update from here to below to discuss in terms of the newer constructs and
-construct labels.
+A construct must always have a string label associated with it.  Equality or
+non-equality of two constructs for a given token in a give position (head or
+tail) is *defined* to be equality of their labels.  This is used to determine
+when a construct is being redefined.
 
-Each preconditions function for a token is associated with a head and/or tail
-handler function.  If a head or tail handler is re-registered with the token
-along with *the same* preconditions function then the previously-registered
-handler is overwritten.  But if the type signatures also differ then the
-previous type information *is* saved even thought the handler function is
-overwritten, since this allows for function overloading.  So it is obviously
-important to have have a very clear definition of when two preconditions
-functions are considered equal and when they are not.
-
-In order to avoid problems in determining when functions are identical, every
-preconditions function (or distinct use of a preconditions function) **must**
-be assigned a string label.  The preconditions functions are then registered in
-a dict (a ``TokenTable`` instance) with that label as the key.  For two
-preconditions functions to be considered identical they must have the *exact
-same* label.  For them to be considered different they must have *different*
-labels.  **This can be important in defining general parser methods and can
-cause subtle problems if it is not done correctly.**
-
-The preconditions labels *define* identity or non-identity between
-preconditions functions.  Sometimes you want two different preconditions
-functions to be considered identical, such as when overloading based on
-argument types but the function definition has been re-evaluated to a different
-function object.  Sometimes you want the same function to be considered as
-different preconditions functions, such as when the function makes use of
-closure variables or global state.
+When a construct is redefined and is passed the same type signature as the
+previous definition the new definition simply overwrites the old one.  When the
+type signatures of the two types are different, though, the construct is
+assumed to be overloaded based on types.
 
 Recall that function overloading based on argument types is used for
 syntactical constructs which parse the same (i.e., using the same handler
-function) but then are resolved into different things based on the actual type
-signatures of the arguments.  To use overloading the handler function which
-parses a construct should be re-registered with each different type signature
-but using *the same* preconditions function (i.e., a preconditions function
-with the same label).  All head or tail handler functions which are registered
-using the same preconditions function are treated as being overloaded if their
-type signatures differ.  Only the last-registered handler function is actually
-saved and used, but all the type information is saved and is used in resolving
-the final signature (and in looking up evaluation functions, etc.)
+function) but are then resolved into different things based on the actual types
+of the arguments (and possibly the return value).
+
+Redefining a construct for a given token and position acts like overwriting in
+the sense that only the new handler, preconditions function, and preconditions
+priority is saved.  In this case, though, any previous type signatures and any
+data associated with those signatures (such as evaluation functions) is saved
+along with the new ones.
 
 .. topic:: Two ways to parse identifiers
 
@@ -210,75 +192,32 @@ the final signature (and in looking up evaluation functions, etc.)
    Typped package where type signature information is also stored with the
    tokens.
 
-   In order for Typped type-checking to work on functions, functions with
-   different signatures (ignoring overloading) must be handled by the different
-   handler functions.  This requires either 1) a different precondition for
-   each such function, or 2) a different token for each such function.  The
-   latter is sometimes easier.  (The same holds for using function overloading,
-   except that the *same* handler must be used for each overload redefinition.
-   By the definition of overloading, the function overloads parse the same; the
-   actual argument types must be examined to resolve the overload.)
-  
-   While there are still some disadvantages, the Typped lexer is designed to
-   efficiently scan large numbers of tokens provided they have a simple
-   pattern.  The patterns (currently restricted to fixed strings for this
-   speedup) are stored in a trie data structure and are essentially all
-   scanned in parallel.  The dynamic approach can also reduce the need to
-   define preconditions functions for more-generic handlers (such as for
-   looking at the string value for a token in a precondition).  It can also
-   help avoid problems with overloading.
+   TODO --> Below is a case for overload on value, too.  Just save a dict
+   mapping values to signatures and look up that way.
 
-   So, while the Typped parser can be used in either way, the use of dynamic
-   token definitions is worth considering.
+   In order to use the built-in Typped type checking a single construct
+   (triggered by, say, the function identifier token) cannot be used to parse
+   all functions.  That is because the association of function-name values to
+   type signatures and evaluation functions would be lost.  You would need to
+   define a unique new construct for each one by changing the construct name
+   slightly on each definition (such as by appending the function-name value to
+   it).  This new construct would need a precondition of seeing the actual
+   function name as the token value to avoid ties with the other such
+   constructs.
 
-.. topic:: Overloading summary:
-
-   Overloading is assumed and automatically used in cases where a head (tail)
-   handler function is registered with a given token via ``modify_token`` and
-   the following conditions hold:
-
-   1. The associated preconditions function has previously been associated with
-      a different head (tail) handler function that is currently registered
-      with the token.  Remember that preconditions functions are considered
-      identical iff their labels are identical.
-
-   2. The associated type specification is distinct from all all the type
-      specifications currently associated with the handler function.
-
-   The last-registered handler function object is the one that is stored and
-   called.  All type specs are saved with the current handler function to be
-   resolved handler is called.  Then the original formal signature that matches
-   is used to look up any evaluation function or AST data in a dict attribute
-   of the token keyed on the precondition label (for a given token precondition
-   labels are one-to-one with handlers) and the signature.
-
-.. topic:: Overloading versus preconditions functions
-
-   An alternative way to implement overloading might be to always use a unique
-   preconditions function label for each head and tail handler --- perhaps by
-   appending a string representation of the type to the label.  Using unique
-   preconditions functions would then result in a unique type signature being
-   associated with each registered preconditions function.  But this also
-   complicates the resolution of handler functions.
-  
-   Preconditions functions as currently implemented must be uniquely resolvable
-   at parse-time.  They then uniquely determine the handler function to call.
-   If different preconditions labels are used for overloading then overloading
-   will cause multiple preconditions functions to match.  These ties will not
-   be uniquely resolvable by a priority system.  The expression must be parsed
-   to find the actual types, which requires a handler function.
+   An alternative approach is to dynamically define a different token for each
+   such function.  Then separate constructs would result from each definition
+   because the triggering token for each one would be different.  This is
+   sometimes easier.
    
-   One approach might be to assume that all the corresponding handler functions
-   are identical in case of ties and just pick one to call, but that could mask
-   some error conditions.  Since type information is only resolved after the
-   handler functions are called, the actual types and matching formal signature
-   would need to be found after calling the handler.  Then the associated
-   evaluation function and AST data would still need to then be selected from
-   among the collection of matching handlers.  It seems simpler to just treat
-   overloading and preconditions as separate and store all the overloaded
-   signatures for a handler (and their associated information) a common
-   handler.
-   
+   While there are some disadvantages to defining many tokens, the Typped lexer
+   is designed to efficiently scan large numbers of tokens provided they have a
+   simple pattern.  Simple patterns (currently restricted to fixed strings for
+   this speedup) are stored in a trie data structure and are essentially all
+   scanned in parallel by walking down the trie.  The insert and delete time is
+   linear in the pattern length.  So, while the Typped parser can be used in
+   either way, the use of dynamic token definitions is worth considering.
+
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
 
@@ -294,7 +233,7 @@ function name ``f`` is the head of the subexpression.
 
 This usual way of parsing function evaluations can lead to complications in
 more-complex grammars where left paren is used in various contexts.  If a
-juxtaposition operator is being used, for example, then and expression like
+juxtaposition operator is being used, for example, then an expression like
 ``pi (x+y)`` can cause problems with the usual method.  The name ``pi`` might
 be a constant or a function name.  (At the least the left paren tail handler
 would need to be conditioned on a space occurring before it, but this example
@@ -302,7 +241,7 @@ takes a different approach.)
 
 By using a precondition that the lookahead token be a left paren with no
 intervening space the head handler for a standard function identifier can parse
-the whole subexpression rather than waiting to be picked up as an "argument" to
+the whole subexpression rather than waiting to be picked up as the left operand of
 the infix left paren operator.  A second, lower-priority default head handler
 can still be defined for all other identifiers.  (Other preconditions can also
 be placed on other head handlers for identifiers).  These two head handler
@@ -316,26 +255,26 @@ The code for this example can be found in a runnable form in the file
 
 In this example the ``PrattParser`` class is extended by creating a subclass
 with additional methods.  It is not strictly necessary to create a subclass,
-however.  An ordinary function could be used, just renaming the ``self``
+however.  An ordinary function can also be used just by renaming the ``self``
 variable to something like ``parser`` and then explicitly passing in a parser
 instance when calling it.  Extending the class has the advantage that the newer
-methods are accessed in the same way as the built-in ones and are in the parser
-instance's namespace.
+methods are accessed in the same way as the built-in ones and can be easily
+accessed in the parser instance's namespace.
 
 In this example the method ``def_stdfun_lookahead`` is added to the
-``PrattParser``.  (This is only an example, since the ``PrattParser`` class
+``PrattParser``.  This is only an example, since the ``PrattParser`` class
 already has a ``def_stdfun`` method which uses lookahead and also incorporates
-types, etc.)  Before calling this method all of the tokens involved must have
+types, etc.  Before calling this method all of the tokens involved must have
 already been defined along with their labels (via the ``def_token`` method).
 Ignored whitespace tokens must also have been defined already.  The lpar, rpar,
 and comma tokens must already have been defined as literal tokens (via the
 ``def_literal`` method).
 
-Recall that the head-handler will be called to process a subexpression starting
-from the beginning.  That head-handler is then responsible for parsing the full
-subexpression -- though it can itself call ``recursive_parse`` to parse
-sub-subexpressions.  We are defining a head-handler that only matches a
-function name in the case when the peek token is an lpar with no intervening
+Recall that the head-handler function will be called to process a subexpression
+starting from the beginning.  That head-handler is then responsible for parsing
+the full subexpression -- though it can itself call ``recursive_parse`` to
+parse sub-subexpressions.  We are defining a head-handler that only matches a
+function name in the case where the peek token is an lpar with no intervening
 space.
 
 .. TODO: Keep up-to-date with the code in latest version from Python file
@@ -383,13 +322,13 @@ space.
                tok.process_and_check_node(head_handler)
                return tok
 
-           # Register the handler function with the token, associated with the
-           # preconditions function.
-           self.modify_token(fname_token_label, prec=0,
-                             head=head_handler,
-                             precond_label=precond_label,
-                             precond_fun=preconditions,
-                             precond_priority=precond_priority)
+           # Register the construct with the parser.
+           construct_label = "parse function with lpar, no space after name"
+           self.def_construct(fname_token_label, prec=0,
+                              head=head_handler,
+                              construct_label=construct_label,
+                              precond_fun=preconditions,
+                              precond_priority=precond_priority)
 
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and
@@ -404,7 +343,7 @@ token in the tree, it must at least have its ``process_and_check_node`` method
 called with an overridden type signature to mimic what the handler for literal
 tokens does.)
 
-The function defined above could be called as follows.
+The function defined above could be called as follows:
 
 .. code-block:: python
 
@@ -449,11 +388,26 @@ the function name and the left parenthesis.  The preconditions function is
 defined as a nested function, but it could alternately be passed in as another
 argument to ``def_stdfun`` (along with its label). 
 
-Implementation details
-----------------------
+.. topic:: Overloading versus preconditions functions
 
-Some of the low-level implementation details are discussed on the linked page
-below.  Most users will not need to be concerned with these.
-
-   :doc:`dispatching_implementation_details`
+   An alternative way that Typped could have implemented overloading would have
+   been to always use a unique construct label for each overload --- perhaps by
+   appending a string representation of the type to the label.  But this would
+   also complicate the resolution of constructs.
+  
+   Constructs as currently implemented must be uniquely resolvable
+   at parse-time.  They then uniquely determine the handler function to call.
+   If different preconditions labels are used for overloading then overloading
+   will cause multiple constructs to match as a normal thing.  These ties will not
+   be uniquely resolvable by a priority system.
+   
+   To resolve an overload with multiple constructs the expression must first be
+   parsed to find the actual types.  This requires a handler function, which is
+   circular since the construct determines the handler.  One approach might be
+   to assume that all the corresponding handler functions are identical in case
+   of ties and just pick one to call, but that could mask some error
+   conditions.  The associated evaluation function and AST data would still
+   need to be selected from among the collection of matching constructs.  It
+   seems simpler to just to store all the overloaded signatures and their
+   associated data with a construct.
 

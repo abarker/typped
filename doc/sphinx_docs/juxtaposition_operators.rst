@@ -24,38 +24,6 @@ equivalent operator token had actually appeared in the expression.  It should
 also allow for operator overloading if the language itself allows for operator
 overloading.
 
-.. topic:: Ways to implement a juxtaposition operator
-
-   There are various ways that one might consider implementing a juxtaposition
-   operator.  A few possibilities are briefly discussed here.
-   
-   Juxtaposition could be built into the formal grammar itself, and then that
-   grammar could be implemented.  That can, however, make the grammar
-   inconvenient to express and make implementations difficult (introducing many
-   special cases).  It can also make it difficult to add new operators to
-   extend the grammar.  In a Pratt parser you would need to define special head
-   handlers for any possible left operand of a juxtaposition operator, with the
-   logic to determine whether or not to infer the operator.
-
-   In a Pratt parser it would be fairly simple to implicitly modify the grammar
-   by defining all the syntax elements which can participate in a jop to be
-   either prefix or postfix operators.  For example, a postfix operator using
-   lookbehind on the type of the previous subexpression.  This adds a lot of
-   operators, which is contrary to the usual practices.  It seems especially
-   unusual to apply it to types like real numbers.  Questions of possible
-   ambiguities need to be considered.  This is not the approach taken here with
-   jops, but it might be worth considering in some cases.
-   
-   Another approach is to attempt to hack the lexer to recognize when to infer
-   a jop, and then insert and return a token representing any inferred
-   operators.  The downside is that the lexer only has access to lower-level
-   information for making the decision as to when to infer a jop.
-   
-   At the higher, parsing level lookahead can be used to recognize when a jop
-   should be inferred.  Then a special token can be injected into the token
-   stream whenever such a situation is recognized.  This approach is
-   essentially the approach taken in the Typped parser implementation of jops.
-
 Assumptions for inferring jops
 ------------------------------
 
@@ -186,4 +154,36 @@ may not yet be resolved.  Overloading on return types cannot be resolved purely
 bottom-up and generally requires another pass back down the full parse tree.
 You can, however, make use of the list of *possible* types at the current state
 of type resolution.
+
+.. topic:: Ways to implement a juxtaposition operator
+
+   There are various ways that one might consider implementing a juxtaposition
+   operator.  A few possibilities are briefly discussed here.
+   
+   Juxtaposition could be built into the formal grammar itself, and then that
+   grammar could be implemented.  That can, however, make the grammar
+   inconvenient to express and make implementations difficult (introducing many
+   special cases).  It can also make it difficult to add new operators to
+   extend the grammar.  In a Pratt parser you would need to define special head
+   handlers for any possible left operand of a juxtaposition operator, with the
+   logic to determine whether or not to infer the operator.
+
+   In a Pratt parser it would be fairly simple to implicitly modify the grammar
+   by defining all the syntax elements which can participate in a jop to be
+   either prefix or postfix operators.  For example, a postfix operator using
+   lookbehind on the type of the previous subexpression.  This adds a lot of
+   operators, which is contrary to the usual practices.  It seems especially
+   unusual to apply it to types like real numbers.  Questions of possible
+   ambiguities need to be considered.  This is not the approach taken here with
+   jops, but it might be worth considering in some cases.
+   
+   Another approach is to attempt to hack the lexer to recognize when to infer
+   a jop, and then insert and return a token representing any inferred
+   operators.  The downside is that the lexer only has access to lower-level
+   information for making the decision as to when to infer a jop.
+   
+   At the higher, parsing level lookahead can be used to recognize when a jop
+   should be inferred.  Then a special token can be injected into the token
+   stream whenever such a situation is recognized.  This approach is
+   essentially the approach taken in the Typped parser implementation of jops.
 

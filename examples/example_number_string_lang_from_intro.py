@@ -97,7 +97,7 @@ def setup_parser():
             return lex.peek(-1).token_label == "k_identifier"
         parser.def_infix_op(assignment_operator_token_label, prec, assoc,
                             precond_fun=precondition_lhs_is_identifier,
-                            precond_label="identifier before assignment checker",
+                            construct_label="identifier before assignment checker",
                             precond_priority=precond_priority,
                             val_type=val_type, arg_types=arg_types,
                             eval_fun=eval_fun)

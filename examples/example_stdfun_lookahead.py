@@ -48,7 +48,6 @@ def define_parser_subclass():
                 if peek_tok.ignored_before: return False
                 if peek_tok.token_label != lpar_token_label: return False
                 return True
-            precond_label = "lpar after, no whitespace between" # Some unique label.
 
             # Define the head-handler function.
             def head_handler(tok, lex):
@@ -68,11 +67,11 @@ def define_parser_subclass():
                 tok.process_and_check_node(head_handler)
                 return tok
 
-            # Register the handler function with the token, associated with the
-            # preconditions function.
+            # Register the construct with the parser.
+            construct_label = "parse function with lpar, no space after name"
             self.def_construct(fname_token_label, prec=0,
                                        head=head_handler,
-                                       precond_label=precond_label,
+                                       construct_label=construct_label,
                                        precond_fun=preconditions,
                                        precond_priority=precond_priority)
     return MyParser

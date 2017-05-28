@@ -188,7 +188,7 @@ line:
 where ``line`` is the user's input.  The value returned from ``parse`` is a
 token instance, which the ``parse`` function has converted into the root node
 of an expression tree of tokens.  These are the expression trees that were
-displayed in the above dialog when the ``toggletree`` command was issued.
+displayed in the above dialog after the ``toggle`` command was issued.
 
 After the expression tree is returned it is evaluated with the line
 ``parse_tree.eval_subtree()``, which is a recursive evaluation function started
@@ -351,8 +351,8 @@ The definitions above actually define the ``log`` function twice, with a
 different number of arguments each time.  This results in function overloading.
 Each overload can have a different evaluation function.  In this case the
 two-place version takes an extra argument giving the base, like in the Python
-math library (which uses a default parameter value for the single-argument
-form).  The default base is ``e``.
+math library (which uses a default parameter value of ``math.e`` for the
+single-argument form).
 
 At this point we have a working calculator.  The code up to this point can
 already be run to do basic operations.  The next three procedures just add
@@ -455,14 +455,4 @@ operator with a very low precedence value.
                            eval_fun=eval_semicolon)
 
 Now expressions like ``w = sqrt(4); w^2`` can be used.
-
-Extending the calculator
-------------------------
-
-Suppose you wanted to extend the calculator to be a matrix calculator, using
-numpy.  In that case you might make the juxtaposition operator represent the
-``dot`` function.  Here we show how to the PrattParser can be modified so it can
-read in a literal matrix.
-
-TODO.
 

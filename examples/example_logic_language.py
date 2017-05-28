@@ -239,7 +239,7 @@ def define_logic_parser():
                 if lex.peek().token_label == quant_token_label: return True
                 return False
             # Note precondition label unique to quantifier; distinct handler funs.
-            precond_label = "lpar followed by " + quant_token_label
+            construct_label = "lpar followed by " + quant_token_label
 
             def head_handler(tok, lex):
                 """Note the handler is for the lpar token, but the quantifier token
@@ -281,7 +281,7 @@ def define_logic_parser():
                 return quantifier_tok
             # Note that the handler is registered with the lpar token.
             return self.def_construct(lpar_token_label, head=head_handler,
-                    precond_label=precond_label, precond_fun=quantifier_following_lpar)
+                    construct_label=construct_label, precond_fun=quantifier_following_lpar)
 
         def old_def_paren_pair(self, lpar_token_label, rpar_token_label, wff_type):
             """Special redefinition of parentheses to handle the case of parens
@@ -405,16 +405,16 @@ def define_logic_language(parser):
         if lex.peek(-1).token_label != "k_lpar":
             raise pp.ParserException("Quantifier expressions must be inside parens.")
         return False
-    precond_label = "preceeded by lpar"
+    construct_label = "preceeded by lpar"
 
     parser.def_literal("k_forall",
-            precond_label=precond_label, precond_fun=preceeded_by_lpar)
+            construct_label=construct_label, precond_fun=preceeded_by_lpar)
     parser.def_literal("k_forall") # Note we need the ordinary definition, too.
 
     parser.def_quantifier_expr("k_forall", "k_var_name", "k_comma", "k_lpar", "k_rpar",
                                                                     t_Real, t_Bool)
     parser.def_literal("k_exists",
-            precond_label=precond_label, precond_fun=preceeded_by_lpar)
+            construct_label=construct_label, precond_fun=preceeded_by_lpar)
     parser.def_literal("k_exists")
     parser.def_quantifier_expr("k_exists", "k_var_name", "k_comma", "k_lpar", "k_rpar",
                                                                     t_Real, t_Bool)

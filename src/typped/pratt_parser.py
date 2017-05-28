@@ -243,7 +243,7 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 #
 
 # The default precondition label is a tuple so it never matches an actual string.
-DEFAULT_PRECOND_LABEL = ("always-true-default-precondition",)
+DEFAULT_CONSTRUCT_LABEL = ("always-true-default-precondition",)
 
 # The default precondition function always returns true.
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
@@ -526,7 +526,7 @@ def token_subclass_factory():
             # Be sure to also update the unregister method if implemented.
 
             # Get and save any previous type sig data (for overloaded sigs
-            # corresponding to a single precond_label).
+            # corresponding to a single construct_label).
             sorted_construct_dict = cls.construct_dict[head_or_tail]
             prev_construct = sorted_construct_dict.get(construct_label, None)
             if prev_construct is None:
@@ -638,7 +638,7 @@ def token_subclass_factory():
             """Look up and return the construct for the given subexpression
             position in `head_or_tail`, based on the current state.
 
-            Either the `lex` parameter or the `precond_label` parameter must be
+            Either the `lex` parameter or the `construct_label` parameter must be
             set.  If `lex` is set it will be passed to the precondition
             functions as an argument, and similarly for `lookbehind`.
 
@@ -672,7 +672,7 @@ def token_subclass_factory():
             for pre_label, construct in sorted_construct_dict.items():
                 if construct.precond_fun(lex, lookbehind):
                     # Note construct_label is saved as a user-accesible attribute here.
-                    self.precond_label = construct.construct_label
+                    self.construct_label = construct.construct_label
                     return construct
 
             raise NoHandlerFunctionDefined("No {0} handler function matched the "
@@ -814,7 +814,7 @@ def token_subclass_factory():
                 self.original_formal_sig = orig_sig
                 prev_eval_fun = self._get_eval_fun(orig_sig)
                 prev_ast_data = self._get_ast_data(orig_sig)
-                self._save_eval_fun_and_ast_data(self.is_head, self.precond_label,
+                self._save_eval_fun_and_ast_data(self.is_head, self.construct_label,
                                                  typesig_override,
                                                  prev_eval_fun, prev_ast_data)
                 # Force the final, actual typesig to be the override sig.
@@ -974,15 +974,15 @@ def token_subclass_factory():
         #
 
         @classmethod
-        def _save_eval_fun_and_ast_data(cls, is_head, precond_label,
+        def _save_eval_fun_and_ast_data(cls, is_head, construct_label,
                                         type_sig, eval_fun, ast_data):
             """This is a utility function that saves data in the `eval_fun_dict`
             and `ast_data_dict` associated with token `token_subclass`, keyed by
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
-            if is_head: handler_frame = cls.construct_dict[HEAD][precond_label]
-            else: handler_frame = cls.construct_dict[TAIL][precond_label]
+            if is_head: handler_frame = cls.construct_dict[HEAD][construct_label]
+            else: handler_frame = cls.construct_dict[TAIL][construct_label]
 
             # Save in dicts hashed with full signature (full overload with return).
             dict_key = type_sig
@@ -999,12 +999,12 @@ def token_subclass_factory():
 
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
-            Must be called after parsing because the `precond_label` attribute must
-            be set on the token instance.  Keyed on `is_head`, `precond_label`, and
+            Must be called after parsing because the `construct_label` attribute must
+            be set on the token instance.  Keyed on `is_head`, `construct_label`, and
             original signature."""
-            precond_label = self.precond_label # Attribute set during parsing.
-            if self.is_head: handler_frame = self.construct_dict[HEAD][precond_label]
-            else: handler_frame = self.construct_dict[TAIL][precond_label]
+            construct_label = self.construct_label # Attribute set during parsing.
+            if self.is_head: handler_frame = self.construct_dict[HEAD][construct_label]
+            else: handler_frame = self.construct_dict[TAIL][construct_label]
 
             if self.parser_instance.overload_on_ret_types:
                 dict_key = orig_sig
@@ -1016,12 +1016,12 @@ def token_subclass_factory():
 
         def _get_ast_data(self, orig_sig):
             """Return the ast data saved by `_save_ast_data_and_ast_data`.
-            Must be called after parsing because the `precond_label` attribute must
-            be set on the token instance.  Keyed on `is_head`, `precond_label`, and
+            Must be called after parsing because the `construct_label` attribute must
+            be set on the token instance.  Keyed on `is_head`, `construct_label`, and
             original signature."""
-            precond_label = self.precond_label # Attribute set during parsing.
-            if self.is_head: handler_frame = self.construct_dict[HEAD][precond_label]
-            else: handler_frame = self.construct_dict[TAIL][precond_label]
+            construct_label = self.construct_label # Attribute set during parsing.
+            if self.is_head: handler_frame = self.construct_dict[HEAD][construct_label]
+            else: handler_frame = self.construct_dict[TAIL][construct_label]
 
             if self.parser_instance.overload_on_ret_types:
                 dict_key = orig_sig
@@ -1045,10 +1045,10 @@ def token_subclass_factory():
                         "value '{0}' and label '{1}' but no defined and matching "
                         "evaluation function was found in the dict of eval functions.  "
                         "The resolved original signature is {2} and the resolve expanded"
-                        " signature is {3}.  The resolved precond_label is {4}.  The "
+                        " signature is {3}.  The resolved construct_label is {4}.  The "
                         "token's eval_fun_dict is:\n   {5}."
                         .format(self.value, self.token_label, orig_sig, sig,
-                                self.precond_label, self.eval_fun_dict))
+                                self.construct_label, self.eval_fun_dict))
 
             return eval_fun(self)
 
@@ -1638,7 +1638,7 @@ class PrattParser(object):
             prec = 0
 
         if construct_label is None:
-            construct_label = DEFAULT_PRECOND_LABEL
+            construct_label = DEFAULT_CONSTRUCT_LABEL
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
 
         if self.token_table.has_key(trigger_token_label):
@@ -1672,17 +1672,18 @@ class PrattParser(object):
 
         return token_subclass
 
-    def undef_handler(self, token_label, head_or_tail, precond_label=None,
+    def undef_handler(self, token_label, head_or_tail, construct_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
-        `precond_label` and type signature.  The `head_or_tail` value should be
+        `construct_label` and type signature.  The `head_or_tail` value should be
         `HEAD` or `TAIL`.  If `all_precond` is set then all heads and tails for all
         preconditions will be undefined.  If `all_overloads` then all
         overloaded type signatures will be undefined.  The token itself is
         never undefined; use the `undef_token` method for that."""
+        # TODO: rewrite to undef a construct
         TokenSubclass = self.token_table.get_token_subclass(token_label)
         TokenSubclass.unregister_construct(head_or_tail,
-                                         construct_label=precond_label,
+                                         construct_label=construct_label,
                                          type_sig=TypeSig(val_type, arg_types),
                                          all_handlers=all_handlers)
 
@@ -1711,7 +1712,7 @@ class PrattParser(object):
     # and pasting them onto the class, just to keep the code separate.
 
     def def_literal(self, token_label, val_type=None,
-                    precond_label=None, precond_fun=None, precond_priority=1,
+                    construct_label=None, precond_fun=None, precond_priority=1,
                     typesig_override_fun=None,
                     eval_fun=None, ast_data=None):
         """Defines the token with label `token_label` to be a literal in the
@@ -1739,10 +1740,11 @@ class PrattParser(object):
                 tok.process_and_check_node(head_handler_literal)
             return tok
         return self.def_construct(token_label, head=head_handler_literal,
-                               val_type=val_type, arg_types=(),
-                               construct_label=precond_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority,
-                               eval_fun=eval_fun, ast_data=ast_data)
+                                  val_type=val_type, arg_types=(),
+                                  construct_label=construct_label,
+                                  precond_fun=precond_fun,
+                                  precond_priority=precond_priority,
+                                  eval_fun=eval_fun, ast_data=ast_data)
 
     def def_multi_literals(self, tuple_list):
         """An interface to the `def_literal` method which takes a list of
@@ -1750,19 +1752,22 @@ class PrattParser(object):
         in the order in the tuple.  Unspecified optional arguments get their default
         values."""
         # TODO: This unfortunately makes it difficult to change the order in the
-        # def_literal function arguments...
+        # def_literal function arguments... also causes problems with keyword
+        # argument setting (need to be non-keywords).  Deprecate this, maybe,
+        # at least make it preferred to use `lit = parser.def_literal` and then just
+        # write that a bunch of times...
         return multi_funcall(self.def_literal, tuple_list)
 
     def def_infix_multi_op(self, operator_token_labels, prec, assoc,
                            repeat=False, in_tree=True,
-                           precond_label=None, precond_fun=None, precond_priority=0,
+                           construct_label=None, precond_fun=None, precond_priority=0,
                            val_type=None, arg_types=None, eval_fun=None, ast_data=None):
-        # TODO only this utility method currently supports "in_tree" kwarg.  General and easy
-        # mechanism, though.  Test more and add to other methods.
-        # Does in-tree keep the first one? how is it defined for this thing?
-        # Comma operator is example of in_tree=False, but how does it handle
-        # the root??
-        # TODO: How about in-tree that works at root iff the node only has one child?
+        # TODO only this utility method currently supports "in_tree" kwarg.
+        # General and easy mechanism, though.  Test more and add to other
+        # methods.  Does in-tree keep the first one? how is it defined for this
+        # thing?  Comma operator is example of in_tree=False, but how does it
+        # handle the root??  TODO: How about in-tree that works at root iff the
+        # node only has one child?
         """Takes a list of operator token labels and defines a multi-infix
         operator.
 
@@ -1796,28 +1801,23 @@ class PrattParser(object):
                                                      repeat_args=repeat)
             return tok
         return self.def_construct(operator_token_labels[0], prec=prec, tail=tail_handler,
-                                construct_label=precond_label, precond_fun=precond_fun,
+                                construct_label=construct_label, precond_fun=precond_fun,
                                 precond_priority=precond_priority,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
-    # TODO: allow these to take "extra" precond functions which are called inside
-    # and a the end of the current precond... maybe.  Or could just allow
-    # replacement precond functions.  Would also need a label, though, so that
-    # the different conditions did not clash unintentionally.
-
     def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
-                     precond_label=None, precond_fun=None, precond_priority=0,
+                     construct_label=None, precond_fun=None, precond_priority=0,
                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
         """This just calls the more general method `def_multi_infix_op`."""
         return self.def_infix_multi_op([operator_token_label], prec, assoc, in_tree=in_tree,
-                                       precond_label=precond_label, precond_fun=precond_fun,
+                                       construct_label=construct_label, precond_fun=precond_fun,
                                        precond_priority=precond_priority,
                                        val_type=val_type, arg_types=arg_types,
                                        eval_fun=eval_fun, ast_data=ast_data)
 
     def def_prefix_op(self, operator_token_label, prec,
-                      precond_label=None, precond_fun=None, precond_priority=0,
+                      construct_label=None, precond_fun=None, precond_priority=0,
                       val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None):
         """Define a prefix operator.  Note that head handlers do not have
@@ -1831,13 +1831,13 @@ class PrattParser(object):
             tok.process_and_check_node(head_handler)
             return tok
         return self.def_construct(operator_token_label, head=head_handler,
-                                 construct_label=precond_label, precond_fun=precond_fun,
+                                 construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                                  ast_data=ast_data)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
-                       precond_label=None, precond_fun=None, precond_priority=0,
+                       construct_label=None, precond_fun=None, precond_priority=0,
                        val_type=None, arg_types=None, eval_fun=None,
                        ast_data=None):
         """Define a postfix operator.  If `allow_ignored_before` is false then
@@ -1850,13 +1850,13 @@ class PrattParser(object):
             tok.process_and_check_node(tail_handler)
             return tok
         return self.def_construct(operator_token_label, prec=prec, tail=tail_handler,
-                                 construct_label=precond_label, precond_fun=precond_fun,
+                                 construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  val_type=val_type, arg_types=arg_types,
                                  eval_fun=eval_fun, ast_data=ast_data)
 
     def def_bracket_pair(self, lbrac_token_label, rbrac_token_label,
-                         precond_label=None, precond_fun=None, precond_priority=0,
+                         construct_label=None, precond_fun=None, precond_priority=0,
                          eval_fun=None, ast_data=None):
         """Define a matching bracket grouping operation.  The returned type is
         set to the type of its single child (i.e., the type of the contents of
@@ -1878,7 +1878,7 @@ class PrattParser(object):
                                  typesig_override=TypeSig(child_type, [child_type]))
             return tok
         return self.def_construct(lbrac_token_label, head=head_handler,
-                                 construct_label=precond_label, precond_fun=precond_fun,
+                                 construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  eval_fun=eval_fun, ast_data=ast_data)
 
@@ -1906,7 +1906,7 @@ class PrattParser(object):
             arg_types = [None]*num_args
 
         # TODO maybe have option to match value instead of type...
-        # Maybe even always use a distinct precond_label unless some `overload=True`
+        # Maybe even always use a distinct construct_label unless some `overload=True`
         # flag is set.... CONSIDER, large design change.
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
@@ -1915,7 +1915,7 @@ class PrattParser(object):
             if peek_tok.ignored_before: return False
             if peek_tok.token_label != lpar_token_label: return False
             return True
-        precond_label = "lpar after, no whitespace between" # Should be a unique label.
+        construct_label = "lpar after, no whitespace between" # Should be a unique label.
 
         def head_handler(tok, lex):
             # Below match is for a precondition, so it will match and consume.
@@ -1938,7 +1938,7 @@ class PrattParser(object):
                             num_args, len(tok.children)))
             return tok
         return self.def_construct(fname_token_label, prec=0,
-                     head=head_handler, construct_label=precond_label,
+                     head=head_handler, construct_label=construct_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
                      val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      ast_data=ast_data)
@@ -1972,8 +1972,8 @@ class PrattParser(object):
             if prev_tok.token_label != fname_token_label: return False
             if lex.token.ignored_before: return False # No space allowed after fun name.
             return True
-        # Note we need to generate a unique precond_label for each fname_token_label.
-        precond_label = "match desired function name of " + fname_token_label
+        # Note we need to generate a unique construct_label for each fname_token_label.
+        construct_label = "match desired function name of " + fname_token_label
 
         def tail_handler(tok, lex, left):
             # Nothing between fun name and lpar_token.
@@ -1989,15 +1989,15 @@ class PrattParser(object):
             return left
         return self.def_construct(lpar_token_label,
                                  prec=prec_of_lpar, tail=tail_handler,
-                                 construct_label=precond_label,
+                                 construct_label=construct_label,
                                  precond_fun=precond_fun,
                                  val_type=val_type, arg_types=arg_types,
                                  eval_fun=eval_fun, ast_data=ast_data)
 
     def def_jop(self, prec, assoc,
-                      precond_label=None, precond_fun=None, precond_priority=None,
-                      val_type=None, arg_types=None, eval_fun=None,
-                      ast_data=None):
+                construct_label=None, precond_fun=None, precond_priority=None,
+                val_type=None, arg_types=None, eval_fun=None,
+                ast_data=None):
         """The function `precond_fun` is called to determine whether or not to
         infer a juxtaposition operator between the previously-parsed
         subexpression result and the next token.  This function will be passed
@@ -2022,7 +2022,7 @@ class PrattParser(object):
             tok.process_and_check_node(tail_handler)
             return tok
         return self.def_construct(self.jop_token_label, prec=prec, tail=tail_handler,
-                                 construct_label=precond_label, precond_fun=precond_fun,
+                                 construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  val_type=val_type, arg_types=arg_types,
                                  eval_fun=eval_fun, ast_data=ast_data)
