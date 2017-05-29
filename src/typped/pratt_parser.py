@@ -1563,7 +1563,7 @@ class PrattParser(object):
         Since the `token_kind` was set for all tokens when they were defined
         it knows how to undelete any kind of token."""
         token_table = self.token_table
-        tok = token_table.get_token_subclass(token_label)
+        tok = token_table[token_label]
         kind = tok.token_kind
         if kind == "jop":
             token_table.undef_token(self.jop_token_label)
@@ -1586,7 +1586,7 @@ class PrattParser(object):
         """Return the token with the label `token_label`.  The reverse
         operation, getting a label from a token instance, can be done by
         looking at the `token_label` attribute of the token."""
-        return self.token_table.get_token_subclass(token_label)
+        return self.token_table[token_label]
 
     def def_construct(self, trigger_token_label, prec=None,
                       head=None, tail=None,
@@ -1641,7 +1641,7 @@ class PrattParser(object):
             construct_label = DEFAULT_CONSTRUCT_LABEL
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
 
-        if self.token_table.has_key(trigger_token_label):
+        if trigger_token_label in self.token_table:
             token_subclass = self.get_token(trigger_token_label)
         else:
             raise ParserException("In call to mod_token_subclass: subclass for"
@@ -1681,7 +1681,7 @@ class PrattParser(object):
         overloaded type signatures will be undefined.  The token itself is
         never undefined; use the `undef_token` method for that."""
         # TODO: rewrite to undef a construct
-        TokenSubclass = self.token_table.get_token_subclass(token_label)
+        TokenSubclass = self.token_table[token_label]
         TokenSubclass.unregister_construct(head_or_tail,
                                          construct_label=construct_label,
                                          type_sig=TypeSig(val_type, arg_types),

@@ -7,20 +7,21 @@ each one against the beginning of the text passed in, returning the
 best match (taking `on_ties` values into account).
 
 This has good insert and delete times, but can become inefficient for large
-numbers of patterns.  The `HybridTriePythonRegexMatcher` uses the class from
-this module for complex regex patterns, and a trie for simpler patterns.
+numbers of patterns.  There is also an option to use a trie to store simple
+patterns so they can be searched in parallel instead of sequentially like
+the regex patterns.
 
-A matcher class needs to have the following methods:
+A matcher class needs to have the following methods and attributes:
 
 * `insert_pattern` -- insert a labeled regex pattern and priority into the matcher
 * `remove_pattern` -- remove an inserted pattern
 * `get_next_token_label_and_value` -- return the label and value of the next match
+* `ignore_tokens` -- attribute of the set of token labels which are defined as ignored
 
 """
 
 from __future__ import print_function, division, absolute_import
 
-# Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_lexer.py",
@@ -32,10 +33,10 @@ import collections
 from .shared_settings_and_exceptions import LexerException
 
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
-                           "regex_string",
-                           "compiled_regex",
-                           "on_ties",
-                        ])
+                                           "regex_string",
+                                           "compiled_regex",
+                                           "on_ties",
+                                           ])
 
 class MatcherPythonRegex(object):
     """A matcher class that stores pattern data and matches it."""
@@ -51,7 +52,7 @@ class MatcherPythonRegex(object):
 
         compiled_regex = re.compile(regex_string,
                                     re.VERBOSE|re.MULTILINE|re.UNICODE)
-        regex_data = TokenPatternTuple(regex_string, 
+        regex_data = TokenPatternTuple(regex_string,
                                        compiled_regex,
                                        on_ties)
         self.regex_data_dict[token_label] = regex_data
@@ -124,10 +125,10 @@ class MatcherPythonRegex(object):
         len_and_on_ties_dict = {}
         for token_label, (regex_str, compiled_regex, on_ties
                                                 ) in self.regex_data_dict.items():
-            match_object = compiled_regex.match(program, 
+            match_object = compiled_regex.match(program,
                                       unprocessed_slice_indices[0],
                                       unprocessed_slice_indices[1])
-            if match_object: 
+            if match_object:
                 matched_string = program[
                                  match_object.start():match_object.end()]
                 matching_prefixes_dict[token_label] = matched_string
@@ -139,4 +140,40 @@ class MatcherPythonRegex(object):
                 len_and_on_ties_dict[token_label] = (0, on_ties)
         return matching_prefixes_dict, len_and_on_ties_dict
 
+
+def _convert_simple_pattern(self, regex_string):
+    """Convet a simple pattern to a form that can be inserted into a
+    `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
+    complicated.  Simple pattern is essentially defined by what this routine
+    is implemented to do (and a `RegexTrieDict` can/should do)"""
+    return None
+    # TODO the immediate below seems to work for some very simple patterns.
+
+    simple_regex_patt = re.compile(r"^[a-zA-Z0-9_\-]+$", re.VERBOSE|re.UNICODE)
+    match = simple_regex_patt.match(regex_string)
+    if match is None: return None
+    return regex_string # No processing needed for very simple.
+
+    # SCRATCH BELOW
+
+    # Note negative lookbehind assertion (?<!\\) for escape before
+    # the strings which start Python regex special chars.
+    non_simple_regex_contains = \
+            r"""(
+                    ( (?<!\\)[.^$*+?{[|(] )+ # Start of special char.
+                |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.
+                ))"""
+    compiled_non_simple_regex_contains = re.compile(
+                              non_simple_regex_contains, re.VERBOSE|re.UNICODE)
+    def is_simple_pattern(regex_string):
+        # Could be single-char in brackets!
+        # https://docs.python.org/2.0/ref/strings.html
+        match_object = compiled_non_simple_regex_contains.search(regex_string)
+        #matched_string = regex_string[match_object.start():match_object.end()]
+        #print(" substring", matched_string)
+        return not bool(match_object)
+    #if is_simple_pattern(regex_string):
+    #    print("simple pattern", regex_string)
+    #else:
+    #    print("non-simple pattern", regex_string)
 

@@ -63,7 +63,6 @@ from .shared_settings_and_exceptions import ParserException
 # https://www.python.org/dev/peps/pep-0483/
 
 class TypeSig(object):
-
     """The type specification for a function.  Generally set at function
     definition.  Can also be used for actual types, since it is just a
     container.  The "functions" themselves can be any syntactic construct that
@@ -226,11 +225,6 @@ class TypeSig(object):
         sig_list = TypeSig.filter_sigs_matching_child_types(sig_list,
                              list_of_child_sig_lists, tnode, raise_err_on_empty)
         return sig_list
-
-    #@staticmethod
-    #def remove_duplicate_sigs(sig_list):
-    #    """Return the list of signatures in `sig_list`, removing any duplicates."""
-    #    return list(set(sig_list))
 
     @staticmethod
     def get_sigs_expanded_for_num_actual_args(num_args, sig_list):
@@ -542,19 +536,17 @@ class TypeTable(object):
         self.parser_instance = parser_instance
         self.type_object_dict = {}
 
-    def has_key(self, type_label):
+    def __contains__(self, type_label):
         """Test whether a `TypeObject` instance for `type_label` has been stored."""
         return type_label in self.type_object_dict
-    __contains__ = has_key # For testing with the "in" keyword.
 
-    def get_typeobject(self, type_label):
+    def __getitem__(self, type_label):
         """Look up the `TypeObject` instance corresponding
         to `type_label` in the type table and return it.  Raises a
         `TypeException` if no instance is found for the token label."""
         if type_label in self.type_object_dict:
             type_object = self.type_object_dict[type_label]
         return type_object
-    __getitem__ = get_typeobject
 
     def create_typeobject(self, type_label):
         """Create a `TypeObject` instance for a type with string label `type_label`

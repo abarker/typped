@@ -202,6 +202,10 @@ Code
 # TODO: Look at the shlex package and see if anything that could be used or ideas to
 # borrow.  https://docs.python.org/3.6/library/shlex.html
 
+# TODO: implement move_back, the equivalent of push_back except you think of it
+# as moving in the token buffer rather than pushing back a token (it is still a
+# peek token).
+
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -213,7 +217,7 @@ if __name__ == "__main__":
                               pytest_args="-v")
 
 import collections
-from .matcher_python_regex import MatcherPythonRegex
+from .matcher import MatcherPythonRegex
 from .shared_settings_and_exceptions import LexerException, is_subclass_of
 
 #
@@ -399,9 +403,9 @@ def basic_token_subclass_factory():
 
 class TokenTable(object):
     """A symbol table holding subclasses of the `TokenNode` class for each token label
-    defined in a `Lexer` instance.  Each `Lexer` instance contains an instance of this
-    class to save the subclasses for the kinds of tokens which have been defined for
-    it."""
+    defined in a `Lexer` instance.  Also has methods for operating on tokens.
+    Each `Lexer` instance contains an instance of this class to save the subclasses for
+    the kinds of tokens which have been defined for it."""
     def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory,
                        pattern_matcher_class=MatcherPythonRegex):
         """Initialize the token table.  The parameter `token_subclass_factory_fun`
@@ -419,11 +423,11 @@ class TokenTable(object):
         self.PatternMatcherClass = pattern_matcher_class
         self.pattern_matcher = self.PatternMatcherClass()
 
-    def has_key(self, token_label):
+    def __contains__(self, token_label):
         """Test whether a token subclass for `token_label` has been stored."""
         return token_label in self.token_subclass_dict
 
-    def get_token_subclass(self, token_label):
+    def __getitem__(self, token_label):
         """Look up the subclasses of base class `TokenNode` corresponding to
         `token_label` in the token table and return it.  Raises a
         `LexerException` if no subclass is found for the token label."""
@@ -459,10 +463,6 @@ class TokenTable(object):
         except KeyError:
             return # Not saved in dict, ignore.
 
-    def is_defined_token_label(self, token_label):
-        """Return true if `token_label` is currently defined as a token_label label."""
-        return token_label in self.token_subclass_dict
-
     def undef_token(self, token_label):
         """Undefine the token corresponding to `token_label`."""
         # Remove from the list of defined tokens and from the token table.
@@ -489,7 +489,7 @@ class TokenTable(object):
         equal an exception will be raised.
 
         Returns the new token subclass."""
-        if self.is_defined_token_label(token_label):
+        if token_label in self:
             raise LexerException("A token with label '{0}' is already defined.  It "
             "must be undefined before it can be redefined.".format(token_label))
 
@@ -522,7 +522,7 @@ class TokenTable(object):
                                           ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Return the next token label for the start of the current program
         text, as in the string `program` and indexed by the numbers in
-        the tuple `prog_unprocessed`."""
+        the ordered-pair tuple `prog_unprocessed`."""
         return self.pattern_matcher.get_next_token_label_and_value(
                                               program, prog_unprocessed,
                                               ERROR_MSG_TEXT_SNIPPET_SIZE)
@@ -538,12 +538,16 @@ class TokenTable(object):
 class TokenBuffer(object):
     """An abstraction of the token buffer.  This is used internally by the
     `Lexer` class and should not usually be accessed by users.  It is basically
-    a nice wrapper over an underlying deque, but is complicated by the need to
-    save persistent state pointers into the buffer.  Previous tokens are stored
-    in the same deque as the current token and any lookahead tokens.  The
-    default indexing is relative to the current token, at `current_offset`,
-    which is zero for the current token.  (The current offset is itself
-    relative to a reference point, but users do not need to known that)."""
+    a nice wrapper over an underlying deque, but this is complicated by the
+    need to save persistent state pointers into the buffer even in fixed-size
+    buffers when tokens at the front get dropped.
+
+    Previous tokens are stored in the same deque as the current token and any
+    lookahead tokens.  The default indexing is relative to the current token,
+    at `current_offset`, which is zero for the current token.  (The current
+    offset is itself relative to a reference point, but users do not need to
+    know that detail)."""
+
     def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
         """Initialize the buffer."""
         self.token_getter_fun = token_getter_fun
@@ -572,9 +576,9 @@ class TokenBuffer(object):
         self._append(begin_token)
 
     def state_to_offset(self, state):
-        """Return the offset into the current deque that corresponds to what was the
-        offset (absolute index to the current token) at the time when the state was
-        saved."""
+        """Return the offset into the current deque that corresponds to what
+        was the offset (absolute index to the current token) at the time when
+        the state was saved."""
         return state - self.reference_point
 
     def get_state(self):
@@ -605,10 +609,6 @@ class TokenBuffer(object):
             return self.token_buffer[self._index_to_absolute(index)]
         else:
             raise TypeError("Invalid argument type in __getitem__ of TokenBuffer.")
-
-    #def __len__(self):
-    #    # HOW should this be defined, if at all??
-    #    return len(self.token_buffer) - self.current_offset
 
     def num_saved_previous_tokens(self):
         """Return the number of tokens before the current token that are saved."""
@@ -724,7 +724,8 @@ class GenTokenState:
     end = 2
     uninitialized = 3
 
-# The beginnings of a state tuple for the Lexer.  NOT YET USED AT ALL.
+# The beginnings of a state tuple for the Lexer.  NOT YET USED AT ALL, but would
+# be more elegant than the current ad hoc approach.
 LexerState = collections.namedtuple("LexerState", [
                            "x",
                            "y",
@@ -1453,8 +1454,7 @@ class Lexer(object):
 
                 # Look up the class to represent the winning_index.
                 try:
-                    token_subclass_for_label = token_table.get_token_subclass(
-                                                                token_label)
+                    token_subclass_for_label = token_table[token_label]
                 except LexerException:
                     raise LexerException("Undefined key in token table for "
                                          "token_label '{0}'.".format(token_label))
@@ -1502,8 +1502,7 @@ class Lexer(object):
             # === Return only end-tokens state ======================================
             # =======================================================================
             elif self.token_generator_state == GenTokenState.end:
-                token_subclass_for_end = token_table.get_token_subclass(
-                                                  token_table.end_token_label)
+                token_subclass_for_end = token_table[token_table.end_token_label]
                 token_instance = token_subclass_for_end(None)
                 token_instance.line_and_char = (self.raw_linenumber,
                                                 self.upcoming_raw_charnumber)
