@@ -495,7 +495,7 @@ class TokenTable(object):
 
         if regex_string is not None:
             self.pattern_matcher.insert_pattern(token_label, regex_string,
-                                                 on_ties, ignore)
+                                                 on_ties, ignore=ignore)
 
         # Initialize and return a bare-bones, default token_subclass.
         tok = self.create_token_subclass(token_label)

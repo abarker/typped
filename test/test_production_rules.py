@@ -96,6 +96,15 @@ def test_EBNF_like_expressions():
                                              'Rule("expression"), '
                                              'Tok("k_rpar")))')
 
+def test_wrappers_for_multiple_items():
+    """Test wrappers wrapping combined arguments."""
+    test = Tok("k_dot") + Opt(Rule("test") + Tok("k_dot")) + Tok("semi")
+    assert str(test) == 'ItemList(Tok("k_dot"), Opt(Rule("test"), Tok("k_dot")), Tok("semi"))'
+
+    multiple = (0,4) * (Rule("test") + Tok("dot")) # Parens on args.
+    print(str(multiple))
+    assert str(multiple) == 'ItemList(Repeat(0, 4, Rule("test"), Tok("dot")))'
+
 def test_parsing_from_basic_expression_grammar():
     """Test the actual parser creation and execution from a grammar."""
     parser = PrattParser()
@@ -269,5 +278,8 @@ def test_shortcut_operator_overloads_in_expression_grammar():
         'CaseList(ItemList(Rule("wff"), Not(Tok("k_plus")), Rule("wff")), '
         'ItemList(Pratt("None")), ItemList(Tok("k_ast")), '
         'ItemList(Rule("wff"), Not(Tok("k_ast")), Rule("wff")), '
-        'ItemList(Opt(Rule("wff"), OneOrMore(Tok("k_plus"), Tok("k_plus")))))')
+        'ItemList(Opt(Rule("wff"), Repeat(1, None, Tok("k_plus"), Tok("k_plus")))))')
 
+    assert str(nExactly(3, Tok(k_number))) == str(3 * Tok(k_number))
+    assert str(nOrMore(3, Tok(k_number))) == str((3,) * Tok(k_number))
+    assert str(Between(3, 4, Tok(k_number))) == str((3,4) * Tok(k_number))

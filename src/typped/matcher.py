@@ -41,20 +41,32 @@ TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
 class MatcherPythonRegex(object):
     """A matcher class that stores pattern data and matches it."""
 
-    def __init__(self):
+    def __init__(self, trie=False):
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.regex_data_dict = {} # Data for the regexes of tokens.
+        self.trie = trie
 
-    def insert_pattern(self, token_label, regex_string, on_ties, ignore):
-        """Insert the pattern in the list of regex patterns, after compiling it."""
+    def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False):
+        """Insert the pattern in the list of regex patterns, after compiling
+        it.
+
+        If `ignore` is true then the pattern is treated as an ignored pattern.
+
+        If `trie` is true then the pattern is inserted in a trie if it is
+        simple enough."""
         if ignore:
             self.ignore_tokens.add(token_label)
 
+        if self.trie:
+            if _convert_simple_pattern(regex_string):
+                # TODO: Implement using new regex_trie_dict_scanner.
+                return
+
+        # No trie option or pattern not simple enough, so use Python regex.
+
         compiled_regex = re.compile(regex_string,
                                     re.VERBOSE|re.MULTILINE|re.UNICODE)
-        regex_data = TokenPatternTuple(regex_string,
-                                       compiled_regex,
-                                       on_ties)
+        regex_data = TokenPatternTuple(regex_string, compiled_regex, on_ties)
         self.regex_data_dict[token_label] = regex_data
 
     def remove_pattern(self, token_label):
@@ -68,15 +80,17 @@ class MatcherPythonRegex(object):
                                  " was never defined.")
 
     def get_next_token_label_and_value(self, program, unprocessed_slice_indices,
-                                          ERROR_MSG_TEXT_SNIPPET_SIZE):
+                                       ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
         longest and wins tie breaking.  Return the token token_label and value of the
         matching prefix.  The list arguments should be in correspondence with
         the `self.token_labels` list."""
+        # TODO Update to use trie is self.trie is true.
+
         # Get the matching prefixes and length-ranking information.
         matching_prefixes_dict, len_and_on_ties_dict = \
-                   self._get_matched_prefixes_and_length_info(
-                           program, unprocessed_slice_indices)
+                   self._get_matched_prefixes_and_length_info(program,
+                                                              unprocessed_slice_indices)
 
         # Note that tuple comparisons give the correct max value.
         winning_tuple = max(len_and_on_ties_dict.values())

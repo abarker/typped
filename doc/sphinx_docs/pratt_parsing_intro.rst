@@ -72,7 +72,7 @@ operator corresponds to an interior node of the tree, and the
 arguments/parameters of the function are the ordered child nodes.  The leaves
 of an expression tree are the **literal tokens**, i.e., the tokens which act as
 single-node subtrees in the final expression tree.  The other tokens appear in
-the tree as interior nodes.
+the tree as interior nodes (e.g., tokens for infix operators like ``*``).
 
 A **parse tree** or **derivation tree**, on the other hand, corresponds to a
 grammar.  The internal nodes all correspond to **production rules** in a

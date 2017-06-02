@@ -341,8 +341,7 @@ class TokenSubclassMeta(type):
         # Below is ugly, but avoids mutual import problems.  Used as an easy
         # way to define token addition so that it works in the grammars defined
         # by the production_rules module.
-        from .production_rules import (Tok, Not, Prec,
-                                       nExactly, nOrMore)
+        from .production_rules import (Tok, Not, Prec, nExactly, nOrMore, Repeat)
         # These are saved in a dict below because if they are made attributes
         # then Python 2 complains about "TypeError: unbound method Tok() must
         # be called with TokenClass_k_lpar instance as first argument (got
@@ -353,6 +352,7 @@ class TokenSubclassMeta(type):
                 "Prec": Prec,
                 "nExactly": nExactly,
                 "nOrMore": nOrMore,
+                "Repeat": Repeat,
                 }
         return new_class
 
@@ -402,7 +402,7 @@ class TokenSubclassMeta(type):
     def __rmul__(cls, left_other):
         """The expression `n*token` for an int `n` is "n occurrences of"
         `token`."""
-        return cls.prod_rule_funs["nExactly"](left_other, cls)
+        return cls.prod_rule_funs["Repeat"](left_other, cls)
 
     def __rpow__(cls, left_other):
         """The expression `n**token` for an int `n` is "n or more occurrences of"

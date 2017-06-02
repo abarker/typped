@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
 """
 
-Introduction
-============
-
-This module implements a nice frontend for parsing grammars using EBNF-like
-Python expressions.  The backend is the recursive-descent parsing capabilities
-of the `PrattParser` class, implemented using precondition functions and
-null-string token handlers.
+This module implements a nice frontend for parsing grammars using `EBNF
+<https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form>`_-like Python
+expressions.  The backend is the recursive-descent parsing capabilities of the
+`PrattParser` class, implemented using precondition functions and null-string
+token handlers.
 
 Here are some (but not all) similar Python parsing packages.  Some use strings
 for the grammar, and others use overloaded Python operators.  Most do not
@@ -33,45 +31,57 @@ produce a parse tree.
 For more, see https://wiki.python.org/moin/LanguageParsing and
 https://github.com/webmaven/python-parsing-tools.
 
-Terminology
-===========
+Terminology and notation
+========================
+
+These terms are used in the description:
 
 * **Production rules**
   are the individual rewrite rules such as `<expression> ::= <term>` in a BNF
   grammar.  They are also called **productions** or just **rules**.  The
   symbols on the l.h.s. of productions (which can also appear in the r.h.s.)
   are called **nonterminal symbols**.  The r.h.s of a production is called the
-  **parsing expression**.  The r.h.s. or productions can have terminal symbols,
+  **parsing expression**.  The r.h.s. of productions can have terminal symbols,
   **nonterminal symbols** and perhaps other symbols such as the special
   **epsilon symbol** which matches an empty string.
 
-* Production rules with the the same l.h.s. nonterminal symbol will be
-  called different **cases** of the nonterminal symbol.  A common notation is
+* Production rules with the the same l.h.s. nonterminal symbol will be referred to
+  as different **cases** of the nonterminal symbol.  A common notation is
   to define multiple cases in one production rule expression by using the "or"
-  symbol `|`.  This latter form of definition is currently *required* by this
-  module.  That is, all the cases of rules defining a nonterminal must be occur
-  in one expression, using `|` if there are multiple cases.  The ordered list
+  symbol `|`.  This form of definition is currently *required* by this
+  module.  That is, all the cases for any nonterminal must occur
+  in a single expression, using `|` if there are multiple cases.  The ordered list
   of all the rule cases for a nonterminal will be called the **caselist** for
   the nonterminal.  Order matters for resolving ambiguity.
 
 * The separate symbol elements within a case will be collectively called the
   **items** of that case.  They include terminal symbols, nonterminal symbols,
   and possibly the epsilon symbol.  In this module there are no explicit
-  terminal symbols.  Instead, terminals are either tokens (defined for and
-  parsed from the lexer) or else consecutive sequences of tokens.  There are
-  various notational constructs in the production rule notation of this module
-  which modify the meaning of the items in a production rule.  They will be
-  discussed later.
+  terminal symbols.  Instead, terminals are either tokens (defined for the
+  lexer and returned by it) or else consecutive sequences of tokens.
 
-The order in which the caselists of production rules are written does not
-matter.  So they can be written top-down, beginning with the start-state
-nonterminal, or in any other convenient way.  Nonterminals can be used in the
-r.h.s. of the caselists even when they have not been defined yet: they are
-written as string labels which are resolved later when the `compile` method of
-the grammar is called (passed the start nonterminal and a locals dict).  These
-r.h.s. strings for nonterminals **must be identical** to the l.h.s. Python
-variable names for the nonterminals since they are looked up in the locals
-dict.
+This is an example of a definition of a caselist with two cases in the Typped
+EBNF-like code:
+
+.. code-block:: python
+
+   arglist = ( Rule("arg") + Tok("k_comma") + Rule("arglist")
+             | Rule("arg")
+             )
+
+The tokens involved must already be defined (and the token itself can be used
+in the rule instead of the label inside a call to ``Tok``).  The caselist for
+``arg`` is not shown, but it could be defined before or after the ``arglist``
+caselist.  The order in which the caselists of production rules are written
+does not matter, so they can be written top-down, beginning with the
+start-state nonterminal, or in any other convenient way.
+
+Nonterminals are written as strings passed to ``Rule`` precisely so they can be
+used in the r.h.s. of caselist definitions even when they have not yet been
+defined.  They are resolved later when the `compile` method of the grammar is
+called (passed the start nonterminal and the locals dict).  These r.h.s.
+strings for nonterminals **must be identical** to the l.h.s. Python variable
+names for the nonterminals (since they are looked up in the locals dict).
 
 The order in which the cases of a nonterminal are defined within a caselist
 *does* matter, at least for ambiguous grammars and to avoid or minimize
@@ -84,72 +94,62 @@ https://en.wikipedia.org/wiki/Parsing_expression_grammar
 Implementation
 ==============
 
-.. note::
+This module is a work-in-progress.  As of now the syntactic Python interface
+mostly all works, but not all of the features have been coded into the backend
+"compiling" algorithm.  Currently it does basic BNF types production rules, but
+not many EBNF extensions.  See the test file cases for examples.  Here is a
+summary of what is implemented and what is not yet implemented.
 
-    This module is a work-in-progress.  As of now the syntactic Python
-    interface mostly all works, but not all of the features have been coded
-    into the backend "compiling" algorithm.  Currently it does basic BNF types
-    production rules, but not many EBNF extensions.  See the test file cases for
-    examples.  Here is a summary of what is implemented and what is not yet
-    implemented.
+Implemented:
 
-    Implemented:
+   * Backtracking recursive descent search.
+   * `Rule`
+   * `Tok`
 
-       Backtracking recursive descent search.
-       `Rule`
-       `Tok`
+Not yet implemented:
 
-    Not yet implemented:
-
-       `Prec` and precedences in productions
-       `Sig` type handling
-       `Pratt` calls to the Pratt parser
-       `Opt`
-       `OneOrMore`
-       `ZeroOrMore`
-       `Not`
-       `AnyOf`
-       `Hide`
-       `Exactly(n, itemlist)`, exactly n repeats
-       `nOrMore(n, itemlist)`, n or more repeats
-       `nOrFewer(n, itemlist)`, n or fewer repeats
-       Overload * as in `3 * k_rpar` for `Repeat`
-       `RepeatAtLeast(n, itemlist)`, n or more repeats
-       Overload ** as in `3 ** k_rpar` for `RepeatAtLeast`.
-       LL(1) optimization
-       Epsilon production handling.
-       Undo compile in the `Grammar` class.
+   * `Prec` and precedences in productions
+   * `Sig` type handling
+   * `Pratt` calls to the Pratt parser
+   * `Opt`
+   * Repeated items (`OneOrMore`, `ZeroOrMore`, `Between`, etc.)
+   * `Not`
+   * `AnyOf`
+   * `Hide`
+   * LL(1) optimization
+   * Epsilon production handling.
+   * Undo compile in the `Grammar` class.
 
 Wrapper functions
 =================
 
 Strings in the rule-defining expressions must be wrapped by some function call,
-even though allowing the plains strings would be convenient for rules or for
+even though allowing the plain strings would be convenient for rules or for
 using token labels instead of the token objects.  That would work in most
 cases, but since addition is defined for strings it would not work for two
 strings at the beginning of the expression.
 
 Wrapper functions:
 
-============   =========================== ==========
+============   =========================== =============
 Function       Arguments                   Shortcut
-============   =========================== ==========
+============   =========================== =============
 `Rule`         rule-label (a string)
 `Tok`          token                       token
 `Root`         item
 `Prec`         item, prec                  item[prec]
 `Sig`          item, type sig              item(sig)
 `Pratt`        (optional) pstate, type sig
-`Opt`     item
+`Opt`          item
 `nExactly`     int, item                   n * item
-`nOrMore`      int, item                   n ** item
-`nOrFewer`     int, item                   n // item
-`OneOrMore`    item
-`ZeroOrMore`   item
+`nOrMore`      int, item                   (n,) * item
+`OneOrMore`    item                        (1,) * item
+`ZeroOrMore`   item                        (0,) * item
+`Between`      int, int, item              (m,n) * item
 `Hide`         item
 `Not`          item
 `AnyOf`        itemlist
-============   =========================== ==========
+============   =========================== =============
 
 Overloaded operator API
 =======================
@@ -157,8 +157,8 @@ Overloaded operator API
 The basic objects that make up rule definitions are `Item` objects, `ItemList`
 objects, and `CaseList` objects.  The latter two are just list-like objects
 with most of the list operations overloaded.  An `ItemList` only holds `Item`
-instances, and a `CaseList` only holds `ItemList` instances.  These objects
-do not nest, and so they have some important differences from ordinary Python
+instances, and a `CaseList` only holds `ItemList` instances.  These objects do
+not nest, and so they have some important differences from ordinary Python
 lists.
 
 The `ItemList` and `CaseList` classes are basically designed for concatenation
@@ -219,35 +219,6 @@ Summary of the operations:
    (It would be possible to overload the `<<=` operator and use it instead of
    `=` to automatically do the conversion, but that does not seem worth the
    extra notation and boilerplate.)
-
-TODO:
-
-    Update: Implement this: Use `3 * k_digit` for exactly 3, and `3 ** k_digit`
-    for three or more.  Then ZeroOrMore is `0 ** k_digit` and OneOrMore is
-    `1 ** k_digit`.  The `**` operator can be read as `OrMore`.  Both have high
-    precedence, shouldn't be a problem!!!  Consider, though, if left vs. right
-    association will be a problem.  The extra asterisk "adds more" to
-    the expression.  Also, `Not` is `0*k_comma`.
-
-    * `*` = "occurrences of" or "exactly"
-    * `**` = "or more occurrences of" or "or more"
-
-    Applies to groups in parens for free; the + operators turn the all
-    into an `ItemList`.
-
-    Implement as `nExactly(n, itemlist)` and `nOrMore(n, itemlist)`.
-
-    Consider `3 // k_digit` as "3 or fewer".  Then Opt is `1 // k_digit`,
-    but you need parens for larger expression.  Implement as `nOrFewer`.
-    Then does between 4 and 10 work as: `10 // 4 ** k_digit`?  No, it is 10 or
-    fewer groups of 4 or more.  Then:
-
-    * `//` = "or fewer occurrences of" or "or fewer"
-
-    Consider shortening `Opt` to `Opt`.
-
-    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
-
 
 Modifiers for items
 ===================
@@ -460,7 +431,10 @@ class Grammar(object):
         except AttributeError:
             raise ParserGrammarRuleException("The rule \"{0}\" was not found"
                     " in the locals dict that was passed to the compile method"
-                    " of the `Grammar` class.".format(nonterm_label))
+                    " of the `Grammar` class.  Remember that the string passed"
+                    " to the Rule function must correspond exactly to the name of a"
+                    " Python varible on the l.h.s. of a definition."
+                    .format(nonterm_label))
         locals_caselist = CaseList(*locals_caselist)
         print("label of caselist being processed is", nonterm_label)
         print("processing this caselist from locals():\n   ", locals_caselist)
@@ -542,7 +516,9 @@ class Grammar(object):
         # though, could be used as a simple way to determine disjointness.
         # This would probably work in most cases, and the tokens could be
         # defined slightly differently if necessary...  Note that priorities
-        # could also come into play...
+        # could also come into play...  In some sense the tokens ARE disjoint
+        # in the sense that the lexer will uniquely choose one and not the other.
+        # Is that sufficient here?
         #
         # Consider using the first token-literal label as the thing to compare
         # with.  This assumes one-token lookahead.  Can this be proved to work?
@@ -714,12 +690,7 @@ class Item(object):
 
     def __rmul__(self, left_other):
         """The expression `n*item` for an int `n` is "n occurrences of" `item`."""
-        return nExactly(left_other, self)
-
-    def __rpow__(self, left_other):
-        """The expression `n**token` for an int `n` is "n or more occurrences of"
-        `token`."""
-        return nOrMore(left_other, self)
+        return Repeat(left_other, self)
 
     def __invert__(self):
         """Overload the prefix operator '~'."""
@@ -811,12 +782,7 @@ class ItemList(object):
     def __rmul__(self, left_other):
         """The expression `n*itemlist` for an int `n` is "n occurrences of"
         `itemlist`."""
-        return nExactly(left_other, self)
-
-    def __rpow__(self, left_other):
-        """The expression `n**token` for an int `n` is "n or more occurrences of"
-        `token`."""
-        return nOrMore(left_other, self)
+        return Repeat(left_other, self)
 
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
@@ -923,12 +889,7 @@ class CaseList(object):
     def __rmul__(self, left_other):
         """The expression `n*caselist` for an int `n` is "n occurrences of"
         `caselist`."""
-        return nExactly(left_other, self)
-
-    def __rpow__(self, left_other):
-        """The expression `n**token` for an int `n` is "n or more occurrences of"
-        `token`."""
-        return nOrMore(left_other, self)
+        return Repeat(left_other, self)
 
     def __repr__(self):
         return "CaseList({0})".format(", ".join([str(i) for i in self.data_list]))
@@ -950,9 +911,6 @@ DOLLAR.kind_of_item = "dollar"
 def Rule(nonterm_label):
     """Return an `Item` to represent the nonterminal with the string label
     `nonterm_label`."""
-    # TODO: Consider if using the name Rule is better than the longer but more
-    # descriptive name NonTerm.
-    # Only one string arg allowed.
     item = Item(nonterm_label)
     item.kind_of_item = "nonterminal"
     return item
@@ -1006,54 +964,43 @@ def Opt(arg):
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-# TODO: consider if arg * 3 and arg ** 3 would be better, since then
-# you do not have a problem with 3 * 2 ** arg == 6 ** arg (because
-# left arg is always a token, Item or ItemList.
-#
-# But then it reads "arg repeat 3" or "arg repeat at least 3"
-#
-# BUT still have arg * 3 ** 2 == arg * 9
-#
-# So just warn them.  It is Python language, after all, and you can put
-# in any expression.
-#
-# Also consider arg // 3 for "repeat at most", but precedence is
-# different from ** so caution is warranted...
+def Repeat(range_spec, arg):
+    """Used to process overload of multiplication for repetition."""
+    if isinstance(range_spec, tuple) or isinstance(range_spec, list):
+        if len(range_spec) == 1:
+            #return nOrMore(range_spec[0], arg)
+            range_spec = [range_spec[0], None]
+        if len(range_spec) == 2:
+            #return Between(range_spec[0], range_spec[1], arg)
+            range_spec = [range_spec[0], range_spec[1]]
+        else:
+            raise ParserGrammarRuleException("Tuple or list must contain one or two integers.")
+    elif isinstance(range_spec, int):
+        #return nExactly(range_spec, arg)
+        range_spec = [range_spec, range_spec]
+    else:
+        raise ParserGrammarRuleException("Can only multiply by an int, tuple, or list.")
+
+    itemlist = ItemList(arg)
+    itemlist[0].modifiers.insert(0, "Repeat({0}, {1}, ".format(range_spec[0], range_spec[1]))
+    itemlist[-1].modifiers.append(")")
+    return itemlist
+
 
 def nExactly(n, arg):
-    # Same as n * arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "ExactlyN({0},".format(n))
-    itemlist[-1].modifiers.append(")")
-    return itemlist
+    return Repeat(n, arg)
 
 def nOrMore(n, arg):
-    # Same as n ** arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "nOrMore({0},".format(n))
-    itemlist[-1].modifiers.append(")")
-    return itemlist
+    return Repeat((n,), arg)
 
-def nOrFewer(n, arg):
-    # Same as n // arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "nOrMore({0},".format(n))
-    itemlist[-1].modifiers.append(")")
-    return itemlist
+def Between(m, n, arg):
+    return Repeat((m,n), arg)
 
 def OneOrMore(arg):
-    # Same as 1 ** arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "OneOrMore(")
-    itemlist[-1].modifiers.append(")")
-    return itemlist
+    return Repeat((1,), arg)
 
 def ZeroOrMore(arg):
-    # Same as 0 ** arg.
-    itemlist = ItemList(arg)
-    itemlist[0].modifiers.insert(0, "ZeroOrMore(")
-    itemlist[-1].modifiers.append(")")
-    return itemlist
+    return Repeat((0,), arg)
 
 def Hide(itemlist):
     """Do not show the items in the final tree.  For example, parentheses can
