@@ -12,32 +12,30 @@ made more general).  As of now type are essentially just string labels which
 are equivalent iff the labels are the same.  At some point type heirarchies and
 type conversions may be added.
 
-The type system also allows for operator overloading, including optional
-overloading on return types.  The default is to allow overloading only on
-argument types.  Overloading currently has the mild restriction that all
-overloads defined for an infix operator must share the same precedence value.
-To disable all overloading, set ``overload_on_arg_types=False`` in the
-``PrattParser`` initializer.  To allow overloading on return types as well as
-argument types, set ``overload_on_ret_types=True`` in the initializer.
+Each construct registered with a parser instance can have type information
+associated with it.  This type signature is then checked against the actual
+types in the parse subtree returned by the handler function for the construct.
 
-Overloading is specified by re-defining a handler for a token which already has
-a handler.  If the preconditions function is the same but the type of the
-arguments are different then an overloaded type specification is created.  If
-overloading on return types is allowed then the types are also considered
-different if the return type is different.
+The type system allows for operator overloading, including optional overloading
+on return types.  The default is to allow overloading only on argument types.
+Overloading currently has the mild restriction that all overloads defined for
+an infix operator must share the same precedence value.  To disable all
+overloading, set ``overload_on_arg_types=False`` in the ``PrattParser``
+initializer.  To allow overloading on return types as well as argument types,
+set ``overload_on_ret_types=True`` in the initializer.
 
-Each handler function, head or tail, can have type information associated with
-it.  Recall that handler functions are one-to-one with tuples of the form
-``(head_or_tail, token_label, precond_label)``, where ``head_or_tail`` is one
-of the constants ``HEAD`` or ``TAIL``.  So to have two distinct types you need
-to make sure there are two distinct handlers for the separate cases.  This
-usually happens by necessity anyway, since they must parse differently.  The
-built-in parsing methods of the ``PrattParser`` class hide most of these details.
+Overloading is specified by re-defining a construct for a token which already
+has a construct of that name.  If the construct name is the same but
+the type of the arguments are different then an overloaded type specification
+is created.  If overloading on return types is allowed then the types are also
+considered different if the return type is different.
 
 Operator overloading can be used for constructs which parse the same, i.e.,
 using the same handler function, but can have multiple possible type
 signatures.  Type resolution is then based on the actual arguments found at
 parse-time.
+
+TODO: update below paragraph.
 
 Type information for a construct (e.g., an function evaluation subexpression)
 should generally be associated with the token which ends up as the the subtree

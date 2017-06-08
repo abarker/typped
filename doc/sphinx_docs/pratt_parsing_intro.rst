@@ -15,7 +15,7 @@ parsing" because it is a top-down, recursive algorithm which can easily handle
 operator precedences.  Pratt describes it as a modification of the Floyd
 operator-precedence parser to work top-down.  Pratt parsing fell into relative
 obscurity for some years, but it has recently experienced something of a
-revival as a parsing technique that is well-suited for dynamic languages.
+revival.
 
 The well-known recursive descent parsing algorithm is also a top-down,
 recursive parsing method.  In recursive descent parsing each nonterminal in

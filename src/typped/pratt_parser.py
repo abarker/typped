@@ -27,7 +27,7 @@ Attributes set on token instances during parsing:
 
 * `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
 * `expanded_formal_sig` -- a `TypeSig` instance of the expanded formal signature
-* `construct_label` -- the label of the winning construct
+* `construct_label` -- the string label of the winning construct
 
 Note that both `original_formal_sig` and `expanded_formal_sig` are set to the
 string `"Unresolved"` before the token is parsed.  The actual signature is
@@ -249,7 +249,7 @@ DEFAULT_CONSTRUCT_LABEL = ("always-true-default-precondition",)
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     return True
 
-class Construct(object):
+class SyntaxConstruct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function
     containing extra context information such as the preconditions function,
@@ -274,16 +274,26 @@ class Construct(object):
     information (eval functions and ast labels) is stored in dicts keyed by
     typesigs."""
     # Use __slots__ later when implementation works.
-    def __init__(self, construct_label,
+
+    # TODO: Constructs also hold typesig info, and they can run both the
+    # handler and then run `process_and_check_node` on the returned subtree.
+    # Then it is no longer required to put the call inside handler functions.
+    #
+    # Need to add the following things to do this:
+    # - any options that should be passed to `process_and_check_node` as init args
+    # - work out typesig_override problems
+
+    def __init__(self, parser_instance,
+                       construct_label,
                        trigger_head_or_tail=None,
                        trigger_token_label=None,
                        handler_fun=None,
                        precond_fun=None,
                        precond_priority=0,
-                       original_sigs=None,
-                       #root_token_label=None,
+                       original_sig=None,
                        eval_fun_dict = None,
                        ast_data_dict = None):
+        self.parser_instance = parser_instance
         self.construct_label = construct_label
 
         self.trigger_head_or_tail = trigger_head_or_tail
@@ -293,10 +303,10 @@ class Construct(object):
         self.precond_fun = precond_fun
         self.precond_priority = precond_priority
 
-        if original_sigs is None:
+        if original_sig is None:
             self.original_sigs = []
         else:
-            self.original_sigs = original_sigs
+            self.original_sigs = original_sig
 
         # Dicts keyed on original sig (and looked up with one that matches actual sig.)
         if ast_data_dict is None:
@@ -307,6 +317,48 @@ class Construct(object):
         self.eval_fun_dict = eval_fun_dict
         #self.root_token_label = root_token_label # Token label that ends up at the root of the subtree.
 
+    @staticmethod
+    def run(construct, tok, lex, processed_left=None, lookbehind=None):
+        """Run the handler associated with the construct.  Check the returned parse
+        subtree with `process_and_check_node`.  Return the subtree if it passes type
+        checking.  This is a static method because the arguments will be bound using
+        `functools.partial` before it is dispatched to be called."""
+
+        # NOTE: A circular reference to the construct is temporarily added as
+        # an attribute of the handler function.  The handler function will be
+        # immediately called, but we want a simple way to access the construct
+        # from inside the handler function (which can see itself).  Since this
+        # will only occasionally be used, an extra argument to handlers is
+        # avoided.
+        #
+        # This has to be done just before the call since there's no guarantee
+        # that the function object wasn't re-used in some other construct.
+        # This and the use of recursive calls means that we also need to keep a
+        # stack of constructs with a given function object.  (Maybe just add an
+        # argument, esp. if get rid of process_and_check_node call?)
+
+        handler_fun = construct.handler_fun
+        if not hasattr(handler_fun, "construct_stack"):
+            handler_fun.construct_stack = []
+        handler_fun.construct_stack.append(construct)
+
+        if construct.trigger_head_or_tail == HEAD:
+            subtree = handler_fun(tok, lex)
+        else:
+            subtree = handler_fun(tok, lex, processed_left)
+
+        handler_fun.construct_stack.pop()
+        if not handler_fun.construct_stack:
+            delattr(handler_fun, "construct_stack")
+        # TODO: eventually want to call `process_and_check_node` from here, BUT
+        # the problem is that the bracket construct dynamically sets the typesig
+        # override to the type of the child.  Need a way to specify that.
+        # -----> Consider just modifying the construct `original_sig` in the handler,
+        # but seems kind of kludgey as it is... maybe define a special attribute,
+        # which WILL PROBABLY ALSO NEED TO BE A STACK since constructs used recursively...
+        #self.parser_instance.process_and_check_node(subtree, arg,...) # TODO
+        # -----> Could make typesig_override a function which returns a typesig...
+        return subtree
 
 #
 # TokenNode
@@ -437,7 +489,7 @@ def token_subclass_factory():
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
     #class TokenSubclass(TokenNode):                               # No metaclass.
-        construct_dict = {} # Dict of data frames for handler functions.
+        construct_dict = {} # Dict of constructs (handler funs and associated data).
         construct_dict[HEAD] = OrderedDict() # Head constructs sorted by priority.
         construct_dict[TAIL] = OrderedDict() # Tail constructs sorted by priority.
         static_prec = 0 # The prec value for this kind of token, with default zero.
@@ -504,7 +556,7 @@ def token_subclass_factory():
             #    (head_or_tail, peek_token_label, None)
             #    (head_or_tail, None, None)
             #
-            # Then in `lookup_handler_fun` go through all three of these sorted
+            # Then in `lookup_construct` go through all three of these sorted
             # sublists in parallel, from the beginning, taking by top priority
             # and running the precond funs.  Almost like a real `case`
             # statement with jumps.  To get the optimized version you would
@@ -550,16 +602,17 @@ def token_subclass_factory():
             # since it depends on the definition of TypeSig equality.
             TypeSig.append_sig_to_list_replacing_if_identical(prev_sigs, type_sig)
 
-            # Set up the new handler frame.
-            new_construct = Construct(construct_label=construct_label,
-                                          trigger_head_or_tail=head_or_tail,
-                                          trigger_token_label=cls.token_label,
-                                          handler_fun=handler_fun,
-                                          precond_fun=precond_fun,
-                                          precond_priority=precond_priority,
-                                          original_sigs=prev_sigs,
-                                          ast_data_dict=prev_ast_data,
-                                          eval_fun_dict=prev_eval_funs)
+            # Set up the new construct.
+            new_construct = SyntaxConstruct(cls.parser_instance,
+                                            construct_label=construct_label,
+                                            trigger_head_or_tail=head_or_tail,
+                                            trigger_token_label=cls.token_label,
+                                            handler_fun=handler_fun,
+                                            precond_fun=precond_fun,
+                                            precond_priority=precond_priority,
+                                            original_sig=prev_sigs,
+                                            ast_data_dict=prev_ast_data,
+                                            eval_fun_dict=prev_eval_funs)
             # Also pass on the eval_fun_dict and ast_fun_dict.
             sorted_construct_dict[construct_label] = new_construct
 
@@ -685,19 +738,13 @@ def token_subclass_factory():
             bound."""
             if head_or_tail == HEAD:
                 construct = self.lookup_construct(HEAD, lex)
-                handler = functools.partial(construct.handler_fun, self, lex)
+                handler = functools.partial(construct.run, construct, self, lex)
             elif head_or_tail == TAIL:
                 construct = self.lookup_construct(TAIL, lex, lookbehind=lookbehind)
-                handler = functools.partial(construct.handler_fun, self, lex, left)
+                handler = functools.partial(construct.run, construct, self, lex, left)
             else:
                 raise ParserException("Bad first argument to dispatch_handler"
                         " function: must be HEAD or TAIL or the equivalent.")
-            # NOTE adding a circular ref here.  Set it here since the returned fun
-            # will be immediately called -- there's no guarantee that the
-            # function object wasn't re-used.  Use weak link later if it matters.
-            # This is ONLY done so handler and process_and_check_node can access frame.
-            # Set as an attribute of the original fun, not the bound wrapper.
-            construct.handler_fun.handler_frame = construct
             return handler
 
         def process_and_check_node(self, fun_object=None,
@@ -788,7 +835,7 @@ def token_subclass_factory():
             if typesig_override and check_override_sig:
                 all_possible_sigs = [typesig_override]
             else:
-                all_possible_sigs = fun_object.handler_frame.original_sigs
+                all_possible_sigs = fun_object.construct_stack[-1].original_sigs
             self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
 
             # Do the actual checking.
@@ -981,21 +1028,21 @@ def token_subclass_factory():
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
-            if is_head: handler_frame = cls.construct_dict[HEAD][construct_label]
-            else: handler_frame = cls.construct_dict[TAIL][construct_label]
+            if is_head: construct = cls.construct_dict[HEAD][construct_label]
+            else: construct = cls.construct_dict[TAIL][construct_label]
 
             # Save in dicts hashed with full signature (full overload with return).
             dict_key = type_sig
-            handler_frame.ast_data_dict[dict_key] = ast_data
-            handler_frame.eval_fun_dict[dict_key] = eval_fun
+            construct.ast_data_dict[dict_key] = ast_data
+            construct.eval_fun_dict[dict_key] = eval_fun
             # Also save in dicts hashed only on args (overloading only on args).
             dict_key = type_sig.arg_types
-            handler_frame.ast_data_dict[dict_key] = ast_data
-            handler_frame.eval_fun_dict[dict_key] = eval_fun
+            construct.ast_data_dict[dict_key] = ast_data
+            construct.eval_fun_dict[dict_key] = eval_fun
             # Also save in dicts hashed only on precond label (no overloading).
             dict_key = None
-            handler_frame.ast_data_dict[dict_key] = ast_data
-            handler_frame.eval_fun_dict[dict_key] = eval_fun
+            construct.ast_data_dict[dict_key] = ast_data
+            construct.eval_fun_dict[dict_key] = eval_fun
 
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
@@ -1003,8 +1050,8 @@ def token_subclass_factory():
             be set on the token instance.  Keyed on `is_head`, `construct_label`, and
             original signature."""
             construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head: handler_frame = self.construct_dict[HEAD][construct_label]
-            else: handler_frame = self.construct_dict[TAIL][construct_label]
+            if self.is_head: construct = self.construct_dict[HEAD][construct_label]
+            else: construct = self.construct_dict[TAIL][construct_label]
 
             if self.parser_instance.overload_on_ret_types:
                 dict_key = orig_sig
@@ -1012,7 +1059,7 @@ def token_subclass_factory():
                 dict_key = orig_sig.arg_types
             else:
                 dict_key = None
-            return handler_frame.eval_fun_dict.get(dict_key, None)
+            return construct.eval_fun_dict.get(dict_key, None)
 
         def _get_ast_data(self, orig_sig):
             """Return the ast data saved by `_save_ast_data_and_ast_data`.
@@ -1020,8 +1067,8 @@ def token_subclass_factory():
             be set on the token instance.  Keyed on `is_head`, `construct_label`, and
             original signature."""
             construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head: handler_frame = self.construct_dict[HEAD][construct_label]
-            else: handler_frame = self.construct_dict[TAIL][construct_label]
+            if self.is_head: construct = self.construct_dict[HEAD][construct_label]
+            else: construct = self.construct_dict[TAIL][construct_label]
 
             if self.parser_instance.overload_on_ret_types:
                 dict_key = orig_sig
@@ -1029,7 +1076,7 @@ def token_subclass_factory():
                 dict_key = orig_sig.arg_types
             else:
                 dict_key = None
-            return handler_frame.ast_data_dict.get(dict_key, None)
+            return construct.ast_data_dict.get(dict_key, None)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
