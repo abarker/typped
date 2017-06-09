@@ -23,6 +23,8 @@ also sets several user-accessible attributes.
 
 Attributes set on the `TokenNode` subclass:
 
+* `token_label`
+
 Attributes set on token instances during parsing:
 
 * `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
@@ -278,16 +280,10 @@ class SyntaxConstruct(object):
     arguments/subtree is parsed to resolve the overload).  Some additional
     information (eval functions and ast labels) is stored in dicts keyed by
     typesigs."""
-    # TODO: Constructs also hold typesig info, and they can run both the
-    # handler and then run `process_and_check_node` on the returned subtree.
-    # Then it is no longer required to put the call inside handler functions.
-    #
-    # Need to add the following things to do this:
-    # - any options that should be passed to `process_and_check_node` as init args
-    # - work out typesig_override problems
     __slots__ = ["parser_instance", "construct_label", "trigger_head_or_tail",
-                 "trigger_token_label", "handler_fun", "precond_fun", "precond_priority",
-                 "original_sigs", "ast_data_dict", "eval_fun_dict"]
+                 "trigger_token_label", "handler_fun", "precond_fun",
+                 "precond_priority", "original_sigs", "ast_data_dict",
+                 "eval_fun_dict", "key_on_values"]
 
     def __init__(self, parser_instance,
                        construct_label,
@@ -298,7 +294,8 @@ class SyntaxConstruct(object):
                        precond_priority=0,
                        original_sig=None,
                        eval_fun_dict = None,
-                       ast_data_dict = None):
+                       ast_data_dict = None,
+                       key_on_values=False):
         self.parser_instance = parser_instance
         self.construct_label = construct_label
 
@@ -321,7 +318,7 @@ class SyntaxConstruct(object):
         if eval_fun_dict is None:
             eval_fun_dict = {}
         self.eval_fun_dict = eval_fun_dict
-        #self.root_token_label = root_token_label # Token label that ends up at the root of the subtree.
+        self.key_on_values = key_on_values
 
     @staticmethod
     def run(construct, tok, lex, processed_left=None, lookbehind=None):
@@ -344,6 +341,63 @@ class SyntaxConstruct(object):
             subtree.process_and_check_node(construct)
 
         return subtree
+
+    # TODO: Test keying/hashing on string value with an example that uses an
+    # identifier token with different meanings for, say, sin and cos.
+    # Language really only needs to read a stdfun, so could just add feature
+    # to that first.  Note that the typesig really needs to be the same for
+    # this to be useful, but true for sin and cos.
+
+    def _save_eval_fun_and_ast_data(self, is_head, construct_label,
+                                    type_sig, eval_fun, ast_data, string_value):
+
+        """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
+        `TypeSig` instance `typesig` and also by the `arg_types` of that
+        typesig.  If `key_on_values` is true for the construct then the
+        value `string_value` is also used in the hashing."""
+        if not self.key_on_values: string_value = None
+
+        # Save in dicts hashed with full signature (full overload with return).
+        dict_key = (type_sig, string_value)
+        self.ast_data_dict[dict_key] = ast_data
+        self.eval_fun_dict[dict_key] = eval_fun
+        # Also save in dicts hashed only on args (overloading only on args).
+        dict_key = (type_sig.arg_types, string_value)
+        self.ast_data_dict[dict_key] = ast_data
+        self.eval_fun_dict[dict_key] = eval_fun
+        # Also save in dicts hashed only on precond label (no overloading).
+        dict_key = string_value
+        self.ast_data_dict[dict_key] = ast_data
+        self.eval_fun_dict[dict_key] = eval_fun
+
+    def _get_eval_fun(self, orig_sig, string_value=None):
+        """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
+        Must be called after parsing because the `construct_label` attribute must
+        be set on the token instance.  Keyed on `is_head`, `construct_label`, and
+        original signature."""
+        if not self.key_on_values: string_value = None
+        if self.parser_instance.overload_on_ret_types:
+            dict_key = (orig_sig, string_value)
+        elif self.parser_instance.overload_on_arg_types:
+            dict_key = (orig_sig.arg_types, string_value)
+        else:
+            dict_key = string_value
+        return self.eval_fun_dict.get(dict_key, None)
+
+    def _get_ast_data(self, orig_sig, string_value=None):
+        """Return the ast data saved by `_save_ast_data_and_ast_data`.
+        Must be called after parsing because the `construct_label` attribute must
+        be set on the token instance.  Keyed on `is_head`, `construct_label`, and
+        original signature."""
+        if not self.key_on_values: string_value = None
+        if self.parser_instance.overload_on_ret_types:
+            dict_key = (orig_sig, string_value)
+        elif self.parser_instance.overload_on_arg_types:
+            dict_key = (orig_sig.arg_types, string_value)
+        else:
+            dict_key = string_value
+        return self.ast_data_dict.get(dict_key, None)
+
 
 #
 # TokenNode
@@ -518,11 +572,13 @@ def token_subclass_factory():
         @classmethod
         def register_construct(cls, head_or_tail, handler_fun, construct_label,
                                precond_fun, precond_priority=0,
-                               type_sig=TypeSig(None, None)):
+                               type_sig=TypeSig(None, None), key_on_values=False):
             """Register a construct (either head or tail) with the
             subclass for this kind of token, setting the given properties.
             This method is only ever called from the `modify_token`
             method of a `PrattParser` instance.
+
+            The `head_or_tail` argument must be `HEAD` or `TAIL`.
 
             The `type_sig` argument must be a valid `TypeSig` instance.  Every
             unique type signature is saved, and non-unique ones have their
@@ -598,7 +654,8 @@ def token_subclass_factory():
                                             precond_priority=precond_priority,
                                             original_sig=prev_sigs,
                                             ast_data_dict=prev_ast_data,
-                                            eval_fun_dict=prev_eval_funs)
+                                            eval_fun_dict=prev_eval_funs,
+                                            key_on_values=key_on_values)
             # Also pass on the eval_fun_dict and ast_fun_dict.
             sorted_construct_dict[construct_label] = new_construct
 
@@ -815,15 +872,18 @@ def token_subclass_factory():
             # Do the override in the case where no checking is done on the
             # override sig.  Only the `expanded_formal_sig` is set to the
             # override sig; the `original_formal_sig` is the one found in
-            # the actual checking above.
+            # the actual checking above.  Note that no expansion is done on
+            # the override sig (maybe it should be).
             if typesig_override and not check_override_sig:
                 orig_sig = self.expanded_formal_sig.original_formal_sig
                 self.original_formal_sig = orig_sig
                 prev_eval_fun = self._get_eval_fun(orig_sig)
                 prev_ast_data = self._get_ast_data(orig_sig)
+                # Note this permanently modifies the class below... clarify the
+                # semantics of what SHOULD happen in this case.  TODO
                 self._save_eval_fun_and_ast_data(self.is_head, self.construct_label,
                                                  typesig_override,
-                                                 prev_eval_fun, prev_ast_data)
+                                                 prev_eval_fun, prev_ast_data, self.value)
                 # Force the final, actual typesig to be the override sig.
                 self.expanded_formal_sig = typesig_override
 
@@ -982,61 +1042,40 @@ def token_subclass_factory():
 
         @classmethod
         def _save_eval_fun_and_ast_data(cls, is_head, construct_label,
-                                        type_sig, eval_fun, ast_data):
+                                        type_sig, eval_fun, ast_data, string_value):
             """This is a utility function that saves data in the `eval_fun_dict`
             and `ast_data_dict` associated with token `token_subclass`, keyed by
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
-            if is_head: construct = cls.construct_dict[HEAD][construct_label]
-            else: construct = cls.construct_dict[TAIL][construct_label]
-
-            # Save in dicts hashed with full signature (full overload with return).
-            dict_key = type_sig
-            construct.ast_data_dict[dict_key] = ast_data
-            construct.eval_fun_dict[dict_key] = eval_fun
-            # Also save in dicts hashed only on args (overloading only on args).
-            dict_key = type_sig.arg_types
-            construct.ast_data_dict[dict_key] = ast_data
-            construct.eval_fun_dict[dict_key] = eval_fun
-            # Also save in dicts hashed only on precond label (no overloading).
-            dict_key = None
-            construct.ast_data_dict[dict_key] = ast_data
-            construct.eval_fun_dict[dict_key] = eval_fun
+            if is_head:
+                construct = cls.construct_dict[HEAD][construct_label]
+            else:
+                construct = cls.construct_dict[TAIL][construct_label]
+            construct._save_eval_fun_and_ast_data(is_head, construct_label,
+                                         type_sig, eval_fun, ast_data, string_value)
 
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
             Must be called after parsing because the `construct_label` attribute must
-            be set on the token instance.  Keyed on `is_head`, `construct_label`, and
-            original signature."""
+            be set on the token instance."""
             construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head: construct = self.construct_dict[HEAD][construct_label]
-            else: construct = self.construct_dict[TAIL][construct_label]
-
-            if self.parser_instance.overload_on_ret_types:
-                dict_key = orig_sig
-            elif self.parser_instance.overload_on_arg_types:
-                dict_key = orig_sig.arg_types
+            if self.is_head:
+                construct = self.construct_dict[HEAD][construct_label]
             else:
-                dict_key = None
-            return construct.eval_fun_dict.get(dict_key, None)
+                construct = self.construct_dict[TAIL][construct_label]
+            return construct._get_eval_fun(orig_sig, self.value)
 
         def _get_ast_data(self, orig_sig):
             """Return the ast data saved by `_save_ast_data_and_ast_data`.
             Must be called after parsing because the `construct_label` attribute must
-            be set on the token instance.  Keyed on `is_head`, `construct_label`, and
-            original signature."""
+            be set on the token instance."""
             construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head: construct = self.construct_dict[HEAD][construct_label]
-            else: construct = self.construct_dict[TAIL][construct_label]
-
-            if self.parser_instance.overload_on_ret_types:
-                dict_key = orig_sig
-            elif self.parser_instance.overload_on_arg_types:
-                dict_key = orig_sig.arg_types
+            if self.is_head:
+                construct = self.construct_dict[HEAD][construct_label]
             else:
-                dict_key = None
-            return construct.ast_data_dict.get(dict_key, None)
+                construct = self.construct_dict[TAIL][construct_label]
+            return construct._get_ast_data(orig_sig, self.value)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
@@ -1599,15 +1638,16 @@ class PrattParser(object):
                       head=None, tail=None,
                       construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
-                      eval_fun=None, ast_data=None):
-        """Look up the subclass of base class `TokenNode` corresponding to the
-        label `token_label` (in the token table) and modify its properties.  A
-        token with that label must already be in the token table, or an
-        exception will be raised.
+                      eval_fun=None, ast_data=None, key_on_values=False,
+                      string_value=None):
+        """Define a construct and register it with the token with label
+        `trigger_token_label`.  A token with that label must already be in the
+        token table, or an exception will be raised.
 
-        Returns the modified class. Saves any given `head` or `tail` functions
-        in the handler dict for the token.  Both can be passed in one call, but
-        they must have the same preconditions function and priority.
+        Currently returns the token that is modified.
+
+        Both head and tail functions can be passed in one call, but they must
+        have the same construct label and precondition priority.
 
         If `tail` is set then the prec will also be set unless `prec` is
         `None`.  For a head the `prec` value is ignored.  If `tail` is set and
@@ -1618,7 +1658,12 @@ class PrattParser(object):
         `TypeSig` defined by `val_type` and `arg_types`, as well as by
         `arg_types` alone for when overloading on return values is not used.
         This allows for different overloads to have different evaluation
-        functions and AST-associated data."""
+        functions and AST-associated data.
+
+        If `key_on_values` is true then values will be used to key eval funs
+        and AST data.  The `string_value` is a value to set with this data.
+        Used, for example, when overloading a generic identifier with different
+        evaluations when the value is `sin`, `cos`, etc."""
         # Why not make this a method of TokenNode?  Keep in mind the
         # distinction between the subclass (representing the token in general)
         # and the instances (representing particular lexed tokens).  For now
@@ -1667,15 +1712,17 @@ class PrattParser(object):
         if head:
             token_subclass.register_construct(HEAD, head,
                                construct_label=construct_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig)
+                               precond_priority=precond_priority, type_sig=type_sig,
+                               key_on_values=key_on_values)
             token_subclass._save_eval_fun_and_ast_data(True, construct_label,
-                                                   type_sig, eval_fun, ast_data)
+                                          type_sig, eval_fun, ast_data, string_value)
         if tail:
             token_subclass.register_construct(TAIL, tail,
                                construct_label=construct_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig)
+                               precond_priority=precond_priority, type_sig=type_sig,
+                               key_on_values=key_on_values)
             token_subclass._save_eval_fun_and_ast_data(False, construct_label,
-                                                   type_sig, eval_fun, ast_data)
+                                          type_sig, eval_fun, ast_data, string_value)
 
         return token_subclass
 
