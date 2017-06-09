@@ -105,6 +105,10 @@ implemented as tokens from the lexer, defined by regular expressions.  Here the
 square brackets are optional parts, and curly braces mean "zero or more." The
 ``(x|y)`` construct means either ``x`` or ``y``.
 
+..
+   TODO: consider this, especially w.r.t. associativity:
+   http://homepage.divms.uiowa.edu/~jones/compiler/spring13/notes/10.shtml
+
 .. productionlist::
    expression : ["+"|"-"] term {("+"|"-") term}
    term       : factor {("*"|"/") factor}

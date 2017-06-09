@@ -53,11 +53,11 @@ In this generalization a construct is expanded to include the following:
 * a string label for the construct
 * other data, such as evaluation functions and type signatures
 
-A user **registers** constructs with the parser in order to define a particular
-grammar on the tokens of the construct (which were previously defined).  A
-construct with a head handler, triggered by a head token, may be called a head
-construct.  A construct with a tail handler may be called a tail construct.
-The preconditions priority is a number which defaults to zero.
+Constructs are **registered** with a parser instance in order to define a
+particular grammar on the tokens of the construct (which were previously
+defined).  A construct with a head handler, triggered by a head token, may be
+called a head construct.  A construct with a tail handler may be called a tail
+construct.  The preconditions priority is a number which defaults to zero.
 
 Whenever the ``recursive_parse`` routine consumes a particular kind of token
 from the lexer, in a head or tail position, it sequentially executes the
@@ -332,16 +332,12 @@ space.
 
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and
-``recursive_parse``.  The general rule is that tokens which will appear in the
-final parse tree, even literal tokens, should always be retrieved with
-``recursive_parse``.  This is because it processes the nodes to adds some extra
-attributes which are needed by other tree operations.  Tokens which do not
-appear in the final parse tree, such as the final closing rpar token of the
-function arguments, can simply be consumed by ``match_next`` or an explicit
-call to ``lex.next()`` and discarded.  (If you must include a directly-consumed
-token in the tree, it must at least have its ``process_and_check_node`` method
-called with an overridden type signature to mimic what the handler for literal
-tokens does.)
+``recursive_parse``.  Generally, tokens which will appear in the final parse
+tree, even literal tokens, should be retrieved with ``recursive_parse``.  That
+is because it peforms some extra processing the nodes such as setting their
+actual types.  Tokens which do not appear in the final parse tree, such as the
+final closing rpar token of the function arguments, can simply be consumed by
+``match_next`` or an explicit call to ``lex.next()`` and discarded.
 
 The function defined above could be called as follows:
 

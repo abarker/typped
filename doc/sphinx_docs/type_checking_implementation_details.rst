@@ -6,102 +6,44 @@
 Low-level implementation details
 ================================
 
-In this implementation type information is associated with head and tail handler
-functions.  That is because type specifications and type checking are closely
-related to the nodes of the final parse tree of the expression.  Child nodes in
-the tree are function arguments of their parent node, and the type of the
-parent nodes correspond to a function's return value.  In the usual usage of
-Pratt parsing each head or tail handler produces one node in the parse tree,
-possibly with children.  Every node in the final parse tree was originally a
-token from the lexer that was made into a subtree via a call to one of its head
-or tail handlers.
-
-The head and the tail handlers of the same token can correspond to language
-constructs which have different value types and/or which take different types
-as arguments.  For example, a token as a prefix operator would take different
-arguments of possibly different types, and might return a different type than
-the same token as an infix operator.
-
-Any call to a particular head or tail handler is assumed to produce a parse tree
-node (possibly the root of a subtree) where the possible type specifications
-for the node are saved with the handler functions themselves as a collection of
-type signatures (the multiple possibilities correspond to possible
-overloading).  In a top-down parser the parse tree is essentially constructed
-bottom-up, on the way back up the recursion.  So the leaves are the first nodes
-created and they can have their types checked.  Each node farther up has the
-types of its children/arguments as well as its own type checked at the time
-when its subtree of the parse tree is constructed.
+In a top-down parser the parse tree is essentially constructed bottom-up, on
+the way back up the recursion.  So the leaves are the first nodes created and
+they can have their types checked.  Each node farther up has the types of its
+children/arguments as well as its own type checked at the time when its subtree
+of the parse tree is constructed.
 
 Based on the above, each constructed tree is guaranteed to be resolved for
-types when it is first constructed, provided that overloading is only on
+types when it is first constructed --- provided that overloading is only on
 function arguments.  Overloading on return types requires another pass down the
 parse tree (not necessarily the full tree, but it can be in a worst case).  As
 soon as a node with a unique signature is created the types in the subtree are
 resolved.
 
-Note that each possibly-uniquely typed symbol in the language should generally
-be defined as its own token type.  So, for overloaded functions the function
-names should each be registered as corresponding to a unique kind of token.
-This is in contrast to having a single token for all identifiers and then
-resolving which are functions and which signatures apply based on the actual
-value for the token's string.
-
-Comparing types and type signatures
------------------------------------
-
-To compare types we need a mechanism to do the following.
-
-1. Tell when types are the same.
-
-2. Tell when one type is an instance of another (heirarchical types).
-
-3. Indicate what types can be converted to what other types.
-
-3. Tell when one type should be converted to another (assuming it can be) and
-   how to do it (or what to do) if there is more than one way.
-
-The ``TypeObject`` class has methods for this.
-
-We have both actual type signatures, and defined type signatures.  They are
-both represented as a ``FunctionType`` object.  We need to be able to check
-that the ``ActualTypes`` for the actual arguments matches the defined
-``TypeSpec`` for the function (perhaps performing conversion).  We also need to
-choose which type signature to use if multiple conversions are possible.
-
-For type signatures we need to be able to do the following.
-
-1. Tell when an actual type signature matches a formal one (in overloaded context 
-   this is necessary).
-
-2. Tell which one to use (or what to do) if more than one defined signatures
-   match.
-
-More implementation details
----------------------------
-
-Type signatures can be declared whenever a head or tail is defined (or
-redefined for overloading).  It is passed in kwargs to the ``modify_token``
-routine whenever a head or tail is defined.  That routine then looks up the
-token subclass in the symbol table for token subclasses and stored the provided
-head or tail in one of the dictionaries for the token.  It also pastes the type
-information onto the head and/or tail handlers as an attribute (in a set of
-function signature tuples).  If the head or tail already exists it assumes that
-overloading is intended, and the type signature is unioned with any existing
+Type signatures can be declared whenever a construct is defined (or redefined
+for overloading).  It is passed in kwargs to the ``def_construct`` routine
+whenever a construct is defined.  If the construct already exists then
+overloading is assumed, and the type signature is unioned with any existing
 ones.
 
-After the tokens are defined the ``recursive_parse`` routine runs to do the
-actual parsing.  When any head or tail is run it should call the utility function
-``process_and_check_node`` just before returning a value.  That function
-retrieves the type information which was stored pasted onto the head or tail
-function as attributes.  This is exactly the type information it needs right
-then, and it checks that the types of the children in the token tree (which
-were processed already, since we're on the way back up the recursion) exactly
-match one sig in the stored collection of possible sigs (with None as
-wildcard).  If one matches, then it sets the ``val_type`` attribute of the
-``TokenNodeSubclass`` instance being returned in order to set the type of the
-return value to the one matching a signature.  Going up the tree, the next node
-can now look at those ``val_type`` values (of its children) and match them
-against its signatures, etc.
+In the Pratt parser the ``recursive_parse`` routine is run to do the actual
+parsing.  As each token is read in that routine the constructs for that token
+are tested to see it their preconditions match.  The winning construct (with
+the highest priority among the matching ones) provides the handler function to
+process the construct.  The dispatched handler does not just run the handler,
+though.  It first runs the handler, then it runs ``process_in_tree`` on the
+returned subtree, and then it runs ``process_and_check_node`` on the processed
+subtree.
+
+The type signature information is stored with the ``SyntaxConstruct`` instance
+associated with the winning construct.  The ``process_and_check_node`` call
+checks that the types of the children of the root of the returned subtree match
+the associated type signature.  (Children futher down were already processed,
+since we're on the way back up the recursion.)  When a unique match is found
+the signature of a node is set as an attribute.  Going up the tree, the next
+node can now look at the return type of those signatures to check that the
+arguments of its node match its signature.
+
+TODO: rewrite below or delete
 
 Overloading on return values
 ----------------------------
