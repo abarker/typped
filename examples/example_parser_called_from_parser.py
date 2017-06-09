@@ -153,7 +153,6 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
             else:
                 lex.match_next(rpar_token_label, raise_on_true=True)
         lex.match_next(rpar_token_label, raise_on_fail=True)
-        tok.process_and_check_node(head_handler)
         return tok
 
     #arg_types = [None]*num_args

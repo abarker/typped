@@ -358,7 +358,6 @@ def define_logic_language(parser):
     def head_handler(tok, lex):
         tok.parser_instance.pstack.pop()
         tok.append_children(tok.recursive_parse(0))
-        tok.process_and_check_node(head_handler)
         tok.parser_instance.pstack.append("wff_prime")
         return tok
 
@@ -383,7 +382,6 @@ def define_logic_language(parser):
     def head_handler(tok, lex): # ??????????? TAIL OR HEAD??????????
         tok.append_children(tok.recursive_parse(0))
         tok.parser_instance.pstack.pop()
-        tok.process_and_check_node(head_handler)
         return tok
 
     parser.def_construct("k_implies", prec=0, # PREC??????????

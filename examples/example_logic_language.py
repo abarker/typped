@@ -226,8 +226,8 @@ def define_logic_parser():
                                 " expression.  Expected a comma or a right paren"
                                 " which was not found.") # Improve message.
                 override_sig = pp.TypeSig(wff_type, override_arg_list)
-                tok.process_and_check_node(head_handler,
-                            typesig_override=override_sig, check_override_sig=True)
+                tok.process_and_check_kwargs = {"typesig_override": override_sig,
+                                                "check_override_sig": True}
                 return tok
             return self.def_construct(quant_token_label, head=head_handler)
 
@@ -275,9 +275,10 @@ def define_logic_parser():
                 override_arg_list.append(wff_type)
                 override_sig = pp.TypeSig(wff_type, override_arg_list)
 
-                # Note process_and_check_node is called for quantifier_tok.
-                quantifier_tok.process_and_check_node(head_handler,
-                            typesig_override=override_sig, check_override_sig=True)
+                # Note quantifier_tok is the returned root.
+                quantifier_tok.process_and_check_kwargs = {
+                                           "typesig_override": override_sig,
+                                           "check_override_sig": True}
                 return quantifier_tok
             # Note that the handler is registered with the lpar token.
             return self.def_construct(lpar_token_label, head=head_handler,
@@ -304,8 +305,8 @@ def define_logic_parser():
                     child_type = tok.children[0].val_type
                     override_sig = pp.TypeSig(child_type, [child_type])
                     tok.match_next(rpar_token_label, raise_on_fail=True)
-                tok.process_and_check_node(head_handler,
-                            typesig_override=override_sig, check_override_sig=True)
+                tok.process_and_check_kwargs = {"typesig_override": override_sig,
+                                                "check_override_sig": True}
                 return tok
 
             return self.def_construct(lpar_token_label, head=head_handler)

@@ -118,11 +118,11 @@ def define_syntax(parser):
     parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="paren_brackets")
 
     # TODO TODO NOTE These tests are using comma as an infix operator, and relying on
-    # the behavior of `in_tree` to set the children in the "usual" way.  Not a problem
+    # the behavior of `not_in_tree` to set the children in the "usual" way.  Not a problem
     # BUT should be noted and multi-arg functions need to also be tested when they
     # consume the commas themselves.  Different exceptions are raised.
     parser.def_infix_multi_op(["k_comma"], 5, "left",
-                              in_tree=False, repeat=True, ast_data="comma_list")
+                              not_in_tree=True, repeat=True, ast_data="comma_list")
 
     parser.def_infix_multi_op(["k_semicolon"], 3, "left",
                                    repeat=True, ast_data="d_statements")

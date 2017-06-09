@@ -37,6 +37,11 @@ one which matches the actual arguments is chosen.  The expanded formal
 signature is the same as the original formal signature except that wildcards,
 etc., are expanded in the attempt to match the actual arguments.
 
+Optional attributes that can be set to a node inside a handler:
+
+* `not_in_tree` -- set on a root node returned by the handler to hide it
+* `process_and_check_kwargs` -- kwargs dict to pass to type-checking routine
+
 Implementation details
 ======================
 
@@ -324,54 +329,19 @@ class SyntaxConstruct(object):
         subtree with `process_and_check_node`.  Return the subtree if it passes type
         checking.  This is a static method because the arguments will be bound using
         `functools.partial` before it is dispatched to be called."""
-
-        # NOTE: A circular reference to the construct is temporarily added as
-        # an attribute of the handler function.  The handler function will be
-        # immediately called, but we want a simple way to access the construct
-        # from inside the handler function (which can see itself).  Since this
-        # will only occasionally be used, an extra argument to handlers is
-        # avoided.
-        #
-        # This has to be done just before the call since there's no guarantee
-        # that the function object wasn't re-used in some other construct.
-        # This and the use of recursive calls means that we also need to keep a
-        # stack of constructs with a given function object.  (Maybe just add an
-        # argument, esp. if get rid of process_and_check_node call?)
-
-        # TODO maybe better to communicate on root token itself instead of handler?
         handler_fun = construct.handler_fun
-        if not hasattr(handler_fun, "construct_stack"):
-            handler_fun.construct_stack = []
-        handler_fun.construct_stack.append(construct)
 
         if construct.trigger_head_or_tail == HEAD:
             subtree = handler_fun(tok, lex)
         else:
             subtree = handler_fun(tok, lex, processed_left)
 
+        subtree.process_not_in_tree() # Could have option to skip this...
 
-        # TODO: eventually want to call `process_and_check_node` from here, BUT
-        # the problem is that the bracket construct dynamically sets the typesig
-        # override to the type of the child.  Need a way to specify that.
-        #
-        # -----> Consider just modifying the construct `original_sig` in the handler,
-        # but seems kind of kludgey as it is... maybe define a special attribute,
-        # which WILL PROBABLY ALSO NEED TO BE A STACK since constructs used recursively...
-        #
-        # -----> Could make typesig_override a function which returns a typesig...
-        #
-        # -----> Consider allowing a dict attribute to be set on the returned token root with
-        #        possible kwargs to process_and_check_node.
-        #
-        return subtree
         if hasattr(subtree, "process_and_check_kwargs"):
-            subtree.process_and_check_node(handler_fun, **subtree.process_and_check_kwargs)
+            subtree.process_and_check_node(construct, **subtree.process_and_check_kwargs)
         else:
-            subtree.process_and_check_node(handler_fun)
-
-        handler_fun.construct_stack.pop()
-        if not handler_fun.construct_stack:
-            delattr(handler_fun, "construct_stack")
+            subtree.process_and_check_node(construct)
 
         return subtree
 
@@ -763,16 +733,26 @@ def token_subclass_factory():
                         " function: must be HEAD or TAIL or the equivalent.")
             return handler
 
-        def process_and_check_node(self, fun_object,
+        def process_not_in_tree(self):
+            """Removes any immediate children which have `not_in_tree` set."""
+            modified_children = []
+            for child in self.children:
+                if not hasattr(child, "not_in_tree"):
+                    modified_children.append(child)
+                else:
+                    modified_children += child.children
+            self.children = modified_children
+
+        def process_and_check_node(self, construct,
                                    typesig_override=None, check_override_sig=False,
-                                   in_tree=True, repeat_args=False):
+                                   repeat_args=False):
             """This routine should always be called from inside the individual
             head and tail handler functions, just before they return a value.
             It sets some attributes and checks that the actual types match some
             defined type signature for the function.
 
             (This function does not need to be called in a handler if no
-            type-checking or type overloading is desired and if no `in_tree`
+            type-checking or type overloading is desired and if no `not_in_tree`
             options are used.  This function may later also implement other
             options.)
 
@@ -795,31 +775,10 @@ def token_subclass_factory():
             which will generally not have the correct information keyed under
             it.
 
-            If `in_tree` is set false then the node for this token will not
-            appear in the final token tree: its children will replace it, in
-            order, in its parent node's list of children.  This does not
-            (currently) work for the root node, which has no parent.  The
-            default is true, i.e., the token appears in the parse tree.
-
-            Setting `in_tree` to `False` can be useful for things like unary
-            plus and parentheses which are not wanted in the final tree.
-
             If `repeat_args` is true then the argument types for defined type
             signatures will be expanded to match the actual number of
             arguments, if possible, by cyclically repeating them an arbitary
             number of times."""
-            self.in_tree = in_tree
-
-            # Process the children to implement `in_tree`, if set.
-            modified_children = []
-            for child in self.children:
-                if not hasattr(child, "in_tree"):
-                    continue # `process_and_check_node` wasn't called on child.
-                if child.in_tree:
-                    modified_children.append(child)
-                else:
-                    modified_children += child.children
-            self.children = modified_children
 
             #
             # Just return and skip type-checking if the skip option is set.
@@ -836,7 +795,7 @@ def token_subclass_factory():
             if typesig_override and check_override_sig:
                 all_possible_sigs = [typesig_override]
             else:
-                all_possible_sigs = fun_object.construct_stack[-1].original_sigs
+                all_possible_sigs = construct.original_sigs
             self.all_possible_sigs = all_possible_sigs # Saved ONLY for error messages.
 
             # Do the actual checking.
@@ -848,7 +807,7 @@ def token_subclass_factory():
                 # subtree.  In this case, since the signature is fixed by
                 # argument types (regardless of where the top-down pass
                 # starts from) we can in this case resolve the types in the
-                # subtree early.  Note `check_types_in_tree_second_pass` is
+                # subtree early.  Note `check_types_not_in_tree_second_pass` is
                 # also called on the root node from the `parse` method.
                 if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                     self.check_types_in_tree_second_pass()
@@ -1781,11 +1740,9 @@ class PrattParser(object):
 
         def head_handler_literal(tok, lex):
             if typesig_override_fun:
-                tok.process_and_check_node(head_handler_literal,
-                                      #check_override_sig=True,
-                                      typesig_override=typesig_override_fun(tok, lex))
-            else:
-                tok.process_and_check_node(head_handler_literal)
+                tok.process_and_check_kwargs = {"typesig_override":
+                                                typesig_override_fun(tok, lex)}
+                                                #"check_override_sig": True,
             return tok
 
         return self.def_construct(token_label, head=head_handler_literal,
@@ -1808,13 +1765,13 @@ class PrattParser(object):
         return multi_funcall(self.def_literal, tuple_list)
 
     def def_infix_multi_op(self, operator_token_labels, prec, assoc,
-                           repeat=False, in_tree=True,
+                           repeat=False, not_in_tree=False,
                            construct_label=None, precond_fun=None, precond_priority=0,
                            val_type=None, arg_types=None, eval_fun=None, ast_data=None):
-        # TODO only this utility method currently supports "in_tree" kwarg.
+        # TODO only this utility method currently supports "not_in_tree" kwarg.
         # General and easy mechanism, though.  Test more and add to other
         # methods.  Does in-tree keep the first one? how is it defined for this
-        # thing?  Comma operator is example of in_tree=False, but how does it
+        # thing?  Comma operator is example of not_in_tree=True, but how does it
         # handle the root??  TODO: How about in-tree that works at root iff the
         # node only has one child?
         """Takes a list of operator token labels and defines a multi-infix
@@ -1828,7 +1785,7 @@ class PrattParser(object):
         is done after any node removal, which may affect the types that should
         be passed-in in the list arg_types of parent constructs.
 
-        If `in_tree` is false.......
+        If `not_in_tree` is false.......
         """
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
@@ -1840,28 +1797,30 @@ class PrattParser(object):
             while True:
                 for op in operator_token_labels[1:]:
                     lex.match_next(op, raise_on_fail=True)
-                    assert tok.prec() == recurse_bp or tok.prec()-1 == recurse_bp # DEBUG
+                    #assert tok.prec() == recurse_bp or tok.prec()-1 == recurse_bp # DEBUG
                     tok.append_children(tok.recursive_parse(recurse_bp))
                 if not repeat: break
                 # Peek ahead and see if we need to loop another time.
                 if lex.peek().token_label != operator_token_labels[0]: break
                 lex.match_next(operator_token_labels[0], raise_on_fail=True)
                 tok.append_children(tok.recursive_parse(recurse_bp))
-            tok.process_and_check_node(tail_handler, in_tree=in_tree, repeat_args=repeat)
+            if not_in_tree: tok.not_in_tree = True
+            tok.process_and_check_kwargs = {"repeat_args": repeat}
             return tok
 
         return self.def_construct(operator_token_labels[0], prec=prec, tail=tail_handler,
-                                construct_label=construct_label, precond_fun=precond_fun,
-                                precond_priority=precond_priority,
-                                val_type=val_type, arg_types=arg_types,
-                                eval_fun=eval_fun, ast_data=ast_data)
+                                  construct_label=construct_label, precond_fun=precond_fun,
+                                  precond_priority=precond_priority,
+                                  val_type=val_type, arg_types=arg_types,
+                                  eval_fun=eval_fun, ast_data=ast_data)
 
-    def def_infix_op(self, operator_token_label, prec, assoc, in_tree=True,
+    def def_infix_op(self, operator_token_label, prec, assoc, not_in_tree=False,
                      construct_label=None, precond_fun=None, precond_priority=0,
                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
         """This just calls the more general method `def_multi_infix_op`."""
-        return self.def_infix_multi_op([operator_token_label], prec, assoc, in_tree=in_tree,
-                                       construct_label=construct_label, precond_fun=precond_fun,
+        return self.def_infix_multi_op([operator_token_label], prec, assoc,
+                                       not_in_tree=not_in_tree, construct_label=construct_label,
+                                       precond_fun=precond_fun,
                                        precond_priority=precond_priority,
                                        val_type=val_type, arg_types=arg_types,
                                        eval_fun=eval_fun, ast_data=ast_data)
@@ -1878,7 +1837,6 @@ class PrattParser(object):
         expressions that the prefix operators grabs up (or doesn't)."""
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(prec))
-            tok.process_and_check_node(head_handler)
             return tok
 
         return self.def_construct(operator_token_label, head=head_handler,
@@ -1898,7 +1856,6 @@ class PrattParser(object):
             if not allow_ignored_before:
                 lex.no_ignored_before(raise_on_fail=True)
             tok.append_children(left)
-            tok.process_and_check_node(tail_handler)
             return tok
 
         return self.def_construct(operator_token_label, prec=prec, tail=tail_handler,
@@ -1921,12 +1878,10 @@ class PrattParser(object):
         def head_handler(tok, lex):
             tok.append_children(tok.recursive_parse(0))
             lex.match_next(rbrac_token_label, raise_on_fail=True)
-            if self.skip_type_checking:
-                tok.process_and_check_node(head_handler)
-            else:
+            if not self.skip_type_checking:
                 child_type = tok.children[0].expanded_formal_sig.val_type
-                tok.process_and_check_node(head_handler, #check_override_sig=True,
-                                 typesig_override=TypeSig(child_type, [child_type]))
+                tok.process_and_check_kwargs = { #"check_override_sig":True,
+                        "typesig_override": TypeSig(child_type, [child_type])}
             return tok
 
         return self.def_construct(lbrac_token_label, head=head_handler,
@@ -1934,7 +1889,7 @@ class PrattParser(object):
                                  precond_priority=precond_priority,
                                  eval_fun=eval_fun, ast_data=ast_data)
 
-    #def def_assignment_op(assignment_operator_label, prec, assoc, in_tree=True,
+    #def def_assignment_op(assignment_operator_label, prec, assoc, not_in_tree=False,
     #                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
 
     def def_stdfun(self, fname_token_label, lpar_token_label,
@@ -1980,7 +1935,7 @@ class PrattParser(object):
                     # This checks for errors like f(x,)
                     lex.match_next(rpar_token_label, raise_on_true=True)
             lex.match_next(rpar_token_label, raise_on_fail=True) # Closing rpar.
-            tok.process_and_check_node(head_handler)
+            tok.process_not_in_tree() # Need when comma is an operator that gets removed.
             if (self.skip_type_checking and num_args is not None
                                         and len(tok.children) != num_args):
                 print("tok is", tok, "tok children are", tok.children)
@@ -2036,7 +1991,6 @@ class PrattParser(object):
                 else:
                     lex.match_next(rpar_token_label, raise_on_true=True)
             lex.match_next(rpar_token_label, raise_on_fail=True)
-            left.process_and_check_node(tail_handler)
             return left
 
         # Note we need to generate a unique construct_label for each fname_token_label.
@@ -2073,7 +2027,6 @@ class PrattParser(object):
         def tail_handler(tok, lex, left):
             right_operand = tok.recursive_parse(recurse_bp)
             tok.append_children(left, right_operand)
-            tok.process_and_check_node(tail_handler)
             return tok
 
         return self.def_construct(self.jop_token_label, prec=prec, tail=tail_handler,

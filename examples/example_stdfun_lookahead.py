@@ -64,7 +64,6 @@ def define_parser_subclass():
                 lex.match_next(rpar_token_label, raise_on_fail=True)
 
                 # Always call this function at the end of a handler function.
-                tok.process_and_check_node(head_handler)
                 return tok
 
             # Register the construct with the parser.
