@@ -11,7 +11,6 @@ from __future__ import print_function, division, absolute_import
 import pytest_helper
 
 if __name__ == "__main__":
-    # No test file for now, just run the parser's tests.
     pytest_helper.script_run(self_test=True, pytest_args="-vv")
 
 pytest_helper.autoimport()
@@ -24,34 +23,34 @@ def def_expression_tokens_and_literals(parser):
     #
     # Define the tokens.
     #
+    tok = parser.def_token
 
     # Operators.
-    k_plus = parser.def_token("k_plus", r"\+")
-    k_minus = parser.def_token("k_minus", r"\-")
-    k_fslash = parser.def_token("k_fslash", r"/")
-    k_ast = parser.def_token("k_ast", r"\*")
+    k_plus = tok("k_plus", r"\+")
+    k_minus = tok("k_minus", r"\-")
+    k_fslash = tok("k_fslash", r"/")
+    k_ast = tok("k_ast", r"\*")
 
     # Grouping.
-    k_lpar = parser.def_token("k_lpar", r"\(")
-    k_rpar = parser.def_token("k_rpar", r"\)")
+    k_lpar = tok("k_lpar", r"\(")
+    k_rpar = tok("k_rpar", r"\)")
 
     # Numbers.
-    k_number = parser.def_token("k_number", r"[1-9][0-9]*")
+    k_number = tok("k_number", r"[1-9][0-9]*")
 
     #
-    # Define the literals (terminals).
+    # Define the literal tokens (terminals).
     #
+    literal = parser.def_literal
 
-    literals_list = [
-            ("k_plus",),
-            ("k_minus",),
-            ("k_fslash",),
-            ("k_ast",),
-            ("k_lpar",),
-            ("k_rpar",),
-            ("k_number",),
-            ]
-    parser.def_multi_literals(literals_list)
+    literal("k_plus")
+    literal("k_minus")
+    literal("k_fslash")
+    literal("k_ast")
+    literal("k_lpar")
+    literal("k_rpar")
+    literal("k_number")
+
     pytest_helper.locals_to_globals()
 
 def test_EBNF_like_expressions():
@@ -108,13 +107,42 @@ def test_wrappers_for_multiple_items():
 def test_parsing_from_basic_expression_grammar():
     """Test the actual parser creation and execution from a grammar."""
     parser = PrattParser()
-    parser.def_default_whitespace()
-
-    def_expression_tokens_and_literals(parser)
 
     #
-    # Define the grammar.  Basic expression parsing of these expressions is
-    # checked in previous test.
+    # Define the tokens.
+    #
+
+    tok = parser.def_token
+    parser.def_default_whitespace()
+
+    # Operators.
+    k_plus = tok("k_plus", r"\+")
+    k_minus = tok("k_minus", r"\-")
+    k_fslash = tok("k_fslash", r"/")
+    k_ast = tok("k_ast", r"\*")
+
+    # Grouping.
+    k_lpar = tok("k_lpar", r"\(")
+    k_rpar = tok("k_rpar", r"\)")
+
+    # Numbers.
+    k_number = tok("k_number", r"[1-9][0-9]*")
+
+    #
+    # Define constructs for the literals tokens (terminals).
+    #
+
+    literal = parser.def_literal
+    literal("k_plus")
+    literal("k_minus")
+    literal("k_fslash")
+    literal("k_ast")
+    literal("k_lpar")
+    literal("k_rpar")
+    literal("k_number")
+
+    #
+    # Define the grammar.
     #
 
     g = Grammar()
@@ -134,7 +162,7 @@ def test_parsing_from_basic_expression_grammar():
              )
 
     #
-    # Parse some expressions.
+    # Register the grammar with the parser and parse some expressions.
     #
 
     g.compile("expression", parser, locals())

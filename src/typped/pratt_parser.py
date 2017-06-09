@@ -273,8 +273,6 @@ class SyntaxConstruct(object):
     arguments/subtree is parsed to resolve the overload).  Some additional
     information (eval functions and ast labels) is stored in dicts keyed by
     typesigs."""
-    # Use __slots__ later when implementation works.
-
     # TODO: Constructs also hold typesig info, and they can run both the
     # handler and then run `process_and_check_node` on the returned subtree.
     # Then it is no longer required to put the call inside handler functions.
@@ -282,6 +280,9 @@ class SyntaxConstruct(object):
     # Need to add the following things to do this:
     # - any options that should be passed to `process_and_check_node` as init args
     # - work out typesig_override problems
+    __slots__ = ["parser_instance", "construct_label", "trigger_head_or_tail",
+                 "trigger_token_label", "handler_fun", "precond_fun", "precond_priority",
+                 "original_sigs", "ast_data_dict", "eval_fun_dict"]
 
     def __init__(self, parser_instance,
                        construct_label,
@@ -337,6 +338,7 @@ class SyntaxConstruct(object):
         # stack of constructs with a given function object.  (Maybe just add an
         # argument, esp. if get rid of process_and_check_node call?)
 
+        # TODO maybe better to communicate on root token itself instead of handler?
         handler_fun = construct.handler_fun
         if not hasattr(handler_fun, "construct_stack"):
             handler_fun.construct_stack = []
@@ -347,17 +349,30 @@ class SyntaxConstruct(object):
         else:
             subtree = handler_fun(tok, lex, processed_left)
 
-        handler_fun.construct_stack.pop()
-        if not handler_fun.construct_stack:
-            delattr(handler_fun, "construct_stack")
+
         # TODO: eventually want to call `process_and_check_node` from here, BUT
         # the problem is that the bracket construct dynamically sets the typesig
         # override to the type of the child.  Need a way to specify that.
+        #
         # -----> Consider just modifying the construct `original_sig` in the handler,
         # but seems kind of kludgey as it is... maybe define a special attribute,
         # which WILL PROBABLY ALSO NEED TO BE A STACK since constructs used recursively...
-        #self.parser_instance.process_and_check_node(subtree, arg,...) # TODO
+        #
         # -----> Could make typesig_override a function which returns a typesig...
+        #
+        # -----> Consider allowing a dict attribute to be set on the returned token root with
+        #        possible kwargs to process_and_check_node.
+        #
+        return subtree
+        if hasattr(subtree, "process_and_check_kwargs"):
+            subtree.process_and_check_node(handler_fun, **subtree.process_and_check_kwargs)
+        else:
+            subtree.process_and_check_node(handler_fun)
+
+        handler_fun.construct_stack.pop()
+        if not handler_fun.construct_stack:
+            delattr(handler_fun, "construct_stack")
+
         return subtree
 
 #
@@ -386,7 +401,8 @@ class TokenSubclassMeta(type):
     """A trivial metaclass that will actually create the `TokenSubclass`
     objects.  Since tokens are represented by classes, rather than instances,
     this is necessary in order to change their `__repr__` (the defalt one is
-    ugly for tokens) or to overload operators to work for token operands."""
+    ugly for tokens) and to overload operators to work for token operands
+    in the EBNF-like grammar."""
     def __new__(mcs, name, bases, dct):
         new_class = super(TokenSubclassMeta, mcs).__new__(mcs, name, bases, dct)
 
@@ -747,7 +763,7 @@ def token_subclass_factory():
                         " function: must be HEAD or TAIL or the equivalent.")
             return handler
 
-        def process_and_check_node(self, fun_object=None,
+        def process_and_check_node(self, fun_object,
                                    typesig_override=None, check_override_sig=False,
                                    in_tree=True, repeat_args=False):
             """This routine should always be called from inside the individual
@@ -759,21 +775,6 @@ def token_subclass_factory():
             type-checking or type overloading is desired and if no `in_tree`
             options are used.  This function may later also implement other
             options.)
-
-            The `sig_tok` argument is needed when the token originally
-            registered with the type signature information (i.e., passed to
-            `modify_token`) does not end up as the root of the resulting
-            expression subtree.  In that cast `sig_tok` should be passed the
-            name of the token which was originally registered to hold the type
-            signature.  The signature will then be looked up from the dict in
-            that token.  For example, in defining a standard function using a
-            tail handler on the opening lpar the lpar token is the one which
-            activates the handler.  But the lpar token never actually appears
-            in the tree, the function name to the left does.  So on processing
-            the tree with root at the function name this routine needs to be
-            passed the lpar token as the `sig_tok` argument.
-
-            TODO: eval funs will probably have same problem as above
 
             The `typesig_override` argument must be a `TypeSig` instance.  It
             will be *assigned* to the node as its `expanded_formal_sig` after
@@ -1786,6 +1787,7 @@ class PrattParser(object):
             else:
                 tok.process_and_check_node(head_handler_literal)
             return tok
+
         return self.def_construct(token_label, head=head_handler_literal,
                                   val_type=val_type, arg_types=(),
                                   construct_label=construct_label,
@@ -1832,6 +1834,7 @@ class PrattParser(object):
             raise ParserException('Argument assoc must be "left" or "right".')
         recurse_bp = prec
         if assoc == "right": recurse_bp = prec - 1
+
         def tail_handler(tok, lex, left):
             tok.append_children(left, tok.recursive_parse(recurse_bp))
             while True:
@@ -1844,9 +1847,9 @@ class PrattParser(object):
                 if lex.peek().token_label != operator_token_labels[0]: break
                 lex.match_next(operator_token_labels[0], raise_on_fail=True)
                 tok.append_children(tok.recursive_parse(recurse_bp))
-            tok.process_and_check_node(tail_handler, in_tree=in_tree,
-                                                     repeat_args=repeat)
+            tok.process_and_check_node(tail_handler, in_tree=in_tree, repeat_args=repeat)
             return tok
+
         return self.def_construct(operator_token_labels[0], prec=prec, tail=tail_handler,
                                 construct_label=construct_label, precond_fun=precond_fun,
                                 precond_priority=precond_priority,
@@ -1877,11 +1880,12 @@ class PrattParser(object):
             tok.append_children(tok.recursive_parse(prec))
             tok.process_and_check_node(head_handler)
             return tok
+
         return self.def_construct(operator_token_label, head=head_handler,
-                                 construct_label=construct_label, precond_fun=precond_fun,
-                                 precond_priority=precond_priority,
-                                 val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                                 ast_data=ast_data)
+                                  construct_label=construct_label, precond_fun=precond_fun,
+                                  precond_priority=precond_priority,
+                                  val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                                  ast_data=ast_data)
 
     def def_postfix_op(self, operator_token_label, prec, allow_ignored_before=True,
                        construct_label=None, precond_fun=None, precond_priority=0,
@@ -1896,6 +1900,7 @@ class PrattParser(object):
             tok.append_children(left)
             tok.process_and_check_node(tail_handler)
             return tok
+
         return self.def_construct(operator_token_label, prec=prec, tail=tail_handler,
                                  construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
@@ -1920,10 +1925,10 @@ class PrattParser(object):
                 tok.process_and_check_node(head_handler)
             else:
                 child_type = tok.children[0].expanded_formal_sig.val_type
-                tok.process_and_check_node(head_handler,
-                                 #check_override_sig=True,
+                tok.process_and_check_node(head_handler, #check_override_sig=True,
                                  typesig_override=TypeSig(child_type, [child_type]))
             return tok
+
         return self.def_construct(lbrac_token_label, head=head_handler,
                                  construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
@@ -1962,7 +1967,6 @@ class PrattParser(object):
             if peek_tok.ignored_before: return False
             if peek_tok.token_label != lpar_token_label: return False
             return True
-        construct_label = "lpar after, no whitespace between" # Should be a unique label.
 
         def head_handler(tok, lex):
             # Below match is for a precondition, so it will match and consume.
@@ -1984,6 +1988,8 @@ class PrattParser(object):
                             " expected {1} and got {2}.""".format(tok.token_label,
                             num_args, len(tok.children)))
             return tok
+
+        construct_label = "lpar after, no whitespace between"
         return self.def_construct(fname_token_label, prec=0,
                      head=head_handler, construct_label=construct_label,
                      precond_fun=preconditions, precond_priority=precond_priority,
@@ -1991,9 +1997,9 @@ class PrattParser(object):
                      ast_data=ast_data)
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
-                      rpar_token_label, comma_token_label, prec_of_lpar,
-                      val_type=None, arg_types=None, eval_fun=None, ast_data=None,
-                      num_args=None):
+                             rpar_token_label, comma_token_label, prec_of_lpar,
+                             val_type=None, arg_types=None, eval_fun=None, ast_data=None,
+                             num_args=None):
         """This is an alternate version of stdfun that defines lpar as an infix
         operator (i.e., with a tail handler).  This function works in the usual cases
         but the current version without preconditions may have problems distinguishing
@@ -2019,8 +2025,6 @@ class PrattParser(object):
             if prev_tok.token_label != fname_token_label: return False
             if lex.token.ignored_before: return False # No space allowed after fun name.
             return True
-        # Note we need to generate a unique construct_label for each fname_token_label.
-        construct_label = "match desired function name of " + fname_token_label
 
         def tail_handler(tok, lex, left):
             # Nothing between fun name and lpar_token.
@@ -2034,12 +2038,15 @@ class PrattParser(object):
             lex.match_next(rpar_token_label, raise_on_fail=True)
             left.process_and_check_node(tail_handler)
             return left
+
+        # Note we need to generate a unique construct_label for each fname_token_label.
+        construct_label = "match desired function name of " + fname_token_label
         return self.def_construct(lpar_token_label,
-                                 prec=prec_of_lpar, tail=tail_handler,
-                                 construct_label=construct_label,
-                                 precond_fun=precond_fun,
-                                 val_type=val_type, arg_types=arg_types,
-                                 eval_fun=eval_fun, ast_data=ast_data)
+                                  prec=prec_of_lpar, tail=tail_handler,
+                                  construct_label=construct_label,
+                                  precond_fun=precond_fun,
+                                  val_type=val_type, arg_types=arg_types,
+                                  eval_fun=eval_fun, ast_data=ast_data)
 
     def def_jop(self, prec, assoc,
                 construct_label=None, precond_fun=None, precond_priority=None,
@@ -2060,19 +2067,20 @@ class PrattParser(object):
         type signature information."""
         if assoc not in ["left", "right"]:
             raise ParserException('Argument assoc must be "left" or "right".')
-
         recurse_bp = prec
         if assoc == "right": recurse_bp = prec - 1
+
         def tail_handler(tok, lex, left):
             right_operand = tok.recursive_parse(recurse_bp)
             tok.append_children(left, right_operand)
             tok.process_and_check_node(tail_handler)
             return tok
+
         return self.def_construct(self.jop_token_label, prec=prec, tail=tail_handler,
-                                 construct_label=construct_label, precond_fun=precond_fun,
-                                 precond_priority=precond_priority,
-                                 val_type=val_type, arg_types=arg_types,
-                                 eval_fun=eval_fun, ast_data=ast_data)
+                                  construct_label=construct_label, precond_fun=precond_fun,
+                                  precond_priority=precond_priority,
+                                  val_type=val_type, arg_types=arg_types,
+                                  eval_fun=eval_fun, ast_data=ast_data)
 
     #
     # The main parse routines.
