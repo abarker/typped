@@ -200,7 +200,7 @@ from collections import OrderedDict, namedtuple
 
 from .shared_settings_and_exceptions import (ParserException,
                               CalledBeginTokenHandler, CalledEndTokenHandler)
-from .lexer import (Lexer, TokenNode, TokenTable, multi_funcall)
+from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: Consider allowing overloading (or at least the chosen eval_fun/ast_data
@@ -237,8 +237,9 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 # TODO: Add more built-in methods.  One that does assignments would be useful.
 
 # TODO: Consider the pros and cons of moving to a centralized
-# per-parser-instance dict for storing handler functions, eval funs, and extra
-# token info.  Info currently is stored with individual tokens.
+# per-parser-instance dict for storing constructs.  Constructs are currently is
+# stored with individual tokens, but may be at least conceptually clearer with
+# the parser instance...
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
@@ -284,6 +285,10 @@ class SyntaxConstruct(object):
                  "trigger_token_label", "handler_fun", "precond_fun",
                  "precond_priority", "original_sigs", "ast_data_dict",
                  "eval_fun_dict", "key_on_values"]
+    # At some point precedence (lbp) values might be incorporated into a
+    # constructs, but for now all constructs for the same token would need the
+    # same precedence.  The info seems to go here, though, at least for future
+    # generalization -- reword that section of docs to incorporate constructs.
 
     def __init__(self, parser_instance,
                        construct_label,
