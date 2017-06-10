@@ -403,6 +403,20 @@ class SyntaxConstruct(object):
             dict_key = string_value
         return self.ast_data_dict.get(dict_key, None)
 
+class ConstructTable(object):
+    """A dict holding `SyntaxConstruct` objects, with related methods."""
+
+    def __init__(self, parser_instance=None):
+        self.parser_instance = parser_instance
+        self.construct_dict = {}
+        self.construct_dict[HEAD] = {}
+        self.construct_dict[TAIL] = {}
+
+    def get_sorted_construct_dict(self, head_or_tail, trigger_token_label):
+        pass
+
+    def set_sorted_construct_dict(self, head_or_tail, trigger_token_label, value):
+        pass
 
 #
 # TokenNode
@@ -535,8 +549,6 @@ def token_subclass_factory():
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
     #class TokenSubclass(TokenNode):                               # No metaclass.
         construct_dict = {} # Dict of constructs (handler funs and associated data).
-        construct_dict[HEAD] = OrderedDict() # Head constructs sorted by priority.
-        construct_dict[TAIL] = OrderedDict() # Tail constructs sorted by priority.
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
         parser_instance = None # Set by the `PrattParser` method `def_token`.
@@ -575,12 +587,12 @@ def token_subclass_factory():
             return cls.static_prec
 
         @classmethod
-        def register_construct(cls, head_or_tail, handler_fun, construct_label,
-                               precond_fun, precond_priority=0,
+        def register_construct(cls, head_or_tail, handler_fun, trigger_token_label,
+                               construct_label, precond_fun, precond_priority=0,
                                type_sig=TypeSig(None, None), key_on_values=False):
             """Register a construct (either head or tail) with the
             subclass for this kind of token, setting the given properties.
-            This method is only ever called from the `modify_token`
+            This method is only ever called from the `def_construct`
             method of a `PrattParser` instance.
 
             The `head_or_tail` argument must be `HEAD` or `TAIL`.
@@ -624,9 +636,19 @@ def token_subclass_factory():
             #
             # Be sure to also update the unregister method if implemented.
 
+            # Set up the construct_dict structure if necessary.
+            construct_dict = cls.construct_dict
+            if not construct_dict:
+                construct_dict[HEAD] = {}
+                construct_dict[TAIL] = {}
+            token_construct_dict = construct_dict[head_or_tail]
+            if trigger_token_label not in token_construct_dict:
+                token_construct_dict[trigger_token_label] = OrderedDict()
+            sorted_construct_dict = token_construct_dict[trigger_token_label]
+
             # Get and save any previous type sig data (for overloaded sigs
             # corresponding to a single construct_label).
-            sorted_construct_dict = cls.construct_dict[head_or_tail]
+            #sorted_construct_dict = cls.construct_dict[head_or_tail]
             prev_construct = sorted_construct_dict.get(construct_label, None)
             if prev_construct is None:
                 prev_sigs = []
@@ -666,7 +688,7 @@ def token_subclass_factory():
 
             # Re-sort the OrderedDict, since we added an item.
             resorted_handler_dict = sort_handler_dict(sorted_construct_dict)
-            cls.construct_dict[head_or_tail] = resorted_handler_dict
+            cls.construct_dict[head_or_tail][trigger_token_label] = resorted_handler_dict
 
             # Make sure we don't get multiple definitions with the same
             # priority when the new one is inserted.
@@ -694,14 +716,15 @@ def token_subclass_factory():
             return
 
         @classmethod
-        def unregister_construct(cls, head_or_tail,
-                                 construct_label=None, type_sig=None):
+        def unregister_construct(cls, head_or_tail, trigger_token_label,
+                                 construct_label=None, type_sig=None, all_handlers=False):
             """Unregister the previously-registered construct (head or
             tail).  If `construct_label` is not set then all head or tail
             handlers (as selected by `head_or_tail`) are unregistered.  If
             `type_sig` is not present then all overloads are also unregistered.
             No error is raised if a matching handler function is not found."""
-            # TODO Untested method,  NEEDS REWRITING since constructs used now...
+            # TODO Untested method,  NEEDS REWRITING since constructs used now and dict
+            # structure added trigger_token_label...
 
             if construct_label is None:
                 if head_or_tail in cls.construct_dict:
@@ -756,13 +779,17 @@ def token_subclass_factory():
             This function also sets the attribute `construct_label` of this token
             instance to the label of the winning precondition function."""
 
-            sorted_construct_dict = self.construct_dict[head_or_tail]
-            if not sorted_construct_dict:
+            if not self.construct_dict or not head_or_tail in self.construct_dict:
+                raise NoHandlerFunctionDefined("No constructs (handler functions) at"
+                                               " all are defined")
+            token_construct_dict = self.construct_dict[head_or_tail]
+            if not self.token_label in token_construct_dict:
                 raise NoHandlerFunctionDefined(
                         "No {0} handler functions at all are defined"
                         " for tokens with token label '{1}'.  The token's"
                         " value is '{2}'."
                         .format(head_or_tail, self.token_label, self.value))
+            sorted_construct_dict = token_construct_dict[self.token_label]
 
             if construct_label: # This condition is not currently used in the code.
                 for pre_fun_label, construct in sorted_construct_dict.items():
@@ -1053,10 +1080,11 @@ def token_subclass_factory():
             the `TypeSig` instance `typesig` and also by the `arg_types` of that
             typesig.  This is used so overloaded instances can have different
             evaluations and AST data."""
+            # TODO: better error-checking, and maybe make ConstructTable with methods...
             if is_head:
-                construct = cls.construct_dict[HEAD][construct_label]
+                construct = cls.construct_dict[HEAD][cls.token_label][construct_label]
             else:
-                construct = cls.construct_dict[TAIL][construct_label]
+                construct = cls.construct_dict[TAIL][cls.token_label][construct_label]
             construct._save_eval_fun_and_ast_data(is_head, construct_label,
                                          type_sig, eval_fun, ast_data, string_value)
 
@@ -1066,9 +1094,9 @@ def token_subclass_factory():
             be set on the token instance."""
             construct_label = self.construct_label # Attribute set during parsing.
             if self.is_head:
-                construct = self.construct_dict[HEAD][construct_label]
+                construct = self.construct_dict[HEAD][self.token_label][construct_label]
             else:
-                construct = self.construct_dict[TAIL][construct_label]
+                construct = self.construct_dict[TAIL][self.token_label][construct_label]
             return construct._get_eval_fun(orig_sig, self.value)
 
         def _get_ast_data(self, orig_sig):
@@ -1077,9 +1105,9 @@ def token_subclass_factory():
             be set on the token instance."""
             construct_label = self.construct_label # Attribute set during parsing.
             if self.is_head:
-                construct = self.construct_dict[HEAD][construct_label]
+                construct = self.construct_dict[HEAD][self.token_label][construct_label]
             else:
-                construct = self.construct_dict[TAIL][construct_label]
+                construct = self.construct_dict[TAIL][self.token_label][construct_label]
             return construct._get_ast_data(orig_sig, self.value)
 
         def eval_subtree(self):
@@ -1640,8 +1668,7 @@ class PrattParser(object):
         return self.token_table[token_label]
 
     def def_construct(self, trigger_token_label, prec=None,
-                      head=None, tail=None,
-                      construct_label=None, precond_fun=None,
+                      head=None, tail=None, construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None, key_on_values=False,
                       string_value=None):
@@ -1715,23 +1742,21 @@ class PrattParser(object):
 
         # Register the handler funs.
         if head:
-            token_subclass.register_construct(HEAD, head,
-                               construct_label=construct_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig,
-                               key_on_values=key_on_values)
+            token_subclass.register_construct(HEAD, head, trigger_token_label,
+                                              construct_label, precond_fun,
+                                              precond_priority, type_sig, key_on_values)
             token_subclass._save_eval_fun_and_ast_data(True, construct_label,
-                                          type_sig, eval_fun, ast_data, string_value)
+                                             type_sig, eval_fun, ast_data, string_value)
         if tail:
-            token_subclass.register_construct(TAIL, tail,
-                               construct_label=construct_label, precond_fun=precond_fun,
-                               precond_priority=precond_priority, type_sig=type_sig,
-                               key_on_values=key_on_values)
+            token_subclass.register_construct(TAIL, tail, trigger_token_label,
+                                              construct_label, precond_fun,
+                                              precond_priority, type_sig, key_on_values)
             token_subclass._save_eval_fun_and_ast_data(False, construct_label,
                                           type_sig, eval_fun, ast_data, string_value)
 
         return token_subclass
 
-    def undef_handler(self, token_label, head_or_tail, construct_label=None,
+    def undef_construct(self, token_label, head_or_tail, construct_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
         `construct_label` and type signature.  The `head_or_tail` value should be
@@ -1741,8 +1766,8 @@ class PrattParser(object):
         never undefined; use the `undef_token` method for that."""
         # TODO: rewrite to undef a construct
         TokenSubclass = self.token_table[token_label]
-        TokenSubclass.unregister_construct(head_or_tail,
-                                         construct_label=construct_label,
+        TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
+                                         construct_label,
                                          type_sig=TypeSig(val_type, arg_types),
                                          all_handlers=all_handlers)
 

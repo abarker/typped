@@ -249,7 +249,7 @@ def test_stdfun_functions(basic_setup):
     assert str(e.value).startswith("Function match_next (with peeklevel=1) expected token")
     with raises(ParserException) as e:
         parser.parse("add(30,30,)") # Extra comma.
-    assert str(e.value).startswith("No head handler functions at all are defined")
+    assert str(e.value).startswith("No constructs (handler functions) at all are defined")
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
     assert str(e.value).startswith("No head handler function matched")
