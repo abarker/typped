@@ -236,11 +236,6 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
 # TODO: Add more built-in methods.  One that does assignments would be useful.
 
-# TODO: Consider the pros and cons of moving to a centralized
-# per-parser-instance dict for storing constructs.  Constructs are currently is
-# stored with individual tokens, but may be at least conceptually clearer with
-# the parser instance...
-
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
 # If a TokenTable is made to fully define a parser then you only need to save that...
@@ -353,9 +348,8 @@ class SyntaxConstruct(object):
     # to that first.  Note that the typesig really needs to be the same for
     # this to be useful, but true for sin and cos.
 
-    def _save_eval_fun_and_ast_data(self, is_head, construct_label,
+    def save_eval_fun_and_ast_data(self, is_head, construct_label,
                                     type_sig, eval_fun, ast_data, string_value):
-
         """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
         `TypeSig` instance `typesig` and also by the `arg_types` of that
         typesig.  If `key_on_values` is true for the construct then the
@@ -375,12 +369,13 @@ class SyntaxConstruct(object):
         self.ast_data_dict[dict_key] = ast_data
         self.eval_fun_dict[dict_key] = eval_fun
 
-    def _get_eval_fun(self, orig_sig, string_value=None):
+    def get_eval_fun(self, orig_sig, string_value=None):
         """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
-        if not self.key_on_values: string_value = None
+        if not self.key_on_values:
+            string_value = None
         if self.parser_instance.overload_on_ret_types:
             dict_key = (orig_sig, string_value)
         elif self.parser_instance.overload_on_arg_types:
@@ -389,12 +384,13 @@ class SyntaxConstruct(object):
             dict_key = string_value
         return self.eval_fun_dict.get(dict_key, None)
 
-    def _get_ast_data(self, orig_sig, string_value=None):
+    def get_ast_data(self, orig_sig, string_value=None):
         """Return the ast data saved by `_save_ast_data_and_ast_data`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
-        if not self.key_on_values: string_value = None
+        if not self.key_on_values:
+            string_value = None
         if self.parser_instance.overload_on_ret_types:
             dict_key = (orig_sig, string_value)
         elif self.parser_instance.overload_on_arg_types:
@@ -403,20 +399,286 @@ class SyntaxConstruct(object):
             dict_key = string_value
         return self.ast_data_dict.get(dict_key, None)
 
-class ConstructTable(object):
-    """A dict holding `SyntaxConstruct` objects, with related methods."""
 
+class ConstructTable(object):
+    """A dict holding `SyntaxConstruct` objects, with related methods.  Each
+    `PrattParser` instance has a `ConstructTable` instance to hold its constructs."""
     def __init__(self, parser_instance=None):
         self.parser_instance = parser_instance
         self.construct_dict = {}
         self.construct_dict[HEAD] = {}
         self.construct_dict[TAIL] = {}
 
-    def get_sorted_construct_dict(self, head_or_tail, trigger_token_label):
-        pass
+    def register_construct(self, head_or_tail, trigger_token_label, construct_label,
+                           handler_fun, precond_fun, precond_priority=0,
+                           type_sig=TypeSig(None, None), key_on_values=False,
+                           parser_instance=None): # TODO may not need parser instance arg later...
+        """Register a construct (either head or tail) with the
+        subclass for this kind of token, setting the given properties.
+        This method is only ever called from the `def_construct`
+        method of a `PrattParser` instance.
 
-    def set_sorted_construct_dict(self, head_or_tail, trigger_token_label, value):
-        pass
+        The `head_or_tail` argument must be `HEAD` or `TAIL`.
+
+        The `type_sig` argument must be a valid `TypeSig` instance.  Every
+        unique type signature is saved, and non-unique ones have their
+        previously-associated data overwritten."""
+        self.parser_instance = parser_instance
+
+        # Todo: Consider this possible optimization in looking up handler
+        # functions, instead of always linear search.  Some very commonly
+        # used preconditions can be hashed on and will often give a unique
+        # result.  Instead of using just `head_or_tail` to hash the handler
+        # funs and then linear search, what about a tuple of several common
+        # conditions:
+        #
+        #    (head_or_tail, peek_token_label, pstate_stack_top)
+        # Then you need to check for those values and the None values,
+        # so three hashes:
+        #    (head_or_tail, None, pstate_stack_top)
+        #    (head_or_tail, peek_token_label, None)
+        #    (head_or_tail, None, None)
+        #
+        # Then in `lookup_construct` go through all three of these sorted
+        # sublists in parallel, from the beginning, taking by top priority
+        # and running the precond funs.  Almost like a real `case`
+        # statement with jumps.  To get the optimized version you would
+        # need to specially register that the token uses the precondition,
+        # and give a value for it to look for (i.e., to be hashed under).
+        # Probably should pass precond assertions list to the
+        # `modify_token` routine, maybe something like:
+        #    precond_optimize_assert=(None,None,"wff")
+        # For those which register the optimization you still need a precond
+        # function itself, at least for the unique name, but you can leave off
+        # testing the asserted conditions because they won't be considered if
+        # the hash doesn't match.
+        #
+        # Note that the fallback behavior is the same as before (very
+        # slight performance penalty, a few hashes, especially with careful coding).
+        # On the other hand, how long will the list of handlers ever get?  Is
+        # it worth it?  Probably for doing recursive descent it is.
+        #
+        # Be sure to also update the unregister method if implemented.
+
+        # Set up the construct_dict structure if necessary.
+        token_construct_dict = self.construct_dict[head_or_tail]
+        if trigger_token_label not in token_construct_dict:
+            token_construct_dict[trigger_token_label] = OrderedDict()
+        sorted_construct_dict = token_construct_dict[trigger_token_label]
+
+        # Get and save any previous type sig data (for overloaded sigs
+        # corresponding to a single construct_label).
+        #sorted_construct_dict = cls.construct_dict[head_or_tail]
+        prev_construct = sorted_construct_dict.get(construct_label, None)
+        if prev_construct is None:
+            prev_sigs = []
+            prev_ast_data = {}
+            prev_eval_funs = {}
+        else:
+            prev_sigs = prev_construct.original_sigs
+            prev_ast_data = prev_construct.ast_data_dict
+            prev_eval_funs = prev_construct.eval_fun_dict
+
+        if prev_construct and not self.parser_instance.overload_on_arg_types:
+            raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types"
+                   " is False but attempt to redefine and possibly set multiple"
+                   " signatures for the {0} function for token with label '{1}'"
+                   " with preconditions label '{2}'."
+                   .format(head_or_tail, self.token_label, construct_label))
+
+        # For overloading, append the type_sig to prev_type_sigs_for_precond,
+        # saving them all.  A static method of TypeSig currently does it
+        # since it depends on the definition of TypeSig equality.
+        TypeSig.append_sig_to_list_replacing_if_identical(prev_sigs, type_sig)
+
+        # Set up the new construct.
+        new_construct = SyntaxConstruct(self.parser_instance,
+                                        construct_label=construct_label,
+                                        trigger_head_or_tail=head_or_tail,
+                                        trigger_token_label=trigger_token_label,
+                                        handler_fun=handler_fun,
+                                        precond_fun=precond_fun,
+                                        precond_priority=precond_priority,
+                                        original_sig=prev_sigs,
+                                        ast_data_dict=prev_ast_data,
+                                        eval_fun_dict=prev_eval_funs,
+                                        key_on_values=key_on_values)
+        # Also pass on the eval_fun_dict and ast_fun_dict.
+        sorted_construct_dict[construct_label] = new_construct
+
+        # Re-sort the OrderedDict, since we added an item.
+        resorted_handler_dict = sort_handler_dict(sorted_construct_dict)
+        self.construct_dict[head_or_tail][trigger_token_label] = resorted_handler_dict
+
+        # Make sure we don't get multiple definitions with the same
+        # priority when the new one is inserted.
+        #
+        # TODO: Note that WE MAY NOT WANT TO DO THIS AT ALL, or just give a
+        # warning.  See case of preconds for quantifiers in logic example
+        # which use MUTUALLY EXCLUSIVE handlers which have the same priority.
+        # Code below works but isn't being run... consider what it should
+        # do and delete if no use.
+        pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT EVER RUN?
+        if pre_check_for_same_priority:
+            for p_label, data_item in resorted_handler_dict.items():
+                if p_label == construct_label:
+                    continue
+                if (data_item.precond_priority == precond_priority and
+                            self.parser_instance.raise_exception_on_precondition_ties):
+                    raise ParserException("Two preconditions for the token"
+                            " subclass named '{0}' for token with label '{1}' have"
+                            " the same priority, {2}.  Their precondition labels"
+                            " are '{3}' and '{4}'.  If precondition labels are"
+                            " the same there may be a redefinition. Set the flag"
+                            " False if you actually want to allow precondition"
+                            " ties." .format(self.__name__, self.token_label,
+                                precond_priority, construct_label, p_label))
+        return
+
+    def unregister_construct(cls, head_or_tail, trigger_token_label,
+                             construct_label=None, type_sig=None, all_handlers=False):
+        """Unregister the previously-registered construct (head or
+        tail).  If `construct_label` is not set then all head or tail
+        handlers (as selected by `head_or_tail`) are unregistered.  If
+        `type_sig` is not present then all overloads are also unregistered.
+        No error is raised if a matching handler function is not found."""
+        # TODO Untested method,  NEEDS REWRITING since constructs used now and dict
+        # structure added trigger_token_label...
+
+        if construct_label is None:
+            if head_or_tail in cls.construct_dict:
+                cls.construct_dict[head_or_tail] = OrderedDict()
+                cls.handler_sigs[head_or_tail] = {}
+            return
+
+        # Tuple format for sorted_handler_list is:
+        #     (precond_fun, precond_priority, handler_fun)
+        sorted_handler_dict = cls.construct_dict[head_or_tail]
+        if not sorted_handler_dict:
+            return
+
+        if not construct_label in sorted_handler_dict:
+            return
+
+        if type_sig is None:
+            del sorted_handler_dict[construct_label]
+            return
+
+        sig_list = sorted_handler_dict[construct_label]
+
+        for i in reversed(range(len(sorted_handler_dict))):
+            item = sorted_handler_dict[i]
+            handler_fun = item.handler_fun
+            new_handler_sigs = [s for s in handler_fun.type_sigs if s != type_sig]
+            if not new_handler_sigs:
+                del sorted_handler_dict[i] # No type sigs at all, remove item.
+                continue
+            handler_fun.type_sigs = new_handler_sigs
+        return
+
+    def lookup_construct(self, head_or_tail, trigger_token_instance,
+                         lex=None, lookbehind=None, construct_label=None):
+        """Look up and return the construct for the given subexpression
+        position in `head_or_tail`, based on the current state.
+
+        Either the `lex` parameter or the `construct_label` parameter must be
+        set.  If `lex` is set it will be passed to the precondition
+        functions as an argument, and similarly for `lookbehind`.
+
+        This method evaluates each preconditions function in the sorted
+        dict for this kind of token and the specified kind of construct
+        (head or tail), returning the construct associated with the first
+        one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`
+        if no handler function can be found.
+
+        If the parameter `construct_label` is set then this method returns
+        the construct which *would be* returned, assuming that that were
+        the label of the "winning" construct.  Not currently used.
+
+        This function also sets the attribute `construct_label` of this token
+        instance to the label of the winning precondition function."""
+        trigger_token_label = trigger_token_instance.token_label
+
+        token_construct_dict = self.construct_dict[head_or_tail]
+        if not trigger_token_label in token_construct_dict:
+            raise NoHandlerFunctionDefined(
+                    "No {0} handler functions at all are defined"
+                    " for tokens with token label '{1}'.  The token's"
+                    " value is '{2}'."
+                    .format(head_or_tail, trigger_token_label,
+                            trigger_token_instance.value))
+        sorted_construct_dict = token_construct_dict[trigger_token_label]
+
+        if construct_label: # This condition is not currently used in the code.
+            for pre_fun_label, construct in sorted_construct_dict.items():
+                if pre_fun_label == construct_label:
+                    return construct.precond_fun
+
+        # Sequentially run sorted precondition functions until one is true.
+        for pre_label, construct in sorted_construct_dict.items():
+            if construct.precond_fun(lex, lookbehind):
+                # Note construct_label is saved as a user-accesible attribute here.
+                trigger_token_instance.construct_label = construct.construct_label
+                return construct
+
+        raise NoHandlerFunctionDefined("No {0} handler function matched the "
+                "token with value '{1}' and label '{2}' in the current "
+                "preconditions."
+                .format(head_or_tail, trigger_token_instance.value,
+                        trigger_token_label))
+
+    def dispatch_handler(self, head_or_tail, trigger_token_instance,
+                         lex, left=None, lookbehind=None):
+        """Look up and return the handler function for the token, with its arguments
+        bound."""
+        if head_or_tail == HEAD:
+            construct = self.lookup_construct(HEAD, trigger_token_instance, lex)
+            handler = functools.partial(construct.run, construct, trigger_token_instance, lex)
+        elif head_or_tail == TAIL:
+            construct = self.lookup_construct(TAIL, trigger_token_instance, lex, lookbehind=lookbehind)
+            handler = functools.partial(construct.run, construct, trigger_token_instance, lex, left)
+        else:
+            raise ParserException("Bad first argument to dispatch_handler"
+                    " function: must be HEAD or TAIL or the equivalent.")
+        return handler
+
+    def save_eval_fun_and_ast_data(self, is_head, trigger_token_label, construct_label,
+                                    type_sig, eval_fun, ast_data, string_value):
+        """This is a utility function that saves data in the `eval_fun_dict`
+        and `ast_data_dict` associated with token `token_subclass`, keyed by
+        the `TypeSig` instance `typesig` and also by the `arg_types` of that
+        typesig.  This is used so overloaded instances can have different
+        evaluations and AST data."""
+        # TODO: better error-checking,
+        if is_head:
+            construct = self.construct_dict[HEAD][trigger_token_label][construct_label]
+        else:
+            construct = self.construct_dict[TAIL][trigger_token_label][construct_label]
+        construct.save_eval_fun_and_ast_data(is_head, construct_label,
+                                     type_sig, eval_fun, ast_data, string_value)
+
+    def get_eval_fun(self, orig_sig, trigger_token_instance):
+        """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
+        Must be called after parsing because the `construct_label` attribute must
+        be set on the token instance."""
+        construct_label = trigger_token_instance.construct_label # Attribute set during parsing.
+        if trigger_token_instance.is_head:
+            construct = self.construct_dict[HEAD][trigger_token_instance.token_label][construct_label]
+        else:
+            construct = self.construct_dict[TAIL][trigger_token_instance.token_label][construct_label]
+        return construct.get_eval_fun(orig_sig, trigger_token_instance.value)
+
+    def get_ast_data(self, orig_sig, trigger_token_instance):
+        """Return the ast data saved by `_save_ast_data_and_ast_data`.
+        Must be called after parsing because the `construct_label` attribute must
+        be set on the token instance."""
+        construct_label = trigger_token_instance.construct_label # Attribute set during parsing.
+        if trigger_token_instance.is_head:
+            construct = self.construct_dict[HEAD][trigger_token_instance.token_label][construct_label]
+        else:
+            construct = self.construct_dict[TAIL][trigger_token_instance.token_label][construct_label]
+        return construct.get_ast_data(orig_sig, trigger_token_instance.value)
+
 
 #
 # TokenNode
@@ -548,7 +810,6 @@ def token_subclass_factory():
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
     #class TokenSubclass(TokenNode):                               # No metaclass.
-        construct_dict = {} # Dict of constructs (handler funs and associated data).
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
         parser_instance = None # Set by the `PrattParser` method `def_token`.
@@ -586,241 +847,9 @@ def token_subclass_factory():
             given context."""
             return cls.static_prec
 
-        @classmethod
-        def register_construct(cls, head_or_tail, handler_fun, trigger_token_label,
-                               construct_label, precond_fun, precond_priority=0,
-                               type_sig=TypeSig(None, None), key_on_values=False):
-            """Register a construct (either head or tail) with the
-            subclass for this kind of token, setting the given properties.
-            This method is only ever called from the `def_construct`
-            method of a `PrattParser` instance.
-
-            The `head_or_tail` argument must be `HEAD` or `TAIL`.
-
-            The `type_sig` argument must be a valid `TypeSig` instance.  Every
-            unique type signature is saved, and non-unique ones have their
-            previously-associated data overwritten."""
-
-            # Todo: Consider this possible optimization in looking up handler
-            # functions, instead of always linear search.  Some very commonly
-            # used preconditions can be hashed on and will often give a unique
-            # result.  Instead of using just `head_or_tail` to hash the handler
-            # funs and then linear search, what about a tuple of several common
-            # conditions:
-            #
-            #    (head_or_tail, peek_token_label, pstate_stack_top)
-            # Then you need to check for those values and the None values,
-            # so three hashes:
-            #    (head_or_tail, None, pstate_stack_top)
-            #    (head_or_tail, peek_token_label, None)
-            #    (head_or_tail, None, None)
-            #
-            # Then in `lookup_construct` go through all three of these sorted
-            # sublists in parallel, from the beginning, taking by top priority
-            # and running the precond funs.  Almost like a real `case`
-            # statement with jumps.  To get the optimized version you would
-            # need to specially register that the token uses the precondition,
-            # and give a value for it to look for (i.e., to be hashed under).
-            # Probably should pass precond assertions list to the
-            # `modify_token` routine, maybe something like:
-            #    precond_optimize_assert=(None,None,"wff")
-            # For those which register the optimization you still need a precond
-            # function itself, at least for the unique name, but you can leave off
-            # testing the asserted conditions because they won't be considered if
-            # the hash doesn't match.
-            #
-            # Note that the fallback behavior is the same as before (very
-            # slight performance penalty, a few hashes, especially with careful coding).
-            # On the other hand, how long will the list of handlers ever get?  Is
-            # it worth it?  Probably for doing recursive descent it is.
-            #
-            # Be sure to also update the unregister method if implemented.
-
-            # Set up the construct_dict structure if necessary.
-            construct_dict = cls.construct_dict
-            if not construct_dict:
-                construct_dict[HEAD] = {}
-                construct_dict[TAIL] = {}
-            token_construct_dict = construct_dict[head_or_tail]
-            if trigger_token_label not in token_construct_dict:
-                token_construct_dict[trigger_token_label] = OrderedDict()
-            sorted_construct_dict = token_construct_dict[trigger_token_label]
-
-            # Get and save any previous type sig data (for overloaded sigs
-            # corresponding to a single construct_label).
-            #sorted_construct_dict = cls.construct_dict[head_or_tail]
-            prev_construct = sorted_construct_dict.get(construct_label, None)
-            if prev_construct is None:
-                prev_sigs = []
-                prev_ast_data = {}
-                prev_eval_funs = {}
-            else:
-                prev_sigs = prev_construct.original_sigs
-                prev_ast_data = prev_construct.ast_data_dict
-                prev_eval_funs = prev_construct.eval_fun_dict
-
-            if prev_construct and not cls.parser_instance.overload_on_arg_types:
-                raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types"
-                       " is False but attempt to redefine and possibly set multiple"
-                       " signatures for the {0} function for token with label '{1}'"
-                       " with preconditions label '{2}'."
-                       .format(head_or_tail, cls.token_label, construct_label))
-
-            # For overloading, append the type_sig to prev_type_sigs_for_precond,
-            # saving them all.  A static method of TypeSig currently does it
-            # since it depends on the definition of TypeSig equality.
-            TypeSig.append_sig_to_list_replacing_if_identical(prev_sigs, type_sig)
-
-            # Set up the new construct.
-            new_construct = SyntaxConstruct(cls.parser_instance,
-                                            construct_label=construct_label,
-                                            trigger_head_or_tail=head_or_tail,
-                                            trigger_token_label=cls.token_label,
-                                            handler_fun=handler_fun,
-                                            precond_fun=precond_fun,
-                                            precond_priority=precond_priority,
-                                            original_sig=prev_sigs,
-                                            ast_data_dict=prev_ast_data,
-                                            eval_fun_dict=prev_eval_funs,
-                                            key_on_values=key_on_values)
-            # Also pass on the eval_fun_dict and ast_fun_dict.
-            sorted_construct_dict[construct_label] = new_construct
-
-            # Re-sort the OrderedDict, since we added an item.
-            resorted_handler_dict = sort_handler_dict(sorted_construct_dict)
-            cls.construct_dict[head_or_tail][trigger_token_label] = resorted_handler_dict
-
-            # Make sure we don't get multiple definitions with the same
-            # priority when the new one is inserted.
-            #
-            # TODO: Note that WE MAY NOT WANT TO DO THIS AT ALL, or just give a
-            # warning.  See case of preconds for quantifiers in logic example
-            # which use MUTUALLY EXCLUSIVE handlers which have the same priority.
-            # Code below works but isn't being run... consider what it should
-            # do and delete if no use.
-            pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT EVER RUN?
-            if pre_check_for_same_priority:
-                for p_label, data_item in resorted_handler_dict.items():
-                    if p_label == construct_label:
-                        continue
-                    if (data_item.precond_priority == precond_priority and
-                                cls.parser_instance.raise_exception_on_precondition_ties):
-                        raise ParserException("Two preconditions for the token"
-                                " subclass named '{0}' for token with label '{1}' have"
-                                " the same priority, {2}.  Their precondition labels"
-                                " are '{3}' and '{4}'.  If precondition labels are"
-                                " the same there may be a redefinition. Set the flag"
-                                " False if you actually want to allow precondition"
-                                " ties." .format(cls.__name__, cls.token_label,
-                                    precond_priority, construct_label, p_label))
-            return
-
-        @classmethod
-        def unregister_construct(cls, head_or_tail, trigger_token_label,
-                                 construct_label=None, type_sig=None, all_handlers=False):
-            """Unregister the previously-registered construct (head or
-            tail).  If `construct_label` is not set then all head or tail
-            handlers (as selected by `head_or_tail`) are unregistered.  If
-            `type_sig` is not present then all overloads are also unregistered.
-            No error is raised if a matching handler function is not found."""
-            # TODO Untested method,  NEEDS REWRITING since constructs used now and dict
-            # structure added trigger_token_label...
-
-            if construct_label is None:
-                if head_or_tail in cls.construct_dict:
-                    cls.construct_dict[head_or_tail] = OrderedDict()
-                    cls.handler_sigs[head_or_tail] = {}
-                return
-
-            # Tuple format for sorted_handler_list is:
-            #     (precond_fun, precond_priority, handler_fun)
-            sorted_handler_dict = cls.construct_dict[head_or_tail]
-            if not sorted_handler_dict:
-                return
-
-            if not construct_label in sorted_handler_dict:
-                return
-
-            if type_sig is None:
-                del sorted_handler_dict[construct_label]
-                return
-
-            sig_list = sorted_handler_dict[construct_label]
-
-            for i in reversed(range(len(sorted_handler_dict))):
-                item = sorted_handler_dict[i]
-                handler_fun = item.handler_fun
-                new_handler_sigs = [s for s in handler_fun.type_sigs if s != type_sig]
-                if not new_handler_sigs:
-                    del sorted_handler_dict[i] # No type sigs at all, remove item.
-                    continue
-                handler_fun.type_sigs = new_handler_sigs
-            return
-
-        def lookup_construct(self, head_or_tail, lex=None, lookbehind=None,
-                                                           construct_label=None):
-            """Look up and return the construct for the given subexpression
-            position in `head_or_tail`, based on the current state.
-
-            Either the `lex` parameter or the `construct_label` parameter must be
-            set.  If `lex` is set it will be passed to the precondition
-            functions as an argument, and similarly for `lookbehind`.
-
-            This method evaluates each preconditions function in the sorted
-            dict for this kind of token and the specified kind of construct
-            (head or tail), returning the construct associated with the first
-            one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`
-            if no handler function can be found.
-
-            If the parameter `construct_label` is set then this method returns
-            the construct which *would be* returned, assuming that that were
-            the label of the "winning" construct.  Not currently used.
-
-            This function also sets the attribute `construct_label` of this token
-            instance to the label of the winning precondition function."""
-
-            if not self.construct_dict or not head_or_tail in self.construct_dict:
-                raise NoHandlerFunctionDefined("No constructs (handler functions) at"
-                                               " all are defined")
-            token_construct_dict = self.construct_dict[head_or_tail]
-            if not self.token_label in token_construct_dict:
-                raise NoHandlerFunctionDefined(
-                        "No {0} handler functions at all are defined"
-                        " for tokens with token label '{1}'.  The token's"
-                        " value is '{2}'."
-                        .format(head_or_tail, self.token_label, self.value))
-            sorted_construct_dict = token_construct_dict[self.token_label]
-
-            if construct_label: # This condition is not currently used in the code.
-                for pre_fun_label, construct in sorted_construct_dict.items():
-                    if pre_fun_label == construct_label:
-                        return construct.precond_fun
-
-            # Sequentially run sorted precondition functions until one is true.
-            for pre_label, construct in sorted_construct_dict.items():
-                if construct.precond_fun(lex, lookbehind):
-                    # Note construct_label is saved as a user-accesible attribute here.
-                    self.construct_label = construct.construct_label
-                    return construct
-
-            raise NoHandlerFunctionDefined("No {0} handler function matched the "
-                    "token with value '{1}' and label '{2}' in the current "
-                    "preconditions."
-                    .format(head_or_tail, self.value, self.token_label))
-
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
-            """Look up and return the handler function for the token, with its arguments
-            bound."""
-            if head_or_tail == HEAD:
-                construct = self.lookup_construct(HEAD, lex)
-                handler = functools.partial(construct.run, construct, self, lex)
-            elif head_or_tail == TAIL:
-                construct = self.lookup_construct(TAIL, lex, lookbehind=lookbehind)
-                handler = functools.partial(construct.run, construct, self, lex, left)
-            else:
-                raise ParserException("Bad first argument to dispatch_handler"
-                        " function: must be HEAD or TAIL or the equivalent.")
-            return handler
+            # TODO: later consider calling not as token method....
+            return self.parser_instance.construct_table.dispatch_handler(head_or_tail, self, lex, left, lookbehind)
 
         def process_not_in_tree(self):
             """Removes any immediate children which have `not_in_tree` set."""
@@ -835,15 +864,10 @@ def token_subclass_factory():
         def process_and_check_node(self, construct,
                                    typesig_override=None, check_override_sig=False,
                                    repeat_args=False):
-            """This routine should always be called from inside the individual
-            head and tail handler functions, just before they return a value.
-            It sets some attributes and checks that the actual types match some
-            defined type signature for the function.
-
-            (This function does not need to be called in a handler if no
-            type-checking or type overloading is desired and if no `not_in_tree`
-            options are used.  This function may later also implement other
-            options.)
+            """This routine is automatically called just after a handler
+            function returns a subtree.  It is called for the root of the
+            returned subtree.  It sets some attributes and checks that the
+            actual types match some defined type signature for the function.
 
             The `typesig_override` argument must be a `TypeSig` instance.  It
             will be *assigned* to the node as its `expanded_formal_sig` after
@@ -913,8 +937,9 @@ def token_subclass_factory():
                 prev_ast_data = self._get_ast_data(orig_sig)
                 # Note this permanently modifies the class below... clarify the
                 # semantics of what SHOULD happen in this case.  TODO
-                self._save_eval_fun_and_ast_data(self.is_head, self.construct_label,
-                                                 typesig_override,
+                self.parser_instance.construct_table.save_eval_fun_and_ast_data(
+                                                 self.is_head, self.token_label,
+                                                 self.construct_label, typesig_override,
                                                  prev_eval_fun, prev_ast_data, self.value)
                 # Force the final, actual typesig to be the override sig.
                 self.expanded_formal_sig = typesig_override
@@ -1072,43 +1097,17 @@ def token_subclass_factory():
         # Evaluations and semantic actions.
         #
 
-        @classmethod
-        def _save_eval_fun_and_ast_data(cls, is_head, construct_label,
-                                        type_sig, eval_fun, ast_data, string_value):
-            """This is a utility function that saves data in the `eval_fun_dict`
-            and `ast_data_dict` associated with token `token_subclass`, keyed by
-            the `TypeSig` instance `typesig` and also by the `arg_types` of that
-            typesig.  This is used so overloaded instances can have different
-            evaluations and AST data."""
-            # TODO: better error-checking, and maybe make ConstructTable with methods...
-            if is_head:
-                construct = cls.construct_dict[HEAD][cls.token_label][construct_label]
-            else:
-                construct = cls.construct_dict[TAIL][cls.token_label][construct_label]
-            construct._save_eval_fun_and_ast_data(is_head, construct_label,
-                                         type_sig, eval_fun, ast_data, string_value)
-
         def _get_eval_fun(self, orig_sig):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
             Must be called after parsing because the `construct_label` attribute must
             be set on the token instance."""
-            construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head:
-                construct = self.construct_dict[HEAD][self.token_label][construct_label]
-            else:
-                construct = self.construct_dict[TAIL][self.token_label][construct_label]
-            return construct._get_eval_fun(orig_sig, self.value)
+            return self.parser_instance.construct_table.get_eval_fun(orig_sig, self)
 
         def _get_ast_data(self, orig_sig):
             """Return the ast data saved by `_save_ast_data_and_ast_data`.
             Must be called after parsing because the `construct_label` attribute must
             be set on the token instance."""
-            construct_label = self.construct_label # Attribute set during parsing.
-            if self.is_head:
-                construct = self.construct_dict[HEAD][self.token_label][construct_label]
-            else:
-                construct = self.construct_dict[TAIL][self.token_label][construct_label]
-            return construct._get_ast_data(orig_sig, self.value)
+            return self.parser_instance.construct_table.get_ast_data(orig_sig, self)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
@@ -1442,6 +1441,8 @@ class PrattParser(object):
         # below in `def_begin_end_tokens`).
         self.raise_exception_on_precondition_ties = True
 
+        self.construct_table = ConstructTable() # Dict of registered constructs.
+
         if lexer: # Lexer passed in.
             self.lex = lexer
             self.token_table = lexer.token_table
@@ -1463,6 +1464,7 @@ class PrattParser(object):
             self.type_table = type_table
         else:
             self.type_table = TypeTable(self)
+
 
         self.num_lookahead_tokens = max_peek_tokens
         self.jop_token_label = None # Label of the jop token, if any.
@@ -1742,16 +1744,19 @@ class PrattParser(object):
 
         # Register the handler funs.
         if head:
-            token_subclass.register_construct(HEAD, head, trigger_token_label,
-                                              construct_label, precond_fun,
-                                              precond_priority, type_sig, key_on_values)
-            token_subclass._save_eval_fun_and_ast_data(True, construct_label,
+            # TODO: combine the two calls below in ConstructTable method
+            self.construct_table.register_construct(HEAD, trigger_token_label,
+                                              construct_label, head, precond_fun,
+                                              precond_priority, type_sig, key_on_values,
+                                              parser_instance=self)
+            self.construct_table.save_eval_fun_and_ast_data(True, trigger_token_label, construct_label,
                                              type_sig, eval_fun, ast_data, string_value)
         if tail:
-            token_subclass.register_construct(TAIL, tail, trigger_token_label,
-                                              construct_label, precond_fun,
-                                              precond_priority, type_sig, key_on_values)
-            token_subclass._save_eval_fun_and_ast_data(False, construct_label,
+            self.construct_table.register_construct(TAIL, trigger_token_label,
+                                              construct_label, tail, precond_fun,
+                                              precond_priority, type_sig, key_on_values,
+                                              parser_instance=self)
+            self.construct_table.save_eval_fun_and_ast_data(False, trigger_token_label, construct_label,
                                           type_sig, eval_fun, ast_data, string_value)
 
         return token_subclass
