@@ -767,21 +767,32 @@ class Lexer(object):
     #
 
     def __init__(self, token_table=None, max_peek_tokens=None,
-                 max_deque_size=None, default_begin_end_tokens=False):
-        """Initialize the Lexer.  Optional arguments set the
-        `TokenTable` to be used (default creates a new one), the
-        number of lookahead tokens (default is two), or the maximum number of
-        tokens that the `go_back` method can accept (default is unlimited).
+                 max_deque_size=None, default_begin_end_tokens=False,
+                 final_mod_function=None):
+
+        """Initialize the Lexer.  Optional arguments set the `TokenTable` to be
+        used (default creates a new one), the maximum number of lookahead
+        tokens (default is no fixed maximum), and the maximum deque size, which
+        determines how far `go_back` operations will work (the default is
+        unlimited).
+
         If `default_begin_end_tokens` is true then begin- and end-tokens will
         be defined using the default token labels.  By default, though, the user
         must call the `def_begin_end_tokens` method to define the begin and
-        end tokens (using whatever labels are desired)."""
+        end tokens (using whatever labels are desired).
+
+        If `final_mod_function` is passed a function taking a two arguments
+        then any time a token instance is created by the lexer that function
+        will be called with the parser and the token itself as the two
+        arguments.  It should return the modified token."""
         self.reset(token_table=token_table, max_peek_tokens=max_peek_tokens,
-                 max_deque_size=max_deque_size,
-                 default_begin_end_tokens=default_begin_end_tokens)
+                   max_deque_size=max_deque_size,
+                   default_begin_end_tokens=default_begin_end_tokens,
+                   final_mod_function=final_mod_function)
 
     def reset(self, token_table=None, max_peek_tokens=None,
-                 max_deque_size=None, default_begin_end_tokens=False):
+                    max_deque_size=None, default_begin_end_tokens=False,
+                    final_mod_function=None):
         """Return the lexer to the initial state.  Takes the same arguments as
         the initializer."""
         self.text_is_set = False
@@ -793,8 +804,8 @@ class Lexer(object):
         self.set_token_table(token_table)
 
         self.token_buffer = TokenBuffer(self._unbuffered_token_getter,
-                                                 max_peek=max_peek_tokens,
-                                                 max_deque_size=max_deque_size)
+                                              max_peek=max_peek_tokens,
+                                              max_deque_size=max_deque_size)
 
         # These line and char numbers are for raw, unprocessed tokens, not the
         # buffered ones.  Use the values set with tokens as the token attribute
@@ -809,6 +820,8 @@ class Lexer(object):
 
         if default_begin_end_tokens:
             self.def_begin_end_tokens(self.DEFAULT_BEGIN, self.DEFAULT_END)
+
+        self.final_mod_function = final_mod_function
 
         # The default exception raised by methods like `match_next`.
         self.default_helper_exception = LexerException
@@ -879,6 +892,8 @@ class Lexer(object):
             [<current_token>, <peek1>, <peek2>]
         """
         begin_tok = self.token_table.begin_token_subclass(None) # Get instance.
+        if self.final_mod_function:
+            begin_tok = self.final_mod_function(self, begin_tok)
         tb = self.token_buffer
         tb.init(begin_tok) # Begin token set as current; first next() returns it.
         self.token = tb[0]
@@ -1462,6 +1477,8 @@ class Lexer(object):
                 # Make an instance of the class to return (or at least to save
                 # in the token's ignored_before if ignored).
                 token_instance = token_subclass_for_label(token_value)
+                if self.final_mod_function:
+                    token_instance = self.final_mod_function(self, token_instance)
                 self.all_token_count += 1
 
                 # Save the line and char counts for the beginning text of the
@@ -1504,11 +1521,15 @@ class Lexer(object):
             elif self.token_generator_state == GenTokenState.end:
                 token_subclass_for_end = token_table[token_table.end_token_label]
                 token_instance = token_subclass_for_end(None)
+                if self.final_mod_function:
+                    token_instance = self.final_mod_function(self, token_instance)
+
                 token_instance.line_and_char = (self.raw_linenumber,
                                                 self.upcoming_raw_charnumber)
                 token_instance.char_index_in_program = self.upcoming_raw_total_chars
 
             # Got a token to return.  Set some attributes and return it.
+            # Note that the attributes below are not set on ignored tokens!
             token_instance.original_matched_string = original_matched_string
             token_instance.ignored_before = tuple(ignored_before_tokens)
             token_instance.all_token_count = self.all_token_count

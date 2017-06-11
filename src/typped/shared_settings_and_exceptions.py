@@ -33,6 +33,11 @@ class CalledEndTokenHandler(ParserException):
     """Called a handler for the end token."""
     pass
 
+class NoHandlerFunctionDefined(ParserException):
+    """Only raised by dispatcher function, and only when it fails to find a
+    handler function (head or tail, whichever it was looking for)."""
+    pass
+
 #
 # Utility functions.
 #
