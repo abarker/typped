@@ -1030,9 +1030,9 @@ class PrattParser(object):
             self.token_table = TokenTable(
                                 token_subclass_factory_fun=token_subclass_factory)
             self.lex = Lexer(self.token_table,
-                                max_peek_tokens=max_peek_tokens,
-                                max_deque_size=max_deque_size,
-                                default_begin_end_tokens=False)
+                             max_peek_tokens=max_peek_tokens,
+                             max_deque_size=max_deque_size,
+                             default_begin_end_tokens=False)
             # Set the begin and end tokens unless the user specified not to.
             if default_begin_end_tokens:
                 self.def_begin_end_tokens() # Use function's defaults.
