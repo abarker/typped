@@ -366,7 +366,7 @@ class TokenNode(object):
 
 def basic_token_subclass_factory():
     """Create and return a new token subclass representing tokens with label
-    `token_label`.  This function is called from the `create_token_subclass`
+    `token_label`.  This function is called from the `_create_token_subclass`
     method  of `TokenTable` when it needs to create a new one to
     start with.  This function **should not be called directly**, since
     additional attributes (such as the token label and a new subclass name)
@@ -438,13 +438,13 @@ class TokenTable(object):
                                    .format(token_label))
         return TokenSubclass
 
-    def create_token_subclass(self, token_label, store_in_dict=True):
+    def _create_token_subclass(self, token_label, store_in_dict=True):
         """Create a subclass for tokens with label `token_label` and store it
         in the token table.  Return the new subclass.  Raises a `LexerException`
         if a subclass for `token_label` has already been created.  If
         `store_in_dict` is `False` then the token is not stored."""
         if token_label in self.token_subclass_dict:
-            raise LexerException("In `create_token_subclass`, already created the"
+            raise LexerException("In `_create_token_subclass`, already created the"
                     " token subclass for token_label '{0}'.".format(token_label))
         # Create a new token subclass for token_label and add some attributes.
         TokenSubclass = self.token_subclassing_fun()
@@ -498,7 +498,7 @@ class TokenTable(object):
                                                  on_ties, ignore=ignore)
 
         # Initialize and return a bare-bones, default token_subclass.
-        tok = self.create_token_subclass(token_label)
+        tok = self._create_token_subclass(token_label)
         tok.token_table = self
         return tok
 

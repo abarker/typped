@@ -15,6 +15,10 @@ if __name__ == "__main__":
 from typped.shared_settings_and_exceptions import ParserException
 
 #
+# Predefined tokens.
+#
+
+#
 # Functions helpful in writing head and tail handlers.
 #
 

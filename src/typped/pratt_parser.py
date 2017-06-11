@@ -200,29 +200,7 @@ from .shared_settings_and_exceptions import (ParserException,
 from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import SyntaxConstruct, ConstructTable
-
-# TODO: Consider allowing overloading (or at least the chosen eval_fun/ast_data
-# for a token) to vary based on the VALUE of the subtree root token as well as
-# on the token_label of the token (as it is now).  Save a dict with the token
-# subclass which is used to look up the actual typesig; use None by default but
-# let the user manage it and add labels.  So, e.g., a particular identifier
-# could be declared a variable of some type, and then the user could add that
-# to the dict stored with the identifier token subclass.  Would then check if
-# value in the dict, and if not use the None value (or set a dict default
-# value, easier).
-#
-# Note that this would have to be able to switch to different handlers, like
-# when an identifier is defined to be a function name versus a variable name.
-# Currently overloading is only done on repeated calls when type differs.  When
-# precond fun differs you can get a different handlers.  So, one approach would
-# be to include the current value as a precondition in a call with a new
-# precond fun.  Might not be the most efficient way, though.
-
-# TODO: Maybe define some common helper preconditions.  They are boolean so
-# they can easily be composed.  Can store them in a separate module,
-# precondition_helpers.py, and then import them in the __init__ for module
-# space.  Could store helpers like match_next with them (or similarly) if it is
-# determined that they shouldn't be in TokenSubclass namespace.
+from .matcher import MatcherPythonRegex
 
 # NOTE that the evaluate function stuff could also be used to also do a
 # conversion to AST.
@@ -233,6 +211,12 @@ from .pratt_constructs import SyntaxConstruct, ConstructTable
 # from/by parsers these labels in error messages would be helpful for debugging.
 
 # TODO: Add more built-in methods.  One that does assignments would be useful.
+
+# TODO: Consider subclassing the TokenNode class, and then just pass a
+# subclassed one to the lexer...  Then the def_token stuff are just convenience
+# functions.  Makes it easier to define tokens outside of a particular parser,
+# so they could be shared (like have a set of common default tokens, for
+# example).  May be conceptually clearer, too.
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
@@ -945,6 +929,20 @@ def token_subclass_factory():
 
     return TokenSubclass # Return from token_subclass_factory function.
 
+#
+# PrattTokenTable
+#
+
+# TODO TODO TODO: Consider if a good idea to subclass the token table.
+# Then many of the PrattParser routines become convenience functions.
+# Would be convenient to inherit PrattParser from it, but mixins are
+# really mixed in, and cannot separate out to pass to lexer, for example.
+
+class PrattTokenTable(TokenTable):
+    """Define and save tokens to be used by the `PrattParser` class and instances."""
+    def __init__(self, token_subclass_factory_fun=token_subclass_factory,
+                       pattern_matcher_class=MatcherPythonRegex):
+        super(PrattTokenTable, self).__init__() # Call base class __init__.
 
 #
 # Parser
@@ -1190,14 +1188,15 @@ class PrattParser(object):
     def def_jop_token(self, jop_token_label, ignored_token_label):
         """Define a token for the juxtaposition operator.  This token has no
         regex pattern.  An instance is inserted in `recursive_parse` when it is
-        inferred to be present.  This method must be called before a
-        juxtaposition operator can be used.  The parameter `jop_token_label` is
-        the label for the newly-created token representing the juxtaposition
-        operator.  The `ignored_token_label` parameter is the label of an
-        ignored token which must be present for a jop to be inferred.  Some
-        already-defined token is required; usually it will be a token for spaces
-        and tabs.  If set to `None` then no ignored space at all is required
-        (i.e., the tokens can be right next to each other)."""
+        inferred to be present.  This method must be explicitly called before a
+        juxtaposition operator can be used (i.e., before `def_jop`).  The
+        parameter `jop_token_label` is the label for the newly-created token
+        representing the juxtaposition operator.  The `ignored_token_label`
+        parameter is the label of an ignored token which must be present for a
+        jop to be inferred.  Some already-defined token is required; usually it
+        will be a token for spaces and tabs.  If set to `None` then no ignored
+        space at all is required (i.e., the tokens can be right next to each
+        other)."""
         return self.def_token_master(jop_token_label,
                                      ignored_token_label=ignored_token_label,
                                      token_kind="jop")
@@ -1315,7 +1314,7 @@ class PrattParser(object):
         if trigger_token_label in self.token_table:
             token_subclass = self.get_token(trigger_token_label)
         else:
-            raise ParserException("In call to mod_token_subclass: subclass for"
+            raise ParserException("In call to def_construct: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
                     " calling `def_token` first.".format(trigger_token_label))
             # Below line formerly just created a subclass, but that can mask errors!
@@ -1579,9 +1578,6 @@ class PrattParser(object):
         if not self.skip_type_checking and num_args is not None and arg_types is None:
             arg_types = [None]*num_args
 
-        # TODO maybe have option to match value instead of type...
-        # Maybe even always use a distinct construct_label unless some `overload=True`
-        # flag is set.... CONSIDER, large design change.
         def preconditions(lex, lookbehind):
             """Must be followed by a token with label 'lpar_token_label', with no
             whitespace in-between."""

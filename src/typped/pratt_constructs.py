@@ -329,7 +329,7 @@ class ConstructTable(object):
                             " False if you actually want to allow precondition"
                             " ties." .format(self.__name__, self.token_label,
                                 precond_priority, construct_label, p_label))
-        return
+        return new_construct
 
     def unregister_construct(cls, head_or_tail, trigger_token_label,
                              construct_label=None, type_sig=None, all_handlers=False):
@@ -370,7 +370,6 @@ class ConstructTable(object):
                 del sorted_handler_dict[i] # No type sigs at all, remove item.
                 continue
             handler_fun.type_sigs = new_handler_sigs
-        return
 
     def lookup_construct(self, head_or_tail, trigger_token_instance,
                          lex=None, lookbehind=None, construct_label=None):
