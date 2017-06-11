@@ -13,9 +13,12 @@ which are also associated with a triggering token label, a preconditions
 function, and other data.  See the documentation on preconditioned
 dispatching pratt parsers.
 
-The actual dispatching of handlers is done by the `dispatch_handler`
-routine of the `ConstructTable`.  It runs the preconditions functions
-in order, and returns the winning construct.
+The actual dispatching of handlers is done by the `dispatch_handler` routine of
+the `ConstructTable`.  It runs the preconditions functions in order, and
+returns a handler function for the winning construct.  This handler function
+has its arguments bound, since they are known at the time the handler is
+chosen.  This bound handler function first runs the registered handler; it
+then does type checking and other options before returning the subtree.
 
 """
 
@@ -33,11 +36,7 @@ if __name__ == "__main__":
 import functools
 from collections import OrderedDict
 from .pratt_types import TypeSig
-from .shared_settings_and_exceptions import NoHandlerFunctionDefined
-
-HEAD = "head"
-TAIL = "tail"
-
+from .shared_settings_and_exceptions import HEAD, TAIL, NoHandlerFunctionDefined
 
 def sort_handler_dict(d):
     """Return the sorted `OrderedDict` version of the dict `d` passed in,

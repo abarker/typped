@@ -195,7 +195,7 @@ import copy
 import functools
 from collections import OrderedDict, namedtuple
 
-from .shared_settings_and_exceptions import (ParserException,
+from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
         NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
 from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
@@ -948,10 +948,6 @@ class PrattTokenTable(TokenTable):
 # Parser
 #
 
-# Some convenient constants, which double as strings to use in error messages.
-HEAD = "head"
-TAIL = "tail"
-
 def lexer_add_parser_instance_attribute(lexer, token):
     """Passed to lexer to add a `parser_instance` attribute to each token it
     returns.  This attribute is added to instances at the lexer, from its
@@ -1095,25 +1091,27 @@ class PrattParser(object):
                                              on_ties=on_ties, ignore=True)
 
         elif token_kind == "begin":
-            token_table.def_begin_token(token_label)
+            tok = token_table.def_begin_token(token_label)
             self.begin_token_label = token_label
             # Define dummy handlers for the begin-token.
             def begin_head(self, lex):
                 raise CalledBeginTokenHandler("Called head-handler for begin token.")
             def begin_tail(self, lex, left):
                 raise CalledBeginTokenHandler("Called tail-handler for begin token.")
-            tok = self.def_construct(token_label, head=begin_head, tail=begin_tail)
+            self.def_construct(HEAD, begin_head, token_label)
+            self.def_construct(TAIL, begin_tail, token_label)
             self.begin_token_subclass = tok
 
         elif token_kind == "end":
-            token_table.def_end_token(token_label)
+            tok = token_table.def_end_token(token_label)
             self.end_token_label = token_label
             # Define dummy handlers for the begin-token.
             def end_head(self, lex):
                 raise CalledEndTokenHandler("Called head-handler for end token.")
             def end_tail(self, lex, left):
                 raise CalledEndTokenHandler("Called tail-handler for end token.")
-            tok = self.def_construct(token_label, head=end_head, tail=end_tail)
+            self.def_construct(HEAD, end_head, token_label)
+            self.def_construct(TAIL, end_tail, token_label)
             self.end_token_subclass = tok
 
         elif token_kind == "jop":
@@ -1253,8 +1251,8 @@ class PrattParser(object):
         looking at the `token_label` attribute of the token."""
         return self.token_table[token_label]
 
-    def def_construct(self, trigger_token_label, prec=None,
-                      head=None, tail=None, construct_label=None, precond_fun=None,
+    def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
+                      construct_label=None, prec=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None, key_on_values=False,
                       string_value=None):
@@ -1304,7 +1302,7 @@ class PrattParser(object):
                     " be None or an iterable returning type labels (e.g., a list"
                     " or tuple).")
 
-        if tail and (prec is None):
+        if head_or_tail == TAIL and (prec is None):
             prec = 0
 
         if construct_label is None:
@@ -1320,30 +1318,22 @@ class PrattParser(object):
             # Below line formerly just created a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
-        if tail:
+        if head_or_tail == TAIL:
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Create the type sig object.
         type_sig = TypeSig(val_type, arg_types)
 
         # Register the handler funs.
-        if head:
-            # TODO: combine the two calls below in ConstructTable method
-            self.construct_table.register_construct(HEAD, trigger_token_label,
-                                              construct_label, head, precond_fun,
+        # TODO: combine the two calls below into the register_construct method
+        construct = self.construct_table.register_construct(head_or_tail, trigger_token_label,
+                                              construct_label, handler_fun, precond_fun,
                                               precond_priority, type_sig, key_on_values,
                                               parser_instance=self)
-            self.construct_table.save_eval_fun_and_ast_data(True, trigger_token_label, construct_label,
+        self.construct_table.save_eval_fun_and_ast_data(head_or_tail==HEAD,
+                                             trigger_token_label, construct_label,
                                              type_sig, eval_fun, ast_data, string_value)
-        if tail:
-            self.construct_table.register_construct(TAIL, trigger_token_label,
-                                              construct_label, tail, precond_fun,
-                                              precond_priority, type_sig, key_on_values,
-                                              parser_instance=self)
-            self.construct_table.save_eval_fun_and_ast_data(False, trigger_token_label, construct_label,
-                                          type_sig, eval_fun, ast_data, string_value)
-
-        return token_subclass
+        return construct
 
     def undef_construct(self, token_label, head_or_tail, construct_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
@@ -1411,7 +1401,7 @@ class PrattParser(object):
                                                 #"check_override_sig": True,
             return tok
 
-        return self.def_construct(token_label, head=head_handler_literal,
+        return self.def_construct(HEAD, head_handler_literal, token_label,
                                   val_type=val_type, arg_types=(),
                                   construct_label=construct_label,
                                   precond_fun=precond_fun,
@@ -1474,7 +1464,7 @@ class PrattParser(object):
             tok.process_and_check_kwargs = {"repeat_args": repeat}
             return tok
 
-        return self.def_construct(operator_token_labels[0], prec=prec, tail=tail_handler,
+        return self.def_construct(TAIL, tail_handler, operator_token_labels[0], prec=prec,
                                   construct_label=construct_label, precond_fun=precond_fun,
                                   precond_priority=precond_priority,
                                   val_type=val_type, arg_types=arg_types,
@@ -1505,7 +1495,7 @@ class PrattParser(object):
             tok.append_children(tok.recursive_parse(prec))
             return tok
 
-        return self.def_construct(operator_token_label, head=head_handler,
+        return self.def_construct(HEAD, head_handler, operator_token_label,
                                   construct_label=construct_label, precond_fun=precond_fun,
                                   precond_priority=precond_priority,
                                   val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
@@ -1524,7 +1514,7 @@ class PrattParser(object):
             tok.append_children(left)
             return tok
 
-        return self.def_construct(operator_token_label, prec=prec, tail=tail_handler,
+        return self.def_construct(TAIL, tail_handler, operator_token_label, prec=prec,
                                  construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  val_type=val_type, arg_types=arg_types,
@@ -1550,7 +1540,7 @@ class PrattParser(object):
                         "typesig_override": TypeSig(child_type, [child_type])}
             return tok
 
-        return self.def_construct(lbrac_token_label, head=head_handler,
+        return self.def_construct(HEAD, head_handler, lbrac_token_label,
                                  construct_label=construct_label, precond_fun=precond_fun,
                                  precond_priority=precond_priority,
                                  eval_fun=eval_fun, ast_data=ast_data)
@@ -1608,11 +1598,11 @@ class PrattParser(object):
             return tok
 
         construct_label = "lpar after, no whitespace between"
-        return self.def_construct(fname_token_label, prec=0,
-                     head=head_handler, construct_label=construct_label,
-                     precond_fun=preconditions, precond_priority=precond_priority,
-                     val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                     ast_data=ast_data)
+        return self.def_construct(HEAD, head_handler, fname_token_label, prec=0,
+                    construct_label=construct_label,
+                    precond_fun=preconditions, precond_priority=precond_priority,
+                    val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                    ast_data=ast_data)
 
     def def_stdfun_lpar_tail(self, fname_token_label, lpar_token_label,
                              rpar_token_label, comma_token_label, prec_of_lpar,
@@ -1658,8 +1648,8 @@ class PrattParser(object):
 
         # Note we need to generate a unique construct_label for each fname_token_label.
         construct_label = "match desired function name of " + fname_token_label
-        return self.def_construct(lpar_token_label,
-                                  prec=prec_of_lpar, tail=tail_handler,
+        return self.def_construct(TAIL, tail_handler, lpar_token_label,
+                                  prec=prec_of_lpar,
                                   construct_label=construct_label,
                                   precond_fun=precond_fun,
                                   val_type=val_type, arg_types=arg_types,
@@ -1692,7 +1682,7 @@ class PrattParser(object):
             tok.append_children(left, right_operand)
             return tok
 
-        return self.def_construct(self.jop_token_label, prec=prec, tail=tail_handler,
+        return self.def_construct(TAIL, tail_handler, self.jop_token_label, prec=prec,
                                   construct_label=construct_label, precond_fun=precond_fun,
                                   precond_priority=precond_priority,
                                   val_type=val_type, arg_types=arg_types,

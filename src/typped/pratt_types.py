@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 
+.. |br| raw:: html
+
+   <p>
+
 This module contains classes defining types and methods which can be called by
 the `PrattParser` class when checking types.  It defines the class `TypeSig`
 and the class `TypeObject`, as well as a dict class for storing
@@ -14,16 +18,14 @@ Terminology:
 - Function **parameters** or **formal arguments** are the identifiers which appear
   in the function definition (and the function signature).  The type
   specifications for parameters will be called **formal types**, since the
-  term parameter is used differently below.
+  term parameter is used differently below. |br|
 
-- Function **arguments" or **actual arguments** are the values which are actually
+- Function **arguments** or **actual arguments** are the values which are actually
   passed to the function on a function call.  Their types will be referred to
   as **actual types**.
 
 Note that the formal type of a parameter can possibly match more than one
 actual type.  At least one must match, however.
-
-On the other hand,
 
 TODO fix terminology
 
@@ -33,7 +35,7 @@ TODO fix terminology
   `T` is a **parameter** of the parameterized type.  In the terminology used
   here, all types are parameterized types, except that some do not actually
   take parameters (and so they equal their expanded types).  Formal types can
-  be parameterized, but actual types must be instantiated in all parameters.
+  be parameterized, but actual types must be instantiated in all parameters. |br|
 
 - **Expanded types** are parameterized types and types with `None` alone as a
   wildcard argument which have been expanded to have the correct number of

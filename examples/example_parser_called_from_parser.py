@@ -156,8 +156,8 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
         return tok
 
     #arg_types = [None]*num_args
-    parser.def_construct(formula_name_token_label, prec=0,
-                         head=head_handler, construct_label=construct_label,
+    parser.def_construct(pp.HEAD, head_handler, formula_name_token_label, prec=0,
+                         construct_label=construct_label,
                          precond_fun=preconditions, precond_priority=1)
 
 def define_wff_parser(term_parser):

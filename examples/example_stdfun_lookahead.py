@@ -13,7 +13,7 @@ import pytest_helper
 
 import math
 import operator
-from typped import PrattParser
+import typped as pp
 
 # Some naming conventions.
 #
@@ -29,7 +29,7 @@ from typped import PrattParser
 
 def define_parser_subclass():
 
-    class MyParser(PrattParser):
+    class MyParser(pp.PrattParser):
         """Subclass and add a new method to the `PrattParser` class as an example."""
 
         def __init__(self, *args, **kwargs):
@@ -68,8 +68,7 @@ def define_parser_subclass():
 
             # Register the construct with the parser.
             construct_label = "parse function with lpar, no space after name"
-            self.def_construct(fname_token_label, prec=0,
-                                       head=head_handler,
+            self.def_construct(pp.HEAD, head_handler, fname_token_label, prec=0,
                                        construct_label=construct_label,
                                        precond_fun=preconditions,
                                        precond_priority=precond_priority)

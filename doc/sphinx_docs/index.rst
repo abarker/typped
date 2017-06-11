@@ -9,6 +9,17 @@ Typped: A typed Pratt parser employing dispatching
 
 .. default-role:: code
 
+..
+   Use |nbsp| for nonbreaking space, and |br| for adding line breaks.  Not sure
+   of the scope; need to redefine inside module docstrings to use there.
+
+.. |nbsp| unicode:: 0xA0
+   :trim:
+
+.. |br| raw:: html
+
+   <p>
+
 .. todoLaterBelow
    .. role:: python(code)
        :language: py

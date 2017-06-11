@@ -229,7 +229,7 @@ def define_logic_parser():
                 tok.process_and_check_kwargs = {"typesig_override": override_sig,
                                                 "check_override_sig": True}
                 return tok
-            return self.def_construct(quant_token_label, head=head_handler)
+            return self.def_construct(pp.HEAD, head_handler, quant_token_label)
 
         def def_quantifier_expr(self, quant_token_label, variable_token_label,
                            comma_token_label, lpar_token_label, rpar_token_label,
@@ -281,7 +281,7 @@ def define_logic_parser():
                                            "check_override_sig": True}
                 return quantifier_tok
             # Note that the handler is registered with the lpar token.
-            return self.def_construct(lpar_token_label, head=head_handler,
+            return self.def_construct(pp.HEAD, head_handler, lpar_token_label,
                     construct_label=construct_label, precond_fun=quantifier_following_lpar)
 
         def old_def_paren_pair(self, lpar_token_label, rpar_token_label, wff_type):
@@ -309,7 +309,7 @@ def define_logic_parser():
                                                 "check_override_sig": True}
                 return tok
 
-            return self.def_construct(lpar_token_label, head=head_handler)
+            return self.def_construct(pp.HEAD, head_handler, lpar_token_label)
 
     return LogicParser()
 

@@ -7,6 +7,10 @@ Some settings and exceptions that are shared between several modules.
 
 from __future__ import print_function, division, absolute_import
 
+# These should stay strings because the strings are also used in printed error messages.
+HEAD = "head"
+TAIL = "tail"
+
 #
 # Exceptions.
 #

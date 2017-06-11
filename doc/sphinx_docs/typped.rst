@@ -6,12 +6,13 @@ APIs and code for the modules in the Typped package
 
 .. toctree::
 
-   typped.lexer
-   typped.shared_settings_and_exceptions
    typped.pratt_parser
+   typped.shared_settings_and_exceptions
+   typped.pratt_constructs
    typped.pratt_types
    typped.production_rules
    typped.register_grammar_with_parser
+   typped.lexer
    typped.regex_trie_dict
    typped.regex_trie_dict_scanner
    .. typped.text_stream
