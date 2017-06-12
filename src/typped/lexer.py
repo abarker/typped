@@ -407,11 +407,17 @@ class TokenTable(object):
     Each `Lexer` instance contains an instance of this class to save the subclasses for
     the kinds of tokens which have been defined for it."""
     def __init__(self, token_subclass_factory_fun=basic_token_subclass_factory,
-                       pattern_matcher_class=MatcherPythonRegex):
-        """Initialize the token table.  The parameter `token_subclass_factory_fun`
-        can be passed a function to be used to generate token subclasses,
-        taking a token label as an argument.  The default is
-        `basic_token_subclass_factory`."""
+                       pattern_matcher_instance=None):
+        """Initialize the token table.
+
+        The parameter `token_subclass_factory_fun` can be passed a function to
+        be used to generate token subclasses, taking a token label as an
+        argument.  The default is `basic_token_subclass_factory`.
+
+        The parameter `pattern_matcher_instance` can be passed an empty pattern
+        matcher instance, which will be used instead of the default one.  In
+        this way users can define their own matchers, or pass in whatever options
+        they choose to the initializer of the default one."""
         self.token_subclassing_fun = token_subclass_factory_fun
         self.token_subclass_dict = {}
         self.lex = None # The lexer currently associated with this token table.
@@ -420,8 +426,9 @@ class TokenTable(object):
         self.begin_token_subclass = None
         self.end_token_label = None
         self.end_token_subclass = None
-        self.PatternMatcherClass = pattern_matcher_class
-        self.pattern_matcher = self.PatternMatcherClass()
+        if pattern_matcher_instance is None:
+            pattern_matcher_instance = MatcherPythonRegex()
+        self.pattern_matcher = pattern_matcher_instance
 
     def __contains__(self, token_label):
         """Test whether a token subclass for `token_label` has been stored."""
@@ -469,8 +476,10 @@ class TokenTable(object):
         self.undef_token_subclass(token_label)
         self.pattern_matcher.undef_pattern(token_label)
 
-    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
-        """Define a token and the regex to recognize it.
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
+                  options=None):
+        """Define a token and the regex to recognize it.  Returns the new
+        token subclass.
 
         The label `token_label` is the label for the kind of token.
 
@@ -488,14 +497,15 @@ class TokenTable(object):
         `on_ties` values are used to break the ties.  If any two are still
         equal an exception will be raised.
 
-        Returns the new token subclass."""
+        The `option` parameter takes a string value, which is then passed to
+        the `insert_pattern` method of whatever matcher is being used."""
         if token_label in self:
             raise LexerException("A token with label '{0}' is already defined.  It "
             "must be undefined before it can be redefined.".format(token_label))
 
         if regex_string is not None:
             self.pattern_matcher.insert_pattern(token_label, regex_string,
-                                                 on_ties, ignore=ignore)
+                         on_ties, ignore=ignore, options=options)
 
         # Initialize and return a bare-bones, default token_subclass.
         tok = self._create_token_subclass(token_label)
@@ -724,8 +734,8 @@ class GenTokenState:
     end = 2
     uninitialized = 3
 
-# The beginnings of a state tuple for the Lexer.  NOT YET USED AT ALL, but would
-# be more elegant than the current ad hoc approach.
+# The beginnings of a state tuple for the Lexer.  NOT YET USED AT ALL, but it would
+# be more elegant than the current ad hoc state restoration approach.
 LexerState = collections.namedtuple("LexerState", [
                            "x",
                            "y",
@@ -1212,12 +1222,13 @@ class Lexer(object):
     # Methods to define and undefine tokens
     #
 
-    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
+                  options=None):
         """A convenience method to define a token. It calls the corresponding
         `def_token` method of the current `TokenTable` instance associated with
         the lexer, and does nothing else."""
         new_subclass = self.token_table.def_token(token_label, regex_string,
-                       on_ties=on_ties, ignore=ignore)
+                    on_ties=on_ties, ignore=ignore, options=options)
         return new_subclass
 
     def undef_token(self, token_label):
@@ -1225,10 +1236,12 @@ class Lexer(object):
         the current `TokenTable` instance associated with the Lexer."""
         self.token_table.undef_token(token_label)
 
-    def def_ignored_token(self, token_label, regex_string, on_ties=0):
+    def def_ignored_token(self, token_label, regex_string, on_ties=0,
+                          options=None):
         """A convenience function to define an ignored token without setting
         `ignore=True`.  This just calls `def_token` with the value set."""
-        return self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True)
+        return self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True,
+                              options=options)
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
@@ -1262,11 +1275,13 @@ class Lexer(object):
         return begin_tok, end_tok
 
     def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
-                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+"):
+                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+",
+                        options=None):
         """Define the standard whitespace tokens for space and newline, setting
         them as ignored tokens."""
-        self.def_ignored_token(space_label, space_regex)
-        self.def_ignored_token(newline_label, newline_regex)
+        tok = self.def_ignored_token
+        tok(space_label, space_regex, options=options)
+        tok(newline_label, newline_regex, options=options)
 
     #
     # Some helper functions when using the Lexer class.

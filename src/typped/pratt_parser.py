@@ -982,9 +982,9 @@ class PrattParser(object):
         (though it is reset on each parse).  Needs to be large enough for the
         max level of peeks required plus the max `go_back` level required.
 
-        If a Lexer is passed in the parser will use that lexer and its token
-        table, otherwise a new lexer is created.  The previous lexer options
-        are ignored.
+        If a `Lexer` instance is passed in the parser will use that lexer and
+        its token table, otherwise a new lexer is created.  The any other lexer
+        options are ignored.
 
         No default begin and end functions will be set if a lexer is passed in,
         regardless of the value of `default_begin_end_tokens`.  Otherwise,
@@ -1066,7 +1066,8 @@ class PrattParser(object):
     #
 
     def def_token_master(self, token_label, regex_string=None, on_ties=0, ignore=False,
-                         ignored_token_label=None, token_kind="regular"):
+                         ignored_token_label=None, token_kind="regular",
+                         options=None):
         """The master method for defining tokens; all the convenience methods
         actually call it.  Allows for factoring out some common code and
         keeping the attributes of all the different kinds of tokens up-to-date.
@@ -1084,11 +1085,11 @@ class PrattParser(object):
 
         if token_kind == "regular":
             tok = token_table.def_token(token_label, regex_string,
-                                      on_ties=on_ties, ignore=ignore)
+                       on_ties=on_ties, ignore=ignore, options=options)
 
         elif token_kind == "ignored":
             tok = token_table.def_token(token_label, regex_string,
-                                             on_ties=on_ties, ignore=True)
+                       on_ties=on_ties, ignore=True, options=options)
 
         elif token_kind == "begin":
             tok = token_table.def_begin_token(token_label)
@@ -1142,21 +1143,24 @@ class PrattParser(object):
         tok.is_head = False # Set true in recursive_parse if instance parses as a head.
         return tok
 
-    def def_token(self, token_label, regex_string, on_ties=0, ignore=False):
+    def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
+                  options=None):
         """Define a token.  Use this instead of the Lexer `def_token` method,
         since it adds extra attributes to the tokens."""
         return self.def_token_master(token_label, regex_string, on_ties, ignore,
-                                     token_kind="regular")
+                              token_kind="regular", options=options)
 
-    def def_ignored_token(self, token_label, regex_string, on_ties=0):
+    def def_ignored_token(self, token_label, regex_string, on_ties=0,
+                          options=None):
         """A convenience function to define a token with `ignored=True`."""
-        return self.def_token_master(token_label, regex_string, on_ties,
-                                     ignore=True, token_kind="ignored")
+        return self.def_token_master(token_label, regex_string, on_ties, ignore=True,
+                              token_kind="ignored", options=options)
 
     def def_multi_tokens(self, tuple_list):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
+        # TODO: take keyword args and pass them all to the def_token routine!
         return multi_funcall(self.def_token, tuple_list, ParserException)
 
     def def_multi_ignored_tokens(self, tuple_list):
@@ -1210,12 +1214,14 @@ class PrattParser(object):
                                      token_kind="null-string")
 
     def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
-                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+"):
+                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+",
+                        options=None):
         """Define the standard whitespace tokens for space and newline, setting
         them as ignored tokens."""
         # Note + symbol for one or more, NOT the * symbol for zero or more.
-        self.def_ignored_token(space_label, space_regex)
-        self.def_ignored_token(newline_label, newline_regex)
+        tok = self.def_ignored_token
+        tok(space_label, space_regex, options=options)
+        tok(newline_label, newline_regex, options=options)
 
     #
     # Undefine tokens.
