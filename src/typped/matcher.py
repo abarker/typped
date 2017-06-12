@@ -95,6 +95,7 @@ class MatcherPythonRegex(object):
         self.python_regex_data_dict = {} # Data for the regexes of tokens.
         self.trie_regex_data_dict = {} # Data for the regexes stored in the trie.
         self.rtd = None # Trie patterns stored here; only instantiated if needed.
+        self.insert_options = "python"
 
     def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False,
                        options=None):
@@ -104,20 +105,29 @@ class MatcherPythonRegex(object):
         If `ignore` is true then the pattern is treated as an ignored pattern.
 
         If `options="trie"` then the pattern is inserted in a
-        `RegexTrieDict` for matching (and must be in the correct format)."""
+        `RegexTrieDict` for matching (and must be in the correct format).
+
+        If `options=None` the method will instead use the value of the class
+        instance attribute `insert_options` (which defaults to `"python"` to
+        use Python regexes)."""
         if ignore:
             self.ignore_tokens.add(token_label)
+        if options is None:
+            options = self.insert_options
 
         if options == "trie":
             if not self.rtd is None:
                 self.rtd = RegexTrieDict()
             self.trie_regex_data_dict[token_label] = (regex_string, on_ties)
             rtd[regex_string] = token_label
-        else:
+        elif options == "python":
             compiled_regex = re.compile(regex_string,
                                         re.VERBOSE|re.MULTILINE|re.UNICODE)
             regex_data = TokenPatternTuple(regex_string, compiled_regex, on_ties)
             self.python_regex_data_dict[token_label] = regex_data
+        else:
+            raise MatcherException("Bad option '{0}' passed to the insert_pattern method"
+                                 " of the MatcherPythonRegex instance.".format(options))
 
     def remove_pattern(self, token_label):
         """Remove the pattern for the token corresponding to `token_label`."""
@@ -131,7 +141,7 @@ class MatcherPythonRegex(object):
             del self.rtd[regex]
             del regex_data_dict[token_label]
         else:
-            raise LexerException("Attempt to undefine pattern for token that"
+            raise MatcherException("Attempt to undefine pattern for token that"
                                  " was never defined.")
 
     def get_next_token_label_and_value(self, program, unprocessed_slice_indices,
@@ -174,7 +184,7 @@ class MatcherPythonRegex(object):
         # Note that tuple comparisons give the correct max value.
         winning_tuple = max(len_and_on_ties_dict.values())
         if winning_tuple[0] == 0:
-            raise LexerException("No matches in Lexer, unknown token at "
+            raise MatcherException("No matches in Lexer, unknown token at "
                     "the start of this unprocessed text:\n{0}"
                     .format(program[unprocessed_slice_indices[0]
                             :unprocessed_slice_indices[0] +
@@ -188,7 +198,7 @@ class MatcherPythonRegex(object):
 
         if len(winning_items) > 1: # Still have a tie, raise an exception.
             winning_labels = [i[0] for i in winning_items]
-            raise LexerException("There were multiple token-pattern matches"
+            raise MatcherException("There were multiple token-pattern matches"
                     " with the same length, found in Lexer.  Set the on_ties"
                     " keyword arguments to break ties.  The possible token"
                     " types and their matched text are: {0}\n"
@@ -270,4 +280,11 @@ def _convert_simple_pattern(self, regex_string):
     #    print("simple pattern", regex_string)
     #else:
     #    print("non-simple pattern", regex_string)
+
+#
+# Exceptions.
+#
+
+class MatcherException(LexerException):
+    pass
 
