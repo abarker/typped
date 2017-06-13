@@ -155,20 +155,18 @@ class MatcherPythonRegex(object):
             raise MatcherException("Attempt to remove pattern for a token that"
                                    " was never defined.")
 
-    def get_next_token_label_and_value(self, program, unprocessed_slice_indices,
-                                       ERROR_MSG_TEXT_SNIPPET_SIZE):
-        """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
-        longest and wins tie breaking.  Return the token token_label and value of the
-        matching prefix.  The list arguments should be in correspondence with
-        the `self.token_labels` list."""
+    def get_next_token_label_and_value(self, program, slice_indices,
+                                       error_msg_text_snippet_size):
+        """Return the best prefix match as a tuple of the token label and the matched
+        string.  The `slice_indices` are an ordered pair of indices into the string
+        `program` which contain the relevant part."""
         if self.python_regex_data_dict:
-            best_matches = self._python_get_raw_matches(program, unprocessed_slice_indices)
+            best_matches = self._python_get_raw_matches(program, slice_indices)
         else:
             best_matches = []
 
         if self.trie_regex_data_dict:
-            best_matches_trie = self._trie_get_matched_prefixes_and_length_info(
-                                                        program, unprocessed_slice_indices)
+            best_matches_trie = self._trie_get_raw_matches(program, slice_indices)
         else:
             best_matches_trie = []
 
@@ -185,11 +183,11 @@ class MatcherPythonRegex(object):
         if not combo_best_matches:
             raise MatcherException("No matches in Lexer, unknown token at "
                     "the start of this unprocessed text:\n{0}"
-                    .format(program[unprocessed_slice_indices[0]
-                            :unprocessed_slice_indices[0] +
-                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+                    .format(program[slice_indices[0]
+                            :slice_indices[0] +
+                                error_msg_text_snippet_size]))
 
-        if len(combo_best_matches) > 1: # There is an unresolved tie, raise an exception.
+        if len(combo_best_matches) > 1: # An unresolved tie, raise an exception.
             # TODO: Later make a better-looking format for the data in error msg.
             winning_tuples_as_dicts = [list(t._asdict().items()) for t in combo_best_matches]
             raise MatcherException("There were multiple token-pattern matches"
@@ -198,25 +196,27 @@ class MatcherPythonRegex(object):
                     " types and their matched text are: {0}\n"
                     " Ambiguity at the start of this "
                     " unprocessed text:\n{1}".format(winning_tuples_as_dicts,
-                        program[unprocessed_slice_indices[0]
-                            :unprocessed_slice_indices[0] +
-                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+                        program[slice_indices[0]
+                            :slice_indices[0] +
+                                error_msg_text_snippet_size]))
 
         final_best = combo_best_matches[0]
         return final_best.token_label, final_best.matched_string
 
-    #
-    # The RegexTrieDictScanner methods.
-    #
-
-    #
-    # The Python regex matcher methods.
-    #
+    def _trie_get_raw_matches(self, program, unprocessed_slice_indices):
+        """A utility routine that does the actual string match on the prefix of
+        `self.program` using the `RegexTrieDictScanner`.  Returns a list of
+        `MatchedPrefixTuple` instances for all the best matches.  (In non-error
+        conditions the match must be unique, but for unresolved ties we want the
+        diagnostic data, too.)"""
+        pass
 
     def _python_get_raw_matches(self, program, unprocessed_slice_indices):
         """A utility routine that does the actual string match on the prefix of
-        `self.program`.  Returns the list of best matching prefixes and corresponding
-        data for the error message in case of ties."""
+        `self.program` using the stored Python regexes.  Returns a list of
+        `MatchedPrefixTuple` instances for all the best matches.  (In non-error
+        conditions the match must be unique, but for unresolved ties we want the
+        diagnostic data, too.)"""
         # Note that Python's finditer finds the *first* match group and stops.
         # They are ordered by the order they occur in the regex.  It finds the
         # longest match of any particular group, but stops when it finds a
@@ -234,13 +234,8 @@ class MatcherPythonRegex(object):
                 matched_string = program[match_object.start():match_object.end()]
                 match_length = len(matched_string)
                 match_len_tuple = (match_length, on_ties)
-                print("match_len_tuple is:", match_len_tuple)
                 if match_len_tuple < longest_tuple:
                     continue
-                #elif match_len_tuple == longest_tuple:
-                #    # Exception can be caught here, but we want all matches for err msg.
-                #    raise MatcherException("Multiples!!!!!!!!")
-                print("new longest tuple is:", match_len_tuple)
                 if match_len_tuple != longest_tuple:
                     match_list.clear()
                 longest_tuple = match_len_tuple
