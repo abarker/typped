@@ -85,11 +85,12 @@ TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
                            "on_ties",
                            ])
 
-# These tuples are temporarily generated during the match-finding.
+# These tuples are temporarily generated during the match-finding process.
 MatchedPrefixTuple = collections.namedtuple("MatchedPrefixTuple", [
-                           "length",
-                           "on_ties",
+                           "length", # Order matters: must be first component.
+                           "on_ties", # Order matters: must be second component.
                            "matched_string",
+                           "token_label",
                            ])
 
 INFINITY = float("inf")
@@ -98,9 +99,6 @@ class MatcherPythonRegex(object):
     """A matcher class that stores pattern data and matches it."""
 
     def __init__(self):
-        # TODO: Have an option to only use trie or only use Python regex by default
-        # regardless of options.  Maybe an option to use trie only on simple
-        # patterns...
         self.ignore_tokens = set() # The set of tokens to ignore.
         self.python_regex_data_dict = {} # Data for the regexes of tokens.
         self.trie_regex_data_dict = {} # Data for the regexes stored in the trie.
@@ -120,6 +118,9 @@ class MatcherPythonRegex(object):
         If `options=None` the method will instead use the value of the class
         instance attribute `insert_options` (which defaults to `"python"` to
         use Python regexes)."""
+        # Note that this method does not check for reinsertions of the same
+        # token label; the def_token that calls it is responsible for that.
+
         if ignore:
             self.ignore_tokens.add(token_label)
         if options is None:
@@ -142,7 +143,6 @@ class MatcherPythonRegex(object):
 
     def remove_pattern(self, token_label):
         """Remove the pattern for the token corresponding to `token_label`."""
-        # Remove from the list of defined tokens and from the token table.
         self.ignore_tokens.discard(token_label)
 
         if token_label in self.python_regex_data_dict:
@@ -162,21 +162,48 @@ class MatcherPythonRegex(object):
         matching prefix.  The list arguments should be in correspondence with
         the `self.token_labels` list."""
         if self.python_regex_data_dict:
-            raw_matcher = self._python_get_raw_matches
-            token_label, value = self._get_next_token_label_and_value(raw_matcher,
-                                           program, unprocessed_slice_indices,
-                                           ERROR_MSG_TEXT_SNIPPET_SIZE)
-        if self.trie_regex_data_dict:
-            raw_matcher = self._trie_get_matched_prefixes_and_length_info
-            trie_token_label, trie_value = self._get_next_token_label_and_value(
-                                                raw_matcher, program,
-                                                unprocessed_slice_indices,
-                                                ERROR_MSG_TEXT_SNIPPET_SIZE)
-            pass # TODO
+            best_matches = self._python_get_raw_matches(program, unprocessed_slice_indices)
+        else:
+            best_matches = []
 
-        longest_value = value
-        label_of_longest = token_label
-        return label_of_longest, longest_value
+        if self.trie_regex_data_dict:
+            best_matches_trie = self._trie_get_matched_prefixes_and_length_info(
+                                                        program, unprocessed_slice_indices)
+        else:
+            best_matches_trie = []
+
+        try:
+            if best_matches[0] > best_matches_trie[0]:
+                combo_best_matches = best_matches
+            elif best_matches[0] < best_matches_trie[0]:
+                combo_best_matches = best_matches_trie
+            else:
+                combo_best_matches = best_matches + best_matches_trie
+        except IndexError:
+            combo_best_matches = best_matches + best_matches_trie
+
+        if not combo_best_matches:
+            raise MatcherException("No matches in Lexer, unknown token at "
+                    "the start of this unprocessed text:\n{0}"
+                    .format(program[unprocessed_slice_indices[0]
+                            :unprocessed_slice_indices[0] +
+                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+
+        if len(combo_best_matches) > 1: # There is an unresolved tie, raise an exception.
+            # TODO: Later make a better-looking format for the data in error msg.
+            winning_tuples_as_dicts = [list(t._asdict().items()) for t in combo_best_matches]
+            raise MatcherException("There were multiple token-pattern matches"
+                    " with the same length, found in Lexer.  Set the on_ties"
+                    " keyword arguments to break ties.  The possible token"
+                    " types and their matched text are: {0}\n"
+                    " Ambiguity at the start of this "
+                    " unprocessed text:\n{1}".format(winning_tuples_as_dicts,
+                        program[unprocessed_slice_indices[0]
+                            :unprocessed_slice_indices[0] +
+                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
+
+        final_best = combo_best_matches[0]
+        return final_best.token_label, final_best.matched_string
 
     #
     # The RegexTrieDictScanner methods.
@@ -185,57 +212,6 @@ class MatcherPythonRegex(object):
     #
     # The Python regex matcher methods.
     #
-
-    def _get_next_token_label_and_value(self, raw_matcher, program,
-                                        unprocessed_slice_indices,
-                                        ERROR_MSG_TEXT_SNIPPET_SIZE):
-        """Find the `(len, on_ties)` tuple in `len_and_on_ties_dict` which is
-        longest and wins tie breaking.  Return the token token_label and value of the
-        matching prefix.  The list arguments should be in correspondence with
-        the `self.token_labels` list."""
-        # MatchedPrefixTuple format is: (length, on_ties, matched_string)
-
-        # TODO: Converting to a list return value for raw_matcher causes errors!
-        # Things like sin vs identifier are flagged as multiples... but really
-        # the on_ties should take care of it, since it is -1 on most identifiers..
-
-        # Get the matching prefixes and length-ranking information.
-        match_dict = raw_matcher(program, unprocessed_slice_indices)
-
-        # Note that tuple comparisons give the correct max value.
-        if match_dict:
-            winning_match = max(match_dict.values())
-        if not match_dict or winning_match.length == 0:
-            raise MatcherException("No matches in Lexer, unknown token at "
-                    "the start of this unprocessed text:\n{0}"
-                    .format(program[unprocessed_slice_indices[0]
-                            :unprocessed_slice_indices[0] +
-                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
-
-        # We know the winning tuple's value, now see if it is unique.
-        winning_items = []
-        for item in match_dict.items():
-            token_label, (length, on_ties, matched_string) = item
-            if length == winning_match.length and on_ties == winning_match.on_ties:
-                winning_items.append(item)
-
-        if len(winning_items) > 1: # Still have a tie, raise an exception.
-            winning_labels = [i[0] for i in winning_items]
-            raise MatcherException("There were multiple token-pattern matches"
-                    " with the same length, found in Lexer.  Set the on_ties"
-                    " keyword arguments to break ties.  The possible token"
-                    " types and their matched text are: {0}\n"
-                    " Ambiguity at the start of this "
-                    " unprocessed text:\n{1}".format(winning_labels,
-                        program[unprocessed_slice_indices[0]
-                            :unprocessed_slice_indices[0] +
-                                ERROR_MSG_TEXT_SNIPPET_SIZE]))
-
-        # Got unique winner; use its index to get corresponding winning_index.
-        winning_item = winning_items[0]
-        token_label = winning_item[0]
-        value = match_dict[token_label].matched_string
-        return token_label, value
 
     def _python_get_raw_matches(self, program, unprocessed_slice_indices):
         """A utility routine that does the actual string match on the prefix of
@@ -247,7 +223,7 @@ class MatcherPythonRegex(object):
         # match of some group.  Instead of using that, this code loops over all
         # the separate patterns to find the overall longest, breaking ties with
         # on_ties values.
-        match_dict = {} # Dict of MatchedPrefixTuple instances keyed by token labels.
+        match_list = [] # Dict of MatchedPrefixTuple instances keyed by token labels.
         longest_tuple = (0, -INFINITY)
         for token_label, (regex_str, compiled_regex, on_ties
                                            ) in self.python_regex_data_dict.items():
@@ -258,21 +234,29 @@ class MatcherPythonRegex(object):
                 matched_string = program[match_object.start():match_object.end()]
                 match_length = len(matched_string)
                 match_len_tuple = (match_length, on_ties)
+                print("match_len_tuple is:", match_len_tuple)
                 if match_len_tuple < longest_tuple:
                     continue
                 #elif match_len_tuple == longest_tuple:
                 #    # Exception can be caught here, but we want all matches for err msg.
                 #    raise MatcherException("Multiples!!!!!!!!")
+                print("new longest tuple is:", match_len_tuple)
+                if match_len_tuple != longest_tuple:
+                    match_list.clear()
                 longest_tuple = match_len_tuple
-                match_dict[token_label] = MatchedPrefixTuple(
+                match_list.append(MatchedPrefixTuple(
                                                 length=match_length,
                                                 on_ties=on_ties,
-                                                matched_string=matched_string)
-        return match_dict
+                                                matched_string=matched_string,
+                                                token_label=token_label))
+        return match_list
 
 
-def _convert_simple_pattern(self, regex_string):
-    """Convet a simple pattern to a form that can be inserted into a
+def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
+    """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and automatically
+    put them in the trie, otherwise use Python matcher.
+
+    Convet a simple pattern to a form that can be inserted into a
     `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
     complicated.  Simple pattern is essentially defined by what this routine
     is implemented to do (and a `RegexTrieDict` can/should do)"""
