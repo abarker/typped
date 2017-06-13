@@ -122,7 +122,7 @@ if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run("../../test/test_regex_trie_dict_scanner.py", pytest_args="-v")
 
-from .regex_trie_dict import SequentialPrefixMatcher, RegexTrieDictError
+from .regex_trie_dict import SequentialPrefixMatcher, RegexTrieDictError, RegexTrieDict
 
 class RegexTrieDictScanner(object):
     """This class implements a scanner using the keys of a `RegexTrieDict` as patterns
