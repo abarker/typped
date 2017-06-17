@@ -6,13 +6,43 @@ if __name__ == "__main__":
     #pytest_helper.script_run("../test/test_example_number_string_lang_from_intro.py",
     #                         pytest_args="-v")
 
-#pytest_helper.sys_path("../src") # Only needed when not pip installed.
+#pytest_helper.sys_path("../src") # Only needed when package isn't pip installed.
 import typped as pp
 import operator
 import cmd
 import readline
 
-def setup_parser():
+def setup_simple_builtin_example():
+    import typped as pp
+    parser = pp.PrattParser()
+
+    parser.def_default_whitespace()
+    parser.def_token("k_number", r"\d+")
+    parser.def_token("k_lpar", r"\(")
+    parser.def_token("k_rpar", r"\)")
+    parser.def_token("k_ast", r"\*")
+    parser.def_token("k_plus", r"\+")
+    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+
+    t_number = parser.def_type("t_number") # Define a type.
+    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
+    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
+    parser.def_infix_op("k_plus", 10, "left",
+                     val_type=t_number, arg_types=[t_number, t_number],
+                     ast_data="a_add")
+    parser.def_infix_op("k_ast", 20, "left",
+                     val_type=t_number, arg_types=[t_number, t_number],
+                     ast_data="a_mult")
+    parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
+
+    return parser
+
+def run_simple_builtin_example():
+    parser = setup_simple_builtin_example()
+    result_tree = parser.parse("x + (4 + 3)*5")
+    print(result_tree.tree_repr())
+
+def setup_string_language_parser():
     """An example from the Sphinx docs overview section.  A simple language
     that uses `+` to add integers and concatenate strings.  Multiplication of a
     number by a string repeats the string.  Multiplication of a string by a
@@ -107,48 +137,46 @@ def setup_parser():
                       val_type=t_string, arg_types=[None, t_string], eval_fun=eval_assign)
     return parser
 
-parser = setup_parser()
+def run_string_language_parser():
 
-parser.parse("ee")
-parser.parse("ee = 4")
+    parser = setup_string_language_parser()
 
-class NumberStringLangREPL(cmd.Cmd, object):
-    prompt = "> "
-    intro = "Enter ^D to exit the calculator."
+    parser.parse("ee")
+    parser.parse("ee = 4")
 
-    def __init__(self):
-        super(NumberStringLangREPL, self).__init__()
-        self.parser = setup_parser()
+    class NumberStringLangREPL(cmd.Cmd, object):
+        prompt = "> "
+        intro = "Enter ^D to exit the string language."
 
-    def emptyline(self):
-        pass
+        def __init__(self):
+            super(NumberStringLangREPL, self).__init__()
+            self.parser = setup_string_language_parser()
 
-    def default(self, line):
-        try:
-            result = parser.parse(line)
-            print(result.tree_repr())
-            print(result.eval_subtree())
-        except (ValueError, ZeroDivisionError) as e:
-            print(e)
-        except pp.TypeErrorInParsedLanguage as e:
-            print(e)
-        except Exception as e:
-            print(e)
+        def emptyline(self):
+            pass
 
-    def do_EOF(self, line):
-        print("\nBye.")
-        return True
+        def default(self, line):
+            try:
+                result = parser.parse(line)
+                print(result.tree_repr())
+                print(result.eval_subtree())
+            except (ValueError, ZeroDivisionError) as e:
+                print(e)
+            except pp.TypeErrorInParsedLanguage as e:
+                print(e)
+            except Exception as e:
+                print(e)
 
-NumberStringLangREPL().cmdloop()
+        def do_EOF(self, line):
+            print("\nBye.")
+            return True
+
+    NumberStringLangREPL().cmdloop()
+
+if __name__ == "__main__":
+    print("Example 1\n---------\n")
+    run_simple_builtin_example()
+    print("Example 2\n---------\n")
+    run_string_language_parser()
 
 
-#result_tree = parser.parse("x + (4 + 3)*5")
-#print(result_tree.tree_repr())
-#print(result_tree.string_repr_with_types())
-#assert result_tree.string_repr_with_types() == "<k_plus,+,TypeObject(t_number)>(<k_identifier,x,TypeObject(t_number)>,<k_ast,*,TypeObject(t_number)>(<k_lpar,(,TypeObject(t_number)>(<k_plus,+,TypeObject(t_number)>(<k_number,4,TypeObject(t_number)>,<k_number,3,TypeObject(t_number)>)),<k_number,5,TypeObject(t_number)>))"
-#result_tree = parser.parse('"foo" + "bar"')
-#print(result_tree.tree_repr())
-#print(result_tree.string_repr_with_types())
-#assert result_tree.string_repr_with_types() == """<k_plus,+,TypeObject(t_string)>(<k_string,"foo",TypeObject(t_string)>,<k_string,"bar",TypeObject(t_string)>)"""
-##fail()
-#

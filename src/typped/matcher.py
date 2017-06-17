@@ -2,6 +2,9 @@
 """
 
 TODO: The trie matcher is not currently fully implemented.
+TODO: Note that a "first not longest" matcher can work for the subset of fixed-length
+patterns, aka, simple patterns.  Just order entry by length and on-ties.  Then
+do the "compilation" step on-demand when the "get" fun is actually called.
 
 A matcher for a `TokenTable`.  It is a hybrid that stores patterns either in a
 list of compiled Python regexes or else in a `RegexTrieDict` instance.  The
@@ -237,7 +240,8 @@ class MatcherPythonRegex(object):
                 if match_len_tuple < longest_tuple:
                     continue
                 if match_len_tuple != longest_tuple:
-                    match_list.clear()
+                    # match_list.clear() # Only in Python 3.
+                    match_list = []
                 longest_tuple = match_len_tuple
                 match_list.append(MatchedPrefixTuple(
                                                 length=match_length,
@@ -247,9 +251,77 @@ class MatcherPythonRegex(object):
         return match_list
 
 
+    def _python_first_not_longest(self, program, unprocessed_slice_indices):
+        """A scanner that combines the regexes and has "first-defined not
+        longest" matching behavior.  This method of scanning is more efficient
+        in recognizing the patterns, but its semantics depend on definition
+        ordering and it has slow insert and delete time.  This implementation
+        only reassembles and recompiles the combined patterns when it is
+        actually needed to scan text.
+
+        This code is based on the scanner in the Python 3 documentation at
+        https://docs.python.org/3.6/library/re.html#writing-a-tokenizer
+
+        There is also an undocumented scanner in Python (see
+        http://lucumr.pocoo.org/2015/11/18/pythons-hidden-re-gems/
+        but it is not used here."""
+        # TODO: Massage this into a scanner this module can use.  Then
+        # it could be an option by itself, or an option to use for simple
+        # fixed-length patterns in the matcher...
+
+        keywords = {"IF", "THEN", "ENDIF", "FOR", "NEXT", "GOSUB", "RETURN"}
+        token_specification = [
+            ("NUMBER",  r"\d+(\.\d*)?"), #P# Integer or decimal number
+            ("ASSIGN",  r":="),          #P# Assignment operator
+            ("END",     r";"),           #P# Statement terminator
+            ("ID",      r"[A-Za-z]+"),   #P# Identifiers
+            ("OP",      r"[+*\/\-]"),    #P# Arithmetic operators
+            ("NEWLINE", r"\n"),          #P# Line endings
+            ("SKIP",    r"[ \t]"),       #P# Skip over spaces and tabs
+        ]
+        combined_regex = "|".join(
+                "(?P<{0}>{1})".format(*pair) for pair in token_specification
+                )
+        compiled_regex = re.compile(combined_regex)
+        unprocessed_text_index = 0 # The start index of unprocessed text in `text`.
+        line = 1
+        line_start = 0
+        match_object = compiled_regex.match(text)
+
+        # Loop, matching tokens one by one off the prefix of `text`.
+        while match_object is not None:
+            token_label = match_object.lastgroup
+            if token_label == "NEWLINE":
+                line_start = unprocessed_text_index
+                line += 1
+            elif token_label != "SKIP":
+                val = match_object.group(token_label)
+                if token_label == "ID" and val in keywords:
+                    token_label = val
+                yield Token(token_label, val, line, match_object.start() - line_start)
+            unprocessed_text_index = match_object.end()
+            match_object = compiled_regex.match(text, unprocessed_text_index)
+        if unprocessed_text_index != len(text):
+            raise RuntimeError("Unexpected character {0} on line {1}"
+                               .format(text[unprocessed_text_index], line))
+
+        return
+
+        # Below is how to call the above....
+        statements = """
+            IF quantity THEN
+                total := total + price * quantity;
+                tax := price * 0.05;
+            ENDIF;
+        """
+        print("\ntokens in tokenize result:")
+        for token in tokenize(statements):
+            print(token)
+
+
 def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
-    """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and automatically
-    put them in the trie, otherwise use Python matcher.
+    """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and
+    automatically put them in the trie, otherwise use Python matcher.
 
     Convet a simple pattern to a form that can be inserted into a
     `RegexTrieDict`, if possible.  Returns `None` if the pattern is too
