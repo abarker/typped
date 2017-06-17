@@ -6,7 +6,16 @@ pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
 pytest_helper.sys_path("../examples")
 
-from basic_usage_section_examples import setup_string_language_parser
+from basic_usage_section_examples import (setup_string_language_parser,
+                                          setup_simple_builtin_example,
+                                          )
+
+def test_simple_builtin_example():
+    parser = setup_simple_builtin_example()
+    result_tree = parser.parse("x + (4 + 3)*5")
+    assert str(result_tree) == ("<k_plus,'+'>(<k_identifier,'x'>,<k_ast,'*'>("
+           "<k_lpar,'('>(<k_plus,'+'>(<k_number,'4'>,<k_number,'3'>)),<k_number,'5'>))")
+
 
 def test_string_language_example_from_overview_docs():
     """An example from the Sphinx docs overview section.  A simple language
