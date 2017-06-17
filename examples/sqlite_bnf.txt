@@ -1,0 +1,278 @@
+#!albNotes
+# This is the grammar from the file
+# http://www.sqlite.org/docsrc/doc/trunk/art/syntax/all-bnf.html
+# See also: https://sqlite.org/syntaxdiagrams.html
+# Slightly reformatted with pound sign for comments.  Note [ A | B ]1 means to choose
+# exactly one of the choices.
+
+# A comment on this grammar:
+# http://sqlite.1065341.n5.nabble.com/Latest-Sqlite-grammar-as-machine-understandable-file-td74073.html
+#   Thanks again for the updated grammar. Don't know whether it's somehow
+#   used for production logic (probably just kept manually synced with
+#   it), but wanted to mention a couple of things noticed.
+# 
+#   in the rule
+#     join-clause::=<table-or-subquery> [ <join-operator>
+#   <table-or-subquery> <join-constraint> ]
+#   the construct in [] probably should be made repeated with *. At least
+#   without this addition it prevented from parsing multiply joins.
+# 
+#   There are no rules described for initial-select, recursive-select. So
+#   I guessed them as synonyms for select-stmt.
+
+
+# sql-stmt-list:
+sql-stmt-list	::=	[ <sql-stmt> ] [ ; [ <sql-stmt> ] ]*
+
+# sql-stmt:
+sql-stmt	::=	[ EXPLAIN [ QUERY PLAN ] ] [ <alter-table-stmt> | <analyze-stmt> | <attach-stmt> | <begin-stmt> | <commit-stmt> | <create-index-stmt> | <create-table-stmt> | <create-trigger-stmt> | <create-view-stmt> | <create-virtual-table-stmt> | <delete-stmt> | <delete-stmt-limited> | <detach-stmt> | <drop-index-stmt> | <drop-table-stmt> | <drop-trigger-stmt> | <drop-view-stmt> | <insert-stmt> | <pragma-stmt> | <reindex-stmt> | <release-stmt> | <rollback-stmt> | <savepoint-stmt> | <select-stmt> | <update-stmt> | <update-stmt-limited> | <vacuum-stmt> ]1
+
+# alter-table-stmt:
+alter-table-stmt	::=	ALTER TABLE [ database-name . ] table-name
+[ RENAME TO new-table-name | ADD [ COLUMN ] <column-def> ]1
+
+# analyze-stmt:
+analyze-stmt	::=	ANALYZE [ database-name | table-or-index-name | database-name . table-or-index-name ]
+
+# attach-stmt:
+attach-stmt	::=	ATTACH [ DATABASE ] <expr> AS database-name
+
+# begin-stmt:
+begin-stmt	::=	BEGIN [ DEFERRED | IMMEDIATE | EXCLUSIVE ] [ TRANSACTION ]
+
+# commit-stmt:
+commit-stmt	::=	[ COMMIT | END ]1 [ TRANSACTION ]
+
+# rollback-stmt:
+rollback-stmt	::=	ROLLBACK [ TRANSACTION ] [ TO [ SAVEPOINT ] savepoint-name ]
+
+# savepoint-stmt:
+savepoint-stmt	::=	SAVEPOINT savepoint-name
+
+# release-stmt:
+release-stmt	::=	RELEASE [ SAVEPOINT ] savepoint-name
+
+# create-index-stmt:
+create-index-stmt	::=	CREATE [ UNIQUE ] INDEX [ IF NOT EXISTS ]
+[ database-name . ] index-name ON table-name ( <indexed-column> [ , <indexed-column> ]* )
+[ WHERE <expr> ]
+
+# indexed-column:
+indexed-column	::=	column-name [ COLLATE collation-name ] [ ASC | DESC ]
+
+# create-table-stmt:
+create-table-stmt	::=	CREATE [ TEMP | TEMPORARY ] TABLE [ IF NOT EXISTS ]
+[ database-name . ] table-name
+[ ( <column-def> [ , <column-def> ]* [ , <table-constraint> ]* ) [ WITHOUT ROWID ] | AS <select-stmt> ]1
+
+# column-def:
+column-def	::=	column-name [ <type-name> ] [ <column-constraint> ]*
+
+# type-name:
+type-name	::=	name [ ( <signed-number> ) | ( <signed-number> , <signed-number> ) ]
+
+# column-constraint:
+column-constraint	::=	[ CONSTRAINT name ]
+[ PRIMARY KEY [ ASC | DESC ] <conflict-clause> [ AUTOINCREMENT ] | NOT NULL <conflict-clause> | UNIQUE <conflict-clause> | CHECK ( <expr> ) | DEFAULT [ <signed-number> | <literal-value> | ( <expr> ) ]1 | COLLATE collation-name | <foreign-key-clause> ]1
+
+# signed-number:
+signed-number	::=	[ + | - ] numeric-literal
+
+# table-constraint:
+table-constraint	::=	[ CONSTRAINT name ]
+[ [ PRIMARY KEY | UNIQUE ]1 ( <indexed-column> [ , <indexed-column> ]* ) <conflict-clause> | CHECK ( <expr> ) | FOREIGN KEY ( column-name [ , column-name ]* ) <foreign-key-clause> ]1
+
+# foreign-key-clause:
+foreign-key-clause	::=	REFERENCES foreign-table [ ( column-name [ , column-name ]* ) ]
+[ [ ON [ DELETE | UPDATE ]1 [ SET NULL | SET DEFAULT | CASCADE | RESTRICT | NO ACTION ]1 | MATCH name ]1 ]
+[ [ NOT ] DEFERRABLE [ INITIALLY DEFERRED | INITIALLY IMMEDIATE ] ]
+
+# conflict-clause:
+conflict-clause	::=	[ ON CONFLICT [ ROLLBACK | ABORT | FAIL | IGNORE | REPLACE ]1 ]
+
+# create-trigger-stmt:
+create-trigger-stmt	::=	CREATE [ TEMP | TEMPORARY ] TRIGGER [ IF NOT EXISTS ]
+[ database-name . ] trigger-name [ BEFORE | AFTER | INSTEAD OF ]
+[ DELETE | INSERT | UPDATE [ OF column-name [ , column-name ]* ] ]1 ON table-name
+[ FOR EACH ROW ] [ WHEN <expr> ]
+BEGIN [ <update-stmt> | <insert-stmt> | <delete-stmt> | <select-stmt> ]1 ; END
+
+# create-view-stmt:
+create-view-stmt	::=	CREATE [ TEMP | TEMPORARY ] VIEW [ IF NOT EXISTS ]
+[ database-name . ] view-name AS <select-stmt>
+
+# create-virtual-table-stmt:
+create-virtual-table-stmt	::=	CREATE VIRTUAL TABLE [ IF NOT EXISTS ]
+[ database-name . ] table-name
+USING module-name [ ( module-argument [ , module-argument ]* ) ]
+
+# with-clause:
+with-clause	::=	WITH [ RECURSIVE ] <cte-table-name> AS ( <select-stmt> ) [ , <cte-table-name> AS ( <select-stmt> ) ]*
+
+# cte-table-name:
+cte-table-name	::=	table-name [ ( column-name [ , column-name ]* ) ]
+
+# recursive-cte:
+recursive-cte	::=	<cte-table-name> AS ( initial-select [ UNION | UNION ALL ]1 recursive-select )
+
+# common-table-expression:
+common-table-expression	::=	table-name [ ( column-name [ , column-name ]* ) ] AS ( <select-stmt> )
+
+# delete-stmt:
+delete-stmt	::=	[ <with-clause> ] DELETE FROM <qualified-table-name>
+[ WHERE <expr> ]
+
+# delete-stmt-limited:
+delete-stmt-limited	::=	[ <with-clause> ] DELETE FROM <qualified-table-name>
+[ WHERE <expr> ]
+[ [ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# detach-stmt:
+detach-stmt	::=	DETACH [ DATABASE ] database-name
+
+# drop-index-stmt:
+drop-index-stmt	::=	DROP INDEX [ IF EXISTS ] [ database-name . ] index-name
+
+# drop-table-stmt:
+drop-table-stmt	::=	DROP TABLE [ IF EXISTS ] [ database-name . ] table-name
+
+# drop-trigger-stmt:
+drop-trigger-stmt	::=	DROP TRIGGER [ IF EXISTS ] [ database-name . ] trigger-name
+
+# drop-view-stmt:
+drop-view-stmt	::=	DROP VIEW [ IF EXISTS ] [ database-name . ] view-name
+
+# expr:
+expr	::=	<literal-value>
+expr	::=	<bind-parameter>
+expr	::=	[ [ database-name . ] table-name . ] column-name
+expr	::=	unary-operator <expr>
+expr	::=	<expr> binary-operator <expr>
+expr	::=	function-name ( [ [ DISTINCT ] <expr> [ , <expr> ]* | * ] )
+expr	::=	( <expr> )
+expr	::=	CAST ( <expr> AS <type-name> )
+expr	::=	<expr> COLLATE collation-name
+expr	::=	<expr> [ NOT ] [ LIKE | GLOB | REGEXP | MATCH ]1 <expr> [ ESCAPE <expr> ]
+expr	::=	<expr> [ ISNULL | NOTNULL | NOT NULL ]1
+expr	::=	<expr> IS [ NOT ] <expr>
+expr	::=	<expr> [ NOT ] BETWEEN <expr> AND <expr>
+expr	::=	<expr> [ NOT ] IN [ ( [ <select-stmt> | <expr> [ , <expr> ]* ] ) | [ database-name . ] table-name ]1
+expr	::=	[ [ NOT ] EXISTS ] ( <select-stmt> )
+expr	::=	CASE [ <expr> ] WHEN <expr> THEN <expr> [ ELSE <expr> ] END
+expr	::=	<raise-function>
+raise-function:
+raise-function	::=	RAISE ( [ IGNORE | [ ROLLBACK | ABORT | FAIL ]1 , error-message ]1 )
+literal-value:
+literal-value	::=	numeric-literal
+literal-value	::=	string-literal
+literal-value	::=	blob-literal
+literal-value	::=	NULL
+literal-value	::=	CURRENT_TIME
+literal-value	::=	CURRENT_DATE
+literal-value	::=	CURRENT_TIMESTAMP
+
+# numeric-literal:
+numeric-literal	::=	[ digit [ decimal-point [ digit ]* ] | decimal-point digit ]1 [ E [ + | - ] digit ]
+
+# insert-stmt:
+insert-stmt	::=	[ <with-clause> ] [ INSERT | REPLACE | INSERT OR REPLACE | INSERT OR ROLLBACK | INSERT OR ABORT | INSERT OR FAIL | INSERT OR IGNORE ]1 INTO
+[ database-name . ] table-name [ ( column-name [ , column-name ]* ) ]
+[ VALUES ( <expr> [ , <expr> ]* ) [ , ( <expr> [ , <expr> ]* ) ]* | <select-stmt> | DEFAULT VALUES ]1
+
+# pragma-stmt:
+pragma-stmt	::=	PRAGMA [ database-name . ] pragma-name [ = <pragma-value> | ( <pragma-value> ) ]
+
+# pragma-value:
+pragma-value	::=	<signed-number>
+pragma-value	::=	name
+pragma-value	::=	string-literal
+
+# reindex-stmt:
+reindex-stmt	::=	REINDEX [ collation-name | [ database-name . ] [ table-name | index-name ]1 ]
+
+# select-stmt:
+select-stmt	::=	[ WITH [ RECURSIVE ] <common-table-expression> [ , <common-table-expression> ]* ]
+[ SELECT [ DISTINCT | ALL ] <result-column> [ , <result-column> ]*
+[ FROM [ <table-or-subquery> [ , <table-or-subquery> ]* | <join-clause> ]1 ]
+[ WHERE <expr> ]
+[ GROUP BY <expr> [ , <expr> ]* [ HAVING <expr> ] ] | VALUES ( <expr> [ , <expr> ]* ) [ , ( <expr> [ , <expr> ]* ) ]* ]1 [ <compound-operator> [ SELECT [ DISTINCT | ALL ] <result-column> [ , <result-column> ]*
+[ FROM [ <table-or-subquery> [ , <table-or-subquery> ]* | <join-clause> ]1 ]
+[ WHERE <expr> ]
+[ GROUP BY <expr> [ , <expr> ]* [ HAVING <expr> ] ] | VALUES ( <expr> [ , <expr> ]* ) [ , ( <expr> [ , <expr> ]* ) ]* ]1 ]*
+[ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+[ LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# join-clause:
+join-clause	::=	<table-or-subquery> [ <join-operator> <table-or-subquery> <join-constraint> ]
+
+# select-core:
+select-core	::=	SELECT [ DISTINCT | ALL ] <result-column> [ , <result-column> ]*
+[ FROM [ <table-or-subquery> [ , <table-or-subquery> ]* | <join-clause> ]1 ]
+[ WHERE <expr> ]
+[ GROUP BY <expr> [ , <expr> ]* [ HAVING <expr> ] ]
+select-core	::=	VALUES ( <expr> [ , <expr> ]* ) [ , ( <expr> [ , <expr> ]* ) ]*
+
+# factored-select-stmt:
+factored-select-stmt	::=	[ WITH [ RECURSIVE ] <common-table-expression> [ , <common-table-expression> ]* ]
+<select-core> [ <compound-operator> <select-core> ]*
+[ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+[ LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# simple-select-stmt:
+simple-select-stmt	::=	[ WITH [ RECURSIVE ] <common-table-expression> [ , <common-table-expression> ]* ]
+<select-core> [ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+[ LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# compound-select-stmt:
+compound-select-stmt	::=	[ WITH [ RECURSIVE ] <common-table-expression> [ , <common-table-expression> ]* ]
+<select-core> [ UNION | UNION ALL | INTERSECT | EXCEPT ]1 <select-core>
+[ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+[ LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# table-or-subquery:
+table-or-subquery	::=	[ database-name . ] table-name [ [ AS ] table-alias ]
+[ INDEXED BY index-name | NOT INDEXED ]
+table-or-subquery	::=	( [ <table-or-subquery> [ , <table-or-subquery> ]* | <join-clause> ]1 )
+table-or-subquery	::=	( <select-stmt> ) [ [ AS ] table-alias ]
+
+# result-column:
+result-column	::=	*
+result-column	::=	table-name . *
+result-column	::=	<expr> [ [ AS ] column-alias ]
+
+# join-operator:
+join-operator	::=	,
+join-operator	::=	[ NATURAL ] [ LEFT [ OUTER ] | INNER | CROSS ] JOIN
+join-constraint:
+join-constraint	::=	[ ON <expr> | USING ( column-name [ , column-name ]* ) ]
+
+# ordering-term:
+ordering-term	::=	<expr> [ COLLATE collation-name ] [ ASC | DESC ]
+
+# compound-operator:
+compound-operator	::=	UNION
+compound-operator	::=	UNION ALL
+compound-operator	::=	INTERSECT
+compound-operator	::=	EXCEPT
+
+# update-stmt:
+update-stmt	::=	[ <with-clause> ] UPDATE [ OR ROLLBACK | OR ABORT | OR REPLACE | OR FAIL | OR IGNORE ] <qualified-table-name>
+SET column-name = <expr> [ , column-name = <expr> ]* [ WHERE <expr> ]
+
+# update-stmt-limited:
+update-stmt-limited	::=	[ <with-clause> ] UPDATE [ OR ROLLBACK | OR ABORT | OR REPLACE | OR FAIL | OR IGNORE ] <qualified-table-name>
+SET column-name = <expr> [ , column-name = <expr> ]* [ WHERE <expr> ]
+[ [ ORDER BY <ordering-term> [ , <ordering-term> ]* ]
+LIMIT <expr> [ [ OFFSET | , ]1 <expr> ] ]
+
+# qualified-table-name:
+qualified-table-name	::=	[ database-name . ] table-name [ INDEXED BY index-name | NOT INDEXED ]
+
+# vacuum-stmt:
+vacuum-stmt	::=	VACUUM
+
+# comment-syntax:
+comment-syntax	::=	-- [ anything-except-newline ]* [ newline | end-of-input ]1
+comment-syntax	::=	/* [ anything-except-*/ ]* [ */ | end-of-input ]1
+
