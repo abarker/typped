@@ -111,10 +111,11 @@ class MatcherPythonRegex(object):
         self.python_fnl_combo_regex = True # When to recompile big regex.
 
         self.trie_regex_data_dict = {} # Data for the regexes stored in the trie.
-
-        self.default_insert_options = "python"
+        self.rtd_scanner = None
         self.rtd = None # Trie patterns stored here; only instantiated if needed.
         self.rtd_escape_char = "\\"
+
+        self.default_insert_options = "python"
 
     def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False,
                        options=None):
@@ -135,8 +136,9 @@ class MatcherPythonRegex(object):
         If `options="trie"` then the pattern is inserted in a `RegexTrieDict`
         for matching (and must be in the correct format).
 
-        The default insert options can be changed by setting the attribute
-        `default_insert_options` to the desired value."""
+        The default insert options for a `MatcherPythonRegex` instance can be
+        changed by setting the attribute `default_insert_options` to the desired
+        value."""
         # Note that this method does not check for reinsertions of the same
         # token label; the def_token that calls it is responsible for that.
 
@@ -145,13 +147,11 @@ class MatcherPythonRegex(object):
         if options is None:
             options = self.default_insert_options
 
-        if options == "trie":
-            if not self.rtd is None:
-                self.rtd = RegexTrieDict()
-                self.rtd.define_meta_elems(escape=self.rtd_escape_char)
-            self.trie_regex_data_dict[token_label] = (regex_string, on_ties)
-            self.rtd[regex_string] = token_label
-        elif options == "python":
+        # New options to consider:
+        #   "fnl_for_fixed_length"
+        #   "trie_for_simple"
+
+        if options == "python":
             compiled_regex = re.compile(regex_string,
                                         re.VERBOSE|re.MULTILINE|re.UNICODE)
             regex_data = TokenPatternTuple(regex_string, compiled_regex, on_ties)
@@ -160,6 +160,12 @@ class MatcherPythonRegex(object):
             self.python_fnl_combo_regex_is_stale = True
             regex_data = (on_ties, regex_string)
             self.python_fnl_data_dict[token_label] = regex_data
+        elif options == "trie":
+            if not self.rtd is None:
+                self.rtd = RegexTrieDict()
+                self.rtd.define_meta_elems(escape=self.rtd_escape_char)
+            self.trie_regex_data_dict[token_label] = (on_ties, regex_string)
+            self.rtd[regex_string] = token_label
         else:
             raise MatcherException("Bad option '{0}' passed to the insert_pattern method"
                                  " of the MatcherPythonRegex instance.".format(options))
@@ -257,7 +263,27 @@ class MatcherPythonRegex(object):
         `MatchedPrefixTuple` instances for all the best matches.  (In non-error
         conditions the match must be unique, but for unresolved ties we want the
         diagnostic data, too.)"""
-        pass
+        if self.rtd_scanner is None:
+            self.rtd_scanner = RegexTrieDictScanner(self.rtd)
+
+        text = program[unprocessed_slice_indices[0]:unprocessed_slice_indices[1]]
+        self.rtd_scanner.append_text(text)
+        if unprocessed_slice_indices[1] == len(text) - 1:
+            self.rtd_scanner.assert_end_of_text() # TODO: different for online, realtime
+        matches = self.rtd_scanner.get_prefix_matches()
+
+        final_match_list = []
+
+        # TODO: The matcher needs to return data saved with the patterns in trie.
+        # At the least it needs the token_label so things can be looked up in
+        # self.trie_regex_data_dict.
+
+        for match in matches:
+            # TODO: find the best match if multiple equal-length
+            final_match_list.append(MatchedPrefixTuple(length=len(match),
+                                                       on_ties=None,
+                                                       matched_string=matched_string,
+                                                       token_label=token_label))
 
     def _python_get_raw_matches(self, program, unprocessed_slice_indices):
         """A utility routine that does the actual string match on the prefix of
