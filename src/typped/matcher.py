@@ -103,9 +103,16 @@ class MatcherPythonRegex(object):
 
     def __init__(self):
         self.ignore_tokens = set() # The set of tokens to ignore.
-        self.python_regex_data_dict = {} # Data for the regexes of tokens.
+
+        self.python_data_dict = {} # Data for the regexes of tokens.
+
+        self.python_fnl_data_dict = collections.OrderedDict() # FNL regex data.
+        self.python_fnl_combo_regex_is_stale = True # When to recompile big regex.
+        self.python_fnl_combo_regex = True # When to recompile big regex.
+
         self.trie_regex_data_dict = {} # Data for the regexes stored in the trie.
-        self.insert_options = "python"
+
+        self.default_insert_options = "python"
         self.rtd = None # Trie patterns stored here; only instantiated if needed.
         self.rtd_escape_char = "\\"
 
@@ -115,19 +122,28 @@ class MatcherPythonRegex(object):
 
         If `ignore` is true then the pattern is treated as an ignored pattern.
 
+        If `options="python"` then the patterns are saved as individual Python
+        regexes.  Each item on the list is checked against pattern for prefix
+        matches.  This is the default.
+
+        If `options="python_fnl"` then the patterns are combined into a single
+        regex whenever necessary.  This is faster, but gives "first not
+        longest" semantics.  That is, the first-defined patterns take
+        precedence regardless of length.  In this case any `on_ties` values are
+        used to pre-sort the list instead of breaking equal-length ties.
+
         If `options="trie"` then the pattern is inserted in a `RegexTrieDict`
         for matching (and must be in the correct format).
 
-        If `options=None` the method will instead use the value of the class
-        instance attribute `insert_options` (which defaults to `"python"` to
-        use Python regexes)."""
+        The default insert options can be changed by setting the attribute
+        `default_insert_options` to the desired value."""
         # Note that this method does not check for reinsertions of the same
         # token label; the def_token that calls it is responsible for that.
 
         if ignore:
             self.ignore_tokens.add(token_label)
         if options is None:
-            options = self.insert_options
+            options = self.default_insert_options
 
         if options == "trie":
             if not self.rtd is None:
@@ -139,21 +155,29 @@ class MatcherPythonRegex(object):
             compiled_regex = re.compile(regex_string,
                                         re.VERBOSE|re.MULTILINE|re.UNICODE)
             regex_data = TokenPatternTuple(regex_string, compiled_regex, on_ties)
-            self.python_regex_data_dict[token_label] = regex_data
+            self.python_data_dict[token_label] = regex_data
+        elif options == "python_fnl":
+            self.python_fnl_combo_regex_is_stale = True
+            regex_data = (on_ties, regex_string)
+            self.python_fnl_data_dict[token_label] = regex_data
         else:
             raise MatcherException("Bad option '{0}' passed to the insert_pattern method"
                                  " of the MatcherPythonRegex instance.".format(options))
 
     def remove_pattern(self, token_label):
         """Remove the pattern for the token corresponding to `token_label`."""
+        # TODO: Not tested.
         self.ignore_tokens.discard(token_label)
 
-        if token_label in self.python_regex_data_dict:
-            del regex_data_dict[token_label]
+        if token_label in self.python_data_dict:
+            del self.python_data_dict[token_label]
+        elif token_label in self.python_fnl_data_dict:
+            del self.python_fnl_data_dict[token_label]
+            self.python_fnl_combo_regex_is_stale = True
         elif token_label in self.trie_regex_data_dict:
             regex = regex_data_dict[token_label].regex_string
             del self.rtd[regex]
-            del regex_data_dict[token_label]
+            del self.trie_regex_data_dict[token_label]
         else:
             raise MatcherException("Attempt to remove pattern for a token that"
                                    " was never defined.")
@@ -163,25 +187,46 @@ class MatcherPythonRegex(object):
         """Return the best prefix match as a tuple of the token label and the matched
         string.  The `slice_indices` are an ordered pair of indices into the string
         `program` which contain the relevant part."""
-        if self.python_regex_data_dict:
+        # Regular python matches.
+        if self.python_data_dict:
             best_matches = self._python_get_raw_matches(program, slice_indices)
         else:
             best_matches = []
+        if best_matches:
+            best_matches_len = best_matches[0].length
+        else:
+            best_matches_len = 0
 
+        # Trie matches.
         if self.trie_regex_data_dict:
             best_matches_trie = self._trie_get_raw_matches(program, slice_indices)
         else:
             best_matches_trie = []
+        if best_matches_trie:
+            best_matches_trie_len = best_matches_trie[0].length
+        else:
+            best_matches_trie_len = 0
 
-        try:
-            if best_matches[0] > best_matches_trie[0]:
-                combo_best_matches = best_matches
-            elif best_matches[0] < best_matches_trie[0]:
-                combo_best_matches = best_matches_trie
-            else:
-                combo_best_matches = best_matches + best_matches_trie
-        except IndexError:
-            combo_best_matches = best_matches + best_matches_trie
+        # Python first-not-longest matches.
+        if self.python_fnl_data_dict:
+            best_matches_fnl = self._python_first_not_longest(program, slice_indices)
+        else:
+            best_matches_fnl = []
+        if best_matches_fnl:
+            best_matches_fnl_len = best_matches_fnl[0].length
+        else:
+            best_matches_fnl_len = 0
+
+        # Pick the best.
+
+        combo_best_matches = []
+        max_len = max(best_matches_len, best_matches_trie_len, best_matches_fnl_len)
+        if best_matches_len == max_len:
+            combo_best_matches += best_matches
+        if best_matches_trie_len == max_len:
+            combo_best_matches += best_matches_trie
+        if best_matches_fnl_len == max_len:
+            combo_best_matches += best_matches_fnl
 
         if not combo_best_matches:
             raise MatcherException("No matches in Lexer, unknown token at "
@@ -229,7 +274,7 @@ class MatcherPythonRegex(object):
         match_list = [] # Dict of MatchedPrefixTuple instances keyed by token labels.
         longest_tuple = (0, -INFINITY)
         for token_label, (regex_str, compiled_regex, on_ties
-                                           ) in self.python_regex_data_dict.items():
+                                           ) in self.python_data_dict.items():
             match_object = compiled_regex.match(program,
                                                 unprocessed_slice_indices[0],
                                                 unprocessed_slice_indices[1])
@@ -252,72 +297,63 @@ class MatcherPythonRegex(object):
 
 
     def _python_first_not_longest(self, program, unprocessed_slice_indices):
-        """A scanner that combines the regexes and has "first-defined not
-        longest" matching behavior.  This method of scanning is more efficient
-        in recognizing the patterns, but its semantics depend on definition
-        ordering and it has slow insert and delete time.  This implementation
-        only reassembles and recompiles the combined patterns when it is
-        actually needed to scan text.
+        """A low-level scanner that combines the regexes and has "first-defined
+        not longest" matching behavior for unresolved ties.  This method of
+        scanning is more efficient in recognizing the patterns, but its
+        semantics depend on definition ordering and it has slow insert and
+        delete time (since it builds one large regex and compiles it).  This
+        implementation only assembles and compiles the combined patterns
+        when it is actually called to scan text, if the current compiled
+        regex is stale.
 
-        This code is based on the scanner in the Python 3 documentation at
+        All the patterns are first sorted on any `on_ties` values provided, in
+        a stable sort so the insertion order otherwise stays the same.  So the
+        `on_ties` values have different semantics with this kind of scanner
+        than with the others.  The others use `on_ties` to break ties between
+        the longest matching patterns.  In this case, though, the first
+        matching pattern in the sorted list is chosen.  So `on_ties`
+        essentially becomes a way to override the effect of definition
+        ordering.
+
+        This scanner simply returns the first match, so it does not catch
+        errors due to unresolved ties!  This only applies to patterns stored in
+        this matcher, however.  If a combination of matchers is used then
+        some ties will still be caught.
+
+        This code is based on the tokenizer in the Python 3 documentation at
         https://docs.python.org/3.6/library/re.html#writing-a-tokenizer
 
         There is also an undocumented scanner in Python (see
         http://lucumr.pocoo.org/2015/11/18/pythons-hidden-re-gems/
         but it is not used here."""
-        # TODO: Massage this into a scanner this module can use.  Then
-        # it could be an option by itself, or an option to use for simple
-        # fixed-length patterns in the matcher...
+        if self.python_fnl_combo_regex_is_stale:
+            # Re-sort the ordered dict by on_ties values (stable sort keeps
+            # insertion order otherwise).
+            self.python_fnl_data_dict = collections.OrderedDict(
+                    sorted(self.python_fnl_data_dict.items(), key=lambda i: i[1][0],
+                           reverse=True))
+            # Build the big regex and compile it.
+            regex_pieces = ["(?P<{0}>{1})".format(i[0], i[1][1])
+                                         for i in self.python_fnl_data_dict.items()]
+            combo_regex = "|".join(regex_pieces)
+            self.python_fnl_combo_regex = re.compile(combo_regex)
+            self.python_fnl_combo_regex_is_stale = False
 
-        keywords = {"IF", "THEN", "ENDIF", "FOR", "NEXT", "GOSUB", "RETURN"}
-        token_specification = [
-            ("NUMBER",  r"\d+(\.\d*)?"), #P# Integer or decimal number
-            ("ASSIGN",  r":="),          #P# Assignment operator
-            ("END",     r";"),           #P# Statement terminator
-            ("ID",      r"[A-Za-z]+"),   #P# Identifiers
-            ("OP",      r"[+*\/\-]"),    #P# Arithmetic operators
-            ("NEWLINE", r"\n"),          #P# Line endings
-            ("SKIP",    r"[ \t]"),       #P# Skip over spaces and tabs
-        ]
-        combined_regex = "|".join(
-                "(?P<{0}>{1})".format(*pair) for pair in token_specification
-                )
-        compiled_regex = re.compile(combined_regex)
-        unprocessed_text_index = 0 # The start index of unprocessed text in `text`.
-        line = 1
-        line_start = 0
-        match_object = compiled_regex.match(text)
+        match_object = self.python_fnl_combo_regex.match(program,
+                                            unprocessed_slice_indices[0],
+                                            unprocessed_slice_indices[1])
 
-        # Loop, matching tokens one by one off the prefix of `text`.
-        while match_object is not None:
+        match_list = []
+        if match_object:
             token_label = match_object.lastgroup
-            if token_label == "NEWLINE":
-                line_start = unprocessed_text_index
-                line += 1
-            elif token_label != "SKIP":
-                val = match_object.group(token_label)
-                if token_label == "ID" and val in keywords:
-                    token_label = val
-                yield Token(token_label, val, line, match_object.start() - line_start)
-            unprocessed_text_index = match_object.end()
-            match_object = compiled_regex.match(text, unprocessed_text_index)
-        if unprocessed_text_index != len(text):
-            raise RuntimeError("Unexpected character {0} on line {1}"
-                               .format(text[unprocessed_text_index], line))
-
-        return
-
-        # Below is how to call the above....
-        statements = """
-            IF quantity THEN
-                total := total + price * quantity;
-                tax := price * 0.05;
-            ENDIF;
-        """
-        print("\ntokens in tokenize result:")
-        for token in tokenize(statements):
-            print(token)
-
+            matched_string = program[match_object.start():match_object.end()]
+            match_length = len(matched_string)
+            match_list.append(MatchedPrefixTuple(length=match_length,
+                                                 on_ties=None,
+                                                 matched_string=matched_string,
+                                                 token_label=token_label))
+        print("returned match_list is", match_list)
+        return match_list
 
 def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
     """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and
