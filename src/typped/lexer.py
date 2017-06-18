@@ -217,7 +217,7 @@ if __name__ == "__main__":
                               pytest_args="-v")
 
 import collections
-from .matcher import MatcherPythonRegex
+from .matcher import Matcher
 from .shared_settings_and_exceptions import LexerException, is_subclass_of
 
 #
@@ -427,7 +427,7 @@ class TokenTable(object):
         self.end_token_label = None
         self.end_token_subclass = None
         if pattern_matcher_instance is None:
-            pattern_matcher_instance = MatcherPythonRegex()
+            pattern_matcher_instance = Matcher()
         self.pattern_matcher = pattern_matcher_instance
 
     def __contains__(self, token_label):

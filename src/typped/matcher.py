@@ -72,7 +72,8 @@ from __future__ import print_function, division, absolute_import
 
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_lexer.py",
+    pytest_helper.script_run(["../../test/test_matcher.py",
+                              "../../test/test_lexer.py",
                               "../../test/test_pratt_parser.py"],
                               pytest_args="-v")
 
@@ -98,7 +99,7 @@ MatchedPrefixTuple = collections.namedtuple("MatchedPrefixTuple", [
 
 INFINITY = float("inf")
 
-class MatcherPythonRegex(object):
+class Matcher(object):
     """A matcher class that stores pattern data and matches it."""
 
     def __init__(self):
@@ -189,10 +190,13 @@ class MatcherPythonRegex(object):
                                    " was never defined.")
 
     def get_next_token_label_and_value(self, program, slice_indices,
-                                       error_msg_text_snippet_size):
+                                       error_msg_text_snippet_size=20):
         """Return the best prefix match as a tuple of the token label and the matched
         string.  The `slice_indices` are an ordered pair of indices into the string
         `program` which contain the relevant part."""
+        # TODO: Python uses pos and endpos kwargs for the slice indices... consider
+        # using that.
+
         # Regular python matches.
         if self.python_data_dict:
             best_matches = self._python_get_raw_matches(program, slice_indices)
@@ -381,6 +385,76 @@ class MatcherPythonRegex(object):
         print("returned match_list is", match_list)
         return match_list
 
+#
+# Exceptions.
+#
+
+class MatcherException(LexerException):
+    pass
+
+#
+# Experimental below.
+#
+
+# https://stackoverflow.com/questions/11819059/regex-match-character-which-is-not-escaped
+match_unescaped_prefix = "(?<!\\)(?:\\\\)*" # Prefix for finding unescaped character.
+
+regex_special_chars = ".^$*+?{}|()[]"
+standard_python_escapes = "abfnrtvx\\"
+
+match_unescaped_special = "|".join(match_unescaped_prefix + c for c in regex_special_chars)
+
+from .regex_trie_dict import process_elem_list_for_escapes
+
+def is_fixed_length(regex):
+    """If the Python regex is fixed-length return its effective length (not its actual
+    length).  Otherwise, return false.  Note that zero-length matches are not
+    considered fixed-length.  Only a subset of fixed-length patterns are recognized,
+    currently those consisting of regular characters and/or character sets."""
+    # Note that fixed-length can be used with longest-matching, but it still
+    # cannot catch matches that tie, i.e., those ties are still broken by
+    # insertion order.
+    #
+    # Alternative algorithm: If you get a longest match, you then go to a
+    # secondary list of regexes of that fixed length which have been inserted
+    # and check them one-by-one like in the regular default algorithm.
+    #
+    # This can be combined with the default algorithm as follows.  Any
+    # non-fixed-length patterns are stored as usual in the default algorithm.
+    # Fixed-length patterns are all stored in ONE big regex, sorted by
+    # effective length, and for each length you also save a list of all the
+    # patterns of that length.  Then to match you match the non-fixed pattern
+    # regexes separately and also match the single big fixed-length regex.  If
+    # the former wins, return that.  If the latter wins, do a secondary
+    # sequential search on the patterns of that length.
+    effective_length = 0
+    in_charset = False
+    for char, is_escaped in process_elem_list_for_escapes(regex, "\\"):
+        if char == "]" and not is_escaped:
+            if not in_charset:
+                raise MatcherException("Closing character set range ']' with no `[`.")
+            in_charset = False
+            continue
+        if in_charset:
+            continue
+        if char == "[":
+            in_charset = True
+            effective_length += 1
+            continue
+        effective_length += 1
+        if char in regex_special_chars and not is_escaped:
+            return False
+    return effective_length
+
+def test_fixed_length():
+    assert is_fixed_length(r"xyz") == 3
+    assert is_fixed_length(r"xy[a-z]z") == 4
+    assert is_fixed_length(r"xy[a-z]*z") == False
+    assert is_fixed_length(r"xy[a-z]\*z") == 5
+    assert is_fixed_length(r"xy[a-z]\\*z") == False
+    assert is_fixed_length(r"xy[a-z]\\") == 4
+#test_fixed_length()
+
 def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
     """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and
     automatically put them in the trie, otherwise use Python matcher.
@@ -420,10 +494,4 @@ def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
     #else:
     #    print("non-simple pattern", regex_string)
 
-#
-# Exceptions.
-#
-
-class MatcherException(LexerException):
-    pass
 
