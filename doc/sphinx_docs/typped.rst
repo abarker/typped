@@ -8,6 +8,7 @@ APIs and code for the modules in the Typped package
 
    typped.pratt_parser
    typped.builtin_parse_methods
+   typped.predefined_token_sets
    typped.shared_settings_and_exceptions
    typped.pratt_constructs
    typped.pratt_types

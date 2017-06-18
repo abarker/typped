@@ -201,6 +201,7 @@ from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import SyntaxConstruct, ConstructTable
 from .matcher import Matcher
+from . import builtin_parse_methods, predefined_token_sets
 
 # NOTE that the evaluate function stuff could also be used to also do a
 # conversion to AST.
@@ -1160,7 +1161,7 @@ class PrattParser(object):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
         ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        # TODO: take keyword args and pass them all to the def_token routine!
+        # TODO: take keyword args and pass them all to the def_token routine.
         return multi_funcall(self.def_token, tuple_list, ParserException)
 
     def def_multi_ignored_tokens(self, tuple_list):
@@ -1197,7 +1198,7 @@ class PrattParser(object):
         parameter is the label of an ignored token which must be present for a
         jop to be inferred.  Some already-defined token is required; usually it
         will be a token for spaces and tabs.  If set to `None` then no ignored
-        space at all is required (i.e., the tokens can be right next to each
+        space at all is required (i.e., the operands can be right next to each
         other)."""
         return self.def_token_master(jop_token_label,
                                      ignored_token_label=ignored_token_label,
@@ -1213,15 +1214,11 @@ class PrattParser(object):
         return self.def_token_master(null_string_token_label,
                                      token_kind="null-string")
 
-    def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
-                        newline_label="k_newline", newline_regex=r"[\n\f\r\v]+",
-                        options=None):
-        """Define the standard whitespace tokens for space and newline, setting
-        them as ignored tokens."""
-        # Note + symbol for one or more, NOT the * symbol for zero or more.
-        tok = self.def_ignored_token
-        tok(space_label, space_regex, options=options)
-        tok(newline_label, newline_regex, options=options)
+    def get_token(self, token_label):
+        """Return the token with the label `token_label`.  The reverse
+        operation, getting a label from a token instance, can be done by
+        looking at the `token_label` attribute of the token."""
+        return self.token_table[token_label]
 
     #
     # Undefine tokens.
@@ -1248,14 +1245,8 @@ class PrattParser(object):
             token_table.undef_token(token_label)
 
     #
-    # Methods to access and modify tokens.
+    # Methods to define and undefine constructs.
     #
-
-    def get_token(self, token_label):
-        """Return the token with the label `token_label`.  The reverse
-        operation, getting a label from a token instance, can be done by
-        looking at the `token_label` attribute of the token."""
-        return self.token_table[token_label]
 
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
                       construct_label=None, prec=None, precond_fun=None,
@@ -1471,11 +1462,15 @@ class PrattParser(object):
         return parse_tree
 
 
-# TODO: decide if below is good idea before changing any of the methods...
+#
+# Copy the predefined convenience function to the PrattParser as methods.
+#
 
-from . import builtin_parse_methods
 
 for method in builtin_parse_methods.parse_methods:
+    setattr(PrattParser, method.__name__, method)
+
+for method in predefined_token_sets.token_defining_methods:
     setattr(PrattParser, method.__name__, method)
 
 #
