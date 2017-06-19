@@ -58,7 +58,7 @@ def define_parser_subclass():
                 for i in range(num_args-1):
                     tok.append_children(tok.recursive_parse(0))
                     lex.match_next(comma_token_label, raise_on_fail=True)
-                    lex.match_next(rpar_token_label, raise_on_true=True) # Error.
+                    lex.match_next(rpar_token_label, raise_on_success=True) # Error.
                 if num_args != 0:
                     tok.append_children(tok.recursive_parse(0))
                 lex.match_next(rpar_token_label, raise_on_fail=True)

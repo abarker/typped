@@ -101,24 +101,21 @@ def def_multi_ignored_tokens(parser, tuple_list):
     return multi_funcall(parser.def_ignored_token, tuple_list, ParserException)
 
 def def_default_float_token(parser, token_label="k_float", signed=True,
-                            require_decimal=False, on_ties=0, make_literal=False):
+                            require_decimal=False, on_ties=0):
     """Define a token for floats with default label 'k_float'.  If `signed` is true (the
     default) then a leading '+' or '-' is optionally part of the float.  Otherwise
     the sign is not included.  This is sometimes needed when the signs are defined
     as a prefix operators instead."""
-    if not require_decimal:
-        regex = r"(\d+\.\d+)([eE][-+]?\d+)?"
+    if require_decimal:
+        regex = r"(\d+\.\d*)([eE][-+]?\d+)?"
     else:
         regex = r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"
     if signed:
         regex = r"[+-]?" + regex
-    tok = parser.def_token("k_float", regex, on_ties=on_ties)
-    if make_literal:
-        parser.def_literal("k_float")
+    tok = parser.def_token(token_label, regex, on_ties=on_ties)
     return tok
 
-def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0,
-                          make_literal=False):
+def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0):
     """Define a token for ints with default label 'k_int'.  If `signed` is true (the
     default) then a leading '+' or '-' is optionally part of the float.  Otherwise
     the sign is not included."""
@@ -126,9 +123,7 @@ def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0,
         regex = r"(\d+)"
     else:
         regex = r"[-+]?(\d+)"
-    tok = parser.def_token("k_int", regex, on_ties=on_ties)
-    if make_literal:
-        parser.def_literal("k_int")
+    tok = parser.def_token(token_label, regex, on_ties=on_ties)
     return tok
 
 

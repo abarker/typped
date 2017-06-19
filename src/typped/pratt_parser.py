@@ -1285,6 +1285,8 @@ class PrattParser(object):
 
         if construct_label is None:
             construct_label = DEFAULT_CONSTRUCT_LABEL
+
+        if precond_fun is None:
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
 
         if trigger_token_label in self.token_table:
@@ -1324,9 +1326,9 @@ class PrattParser(object):
         # TODO: rewrite to undef a construct
         TokenSubclass = self.token_table[token_label]
         TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
-                                         construct_label,
-                                         type_sig=TypeSig(val_type, arg_types),
-                                         all_handlers=all_handlers)
+                                           construct_label,
+                                           type_sig=TypeSig(val_type, arg_types),
+                                           all_handlers=all_handlers)
 
     #
     # Methods dealing with types.

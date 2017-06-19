@@ -181,7 +181,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
                 break
             else:
                 # This checks for errors like f(x,)
-                lex.match_next(rpar_token_label, raise_on_true=True)
+                lex.match_next(rpar_token_label, raise_on_success=True)
         lex.match_next(rpar_token_label, raise_on_fail=True) # Closing rpar.
         tok.process_not_in_tree() # Need when comma is an operator that gets removed.
         if (parser.skip_type_checking and num_args is not None
@@ -238,7 +238,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
             if not lex.match_next(comma_token_label):
                 break
             else:
-                lex.match_next(rpar_token_label, raise_on_true=True)
+                lex.match_next(rpar_token_label, raise_on_success=True)
         lex.match_next(rpar_token_label, raise_on_fail=True)
         return left
 

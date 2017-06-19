@@ -25,24 +25,28 @@ def setup_parser():
 
     parser.def_default_whitespace()
     parser.def_default_single_char_tokens(",:")
-    parser.def_default_float_token(require_decimal=True)
+    parser.def_default_float_token()
 
     # Ints are preferred over floats of same length.
     parser.def_default_int_token(on_ties=1)
 
     # TODO: How do we check the type of the float which triggers the construct?
+    # We don't, we ASSIGN a type to the root of the construct in the typesig of
+    # the construct.  It is checked at higher level if an arg (it isn't here)
+    # but is DEFINED in this case for floats in this context.  Like literals
+    # define types for literals in a context...  Maybe explain better in docs.
 
     t_float = parser.def_type("t_float")
     t_int = parser.def_type("t_int")
     parser.def_literal("k_int", val_type=t_int)
 
+    def precond_fun(lex, lookbehind):
+        return lex.token.is_first_on_line
+
     def handler_fun(tok, lex):
         """Handler is for the float token; read all the rest on line."""
-        print("ready for first comma match")
         lex.match_next("k_comma", raise_on_fail=True)
-        print("read to read first child")
         tok.append_children(tok.recursive_parse(subexp_prec=0))
-        print("after child read children are", tok.children)
         lex.match_next("k_colon", raise_on_fail=True)
         tok.append_children(tok.recursive_parse(subexp_prec=0))
         while lex.match_next("k_comma"):
@@ -50,7 +54,7 @@ def setup_parser():
         return tok
 
     parser.def_construct(HEAD, handler_fun, "k_float", "parse_line",
-            precond_fun=lambda x,y: True, # TODO err when using default precond fun...
+                         precond_fun=precond_fun,
                          val_type=t_float,
                          arg_types=[t_int, t_int, Varargs(t_int)])
     return parser
@@ -59,7 +63,7 @@ def run_parser():
     parser = setup_parser()
 
     with open("zzz_example_outfile.dat", "w") as f:
-        print("33.4, 5 :  4, 55", file=f)
+        print("-334.0, -54 :  4, 55", file=f)
         #print("33.4 , 5, :  4, 55", file=f) # TODO test this error case
         print("3003.4, 3 :  9, 449", file=f)
 

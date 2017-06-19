@@ -151,7 +151,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
             if not lex.match_next(comma_token_label):
                 break
             else:
-                lex.match_next(rpar_token_label, raise_on_true=True)
+                lex.match_next(rpar_token_label, raise_on_success=True)
         lex.match_next(rpar_token_label, raise_on_fail=True)
         return tok
 

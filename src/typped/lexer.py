@@ -167,11 +167,13 @@ User-accessible methods of tokens.
 * `is_end_token` --- true when tokens is a end token
 * `is_begin_or_end_token` --- true when tokens is a begin_or_end_token
 * `ignored_before_labels` --- just the token labels of the tokens ignored before
+
 For a token named `t`, these attributes are available:
 
 * `t.token_label` --- the string label of the token (which was defined with it)
 * `t.value` --- the string value for the token, found in the lexed text
 * `t.is_first` --- true iff this is the first non-begin token in the text
+* `t.is_first_on_line` --- true iff this is the first token returned for a line
 * `t.parent` --- can be set to the parent in a tree; set by the lexer to `None`
 * `t.children` --- can be set to a list of children; set by the lexer to `[]`
 * `t.original_matched_string` --- the original text that was consumed for this token
@@ -1288,12 +1290,10 @@ class Lexer(object):
     #
 
     def match_next(self, token_label_to_match, peeklevel=1, consume=True,
-                   raise_on_fail=False, raise_on_true=False,
+                   raise_on_fail=False, raise_on_success=False,
                    err_msg_tokens=3):
         # TODO: Consider a way for users to define custom error strings for
         # better error-reporting.
-
-        # TODO: Rename raise_on_true to raise_on_success
         """A utility function that tests whether the value of the next token
         label equals a given token label.
 
@@ -1309,7 +1309,7 @@ class Lexer(object):
         If `raise_on_fail` set true then a `LexerException` will be raised by
         default if the match fails.  The default can be changed by setting the
         lexer instance attribute `default_helper_exception`.  Similarly,
-        `raise_on_true` raises an exception when a match is found.  Either one
+        `raise_on_success` raises an exception when a match is found.  Either one
         can be set to a subclass of `Exception` instead of a boolean, and then
         that exception will be called.
 
@@ -1323,8 +1323,8 @@ class Lexer(object):
         if consume and retval:
             self.next() # Eat the token that was matched.
 
-        if retval and raise_on_true:
-            exception = return_first_exception(raise_on_true,
+        if retval and raise_on_success:
+            exception = return_first_exception(raise_on_success,
                                                self.default_helper_exception)
             raise exception(
                     "Function match_next (with peeklevel={0}) found unexpected "
@@ -1346,7 +1346,7 @@ class Lexer(object):
 
     # TODO document these utilities......
     def in_ignored_tokens(self, token_label_to_match,
-                          raise_on_fail=False, raise_on_true=False):
+                          raise_on_fail=False, raise_on_success=False):
         """A utility function to test if a particular token label is among
         the tokens ignored before the current token.  Returns a boolean
         value.  Like `match_next`, this method can be set to raise an
@@ -1356,8 +1356,8 @@ class Lexer(object):
         if token_label_to_match in ignored_token_labels:
             retval = True
 
-        if retval and raise_on_true:
-            exception = return_first_exception(raise_on_true,
+        if retval and raise_on_success:
+            exception = return_first_exception(raise_on_success,
                                                self.default_helper_exception)
             raise exception(
                     "Function in_ignored_tokens found unexpected token with "
@@ -1372,7 +1372,7 @@ class Lexer(object):
                     .format(token_label_to_match, str(self.token)))
         return retval
 
-    def no_ignored_after(self, raise_on_fail=False, raise_on_true=False):
+    def no_ignored_after(self, raise_on_fail=False, raise_on_success=False):
         """A boolean utility function to test if any tokens were ignored
         between current token and lookahead.  Like `match_next`, this method
         can be set to raise an exception on success or failure."""
@@ -1380,8 +1380,8 @@ class Lexer(object):
         if self.peek().ignored_before:
             retval = False
 
-        if retval and raise_on_true:
-            exception = return_first_exception(raise_on_true,
+        if retval and raise_on_success:
+            exception = return_first_exception(raise_on_success,
                                                self.default_helper_exception)
             raise exception(
                     "Function no_ignored_after expected tokens between the current "
@@ -1399,7 +1399,7 @@ class Lexer(object):
             return False
         return retval
 
-    def no_ignored_before(self, raise_on_fail=False, raise_on_true=False):
+    def no_ignored_before(self, raise_on_fail=False, raise_on_success=False):
         """A boolean utility function to test if any tokens were ignored between
         previous token and current token.  Like `match_next`, this method
         can be set to raise an exception on success or failure."""
@@ -1407,8 +1407,8 @@ class Lexer(object):
         if self.token.ignored_before:
             retval = False
 
-        if retval and raise_on_true:
-            exception = return_first_exception(raise_on_true,
+        if retval and raise_on_success:
+            exception = return_first_exception(raise_on_success,
                                                self.default_helper_exception)
             raise exception(
                     "Function no_ignored_before expected ignored tokens before "
@@ -1467,6 +1467,8 @@ class Lexer(object):
             else:
                 self.token_generator_state = GenTokenState.ordinary
 
+            first_after_newline = False
+
             # =======================================================================
             # === Ordinary execution state ==========================================
             # =======================================================================
@@ -1517,6 +1519,7 @@ class Lexer(object):
                 if num_newlines == 0:
                     self.upcoming_raw_charnumber += len(token_value)
                 else:
+                    first_after_newline = True
                     last_newline = token_value.rfind("\n")
                     self.upcoming_raw_charnumber = (
                             len(token_value) - (last_newline + 1) + 1)
@@ -1552,6 +1555,7 @@ class Lexer(object):
             token_instance.all_token_count = self.all_token_count
             token_instance.non_ignored_token_count = self.non_ignored_token_count
             token_instance.is_first = self._curr_token_is_first
+            token_instance.is_first_on_line = token_instance.is_first or first_after_newline
 
             return token_instance
 
