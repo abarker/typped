@@ -35,6 +35,13 @@ def setup_parser():
     # the construct.  It is checked at higher level if an arg (it isn't here)
     # but is DEFINED in this case for floats in this context.  Like literals
     # define types for literals in a context...  Maybe explain better in docs.
+    #
+    # Whenever you define a val_type for a node you are DEFINING an association
+    # between a type and a node.  Whenever you define arg_types you are asserting
+    # the types of the child nodes, which will be checked as each subtree is
+    # returned by a handler function.
+    #
+    # Add above para or similar to types documentation.
 
     t_float = parser.def_type("t_float")
     t_int = parser.def_type("t_int")

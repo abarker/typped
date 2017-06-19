@@ -83,7 +83,7 @@ which takes two integers and returns another integer.  Type signatures are
 associated with the handler function of the token which ends up as the root of
 the parse-subtree representing the expression.
 
-If the ``arg_types`` list (or iterable) is an individual type (i.e., a
+If the ``arg_types`` list (or iterable) is instead an individual type (i.e., a
 ``TypeObject`` instance) rather than a list then any number of
 arguments/children are allowed, and they must all have that type.  For example,
 this would be the type specification for a function taking any number if
@@ -93,8 +93,21 @@ this would be the type specification for a function taking any number if
 
    sig = TypeSig(t_int, t_int)
 
-Wildcards are also allowed, using ``None`` as the type object.  The value
-``None`` can be passed to the initializer of ``TypeSig`` in place of a
+For more control over variable numbers of arguments, the last group of
+types in an ``arg_types`` list can be wrapped in a ``Varargs`` instance.
+Then those particular arguments will be repeated any number of times
+to match the number of actual arguments.  For example:
+
+.. code-block:: python
+
+   sig = TypeSig(t_int, [t_int, Varargs(t_int, t_float)])
+
+The ``Varargs`` initializer can also take a keyword argument ``exact_repeat``
+which, if set false, truncates any repeated arguments if necessary to match
+the number of actual arguments.  The default is to raise an exception.
+
+Wildcards, which match any type, are also allowed in type specifications.  They
+can be defined by passing the value ``None`` as the type object instead of a
 predefined type.  As a ``val_type`` this wildcard matches any type at the node,
 and in place of the ``arg_types`` list it declares that no checking is to be
 done on the children.  The following three forms are equivalent, and specify
@@ -104,11 +117,11 @@ that no type checking will be done (i.e., everything matches):
 
    TypeSig(None, None) == TypeSig(None) == TypeSig()
 
-The ``None`` wildcards can also be used inside the
-``arg_types`` list to specify arguments which are not type-checked.  This allows
-the number of arguments to be checked, and possibly some but not all arguments.
-For example, this signature specifies a function which takes exactly one argument
-but is otherwise unchecked:
+The ``None`` wildcards can also be used inside the ``arg_types`` list to
+specify arguments which are not type-checked.  This allows the number of
+arguments to be checked, and possibly some but not all arguments.  For example,
+this signature specifies a function which takes exactly one argument but is
+otherwise unchecked:
 
 .. code-block:: python
 
@@ -128,20 +141,33 @@ is unchecked:
 
    TypeSig(None, [t_int, None])
 
-Defining new constructs which check types
------------------------------------------
+Overview of type-checking
+-------------------------
 
-Type checking is automatically performed just after the head or tail handler function
-for a construct has been called and has returned a subtree.  The subtree is checked
-for types before it is returned to the ``recursive_parse`` routine.  For the usual
-cases nothing needs to be done.  In some cases, though, the handler needs to
-influence the type-checking or node processing.  The attribute ``process_and_check_kwargs``
-of the root node can be set by a handler before it is returned.  It should be
-set to a dict corresponding to keyword arguments of the ``process_and_check_node``
-function to be modified.
+Type checking is automatically performed just after the head or tail handler
+function of a construct has been called and has returned a subtree.  The
+subtree is checked for types before it is returned to the ``recursive_parse``
+routine.  The ``val_types`` of the root node's children are compared to the
+``arg_types`` defined for the construct.
+
+Setting the ``val_type`` of a construct *defines* the type of the root node of
+the subtree returned by the construct's handler function.  So, for example,
+setting the ``val_type`` for a token-literal construct defines the type of that
+token (in that preconditions context).  Setting the ``val_type`` of an infix
+operator construct defines the type which is returned by the operator.
+
+Setting the ``arg_types`` of a construct specifies what the ``val_types`` of
+the children of the returned root node should be.  These are automatically
+checked, resolving overloading if possible.
+
+In some cases the handler might need to influence the type-checking or node
+processing.  The attribute ``process_and_check_kwargs`` of the root node can be
+set by a handler function before the node is returned.  It should be passed a
+dict containing keyword arguments and values of the ``process_and_check_node``
+function.
 
 See the built-in methods of the ``PrattParser`` class for examples of how to
-define general constructs.
+define general constructs which check types.
 
 Implementation details
 ----------------------
