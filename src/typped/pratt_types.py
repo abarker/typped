@@ -282,6 +282,7 @@ class TypeSig(object):
                                 " signature {0}".format(sig))
                     else:
                         new_args = new_args[:num_args]
+                new_sig = TypeSig(sig.val_type, new_args)
             else:
                 new_sig = sig
             new_sig.original_formal_sig = sig # Save formal sig as an attribute of expanded.

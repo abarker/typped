@@ -21,6 +21,7 @@ if __name__ == "__main__":
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
+import re
 from .lexer import multi_funcall
 from .shared_settings_and_exceptions import ParserException
 
@@ -77,9 +78,10 @@ def def_default_single_char_tokens(parser, chars=None, exclude=None, make_litera
     if chars is None:
         chars = default_token_label_dict.keys()
     for c in chars:
-        if c == " " or c in exclude:
-            continue
-        token_label = default_token_label_dict(c)
+        if c == " ":
+            if exclude is not None and c in exclude:
+                continue
+        token_label = default_token_label_dict[c]
         parser.def_token(token_label, re.escape(c))
         if make_literals:
             parser.def_literal(token_label)
@@ -98,6 +100,37 @@ def def_multi_ignored_tokens(parser, tuple_list):
     `Lexer` function."""
     return multi_funcall(parser.def_ignored_token, tuple_list, ParserException)
 
+def def_default_float_token(parser, token_label="k_float", signed=True,
+                            require_decimal=False, on_ties=0, make_literal=False):
+    """Define a token for floats with default label 'k_float'.  If `signed` is true (the
+    default) then a leading '+' or '-' is optionally part of the float.  Otherwise
+    the sign is not included.  This is sometimes needed when the signs are defined
+    as a prefix operators instead."""
+    if not require_decimal:
+        regex = r"(\d+\.\d+)([eE][-+]?\d+)?"
+    else:
+        regex = r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"
+    if signed:
+        regex = r"[+-]?" + regex
+    tok = parser.def_token("k_float", regex, on_ties=on_ties)
+    if make_literal:
+        parser.def_literal("k_float")
+    return tok
+
+def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0,
+                          make_literal=False):
+    """Define a token for ints with default label 'k_int'.  If `signed` is true (the
+    default) then a leading '+' or '-' is optionally part of the float.  Otherwise
+    the sign is not included."""
+    if not signed:
+        regex = r"(\d+)"
+    else:
+        regex = r"[-+]?(\d+)"
+    tok = parser.def_token("k_int", regex, on_ties=on_ties)
+    if make_literal:
+        parser.def_literal("k_int")
+    return tok
+
 
 # This list of functions is copied to the PrattParser class as methods.
 token_defining_methods = [
@@ -105,5 +138,7 @@ token_defining_methods = [
                          def_default_single_char_tokens,
                          def_multi_tokens,
                          def_multi_ignored_tokens,
+                         def_default_float_token,
+                         def_default_int_token,
                          ]
 

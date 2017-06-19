@@ -392,6 +392,7 @@ class ConstructTable(object):
         This function also sets the attribute `construct_label` of this token
         instance to the label of the winning precondition function."""
         trigger_token_label = trigger_token_instance.token_label
+        print("trigger token is", trigger_token_instance)
 
         token_construct_dict = self.construct_dict[head_or_tail]
         if not trigger_token_label in token_construct_dict:
@@ -409,6 +410,7 @@ class ConstructTable(object):
                     return construct.precond_fun
 
         # Sequentially run sorted precondition functions until one is true.
+        print("sorted construct dict items", sorted_construct_dict.items())
         for pre_label, construct in sorted_construct_dict.items():
             if construct.precond_fun(lex, lookbehind):
                 # Note construct_label is saved as a user-accesible attribute here.

@@ -1292,6 +1292,8 @@ class Lexer(object):
                    err_msg_tokens=3):
         # TODO: Consider a way for users to define custom error strings for
         # better error-reporting.
+
+        # TODO: Rename raise_on_true to raise_on_success
         """A utility function that tests whether the value of the next token
         label equals a given token label.
 
