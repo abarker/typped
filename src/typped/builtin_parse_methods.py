@@ -268,15 +268,18 @@ def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
     """Takes a list of operator token labels and defines a multi-infix
     operator.
 
-    If `repeat=True` it will accept any number of repetitions of
-    the list of operators (but type-checking for that is not implemented
-    yet).  For a single operator, repeating just has the effect of putting
-    the arguments in a flat argument/child list instead of as nested binary
-    operations based on left or right association.  Any argument-checking
-    is done after any node removal, which may affect the types that should
-    be passed-in in the list arg_types of parent constructs.
+    If `repeat=True` then any number of repetitions of the list of operators
+    will be accepted.  For example, a comma operator could be used to parse a
+    full comma-separated list.  When `arg_types` is also set use the `Varargs`
+    object in the list to check the repetitions.  For a single operator,
+    repeating just has the effect of putting the arguments in a flat
+    argument/child list instead of as nested binary operations based on left or
+    right association.  Any argument-checking is done after any node removal,
+    which may affect the types that should be passed-in in the list arg_types
+    of parent constructs.
 
-    If `not_in_tree` is false.......
+    If `not_in_tree` is false then the root node will not appear in the final parse
+    tree (unless it is the root).
     """
     if assoc not in ["left", "right"]:
         raise ParserException('Argument assoc must be "left" or "right".')
@@ -296,7 +299,6 @@ def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
             lex.match_next(operator_token_labels[0], raise_on_fail=True)
             tok.append_children(tok.recursive_parse(recurse_bp))
         if not_in_tree: tok.not_in_tree = True
-        tok.process_and_check_kwargs = {"repeat_args": repeat}
         return tok
     return parser.def_construct(TAIL, tail_handler, operator_token_labels[0], prec=prec,
                               construct_label=construct_label, precond_fun=precond_fun,

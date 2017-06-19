@@ -50,8 +50,9 @@ from __future__ import print_function, division, absolute_import
 
 if __name__ == "__main__":
     import pytest_helper
-    # No test file for now, just run the parser's tests.
-    pytest_helper.script_run("../../test/test_pratt_parser.py", pytest_args="-v")
+    pytest_helper.script_run(["../../test/test_pratt_types.py",
+                              "../../test/test_pratt_parser.py",
+                              ], pytest_args="-v")
 
 import sys
 from .shared_settings_and_exceptions import ParserException
@@ -60,9 +61,22 @@ from .shared_settings_and_exceptions import ParserException
 # Formal and actual type specs for functions.
 #
 
-
 # For ideas on how to define composite types, etc., look at PEP-483:
 # https://www.python.org/dev/peps/pep-0483/
+
+class Varargs(object):
+    """This class is used to define type signatures which can check a variable
+    number of arguments.  When used at the end of an argument list for a
+    `TypeSig` instance it will repeat any arguments inside it as many times as
+    necessary.
+
+    If `exact_repeat` is true (the default) then an exception will be raised if
+    no multiple of the repeated arguments matches the actual arguments.
+    Otherwise the arguments will be truncated to fit."""
+
+    def __init__(self, *args, exact_repeat=True):
+        self.exact_repeat = exact_repeat
+        self.arg_types = args
 
 class TypeSig(object):
     """The type specification for a function.  Generally set at function
@@ -123,8 +137,10 @@ class TypeSig(object):
         # actually matches the declared type in the function spec.  Decide if
         # useful, else delete.
 
-        self.val_type = val_type
-        self.arg_types = arg_types
+        self.val_type = val_type # Property automatically converts None args.
+        self.repeat_index = None
+        self.exact_repeat = None
+        self.arg_types = arg_types # Propery automatically converts None args.
 
     #
     # Properties are used for val_type and arg_types to automatically convert
@@ -169,7 +185,18 @@ class TypeSig(object):
         elif not arg_types: # Matches (), [], and anything else that bools to False
             arg_types = () # Below case catches this, but this is clearer.
         else:
+            # First handle any Varargs specifications.
             arg_types = list(arg_types)
+            for count, arg in enumerate(arg_types):
+                if isinstance(arg, Varargs):
+                    varargs = arg
+                    if count != len(arg_types) - 1:
+                        raise TypeModuleException("The Varargs specification can only"
+                                "occur as the last component of an arg_types list.")
+                    self.repeat_index = count
+                    self.exact_repeat = arg.exact_repeat
+                    arg_types = arg_types[:count] + list(varargs.arg_types)
+            # Now covert any None arguments to TypeObject(None).
             for i in range(len(arg_types)):
                 if isinstance(arg_types[i], TypeObject): # Ignores None values.
                     pass # May take some action at some point, not now...
@@ -189,7 +216,7 @@ class TypeSig(object):
 
     @staticmethod
     def get_all_matching_expanded_sigs(sig_list, list_of_child_sig_lists, tnode=None,
-                              repeat_args=False, raise_err_on_empty=True):
+                              raise_err_on_empty=True):
         """Return the list of all the signatures on `sig_list` whose arguments
         match some choice of child/argument signatures from
         `list_of_child_sig_lists`  Note that this does not look at the return
@@ -220,7 +247,7 @@ class TypeSig(object):
 
         # Filter the signatures by the number of arguments.
         sig_list = TypeSig.get_sigs_matching_num_args(num_args, sig_list,
-                                         repeat_args, tnode, raise_err_on_empty)
+                                         tnode, raise_err_on_empty)
 
         # Now filter by sigs for which the actual value of the child type matches
         # (as a type, not equality) the required formal type return type.
@@ -243,6 +270,18 @@ class TypeSig(object):
         for sig in sig_list:
             if isinstance(sig.arg_types, TypeObject): # TypeObject(None) here also.
                 new_sig = TypeSig(sig.val_type, (sig.arg_types,)*num_args)
+            elif not sig.repeat_index is None:
+                repeat_index = sig.repeat_index
+                new_args = list(sig.arg_types[:repeat_index-1])
+                while len(new_args) < num_args:
+                    new_args.extend(sig.arg_types[repeat_index:])
+                if len(new_args) > num_args:
+                    if sig.exact_repeat:
+                        raise TypeModuleException("Repeating Varargs arguments does"
+                                " not match the required number of arguments in"
+                                " signature {0}".format(sig))
+                    else:
+                        new_args = new_args[:num_args]
             else:
                 new_sig = sig
             new_sig.original_formal_sig = sig # Save formal sig as an attribute of expanded.
@@ -250,12 +289,11 @@ class TypeSig(object):
         return all_sigs_expanded
 
     @staticmethod
-    def get_sigs_matching_num_args(num_args, sig_list, repeat_args=False,
+    def get_sigs_matching_num_args(num_args, sig_list,
                                         tnode=None, raise_err_on_empty=True):
         """Return a list of signatures from `sig_list` which match `num_args`
-        as the number of arguments.  Expand as necessary by repeating the
-        arguments over and over if `repeat_args` is `True`.  The optional
-        token-tree node `tnode` is only used for improved error reporting.
+        as the number of arguments.  The optional token-tree node `tnode` is
+        only used for improved error reporting.
 
         This routine assumes that a `formal_sig` attribute has been set for all
         passed-in signatures (for example, as set by the method
@@ -266,13 +304,7 @@ class TypeSig(object):
             if sig_args_len == num_args:
                 new_sig = sig
             else:
-                if not repeat_args:
-                    continue
-                if num_args % sig_args_len != 0:
-                    continue
-                num_repeats = num_args // sig_args_len
-                # NOTE repeating adds refs, not copies; OK for now but keep in mind.
-                new_sig = TypeSig(sig.val_type, sig.arg_types * num_repeats)
+                continue
             new_sig.original_formal_sig = sig.original_formal_sig # Copy over the formal sig.
             sigs_matching_numargs.append(new_sig)
 
@@ -411,11 +443,20 @@ class TypeSig(object):
 
     def __repr__(self):
         if isinstance(self.arg_types, TypeObject):
-            arglist = self.arg_types
+            arg_string = self.arg_types.short_repr()
         else:
-            arglist = [t.short_repr() for t in self.arg_types]
-            arglist = "[" + ", ".join(arglist) + "]"
-        return "TypeSig({0}, {1})".format(self.val_type.short_repr(), arglist)
+            arg_string = "["
+            for count, t in enumerate(self.arg_types):
+                if count != 0:
+                    arg_string += ", "
+                if count == self.repeat_index:
+                    varargs = ", ".join(t.short_repr() for t in self.arg_types[count:])
+                    arg_string += "Varargs(" + varargs + ")"
+                    break
+                else:
+                    arg_string += t.short_repr()
+            arg_string += "]"
+        return "TypeSig({0}, {1})".format(self.val_type.short_repr(), arg_string)
     def __hash__(self):
         """Needed to index dicts and for use in Python sets."""
         return hash(("TypeSig", self.val_type, self.arg_types))
@@ -512,11 +553,17 @@ class TypeObject(object):
         str_label = self.type_label
         if self.type_label == NONE:
             str_label = "None"
-        return "TypeObject({0})" .format(str_label)
+        else:
+            str_label = "'" + str_label + "'"
+        return "TypeObject({0})".format(str_label)
     def short_repr(self):
+        """This repr prints `None` types as simply "None" rather than
+        "TypeObject(None)"."""
         str_label = self.type_label
         if self.type_label == NONE:
             str_label = "None"
+        else:
+            str_label = "'" + str_label + "'"
         return str_label
 
 #

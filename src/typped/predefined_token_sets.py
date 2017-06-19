@@ -8,6 +8,9 @@ of a parser instance.
 
 """
 
+# TODO: add method to define a float, a number, an identifier.  Just take from
+# existing code.
+
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -18,7 +21,8 @@ if __name__ == "__main__":
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
-
+from .lexer import multi_funcall
+from .shared_settings_and_exceptions import ParserException
 
 default_token_label_dict = {
         "~": "k_tilde",
@@ -80,9 +84,26 @@ def def_default_single_char_tokens(parser, chars=None, exclude=None, make_litera
         if make_literals:
             parser.def_literal(token_label)
 
+def def_multi_tokens(parser, tuple_list):
+    """A convenience function, to define multiple tokens at once.  Each element
+    of the passed-in list should be a tuple containing the arguments to the
+    ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
+    # TODO: take keyword args and pass them all to the def_token routine.
+    return multi_funcall(parser.def_token, tuple_list, ParserException)
+
+def def_multi_ignored_tokens(parser, tuple_list):
+    """A convenience function, to define multiple ignored tokens at once.
+    Each element of the passed-in list should be a tuple containing the arguments
+    to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
+    `Lexer` function."""
+    return multi_funcall(parser.def_ignored_token, tuple_list, ParserException)
+
+
 # This list of functions is copied to the PrattParser class as methods.
 token_defining_methods = [
                          def_default_whitespace,
                          def_default_single_char_tokens,
+                         def_multi_tokens,
+                         def_multi_ignored_tokens,
                          ]
 

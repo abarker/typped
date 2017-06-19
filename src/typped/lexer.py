@@ -131,7 +131,7 @@ General methods:
 Helper methods:
 
 * `match_next` --- matches the specified token, with various options
-* `in_ignored_tokens` --- test if some specified token is ignored after the current one
+* `in_ignored_tokens` --- test if some particular token was ignored before the current one
 * `no_ignored_after` --- true if no ignored tokens immediately follow current token
 * `no_ignored_before` --- true if no ignored tokens immediately preceed current token
 

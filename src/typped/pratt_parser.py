@@ -187,6 +187,7 @@ if __name__ == "__main__":
     pytest_helper.script_run(["../../test/test_production_rules.py",
                               "../../test/test_example_calculator.py",
                               "../../test/test_parser_called_from_parser.py",
+                              "../../test/test_pratt_types.py",
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
 
@@ -418,8 +419,7 @@ def token_subclass_factory():
             self.children = modified_children
 
         def process_and_check_node(self, construct,
-                                   typesig_override=None, check_override_sig=False,
-                                   repeat_args=False):
+                                   typesig_override=None, check_override_sig=False):
             """This routine is automatically called just after a handler
             function returns a subtree.  It is called for the root of the
             returned subtree.  It sets some attributes and checks that the
@@ -442,12 +442,7 @@ def token_subclass_factory():
             in a dict keyed by the original type signature.  In this case,
             though, the override signature becomes the original type signature,
             which will generally not have the correct information keyed under
-            it.
-
-            If `repeat_args` is true then the argument types for defined type
-            signatures will be expanded to match the actual number of
-            arguments, if possible, by cyclically repeating them an arbitary
-            number of times."""
+            it."""
 
             #
             # Just return and skip type-checking if the skip option is set.
@@ -469,9 +464,9 @@ def token_subclass_factory():
 
             # Do the actual checking.
             if not self.parser_instance.overload_on_ret_types: # One-pass.
-                self._check_types(all_possible_sigs, repeat_args)
+                self._check_types(all_possible_sigs)
             else: # Two-pass.
-                self._check_types(all_possible_sigs, repeat_args, first_pass_of_two=True)
+                self._check_types(all_possible_sigs, first_pass_of_two=True)
                 # If we have a *unique* matching sig, run pass two on the
                 # subtree.  In this case, since the signature is fixed by
                 # argument types (regardless of where the top-down pass
@@ -500,7 +495,7 @@ def token_subclass_factory():
                 # Force the final, actual typesig to be the override sig.
                 self.expanded_formal_sig = typesig_override
 
-        def _check_types(self, all_possible_sigs, repeat_args, first_pass_of_two=False):
+        def _check_types(self, all_possible_sigs, first_pass_of_two=False):
             """Utility function called from `process_and_check_node` to check
             the actual types against their signatures.  It assumes a single
             pass unless `first_pass_of_two` is set.  The `all_possible_sigs` argument is
@@ -520,7 +515,7 @@ def token_subclass_factory():
             # Reduce to only the signatures that the types of the children match.
             self.matching_sigs = TypeSig.get_all_matching_expanded_sigs(
                                       all_possible_sigs, list_of_child_sig_lists,
-                                      tnode=self, repeat_args=repeat_args)
+                                      tnode=self)
             # Below all_possible_sigs is saved ONLY for printing error messages.
             self.all_possible_sigs = all_possible_sigs
 
@@ -1156,20 +1151,6 @@ class PrattParser(object):
         """A convenience function to define a token with `ignored=True`."""
         return self.def_token_master(token_label, regex_string, on_ties, ignore=True,
                               token_kind="ignored", options=options)
-
-    def def_multi_tokens(self, tuple_list):
-        """A convenience function, to define multiple tokens at once.  Each element
-        of the passed-in list should be a tuple containing the arguments to the
-        ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-        # TODO: take keyword args and pass them all to the def_token routine.
-        return multi_funcall(self.def_token, tuple_list, ParserException)
-
-    def def_multi_ignored_tokens(self, tuple_list):
-        """A convenience function, to define multiple ignored tokens at once.
-        Each element of the passed-in list should be a tuple containing the arguments
-        to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
-        `Lexer` function."""
-        return multi_funcall(self.def_ignored_token, tuple_list, ParserException)
 
     def def_begin_end_tokens(self, begin_token_label="k_begin",
                                    end_token_label="k_end"):
