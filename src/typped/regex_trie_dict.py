@@ -560,7 +560,7 @@ class NodeStateData(object):
             for count, var in enumerate(self.__slots__):
                 self.__setattr__(var, val_list[count])
         else:
-            for key in kw_vals.keys():
+            for key in kw_vals:
                 self.__setattr__(key, kw_vals[key])
 
     def __getitem__(self, index):
@@ -760,7 +760,7 @@ class RegexTrieDict(TrieDict):
             error messages."""
             try:
                 err_patt = "\n   " + str(key_seq)
-            except:
+            except ValueError:
                 err_patt = ""
             return err_patt
 
@@ -778,14 +778,14 @@ class RegexTrieDict(TrieDict):
             """Simple test for open-group paren followed immediately by close-group.
             Any parLevel in escaped_key_elem_list must have at least three elements."""
             last_par_level = -1
-            for index, (elem, isEscaped, parLevel) in enumerate(escaped_key_elem_list):
-                if parLevel > last_par_level: count = 1
-                elif parLevel == last_par_level: count += 1
-                if (parLevel < last_par_level
-                   or (parLevel == 1 and index == len(escaped_key_elem_list)-1)):
+            for index, (elem, is_escaped, par_level) in enumerate(escaped_key_elem_list):
+                if par_level > last_par_level: count = 1
+                elif par_level == last_par_level: count += 1
+                if (par_level < last_par_level
+                   or (par_level == 1 and index == len(escaped_key_elem_list)-1)):
                     if count < 3:
                         return False
-                last_par_level = parLevel
+                last_par_level = par_level
             return True
 
         #
@@ -837,7 +837,7 @@ class RegexTrieDict(TrieDict):
                                                            raise_errors=True)
 
         node = self.root
-        for elem, escaped, _parenCount in escaped_key_elem_list:
+        for elem, escaped, paren_count in escaped_key_elem_list:
             if escaped:
                 if self.escape in node.children:
                     node = node.children[self.escape]
@@ -999,10 +999,7 @@ class RegexTrieDict(TrieDict):
             if yield_on_match and curr_node.is_last_elem_of_key and not yielded_already:
                 yield yield_value
             # Set the escape-value to pass to the recursive calls.
-            if curr_node_elem == self.escape and not is_escaped:
-                is_escaped = True
-            else:
-                is_escaped = False
+            is_escaped = curr_node_elem == self.escape and not is_escaped
             # Recurse for each child.
             for elem in children:
                 for value in dfs_recursion(elem, child_dict[elem], depth+1,
@@ -1263,7 +1260,7 @@ class RegexTrieDict(TrieDict):
                 elif meta_elem == self.dot:
                     # Remember that binding in Python DOES allow resetting wildcards in loops.
                     if query_elem != self.magic_elem_never_matches:
-                            next_node_data_list.append_child_node(self.dot, node_data,
+                        next_node_data_list.append_child_node(self.dot, node_data,
                                                                   node_is_escape=False)
 
                 #
@@ -1368,7 +1365,7 @@ class RegexTrieDict(TrieDict):
                 raise PatternMatchError("No closing bracket for wildcard.")
             r_wildcard_elem, r_wildcard_node = wildcard_patt[-1]
             escape_elem, escape_node = wildcard_patt[-2]
-            if (r_wildcard_elem != self.r_wildcard or escape_elem != self.escape):
+            if r_wildcard_elem != self.r_wildcard or escape_elem != self.escape:
                 raise PatternMatchError("No closing bracket for wildcard.")
             pattern = [p[0] for p in wildcard_patt[1:-2]]
             # If the character matches the wildcard pattern:
@@ -1568,8 +1565,8 @@ class RegexTrieDict(TrieDict):
         if break_node_data_list:
             try:
                 close_paren_node = close_paren_node_data.node
-                close_paren_node.children[self.escape].children[self.r_group]
-                break_node_data.loopback_stack[-1].children[
+                close_paren_node.children[self.escape].children[self.r_group] # TODO see below
+                break_node_data.loopback_stack[-1].children[ # TODO exception for flow control
                     self.escape].children[self.repetition]
                 raise PatternMatchError("Illegal nested repetition pattern with no"
                                         " characters in the outer repetition.")

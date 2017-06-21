@@ -89,7 +89,6 @@ if __name__ == "__main__":
     pytest_helper.script_run("../../test/test_trie_dict.py", pytest_args="-v")
 
 import sys
-import re
 import collections # to use deque and MutableSequence abstract base class
 from .shared_settings_and_exceptions import TyppedBaseException
 
@@ -205,7 +204,7 @@ class TrieDict(collections.MutableMapping):
         """Return the data element stored with key `key_seq`, returning the default
         if the key is not in the dict."""
         node = self.get_node(key_seq)
-        if node == None or not node.is_last_elem_of_key:
+        if node is None or not node.is_last_elem_of_key:
             return default
         else:
             return node.data
@@ -214,7 +213,7 @@ class TrieDict(collections.MutableMapping):
         """Same as get without the default value and using the bracket-indexing
         notation.  Raises a `KeyError` if the key is not stored."""
         node = self.get_node(key_seq)
-        if node == None or not node.is_last_elem_of_key:
+        if node is None or not node.is_last_elem_of_key:
             raise KeyError("key "+key_seq+" is not in the TrieDict")
         else:
             return node.data
@@ -224,10 +223,7 @@ class TrieDict(collections.MutableMapping):
         such as multiple matches or longest prefix match.  Leaves the tree and all
         saved data unaltered."""
         node = self.get_node(key_seq)
-        if node == None or node.is_last_elem_of_key == False:
-            return False
-        else:
-            return True
+        return node is not None and node.is_last_elem_of_key
 
     __contains__ = has_key # Allow use of "in" syntax for testing for keys.
 
@@ -310,11 +306,6 @@ class TrieDict(collections.MutableMapping):
                     return True
         return False
 
-    def num_children(self, node):
-        """The number of children at a node in the tree, i.e., the number of child
-        nodes which are indexed by keys in its dict."""
-        return len(node.children)
-
     def delitem(self, key):
         """Delete the stored key and its data.  Raises `KeyError` if the key wasn't
         found in the trie.  If `d` is a dict, the syntax `del d[key]` also invokes
@@ -359,64 +350,66 @@ class TrieDict(collections.MutableMapping):
 
     __delitem__ = delitem # Allows the syntax: del d[key]
 
-    def get_next_node(self, query_elem, node):
+    @staticmethod
+    def get_next_node(query_elem, node):
         """Return the next node in the trie from `node` when the key-query element
         `query_elem` is received.  This routine treats meta-characters as ordinary
         characters."""
-        # This is not used internally because of the overhead.
+        # This method is not used internally because of the overhead.
         if query_elem in node.children:
             return node.children[query_elem]
         else:
             return None
 
-    def get_dfs_gen(self, subtree_root_node, fun_to_apply=None, include_root=False,
+    @staticmethod
+    def get_dfs_gen(subtree_root_node, fun_to_apply=None, include_root=False,
                     yield_on_leaves=True, yield_on_match=False, copies=True,
                     stop_at_elems=[],
                     stop_at_depth=False, only_follow_elems=[],
                     sort_children=False,
                     subtree_root_elem=None, child_fun=None):
-        """Returns a generator which will do a depth-first traversal of the trie,
-        starting at node subtree_root_node.  This is a Swiss Army knife routine
-        which is used in many places to do the real work.
+        """Returns a generator which will do a depth-first traversal of the
+        trie, starting at node `subtree_root_node`.  This is a Swiss Army knife
+        routine which is used in many places to do the real work.
 
-        On each call this method returns a list of (nodeElem, node) pairs for
-        each node on some path from the root to a leaf of the tree.  It
+        On each call this method returns a list of `(node_elem, node)` pairs
+        for each node on some path from the root to a leaf of the tree.  It
         generates such a list for each path from the root to a leaf (one on
-        each call).  If yield_on_match is set True then the current list being
-        constructed on a path down the tree is returned on the first time any
-        match-marked node is encountered, even if the node is not a leaf.  If
-        yield_on_leaves is set False then yields will only be done on matches.
-        (If both are False then the routine returns nothing.)
+        each call).  If `yield_on_match` is set true then the current list
+        being constructed on a path down the tree is returned on the first time
+        any match-marked node is encountered, even if the node is not a leaf.
+        If `yield_on_leaves` is set false then yields will only be done on
+        matches.  (If both are false then the routine returns nothing.)
 
-        If the list stop_at_elems contains any elements then nodes for those
-        elements are treated as leaves.  If stop_at_depth has a positive integer
-        value then nodes at that depth are treated as leaves.  The
-        only_follow_elems list is like the negation for stop_at_elems: it treats
-        everything not on the list like a leaf node (i.e., it only folows
-        child-links which are on the list).
+        If the list `stop_at_elems` contains any elements then nodes for those
+        elements are treated as leaves.  If `stop_at_depth` has a positive
+        integer value then nodes at that depth are treated as leaves.  The
+        `only_follow_elems` list is like the negation for `stop_at_elems`: it
+        treats everything not on the list like a leaf node (i.e., it only
+        folows child-links which are on the list).
 
-        If fun_to_apply is defined it will be called for each (nodeElem, node) pair
-        on the returned lists.  The function should take two arguments; the list
-        will contain the function's return value.  A copy of the node list is
-        returned on each generation, but the nodes are always the actual nodes in
-        the trie.  If include_root is True then output from the subtree_root_node
-        itself will be included in the output (with None as the corresponding
-        nodeElem).
+        If `fun_to_apply` is defined it will be called for each `(node_elem,
+        node)` pair on the returned lists.  The function should take two
+        arguments; the list will contain the function's return value.  A copy
+        of the node list is returned on each generation, but the nodes are
+        always the actual nodes in the trie.  If `include_root` is true then
+        output from `subtree_root_node` itself will be included in the output
+        (with none as the corresponding `node_elem`).
 
-        If copies is set False then a single node list is used; this may be a
+        If `copies` is set false then a single node list is used; this may be a
         little faster, but the returned list will change after each
-        generation-cycle.  If sort_children is True then the children of
-        each node will be sorted in the dfs search ordering.
+        generation-cycle.  If `sort_children` is true then the children of each
+        node will be sorted in the dfs search ordering.
 
-        Setting subtree_root_elem to an element will set that as the element on
-        the returned list corresponding to the subtree root (otherwise it is
-        None.  Sometimes the value is known when the function call is made,
+        Setting `subtree_root_elem` to an element will set that as the element
+        on the returned list corresponding to the subtree root (otherwise it is
+        `None`.  Sometimes the value is known when the function call is made,
         and it can be convenient to have a uniform list pattern.
 
-        If child_fun is set to a function then the children of a node are obtained
-        by calling that function with the node as the argument.  This is helpful,
-        for example, in pattern-matches where the child dict is locally modified
-        per state."""
+        If `child_fun` is set to a function then the children of a node are
+        obtained by calling that function with the node as the argument.  This
+        is helpful, for example, in pattern-matches where the child dict is
+        locally modified per state."""
 
         def dfs_recursion(curr_node_elem, curr_node, depth):
             # Put the node on the running list of nodes (down current tree path).
@@ -464,7 +457,7 @@ class TrieDict(collections.MutableMapping):
         # TODO: for fun, and to test the getDfsGen, re-do this using it (set
         # the sortChildren flag True).
         if node == 0: node = self.root; print()
-        if self.num_children(node) == 0:
+        if len(node.children) == 0:
             return True
         do_indent = False
         if child_fun is not None: children = child_fun(node).keys()

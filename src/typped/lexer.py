@@ -393,6 +393,7 @@ def basic_token_subclass_factory():
     # they could simply declare a metaclass that would be OK, but might need
     # args passed, etc.  See version in PrattParser module.
     class TokenSubclass(TokenNode):
+        """This is the class returned by the factory function."""
         def __init__(self, value):
             super(TokenSubclass, self).__init__() # Call base class __init__.
             self.value = value # Passed in for instances by the Lexer token generator.
@@ -644,7 +645,7 @@ class TokenBuffer(object):
         Attempts to move past the first end-token leave the current offset at
         the first end-token.  No new tokens are added to the buffer.  The
         end-token is returned."""
-        for i in range(num_toks):
+        for _ in range(num_toks):
             if self[0].is_end_token():
                 break
             self.current_offset += 1
@@ -730,7 +731,7 @@ class TokenBuffer(object):
             assert len(self.token_buffer) == self.max_deque_size
 
 
-class GenTokenState:
+class GenTokenState(object):
     """The state of the token_generator program execution."""
     ordinary = 1
     end = 2
@@ -871,7 +872,6 @@ class Lexer(object):
         self.already_returned_end_token = False
         self._curr_token_is_first = False # Is curr token first non-ignored in text?
         self._returned_first_token = False
-        self.ignored_before_curr = [] # Tokens ignored just before current one.
 
         # Reset line, character, and token counts.  All counts include the buffer.
         if reset_linenumber:
@@ -935,10 +935,11 @@ class Lexer(object):
         # Handle num > 1 case with recursion.
         if num > 1:
             ret_list = []
-            for i in range(num):
+            for _ in range(num):
                 if not self.token.is_end_token():
                     ret_list.append(self.next())
-                else: break
+                else:
+                    break
             return ret_list
 
         # Handle ordinary case.
@@ -1010,7 +1011,7 @@ class Lexer(object):
         `self.prog_unprocessed` and other state variables.  Used by `go_back`."""
         popped_to_begin_token = False
         current_token_is_first = False
-        for count in range(n):
+        for _ in range(n):
             token_buffer = self.token_buffer
 
             if token_buffer[0].is_begin_token():
@@ -1123,10 +1124,7 @@ class Lexer(object):
             self.token.is_first = True
             self._returned_first_token = True
             self._curr_token_is_first = True
-        if self.token.is_end_token():
-            self.already_returned_end_token = True
-        else:
-            self.already_returned_end_token = False
+        self.already_returned_end_token = self.token.is_end_token()
 
         return self.token
 
@@ -1143,7 +1141,7 @@ class Lexer(object):
         if num_to_go_back < 0:
             self.next(-num_to_go_back)
         else:
-           self.go_back(num_to_go_back)
+            self.go_back(num_to_go_back)
         return self.token
 
     #
@@ -1561,17 +1559,17 @@ class Lexer(object):
 
 
 def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):
-   """A convenience function that takes a function (or method) and a list of tuples
-   and calls `function` with the values in those tuple as arguments."""
-   retval_list = []
-   for t in tuple_list:
-       try:
-           retval_list.append(function(*t))
-       except TypeError:
-           raise exceptionToRaise(
-                   "Bad multi-definition of {0}: Omitted required arguments."
-                   "\nError on this tuple: {1}".format(function.__name__, t))
-   return tuple(retval_list)
+    """A convenience function that takes a function (or method) and a list of tuples
+    and calls `function` with the values in those tuple as arguments."""
+    retval_list = []
+    for t in tuple_list:
+        try:
+            retval_list.append(function(*t))
+        except TypeError:
+            raise exceptionToRaise(
+                    "Bad multi-definition of {0}: Omitted required arguments."
+                    "\nError on this tuple: {1}".format(function.__name__, t))
+    return tuple(retval_list)
 
 def return_first_exception(*args):
     """Go down the argument list and return the first object that is a

@@ -6,7 +6,7 @@ pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
 #pytest_helper.sys_path("../src")
 
-import typped # Test as a full package.
+import typped as pp
 
 # Some naming conventions.
 #
@@ -14,14 +14,10 @@ import typped # Test as a full package.
 #    tokens:    k_number
 # Syntax:
 #    types:     t_int
-# AST data:
-#    d_number
 
 # TOKEN DEFINITIONS #################################################################
 
 def define_whitespace_tokens(parser):
-    #parser.def_token("whitespace", r"\s+", ignore=True) # note + NOT *
-
     whitespace_tokens = [
             ("k_space", r"[ \t]+"), # note + symbol, NOT * symbol
             ("k_newline", r"[\n\f\r\v]+") # note + symbol, NOT * symbol
@@ -127,53 +123,23 @@ def define_syntax(parser):
     parser.def_infix_multi_op(["k_semicolon"], 3, "left",
                                    repeat=True, ast_data="d_statements")
 
-# OLD PRINT TESTS ####################################################################
-
-def run_and_print(ast_table, parser, prog):
-    ast_form = True
-    print("---------------\n")
-    print(prog)
-    tree_root = parser.parse(prog)
-    if not ast_form:
-        print(tree_root.tree_repr())
-    else:
-        ast = tree_root.convert_to_AST(ast_table.get_AST_node)
-        print(ast.tree_repr())
-
-def run_local_tests():
-    ast_table = typped.AST_NodeDict()
-    parser = typped.PrattParser()
-    define_default_tokens(parser)
-    define_syntax(parser)
-
-    #run_and_print(ast_table, parser, "3+5 // comment \n-30")
-    typped.run_and_print(ast_table, parser, "22, 44 + 44, 55, 44, 55")
-    typped.run_and_print(ast_table, parser, "4 * (f(x), 3)")
-    #define_comment_to_EOL_token(parser, "//")
-    #typped.run_and_print(ast_table, parser, "4,3,7+f(3 * 2// comment \n * 3 * 4)")
-    typped.run_and_print(ast_table, parser, "3 + 4 ; egg55a; f(y)")
-    typped.run_and_print(ast_table, parser, "+4+5-ccc?4i:5")
-    typped.run_and_print(ast_table, parser, "3!")
-    typped.run_and_print(ast_table, parser, "f(3!)")
-    typped.run_and_print(ast_table, parser, "1+f(x)")
-    typped.run_and_print(ast_table, parser, "f( x,y,z)")
-    typped.run_and_print(ast_table, parser, "+1+ (1+2*3)*3 / 7")
-
-#run_local_tests()
-
 ## TESTS #############################################################################
 
 @fixture(params=[1,2,3])
 def basic_setup(request):
     """Set up basic parser with one-token lookahead, two-token lookahead, and no typing."""
     global parser
-    lookahead_num = request.param
-    if lookahead_num == 3:
-        parser = typped.PrattParser(skip_type_checking=True)
+    case_number = request.param
+    if case_number == 3:
+        parser = pp.PrattParser(skip_type_checking=True)
     else:
-        parser = typped.PrattParser(max_peek_tokens=lookahead_num)
+        parser = pp.PrattParser(max_peek_tokens=case_number)
     define_default_tokens(parser)
     define_syntax(parser)
+    #if case_number == 4: # Test save and restore state.
+    #    fname = "zzzz_parser_save"
+    #    pp.save_parser_instance_state(parser, fname)
+    #    parser = pp.parser_instance_from_saved_state(fname)
 
 def test_pratt_parser(basic_setup):
     # be sure to test with both 1 and 2 token lookahead... easy to copy whole section
@@ -203,8 +169,8 @@ def test_pratt_parser(basic_setup):
     #fail("Just to see output.")
 
 def test_error_conditions(basic_setup):
-    LexerException = typped.LexerException
-    ParserException = typped.ParserException
+    LexerException = pp.LexerException
+    ParserException = pp.ParserException
     with raises(LexerException): parser.parse("3%2") # unknown symbol
     with raises(ParserException): parser.parse("f (x,y)")
     with raises(ParserException): parser.parse("1+ (x,y")
@@ -215,8 +181,8 @@ def test_error_conditions(basic_setup):
 def test_stdfun_functions(basic_setup):
     """Test the built-in standard function method which uses a precondition on the
     function name token label looking for an left paren."""
-    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
-    ParserException = typped.ParserException
+    TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
+    ParserException = pp.ParserException
 
     parser.def_token("k_exp", r"exp")
     parser.def_stdfun("k_exp", "k_lpar", "k_rpar", "k_comma", num_args=1)
@@ -258,8 +224,8 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     """Tests for the built-in stdfun implementation that uses a tail-handler on the lpar
     token.  So the token which does the real work is the lpar token for both `k_exp` and
     `k_add` functions."""
-    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
-    ParserException = typped.ParserException
+    TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
+    ParserException = pp.ParserException
 
     #
     # Define exp for a single argument.
@@ -349,10 +315,10 @@ def test_types_mixed_numerical_bool_expressions():
     only overloading on argument types."""
     # setup
 
-    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
-    TypeSig = typped.TypeSig
+    TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
+    TypeSig = pp.TypeSig
 
-    parser = typped.PrattParser()
+    parser = pp.PrattParser()
     define_default_tokens(parser)
     parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 
@@ -474,10 +440,10 @@ def test_types_overloaded_return():
     to make sure none of them break, then test cases specific to overloading on
     return types."""
     # setup
-    TypeErrorInParsedLanguage = typped.TypeErrorInParsedLanguage
-    TypeSig = typped.TypeSig
+    TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
+    TypeSig = pp.TypeSig
 
-    parser = typped.PrattParser(overload_on_ret_types=True)
+    parser = pp.PrattParser(overload_on_ret_types=True)
     define_default_tokens(parser)
     parser.def_token("k_exp", r"exp") # general identifier has lower on_ties
 

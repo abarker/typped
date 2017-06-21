@@ -148,7 +148,8 @@ Type checking is automatically performed just after the head or tail handler
 function of a construct has been called and has returned a subtree.  The
 subtree is checked for types before it is returned to the ``recursive_parse``
 routine.  The ``val_types`` of the root node's children are compared to the
-``arg_types`` defined for the construct.
+``arg_types`` defined for the construct.  (Overloading on return types also
+requires a second pass down the tree later.)
 
 Setting the ``val_type`` of a construct *defines* the type of the root node of
 the subtree returned by the construct's handler function.  So, for example,

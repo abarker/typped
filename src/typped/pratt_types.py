@@ -54,7 +54,6 @@ if __name__ == "__main__":
                               "../../test/test_pratt_parser.py",
                               ], pytest_args="-v")
 
-import sys
 from .shared_settings_and_exceptions import ParserException
 
 #
@@ -73,9 +72,8 @@ class Varargs(object):
     If `exact_repeat` is true (the default) then an exception will be raised if
     no multiple of the repeated arguments matches the actual arguments.
     Otherwise the arguments will be truncated to fit."""
-
-    def __init__(self, *args, exact_repeat=True):
-        self.exact_repeat = exact_repeat
+    def __init__(self, *args, **kwargs):
+        self.exact_repeat = kwargs.get("exact_repeat", True)
         self.arg_types = args
 
 class TypeSig(object):
@@ -149,18 +147,22 @@ class TypeSig(object):
 
     @property
     def val_type(self):
+        """Return the `val_type` property saved in `_val_type`."""
         return self._val_type
     @val_type.setter
     def val_type(self, value):
-        """Convert val_type argument to TypeObject instance and set attribute."""
+        """Convert all `val_type` assignment values to `TypeObject` instance and
+        save the result in the attribute `_val_type`."""
         self._val_type = self.convert_val_type_wildcards(value)
 
     @property
     def arg_types(self):
+        """Return the `arg_types` property saved in `_arg_types`."""
         return self._arg_types
     @arg_types.setter
     def arg_types(self, value):
-        """Convert arg_types arguments to TypeObject instances return it."""
+        """Convert all `arg_types` assignment values to typles of `TypeObject`
+        instances and save the result in the `_arg_types` attribute."""
         self._arg_types = self.convert_arg_types_wildcards(value)
 
     def convert_val_type_wildcards(self, val_type):
@@ -169,7 +171,6 @@ class TypeSig(object):
             pass # May need to do something at some point, not as of now.
         elif val_type is None:
             val_type = TypeObject(None)
-            pass
         else:
             raise TypeModuleException("`TypeSig` initialized with invalid `val_type`"
                      " of '{0}', of Python type {1}.  Must be a `TypeObject` instance."
@@ -178,7 +179,7 @@ class TypeSig(object):
 
     def convert_arg_types_wildcards(self, arg_types):
         """Convert all `arg_types` arguments to `TypeObject` instances and return it."""
-        if arg_types is None: # None representing arbitrary objects.
+        if arg_types is None: # None here represents accepting any number of any type.
             arg_types = TypeObject(None)
         elif isinstance(arg_types, TypeObject): # Single TypeObject, expands as needed.
             pass
@@ -522,6 +523,7 @@ class TypeObject(object):
         self.conversions[to_type] = (priority, tree_data)
 
     def undef_conversion(self, to_type):
+        # TODO: Unused, use or delete.
         try: del self.conversions[to_type]
         except KeyError: return
 
@@ -547,24 +549,24 @@ class TypeObject(object):
         if not isinstance(type_obj, TypeObject):
             return False
         return self.type_label == type_obj.type_label
+
     def __ne__(self, type_object):
         return not self == type_object
 
     def __repr__(self):
-        str_label = self.type_label
         if self.type_label == NONE:
             str_label = "None"
         else:
-            str_label = "'" + str_label + "'"
+            str_label = "'" + self.type_label + "'"
         return "TypeObject({0})".format(str_label)
+
     def short_repr(self):
         """This repr prints `None` types as simply "None" rather than
         "TypeObject(None)"."""
-        str_label = self.type_label
         if self.type_label == NONE:
             str_label = "None"
         else:
-            str_label = "'" + str_label + "'"
+            str_label = "'" + self.type_label + "'"
         return str_label
 
 #

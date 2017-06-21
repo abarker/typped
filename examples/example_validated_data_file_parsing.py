@@ -30,19 +30,6 @@ def setup_parser():
     # Ints are preferred over floats of same length.
     parser.def_default_int_token(on_ties=1)
 
-    # TODO: How do we check the type of the float which triggers the construct?
-    # We don't, we ASSIGN a type to the root of the construct in the typesig of
-    # the construct.  It is checked at higher level if an arg (it isn't here)
-    # but is DEFINED in this case for floats in this context.  Like literals
-    # define types for literals in a context...  Maybe explain better in docs.
-    #
-    # Whenever you define a val_type for a node you are DEFINING an association
-    # between a type and a node.  Whenever you define arg_types you are asserting
-    # the types of the child nodes, which will be checked as each subtree is
-    # returned by a handler function.
-    #
-    # Add above para or similar to types documentation.
-
     t_float = parser.def_type("t_float")
     t_int = parser.def_type("t_int")
     parser.def_literal("k_int", val_type=t_int)
@@ -71,7 +58,7 @@ def run_parser():
 
     with open("zzz_example_outfile.dat", "w") as f:
         print("-334.0, -54 :  4, 55", file=f)
-        #print("33.4 , 5, :  4, 55", file=f) # TODO test this error case
+        #print("33.4 , 5, :  4, 55", file=f) # error case
         print("3003.4, 3 :  9, 449", file=f)
 
     with open("zzz_example_outfile.dat", "r") as f:

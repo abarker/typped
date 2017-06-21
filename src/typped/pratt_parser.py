@@ -193,14 +193,12 @@ if __name__ == "__main__":
 
 import sys
 import copy
-import functools
-from collections import OrderedDict, namedtuple
 
 from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
         NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
-from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
+from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
-from .pratt_constructs import SyntaxConstruct, ConstructTable
+from .pratt_constructs import ConstructTable
 from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
@@ -225,15 +223,11 @@ from . import builtin_parse_methods, predefined_token_sets
 # If a TokenTable is made to fully define a parser then you only need to save that...
 # but you need to clutter it with non-token data.
 
-#
-# Construct
-#
-
-# The default precondition label is a tuple so it never matches an actual string.
+# The default construct label is a tuple so it never matches an actual string.
 DEFAULT_CONSTRUCT_LABEL = ("always-true-default-precondition",)
 
-# The default precondition function always returns true.
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
+    """The default precondition function; always returns true."""
     return True
 
 #
@@ -366,6 +360,8 @@ def token_subclass_factory():
     class TokenSubclass(TokenSubclassMeta("TokenSubclass", (object,), {}), TokenNode):
     #class TokenSubclass(TokenNode, metaclass=TokenSubclassMeta):  # Python 3
     #class TokenSubclass(TokenNode):                               # No metaclass.
+        """The factory function returns this class to represent tokens.  It is a
+        subclass of the `TokenNode` class, defined in the lexer module."""
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
         parser_instance = None # Set by the `PrattParser` method `def_token`.
@@ -404,6 +400,8 @@ def token_subclass_factory():
             return cls.static_prec
 
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
+            """Dispatch a callable function what will work as a handler.  The
+            function also does type-checking after running the defined handler."""
             # TODO: later consider calling not as token method....
             return self.parser_instance.construct_table.dispatch_handler(
                                         head_or_tail, self, lex, left, lookbehind)
@@ -729,12 +727,13 @@ def token_subclass_factory():
                 # inferred before another operator).
                 curr_token = lex.next()
                 try:
-                    # Dispatch without calling here, since calling will consume
+                    # Dispatch here WITHOUT CALLING, since calling will consume
                     # another token; also, deeper-level recursions could cause false
-                    # results to come up the recursion chain.
-                    peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
+                    # results to come up the recursion chain.  We are just testing
+                    # what handlers are defined for the token.
+                    _peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
                     try: # Found head handler, now make sure it has no tail handler.
-                        peek_tail_handler = curr_token.dispatch_handler(
+                        _peek_tail_handler = curr_token.dispatch_handler(
                                            TAIL, lex, processed_left, lookbehind)
                     except NoHandlerFunctionDefined:
                         # This is the only case where an actual token is returned.
@@ -836,7 +835,7 @@ def token_subclass_factory():
                 # This catches some cases of tokens defined via Lexer, not all.
                 raise ParserException("All tokens used in the parser must be"
                         " defined in via parser's methods, not the lexer's.")
-            parser_instance = self.parser_instance
+            #parser_instance = self.parser_instance # If needed, avoid otherwise.
 
             # Skip head-handling if `processed_left` passed in.  ONLY skipped
             # when called from relaying null-string tail handlers.
@@ -898,17 +897,20 @@ def token_subclass_factory():
         #
 
         def summary_repr_with_types(self):
+            """A short summary repr."""
             return ("<" + str(self.token_label) +
                     "," + str(self.value) +
                     "," + str(self.expanded_formal_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
+            """A repr that prints with tree-like indentation."""
             string = self.summary_repr_with_types()
             for c in self.children:
                 string += c.tree_repr_with_types(indent=indent+" "*4)
             return string
 
         def string_repr_with_types(self):
+            """A string repr that includes type information."""
             string = self.summary_repr_with_types()
             if self.children:
                 string += "("
@@ -1052,10 +1054,11 @@ class PrattParser(object):
         # the production_rules module are needed for processing productions.
         # TODO: could move that code back into the production_rules module, but
         # then the interface to this module might be a little strange...
-        from .production_rules import Item, ItemList, CaseList
-        self.Item = Item
-        self.ItemList = ItemList
-        self.CaseList = CaseList
+        # TODO: ----> Apparently no longer needed 6/20/17... delete when sure.
+        #from .production_rules import Item, ItemList, CaseList
+        #self.Item = Item
+        #self.ItemList = ItemList
+        #self.CaseList = CaseList
 
     #
     # Methods defining tokens.
@@ -1092,8 +1095,10 @@ class PrattParser(object):
             self.begin_token_label = token_label
             # Define dummy handlers for the begin-token.
             def begin_head(self, lex):
+                """Dummy head handler for begin-tokens."""
                 raise CalledBeginTokenHandler("Called head-handler for begin token.")
             def begin_tail(self, lex, left):
+                """Dummy tail-handler for begin-tokens."""
                 raise CalledBeginTokenHandler("Called tail-handler for begin token.")
             self.def_construct(HEAD, begin_head, token_label)
             self.def_construct(TAIL, begin_tail, token_label)
@@ -1102,10 +1107,11 @@ class PrattParser(object):
         elif token_kind == "end":
             tok = token_table.def_end_token(token_label)
             self.end_token_label = token_label
-            # Define dummy handlers for the begin-token.
             def end_head(self, lex):
+                """Dummy head handler for end-tokens."""
                 raise CalledEndTokenHandler("Called head-handler for end token.")
             def end_tail(self, lex, left):
+                """Dummy tail-handler for end-tokens."""
                 raise CalledEndTokenHandler("Called tail-handler for end token.")
             self.def_construct(HEAD, end_head, token_label)
             self.def_construct(TAIL, end_tail, token_label)
@@ -1209,6 +1215,7 @@ class PrattParser(object):
         """A method for undefining any token defined by the `PrattParser` methods.
         Since the `token_kind` was set for all tokens when they were defined
         it knows how to undelete any kind of token."""
+        # TODO: Make sure this is up-to-date with the what the token_master class does.
         token_table = self.token_table
         tok = token_table[token_label]
         kind = tok.token_kind
@@ -1323,7 +1330,7 @@ class PrattParser(object):
         preconditions will be undefined.  If `all_overloads` then all
         overloaded type signatures will be undefined.  The token itself is
         never undefined; use the `undef_token` method for that."""
-        # TODO: rewrite to undef a construct
+        # TODO: rewrite to undef a construct.  Currently doesn't work!!!!!
         TokenSubclass = self.token_table[token_label]
         TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
                                            construct_label,
@@ -1464,5 +1471,4 @@ class IncompleteParseException(ParserException):
     """Only raised at the end of the `PrattParser` function `parse` if tokens
     remain in the lexer after the parser finishes its parsing."""
     pass
-
 
