@@ -46,12 +46,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 #
 
 # TODO these define and undefine methods each need a corresponding undefine
-# method (or one that does all); should be easy with undef_handler method.
-# Is it necessary to call undef_handler, or does undef the token do that
-# too?  Look at undef_handler and see........ use below if needed.
-#
-# ALSO, consider defining them in a separate file and then importing them
-# and pasting them onto the class, just to keep the code separate.
+# method (or one that does all).   They all return the construct (or should)
+# so consider it the undef_construct method is sufficient...
 
 #
 # Token literals.
@@ -73,15 +69,17 @@ def def_literal(parser, token_label, val_type=None,
     A function `typesig_override_fun` can be passed in, taking a token and
     a lexer as its two arguments and returning a `TypeSig` object.  If it
     is set then it will be called from the head handler and the type
-    signature of the node will be assigned the returned signature.  Can be
-    useful for dynamic typing such as when identifiers in an interpreted
-    language are generic variables."""
+    signature of the node will be assigned the signature returned by the
+    function.  This can be useful for dynamic typing such as when identifiers
+    in an interpreted language are generic variables which can holding different
+    types."""
     def head_handler_literal(tok, lex):
         if typesig_override_fun:
             tok.process_and_check_kwargs = {"typesig_override":
                                             typesig_override_fun(tok, lex)}
                                             #"check_override_sig": True,
         return tok
+
     return parser.def_construct(HEAD, head_handler_literal, token_label,
                               val_type=val_type, arg_types=(),
                               construct_label=construct_label,
@@ -95,10 +93,10 @@ def def_multi_literals(parser, tuple_list):
     tuples.  The `def_literal` method will be called for each tuple, unpacked
     in the order in the tuple.  Unspecified optional arguments get their default
     values."""
-    # TODO: This unfortunately makes it difficult to change the order in the
-    # def_literal function arguments... also causes problems with keyword
-    # argument setting (need to be non-keywords).  Deprecate this, maybe,
-    # at least make it preferred to use `lit = parser.def_literal` and then just
+    # TODO: This makes it difficult to change the order in the
+    # def_literal function arguments... it also causes problems with keyword
+    # argument setting (all args need to be non-keywords).  Deprecate this, maybe,
+    # or at least make it preferred to use `lit = parser.def_literal` and then just
     # write that a bunch of times...
     return multi_funcall(parser.def_literal, tuple_list)
 
@@ -115,9 +113,11 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label,
     effectively gets the highest evaluation precedence.  As far as types,
     it is treated as a function that takes one argument of wildcard type
     and returns whatever type the argument has."""
-    # TODO: Maybe allow optional comma_token_label for comma-separated.
-    # Define a head for the left bracket of the pair.
+    # TODO: Maybe allow optional comma_token_label for comma-separated items
+    # inside brackets.
+
     def head_handler(tok, lex):
+        """A head handler for the left bracket of the pair."""
         tok.append_children(tok.recursive_parse(0))
         lex.match_next(rbrac_token_label, raise_on_fail=True)
         if not parser.skip_type_checking:
@@ -130,14 +130,6 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label,
                              construct_label=construct_label, precond_fun=precond_fun,
                              precond_priority=precond_priority,
                              eval_fun=eval_fun, ast_data=ast_data)
-
-#
-# Assignment.
-#
-
-#def def_assignment_op(assignment_operator_label, prec, assoc, not_in_tree=False,
-#                      val_type=None, arg_types=None, eval_fun=None, ast_data=None):
-
 
 #
 # Standard functions.
@@ -405,15 +397,29 @@ def def_jop(parser, prec, assoc,
                               eval_fun=eval_fun, ast_data=ast_data)
 
 #
-# Variable assignments.
+# Statically typed variable assignments and evaluations.
 #
 
-# TODO, define in conjunction with basic usage examples...
+def _setup_symbol_dicts(parser, symbol_dict, symbol_type_dict):
+    """Return the dicts to use, substituting defaults for `None` and creating the
+    defaults if they do not exist.  The defaults are `parser.symbol_dict` and
+    `parser.symbol_type_dict`."""
+    if symbol_dict is None:
+        if not hasattr(parser, "symbol_dict"):
+            parser.symbol_dict = {}
+        symbol_dict = parser.symbol_dict
+    if symbol_type_dict is None:
+        if not hasattr(parser, "symbol_type_dict"):
+            parser.symbol_type_dict = {}
+        symbol_type_dict = parser.symbol_type_dict
+    return symbol_dict, symbol_type_dict
 
-def set_static_type(parser, symbol_type_dict=None):
+def set_static_type(parser, symbol_dict=None, symbol_type_dict=None):
     """Called when a static type definition is parsed in the object language.  It
     associates a Typped type with the type in the language.  This allows static type
     checking to work.  The default `symbol_type_dict` is `parser.symbol_type_dict`."""
+    symbol_dict, symbol_type_dict = parser._setup_symbol_dicts(symbol_dict,
+                                                               symbol_type_dict)
 
 def def_assignment_op_static(parser, assign_token_label, identifier_token_label,
                  prec, assoc, not_in_tree=False,
@@ -424,20 +430,18 @@ def def_assignment_op_static(parser, assign_token_label, identifier_token_label,
     pass
 
 #
-# Operations for dynamically typed variables.
+# Dynamically typed variable assignments and evaluations.
 #
 
-def eval_dynamically_typed_assignment(parser, symbol_dict=None, symbol_type_dict=None):
+def _eval_dynamically_typed_assignment(parser, symbol_dict, symbol_type_dict):
     """Return an evaluation function to implement a dynamically-typed
     assignment.  The token argument to the returned function must be the token
-    for the assignment operator with the left child holding the variable
-    identifier, and the right child holding the value to assign.  The returned
-    evaluation function returns the assigned value as its value (so `x=4`
-    returns `4` which can then be part of another expression)."""
-    if symbol_dict is None:
-        symbol_dict = parser.symbol_dict
-    if symbol_type_dict is None:
-        symbol_type_dict = parser.symbol_type_dict
+    for the assignment operator, at the root of the subtree, with the left child
+    holding the identifier for the variable, and the right child holding the value
+    to assign.  The returned evaluation function returns the assigned value as its
+    value (so `x=4` returns `4` which can then be part of another expression)."""
+    #symbol_dict, symbol_type_dict = parser._setup_symbol_dicts(symbol_dict,
+    #                                                           symbol_type_dict)
 
     def eval_fun(subtree_tok):
         rhs = subtree_tok[1].eval_subtree()
@@ -448,12 +452,22 @@ def eval_dynamically_typed_assignment(parser, symbol_dict=None, symbol_type_dict
     return eval_fun
 
 def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
-               left_argument_token_label, precond_priority=0,
-               val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+                              identifier_token_label, precond_priority=0,
+                              symbol_dict=None, symbol_type_dict=None,
+                              val_type=None, arg_types=None,
+                              create_eval_fun=True, ast_data=None):
     """Define an assignment operator which is dynamically typed, with types and checked
     on at evaluation time (i.e., when the tree is interpreted)."""
+    symbol_dict, symbol_type_dict = parser._setup_symbol_dicts(symbol_dict,
+                                                               symbol_type_dict)
+
     def precondition_lhs_is_identifier(lex, lookbehind):
-        return lex.peek(-1).token_label == left_argument_token_label
+        return lex.peek(-1).token_label == identifier_token_label
+
+    if create_eval_fun:
+        eval_fun = parser._eval_dynamically_typed_assignment(symbol_dict, symbol_type_dict)
+    else:
+        eval_fun = None
 
     parser.def_infix_op(assignment_op_token_label, prec, assoc,
                         precond_fun=precondition_lhs_is_identifier,
@@ -462,47 +476,67 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                         val_type=val_type, arg_types=arg_types,
                         eval_fun=eval_fun)
 
-
-def def_dynamically_typed_literal(parser, token_label, symbol_dict=None,
+def def_literal_typed_from_dict(parser, token_label, symbol_dict=None,
                                   symbol_type_dict=None, construct_label=None,
                                   default_type=None,
+                                  default_eval_value=None,
                                   precond_fun=None, precond_priority=1):
-    """Define a dynamically typed literal, usually a variable-name identifier.  Handles
-    the evaluation function and type-checking.  The `def_assignment_dynamic` routine
-    should be used to handle the corresponding assignment operation."""
-    if symbol_dict is None:
-        symbol_dict = parser.symbol_dict
-    if symbol_type_dict is None:
-        symbol_type_dict = parser.symbol_type_dict
+    """Define a dynamically typed literal, usually a variable-name identifier.
+    The type is looked up in the `symbol_type_dict`.
+
+    Provides an evaluation function automatically, looked up from
+    `symbol_dict`.  The default value returned by the evaluation if the symbol
+    is not in the dict is `default_eval_value`.  (Currently there must be some
+    default rather than raising an exception, with the default default value
+    set to `None`.)
+
+    The `def_assignment_op_dynamic` routine should be used to handle the
+    corresponding variable assignment operation."""
+
+    symbol_dict, symbol_type_dict = parser._setup_symbol_dicts(symbol_dict,
+                                                               symbol_type_dict)
 
     def literal_typesig_override_fun(tok, lex):
+        """Function hook passed to `def_literal` to assign a type signature."""
         if tok.value in symbol_type_dict:
             return TypeSig(symbol_type_dict[tok.value], [])
         else:
             return TypeSig(default_type, [])
 
+    def eval_fun(tok):
+        return symbol_dict.get(tok.value, default_eval_value)
+
     parser.def_literal(token_label, val_type=None,
                        typesig_override_fun=literal_typesig_override_fun,
-                       eval_fun=lambda t: symbol_dict.get(t.value, 0))
-
+                       eval_fun=eval_fun)
 
 #
 # The list of defined functions to be made into methods of the PrattParser class.
 #
 
-parse_methods = [def_literal,
+parse_methods = [
+                 # Literals.
+                 def_literal,
                  def_multi_literals,
+
+                 # Operators.
                  def_infix_multi_op,
                  def_infix_op,
                  def_prefix_op,
                  def_postfix_op,
+
+                 # Brackets.
                  def_bracket_pair,
+
+                 # Functions.
                  def_stdfun,
                  def_stdfun_lpar_tail,
                  def_jop,
 
+                 # Assignment-related methods.
+                 _setup_symbol_dicts,
                  def_assignment_op_dynamic,
-                 eval_dynamically_typed_assignment,
-                 def_dynamically_typed_literal,
+                 _eval_dynamically_typed_assignment,
+                 def_literal_typed_from_dict,
                  ]
 
