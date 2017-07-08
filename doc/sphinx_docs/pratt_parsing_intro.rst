@@ -347,9 +347,9 @@ The literal tokens in a grammar always have a head handler, since the tokens
 themselves are subtrees for their own subexpressions (i.e., they are leaves in
 the expression tree).  The head handler for literal tokens is trivial: the head
 function simply returns the token itself as the subtree.  Note that any mutual
-recursion always ends with literal tokens because all the leaves of a parse
-tree are literal tokens and their head handlers do not make any recursive
-calls.
+recursion always ends with literal tokens because all the leaves of an
+expression tree are literal tokens.  Thus their head handlers do not make any
+further recursive calls.
 
 Every token is represented by a unique subclass of the ``TokenNode`` class.
 The precedence value defined for a token is saved as an attribute of the

@@ -202,15 +202,19 @@ from .pratt_constructs import ConstructTable
 from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
-# NOTE that the evaluate function stuff could also be used to also do a
-# conversion to AST.
+# TODO: clarify when tokens are assigned the parser_instance attribute, if they
+# are at all.  Currently the lexer is passed a function hook that adds the
+# parser instance associated with the lexer's current token table to every token
+# as an attribute.  Seems OK, including for parsers calling parsers, but consider
+# and update docs and comments where not yet changed.
+
+# NOTE that the eval_fun stuff could also be used to also do a conversion to
+# AST.
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
 # something like "TermParser" or "parser for terms", "WffParser", etc.  Then
 # use that string in the exception messages.  When working with parsers called
 # from/by parsers these labels in error messages would be helpful for debugging.
-
-# TODO: Add more built-in methods.  One that does assignments would be useful.
 
 # TODO: Consider subclassing the TokenNode class, and then just pass a
 # subclassed one to the lexer...  Then the def_token stuff are just convenience
@@ -364,7 +368,7 @@ def token_subclass_factory():
         subclass of the `TokenNode` class, defined in the lexer module."""
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
-        parser_instance = None # Set by the `PrattParser` method `def_token`.
+        #parser_instance = None # Set during parsing by recursive_parse. AVOID if not needed.
 
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
@@ -660,22 +664,24 @@ def token_subclass_factory():
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
-            registered with it.  Will raise an error if with no such function
-            is found."""
+            registered with it.  Returns `None` if no evaluation function is found."""
             sig = self.expanded_formal_sig
             orig_sig = self.original_formal_sig
 
             eval_fun = self._get_eval_fun(orig_sig)
 
             if not eval_fun:
-                raise ParserException("An evaluation function is needed for token with "
-                        "value '{0}' and label '{1}' but no defined and matching "
-                        "evaluation function was found in the dict of eval functions.  "
-                        "The resolved original signature is {2} and the resolve expanded"
-                        " signature is {3}.  The resolved construct_label is {4}.  The "
-                        "token's eval_fun_dict is:\n   {5}."
-                        .format(self.value, self.token_label, orig_sig, sig,
-                                self.construct_label, self.eval_fun_dict))
+                return None
+
+            #if not eval_fun:
+            #    raise ParserException("An evaluation function is needed for token with "
+            #            "value '{0}' and label '{1}' but no defined and matching "
+            #            "evaluation function was found in the dict of eval functions.  "
+            #            "The resolved original signature is {2} and the resolve expanded"
+            #            " signature is {3}.  The resolved construct_label is {4}.  The "
+            #            "token's eval_fun_dict is:\n   {5}."
+            #            .format(self.value, self.token_label, orig_sig, sig,
+            #                    self.construct_label, self.eval_fun_dict))
 
             return eval_fun(self)
 
@@ -931,11 +937,6 @@ def token_subclass_factory():
 # PrattTokenTable
 #
 
-# TODO TODO TODO: Consider if a good idea to subclass the token table.
-# Then many of the PrattParser routines become convenience functions.
-# Would be convenient to inherit PrattParser from it, but mixins are
-# really mixed in, and cannot separate out to pass to lexer, for example.
-
 class PrattTokenTable(TokenTable):
     """Define and save tokens to be used by the `PrattParser` class and instances."""
     def __init__(self, token_subclass_factory_fun=token_subclass_factory,
@@ -1054,7 +1055,8 @@ class PrattParser(object):
         # the production_rules module are needed for processing productions.
         # TODO: could move that code back into the production_rules module, but
         # then the interface to this module might be a little strange...
-        # TODO: ----> Apparently no longer needed 6/20/17... delete when sure.
+        #
+        # TODO: ----> Apparently no longer needed 6/20/17... DELETE when sure.
         #from .production_rules import Item, ItemList, CaseList
         #self.Item = Item
         #self.ItemList = ItemList
@@ -1265,22 +1267,8 @@ class PrattParser(object):
         and AST data.  The `string_value` is a value to set with this data.
         Used, for example, when overloading a generic identifier with different
         evaluations when the value is `sin`, `cos`, etc."""
-        # Why not make this a method of TokenNode?  Keep in mind the
-        # distinction between the subclass (representing the token in general)
-        # and the instances (representing particular lexed tokens).  For now
-        # this seems better, as a consequence of using token labels rather than
-        # token instances in the API.  The label needs to be looked up in the
-        # token table (which this could actually be a method of instead, but
-        # the lexer's TokenTable would need to be subclassed to add PrattParser
-        # related methods and the call would be less convenient or need a
-        # convenience wrapper).  If token instances were used in the API then
-        # it would be better as a method of TokenNode, but tokens need to be
-        # stored under labels and using labels makes things like multi-def work
-        # better.
-
         # Note that the parser_instance attribute of tokens is not necessarily
-        # set yet when this is called from token_master.  It gets set at the end
-        # of that routine.
+        # set yet when this is called.
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"

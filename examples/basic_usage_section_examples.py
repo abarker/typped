@@ -17,23 +17,19 @@ def setup_simple_builtin_example():
     parser = pp.PrattParser()
 
     parser.def_default_whitespace()
-    parser.def_token("k_number", r"\d+")
-    parser.def_token("k_lpar", r"\(")
-    parser.def_token("k_rpar", r"\)")
-    parser.def_token("k_ast", r"\*")
-    parser.def_token("k_plus", r"\+")
-    parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    tok = parser.def_token
+    tok("k_number", r"\d+")
+    tok("k_lpar", r"\(")
+    tok("k_rpar", r"\)")
+    tok("k_ast", r"\*")
+    tok("k_plus", r"\+")
+    tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
-    t_number = parser.def_type("t_number") # Define a type.
-    parser.def_literal("k_number", val_type=t_number, ast_data="a_number")
-    parser.def_literal("k_identifier", val_type=t_number, ast_data="a_variable")
-    parser.def_infix_op("k_plus", 10, "left",
-                     val_type=t_number, arg_types=[t_number, t_number],
-                     ast_data="a_add")
-    parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_number, arg_types=[t_number, t_number],
-                     ast_data="a_mult")
-    parser.def_bracket_pair("k_lpar", "k_rpar", ast_data="a_grouping_paren")
+    parser.def_literal("k_number")
+    parser.def_literal("k_identifier")
+    parser.def_infix_op("k_plus", 10, "left")
+    parser.def_infix_op("k_ast", 20, "left")
+    parser.def_bracket_pair("k_lpar", "k_rpar")
 
     return parser
 
@@ -49,10 +45,12 @@ def setup_string_language_parser():
     string is not defined.  It also has simple variables which can represent
     either numbers or strings."""
     parser = pp.PrattParser()
-    parser.def_default_whitespace()
 
+    # Define the tokens and types.
+
+    parser.def_default_whitespace()
     tok = parser.def_token
-    tok("k_number", r"\d+")
+    tok("k_int", r"-?\d+")
     tok("k_lpar", r"\(")
     tok("k_rpar", r"\)")
     tok("k_ast", r"\*")
@@ -61,10 +59,40 @@ def setup_string_language_parser():
     tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
     tok("k_string", r"(\"(.|[\r\n])*?\")")
 
-    t_number = parser.def_type("t_number") # Number type.
-    t_string = parser.def_type("t_string") # String type.
+    t_int = parser.def_type("t_int") # Number type.
+    t_str = parser.def_type("t_str") # String type.
 
-    parser.def_literal("k_number", val_type=t_number, eval_fun=lambda t: int(t.value))
+    # Define the symbol dict for holding variable values and the type dict
+    # for holding the declared types of variables.
+
+    symbol_dict = {}
+    symbol_type_dict = {}
+    parser.symbol_dict = symbol_dict # Make symbol dict an attribute of the parser instance.
+    parser.symbol_type_dict = symbol_type_dict # The type dict, too.
+    parser.typped_type_dict = {"int": t_int, "str": t_str}
+
+    # Define a new construct for type definitions in the language.
+
+    def head_handler(tok, lex):
+        identifier_tok = tok.recursive_parse(0)
+        tok.append_children(identifier_tok)
+        symbol_type_dict[identifier_tok.value] = tok.parser_instance.typped_type_dict[tok.value]
+        return tok
+
+    parser.def_construct(pp.HEAD, head_handler, "k_identifier",
+                         construct_label="c_int_typedef",
+                         precond_fun=lambda lex, lookbehind: lex.token.value == "int",
+                         precond_priority=10,
+                         val_type=t_int)
+    parser.def_construct(pp.HEAD, head_handler, "k_identifier",
+                         construct_label="c_str_typedef",
+                         precond_fun=lambda lex, lookbehind: lex.token.value == "str",
+                         precond_priority=10,
+                         val_type=t_str)
+
+    # Now define the language.
+
+    parser.def_literal("k_int", val_type=t_int, eval_fun=lambda t: int(t.value))
 
     # Overload identifiers to return either string or number.
     # Alternative: use a precond on assignment that checks if symbol defined in dict...
@@ -74,67 +102,55 @@ def setup_string_language_parser():
     # evaluation AS you do the parsing, calling eval_subtree on each thing.  That could
     # maybe be an option.  But don't really need full generality, just assign in different
     # statement is OK here.
-    symbol_dict = {}
-    symbol_type_dict = {}
-    parser.symbol_dict = symbol_dict # Make symbol dict an attribute of the parser instance.
-    parser.symbol_type_dict = symbol_type_dict # Types, too.
-
     def literal_typesig_override_fun(tok, lex):
         symbol_type_dict = tok.parser_instance.symbol_type_dict
         if tok.value in symbol_type_dict:
             return pp.TypeSig(symbol_type_dict[tok.value], [])
         else:
-            return pp.TypeSig(t_number, []) # Default is number 0.
+            return pp.TypeSig(t_int, []) # Default is number 0.
 
-    parser.def_literal("k_identifier", val_type=None,
-                       typesig_override_fun=literal_typesig_override_fun,
-                       eval_fun=lambda t: symbol_dict.get(t.value, 0))
+    parser.def_dynamically_typed_literal("k_identifier", default_type=t_int)
 
-    parser.def_literal("k_string", val_type=t_string, eval_fun=lambda t: t.value)
+    parser.def_literal("k_string", val_type=t_str, eval_fun=lambda t: t.value)
 
     parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
 
 
     parser.def_infix_op("k_plus", 10, "left",
-                     val_type=t_number, arg_types=[t_number, t_number],
+                     val_type=t_int, arg_types=[t_int, t_int],
                      eval_fun=lambda t: t[0].eval_subtree() + t[1].eval_subtree())
     parser.def_infix_op("k_plus", 10, "left",
-                     val_type=t_string, arg_types=[t_string, t_string],
+                     val_type=t_str, arg_types=[t_str, t_str],
                      eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
 
     parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_number, arg_types=[t_number, t_number],
+                     val_type=t_int, arg_types=[t_int, t_int],
                      eval_fun=lambda t: t[0].eval_subtree() * t[1].eval_subtree())
     parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_string, arg_types=[t_string, t_number],
+                     val_type=t_str, arg_types=[t_str, t_int],
                      eval_fun=lambda t: (
                          '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
-
-    def eval_assign(t):
-        """Evaluate the identifier token `t` and save the value in `symbol_dict`."""
-        rhs = t[1].eval_subtree()
-        symbol_dict[t[0].value] = rhs
-        symbol_type_dict[t[0].value] = t[1].expanded_formal_sig.val_type
-        return rhs
+    parser.def_infix_op("k_ast", 20, "left",
+                     val_type=t_str, arg_types=[t_int, t_str],
+                     eval_fun=lambda t: (
+                         '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
     # No longer FAILS on <-- test for these though
     # (4)
     # z = "egg" * 4
-    def def_assignment_op(parser, assignment_operator_token_label, prec, assoc,
-                   left_argument_token_label, precond_priority=0,
-                   val_type=None, arg_types=None, eval_fun=None, ast_data=None):
-        def precondition_lhs_is_identifier(lex, lookbehind):
-            return lex.peek(-1).token_label == "k_identifier"
-        parser.def_infix_op(assignment_operator_token_label, prec, assoc,
-                            precond_fun=precondition_lhs_is_identifier,
-                            construct_label="identifier before assignment checker",
-                            precond_priority=precond_priority,
-                            val_type=val_type, arg_types=arg_types,
-                            eval_fun=eval_fun)
-    def_assignment_op(parser, "k_equals", 5, "left", "k_identifier",
-                      val_type=t_number, arg_types=[None, t_number], eval_fun=eval_assign)
-    def_assignment_op(parser, "k_equals", 5, "left", "k_identifier",
-                      val_type=t_string, arg_types=[None, t_string], eval_fun=eval_assign)
+
+
+    # NOTE we have a static vs. dynamic type problem here!  Dynamic types are done here,
+    # but static types are caught at parse-time!  Probably should use static types
+    # for this example.
+    #
+    # Make static, then assignment must be overloaded...
+    parser.def_assignment_op_dynamic("k_equals", 5, "left", "k_identifier",
+                      val_type=t_int, arg_types=[None, t_int],
+                      eval_fun=parser.eval_dynamically_typed_assignment())
+    parser.def_assignment_op_dynamic("k_equals", 5, "left", "k_identifier",
+                      val_type=t_str, arg_types=[None, t_str],
+                      eval_fun=parser.eval_dynamically_typed_assignment())
     return parser
 
 def run_string_language_parser():
@@ -164,8 +180,8 @@ def run_string_language_parser():
                 print(e)
             except pp.TypeErrorInParsedLanguage as e:
                 print(e)
-            except Exception as e:
-                print(e)
+            #except Exception as e:
+            #    print(e)
 
         def do_EOF(self, line):
             print("\nBye.")

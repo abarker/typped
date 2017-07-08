@@ -27,10 +27,24 @@ from typped.shared_settings_and_exceptions import ParserException
 # Predefined preconditions functions.
 #
 
-
 #
 # Boolean-valued functions useful inside preconditions functions.
 #
 
 
+#
+# Combining preconditions functions.
+#
+
+def all_precond_funs(*funs):
+    """Return the conjunction function of the preconditions functions."""
+    def combine(lex, lookbehind):
+        return all(fun(lex, lookbehind) for fun in funs)
+    return combine
+
+def any_precond_funs(*funs):
+    """Return the disjunction function of the preconditions functions."""
+    def combine(lex, lookbehind):
+        return any(fun(lex, lookbehind) for fun in funs)
+    return combine
 

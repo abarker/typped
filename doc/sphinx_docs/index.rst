@@ -35,23 +35,24 @@ Typped: A typed Pratt parser employing dispatching
    Here is some awesome code :py:`a = b + c`.
 
 The Typped package provides a general Python framework for defining and using
-Pratt parsers.  The parsed language can optionally include basic types, and
-overloading on those types is allowed.  Default parser methods are provided for
-many standard constructs such as, for example, infix operators and ordinary
-function calls.  Users can define their own customized functions or methods in
-order to parse more-complicated or more-specific grammatical constructs.  An
-EBNF-like Python syntax is also provided, which can be used to define and
-implement recursive descent parsing of a grammar within the Typped framework
-(and integrated with Pratt parsing).
+Pratt parsers.  A parsed language can optionally be typed, with basic types
+which are type-checked on parsing.  Overloading on types is also allowed.
+Default parser methods are provided for many standard constructs such as, for
+example, infix operators and ordinary function calls.  Users can define their
+own customized functions or methods in order to parse more-complicated and/or
+more-specific grammatical constructs.  An EBNF-like Python syntax is provided
+which can be used to define and implement recursive descent parsing of a
+grammar within the Typped framework (integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
-logic languages and mathematical languages.  Because it is based on Pratt
-parsing it is especially good at parsing expression languages or sublanguages
-which have various operators at different precedences.  The parser can be
-modified on-the-fly, so the parsed languages can be fully dynamic.  Pratt
-parsing tends to be fairly efficient in this context, but the package is
-written in pure Python so it is probably not the best choice if parsing speed
-is a crucial factor.
+logic languages and mathematical languages with syntax close to what is used
+informally.  Because it is based on Pratt parsing it is especially good at
+parsing expression languages (or sublanguages) which have various operators at
+different precedence levels.  The parsers and lexers can be modified
+on-the-fly, allowing the parsed languages to be fully dynamic.  Pratt parsing
+tends to be fairly efficient in this context, but the package is written in
+pure Python so it is probably not the best choice if parsing speed is a crucial
+factor.
 
 .. warning::
 

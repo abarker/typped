@@ -68,6 +68,15 @@ the `__init__` method. ::
 
 """
 
+# New options to consider:
+#   "fnl_for_fixed_length"
+#   "trie_for_simple"
+# The first is fairly easy: you just test first thing in the insert method and
+# set the option to "python" if not fixed length, otherwise to the fnl method.
+# Only problem is that you no longer catch ties on fixed-length, so on_ties
+# doesn't do anything in that case.  That case still reverts to first-not-longest.
+# The trie version would not have that limitation, but has more overhead.
+
 from __future__ import print_function, division, absolute_import
 
 if __name__ == "__main__":
@@ -105,7 +114,7 @@ class Matcher(object):
     def __init__(self):
         self.ignore_tokens = set() # The set of tokens to ignore.
 
-        self.python_data_dict = {} # Data for the regexes of tokens.
+        self.python_data_dict = {} # Python method regex data.
 
         self.python_fnl_data_dict = collections.OrderedDict() # FNL regex data.
         self.python_fnl_combo_regex_is_stale = True # When to recompile big regex.
@@ -148,10 +157,6 @@ class Matcher(object):
         if options is None:
             options = self.default_insert_options
 
-        # New options to consider:
-        #   "fnl_for_fixed_length"
-        #   "trie_for_simple"
-
         if options == "python":
             compiled_regex = re.compile(regex_string,
                                         re.VERBOSE|re.MULTILINE|re.UNICODE)
@@ -161,6 +166,7 @@ class Matcher(object):
             self.python_fnl_combo_regex_is_stale = True
             regex_data = (on_ties, regex_string)
             self.python_fnl_data_dict[token_label] = regex_data
+
         elif options == "trie":
             if not self.rtd is None:
                 self.rtd = RegexTrieDict()
@@ -193,9 +199,9 @@ class Matcher(object):
                                        error_msg_text_snippet_size=20):
         """Return the best prefix match as a tuple of the token label and the matched
         string.  The `slice_indices` are an ordered pair of indices into the string
-        `program` which contain the relevant part."""
+        `program` which reference the relevant part."""
         # TODO: Python uses pos and endpos kwargs for the slice indices... consider
-        # using that.
+        # using that convention.
 
         # Regular python matches.
         if self.python_data_dict:
@@ -230,7 +236,7 @@ class Matcher(object):
         # Pick the best.
 
         combo_best_matches = []
-        max_len = max(best_matches_len, best_matches_trie_len, best_matches_fnl_len)
+        max_len = max(best_matches_len, best_matches_fnl_len, best_matches_trie_len)
         if best_matches_len == max_len:
             combo_best_matches += best_matches
         if best_matches_trie_len == max_len:

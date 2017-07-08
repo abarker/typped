@@ -405,6 +405,88 @@ def def_jop(parser, prec, assoc,
                               eval_fun=eval_fun, ast_data=ast_data)
 
 #
+# Variable assignments.
+#
+
+# TODO, define in conjunction with basic usage examples...
+
+def set_static_type(parser, symbol_type_dict=None):
+    """Called when a static type definition is parsed in the object language.  It
+    associates a Typped type with the type in the language.  This allows static type
+    checking to work.  The default `symbol_type_dict` is `parser.symbol_type_dict`."""
+
+def def_assignment_op_static(parser, assign_token_label, identifier_token_label,
+                 prec, assoc, not_in_tree=False,
+                 construct_label=None, precond_priority=0,
+                 val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+    """An assignment statement with static type checking.  The type for the identifier
+    must have already been defined."""
+    pass
+
+#
+# Operations for dynamically typed variables.
+#
+
+def eval_dynamically_typed_assignment(parser, symbol_dict=None, symbol_type_dict=None):
+    """Return an evaluation function to implement a dynamically-typed
+    assignment.  The token argument to the returned function must be the token
+    for the assignment operator with the left child holding the variable
+    identifier, and the right child holding the value to assign.  The returned
+    evaluation function returns the assigned value as its value (so `x=4`
+    returns `4` which can then be part of another expression)."""
+    if symbol_dict is None:
+        symbol_dict = parser.symbol_dict
+    if symbol_type_dict is None:
+        symbol_type_dict = parser.symbol_type_dict
+
+    def eval_fun(subtree_tok):
+        rhs = subtree_tok[1].eval_subtree()
+        symbol_dict[subtree_tok[0].value] = rhs
+        symbol_type_dict[subtree_tok[0].value] = subtree_tok[1].expanded_formal_sig.val_type
+        return rhs
+
+    return eval_fun
+
+def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
+               left_argument_token_label, precond_priority=0,
+               val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+    """Define an assignment operator which is dynamically typed, with types and checked
+    on at evaluation time (i.e., when the tree is interpreted)."""
+    def precondition_lhs_is_identifier(lex, lookbehind):
+        return lex.peek(-1).token_label == left_argument_token_label
+
+    parser.def_infix_op(assignment_op_token_label, prec, assoc,
+                        precond_fun=precondition_lhs_is_identifier,
+                        construct_label="assignment_op_" + assignment_op_token_label,
+                        precond_priority=precond_priority,
+                        val_type=val_type, arg_types=arg_types,
+                        eval_fun=eval_fun)
+
+
+def def_dynamically_typed_literal(parser, token_label, symbol_dict=None,
+                                  symbol_type_dict=None, construct_label=None,
+                                  default_type=None,
+                                  precond_fun=None, precond_priority=1):
+    """Define a dynamically typed literal, usually a variable-name identifier.  Handles
+    the evaluation function and type-checking.  The `def_assignment_dynamic` routine
+    should be used to handle the corresponding assignment operation."""
+    if symbol_dict is None:
+        symbol_dict = parser.symbol_dict
+    if symbol_type_dict is None:
+        symbol_type_dict = parser.symbol_type_dict
+
+    def literal_typesig_override_fun(tok, lex):
+        if tok.value in symbol_type_dict:
+            return TypeSig(symbol_type_dict[tok.value], [])
+        else:
+            return TypeSig(default_type, [])
+
+    parser.def_literal(token_label, val_type=None,
+                       typesig_override_fun=literal_typesig_override_fun,
+                       eval_fun=lambda t: symbol_dict.get(t.value, 0))
+
+
+#
 # The list of defined functions to be made into methods of the PrattParser class.
 #
 
@@ -418,5 +500,9 @@ parse_methods = [def_literal,
                  def_stdfun,
                  def_stdfun_lpar_tail,
                  def_jop,
+
+                 def_assignment_op_dynamic,
+                 eval_dynamically_typed_assignment,
+                 def_dynamically_typed_literal,
                  ]
 

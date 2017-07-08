@@ -35,8 +35,9 @@ if __name__ == "__main__":
 
 import functools
 from collections import OrderedDict
-from .pratt_types import TypeSig
-from .shared_settings_and_exceptions import HEAD, TAIL, NoHandlerFunctionDefined
+from .pratt_types import TypeSig, TypeErrorInParsedLanguage
+from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
+                                             ParserException)
 
 def sort_handler_dict(d):
     """Return the sorted `OrderedDict` version of the dict `d` passed in,
@@ -263,7 +264,6 @@ class ConstructTable(object):
 
         # Get and save any previous type sig data (for overloaded sigs
         # corresponding to a single construct_label).
-        #sorted_construct_dict = cls.construct_dict[head_or_tail]
         prev_construct = sorted_construct_dict.get(construct_label, None)
         if prev_construct is None:
             prev_sigs = []
@@ -275,7 +275,7 @@ class ConstructTable(object):
             prev_eval_funs = prev_construct.eval_fun_dict
 
         if prev_construct and not self.parser_instance.overload_on_arg_types:
-            raise TypeErrorInParsedLanguage("Value of cls.overload_on_arg_types"
+            raise TypeErrorInParsedLanguage("Value of overload_on_arg_types"
                    " is False but attempt to redefine and possibly set multiple"
                    " signatures for the {0} function for token with label '{1}'"
                    " with preconditions label '{2}'."
@@ -330,7 +330,7 @@ class ConstructTable(object):
                                 precond_priority, construct_label, p_label))
         return new_construct
 
-    def unregister_construct(cls, head_or_tail, trigger_token_label,
+    def unregister_construct(self, head_or_tail, trigger_token_label,
                              construct_label=None, type_sig=None, all_handlers=False):
         """Unregister the previously-registered construct (head or
         tail).  If `construct_label` is not set then all head or tail
@@ -341,14 +341,14 @@ class ConstructTable(object):
         # structure added trigger_token_label...
 
         if construct_label is None:
-            if head_or_tail in cls.construct_dict:
-                cls.construct_dict[head_or_tail] = OrderedDict()
-                cls.handler_sigs[head_or_tail] = {}
+            if head_or_tail in self.construct_dict:
+                self.construct_dict[head_or_tail] = OrderedDict()
+                self.handler_sigs[head_or_tail] = {}
             return
 
         # Tuple format for sorted_handler_list is:
         #     (precond_fun, precond_priority, handler_fun)
-        sorted_handler_dict = cls.construct_dict[head_or_tail]
+        sorted_handler_dict = self.construct_dict[head_or_tail]
         if not sorted_handler_dict:
             return
 
