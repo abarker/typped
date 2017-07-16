@@ -476,10 +476,12 @@ def actual_matches_formal(actual_type, formal_type):
     # type equivalence, alias, and conversion stuff.....
     # Alternately, it would fit in as part of the existing TypeTable class.
     """The default function to check whether actual types match formal types.
-    Currently uses straight equality, nothing else."""
+    Currently uses straight equality, nothing else.  Users should not call
+    this directly, but instead call the `TypeObject` method `matches_formal_type`
+    on the actual type.  Users may set their own versions of this function."""
     return actual_type == formal_type # Later consider fancier matching.
 
-# TODO would be nice to have only one wildcard object, but may need __new__.
+# TODO would be nice to have only one wildcard object, but would need a __new__.
 NONE = (None,) # A different representation for a type label of None.
 
 class TypeObject(object):

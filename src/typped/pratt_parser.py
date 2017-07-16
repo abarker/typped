@@ -30,6 +30,7 @@ Attributes set on token instances (scanned tokens) during parsing:
 * `parser_instance` -- the parser instance that parsed the token
 * `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
 * `expanded_formal_sig` -- a `TypeSig` instance of the expanded formal signature
+* `actual_sig` -- a `TypeSig` instance of the actual signature  TODO TODO
 * `construct_label` -- the string label of the winning construct
 
 Note that both `original_formal_sig` and `expanded_formal_sig` are set to the
@@ -201,6 +202,8 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
 from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
+
+# TODO TODO set the actual_sig attribute on all checked tokens, too.
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -446,18 +449,21 @@ def token_subclass_factory():
             which will generally not have the correct information keyed under
             it."""
 
-            #
-            # Just return and skip type-checking if the skip option is set.
-            #
+            # TODO: The ast_data and eval_fun attributes are not currently set
+            # on the final tokens expression tree tokens.  Either set them or
+            # document the API to access them from.  Note it needs to also work
+            # when no type-checking is done.  Cannot set them until final type
+            # is determined.  So THAT is presumably where it should be done.
 
-            if self.parser_instance.skip_type_checking:
-                return
-
+            # TODO: Below now in pratt_constructs.  Delete when tested more.
+            ##
+            ## Just return and skip type-checking if the skip option is set.
+            ##
             #
-            # Otherwise, do type checking below.
-            #
+            #if self.parser_instance.skip_type_checking:
+            #    return
 
-            # Get all the sigs for the node while we have access to fun_object.
+            # Get all the sigs registered for the node's construct.
             if typesig_override and check_override_sig:
                 all_possible_sigs = [typesig_override]
             else:
@@ -495,6 +501,7 @@ def token_subclass_factory():
                                                  self.construct_label, typesig_override,
                                                  prev_eval_fun, prev_ast_data, self.value)
                 # Force the final, actual typesig to be the override sig.
+                # TODO: this isn't the actual sig, but the expanded formal sig...
                 self.expanded_formal_sig = typesig_override
 
         def _check_types(self, all_possible_sigs, first_pass_of_two=False):

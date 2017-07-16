@@ -120,8 +120,11 @@ class SyntaxConstruct(object):
     def run(construct, tok, lex, processed_left=None, lookbehind=None):
         """Run the handler associated with the construct.  Check the returned parse
         subtree with `process_and_check_node`.  Return the subtree if it passes type
-        checking.  This is a static method because the arguments will be bound using
+        checking.
+
+        This is a static method because the arguments will be bound using
         `functools.partial` before it is dispatched to be called."""
+
         handler_fun = construct.handler_fun
 
         if construct.trigger_head_or_tail == HEAD:
@@ -129,7 +132,18 @@ class SyntaxConstruct(object):
         else:
             subtree = handler_fun(tok, lex, processed_left)
 
+        #
+        # Process any in_tree=False declarations (remove item from the final tree).
+        #
+
         subtree.process_not_in_tree() # Could have option to skip this...
+
+        #
+        # Do type checking on the expression tree before returning it.
+        #
+
+        if construct.parser_instance.skip_type_checking:
+            return subtree
 
         if hasattr(subtree, "process_and_check_kwargs"):
             subtree.process_and_check_node(construct, **subtree.process_and_check_kwargs)

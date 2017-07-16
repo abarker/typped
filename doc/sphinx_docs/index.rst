@@ -56,9 +56,9 @@ factor.
 
 .. warning::
 
-   This is alpha-level software.  Many features are only partially implemented,
-   and the documentation is incomplete.  The user API can still change ---
-   probably in minor ways, but not necessarily.
+   This is alpha-level software.  Many features are experimental and/or
+   partially implemented, and the documentation is incomplete.  The user API
+   can still change --- probably in minor ways, but not necessarily.
 
 Installation
 ============

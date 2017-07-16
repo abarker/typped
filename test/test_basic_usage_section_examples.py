@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""
+
+Tests the example code in the file `examples/basic_usage_section_examples.py`.  This
+code contains the examples in the Basic Usage section of the Sphinx documentation.
+
+"""
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
