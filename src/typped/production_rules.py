@@ -7,9 +7,9 @@ expressions.  The backend is the recursive-descent parsing capabilities of the
 `PrattParser` class, implemented using precondition functions and null-string
 token handlers.
 
-Here are some (but not all) similar Python parsing packages.  Some use strings
-for the grammar, and others use overloaded Python operators.  Most do not
-produce a parse tree.
+Here are a few (but not all) similar Python parsing packages.  Some use string
+representations of the grammar, while others use overloaded Python operators.
+Most do not automatically produce a parse tree.
 
 * **pyparsing** -- Uses Python overloading to define the grammar, similar to
   this module.
@@ -41,9 +41,9 @@ These terms are used in the description:
   grammar.  They are also called **productions** or just **rules**.  The
   symbols on the l.h.s. of productions (which can also appear in the r.h.s.)
   are called **nonterminal symbols**.  The r.h.s of a production is called the
-  **parsing expression**.  The r.h.s. of productions can have terminal symbols,
+  **parsing expression**.  The r.h.s. of productions can contain terminal symbols,
   **nonterminal symbols** and perhaps other symbols such as the special
-  **epsilon symbol** which matches an empty string.
+  **epsilon symbol** which matches an empty string. |br|
 
 * Production rules with the the same l.h.s. nonterminal symbol will be referred to
   as different **cases** of the nonterminal symbol.  A common notation is
@@ -52,7 +52,7 @@ These terms are used in the description:
   module.  That is, all the cases for any nonterminal must occur
   in a single expression, using `|` if there are multiple cases.  The ordered list
   of all the rule cases for a nonterminal will be called the **caselist** for
-  the nonterminal.  Order matters for resolving ambiguity.
+  the nonterminal.  Order matters for resolving ambiguity. |br|
 
 * The separate symbol elements within a case will be collectively called the
   **items** of that case.  They include terminal symbols, nonterminal symbols,
@@ -185,17 +185,17 @@ Summary of the operations:
   if the operands had both been on the initializer list for `ItemList`.  The
   `+=` operator is also defined.  The addition operator is not defined for
   `CaseList` objects in order to possibly catch some syntax errors in
-  expressions (although there are ordinary `add` and `iadd` methods).
+  expressions (although there are ordinary `add` and `iadd` methods). |br|
 
 * **Case joining**: The "or" operation `|` is defined for `Item`,
   `ItemList`, or `CaseList` instances.  It always returns a `CaseList`.  The
   operands are joined together as if they had been arguments to the initializer
-  of a `CaseList`.
+  of a `CaseList`. |br|
 
 * **Tokens in expressions**: The `+` and `|` operators are defined for tokens
   (in the `PrattParser` module) to behave in the same way as for `Item`
   instances.  This allows the use of the tokens directly, without having to
-  convert them into `Item` instances by wrapping them in the `Tok` function.
+  convert them into `Item` instances by wrapping them in the `Tok` function. |br|
 
 * **Other list-like operations**: The methods `append` and
   `insert` are defined for these list-like classes.  They convert their
