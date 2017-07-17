@@ -41,6 +41,12 @@ one which matches the actual arguments is chosen.  The expanded formal
 signature is the same as the original formal signature except that wildcards,
 etc., are expanded in the attempt to match the actual arguments.
 
+These two attributes are actually properties which look up the value if
+necessary (to avoid unnecessary lookups during parsing).
+
+* `ast_data` -- any AST data that was set with the construct for the resolved type
+* `eval_fun` -- any eval_fun that was set with the construct for the resolved type
+
 Optional attributes that can be set to a node inside a handler:
 
 * `not_in_tree` -- set on a root node returned by the handler to hide it
@@ -203,7 +209,8 @@ from .pratt_constructs import ConstructTable
 from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
-# TODO TODO set the actual_sig attribute on all checked tokens, too.
+# TODO Finish any TODOs having to do with the actual_sig vs expanded sig, i.e.,
+# which to use in a given context.
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -645,26 +652,31 @@ def token_subclass_factory():
         # Evaluations and semantic actions.
         #
 
-        def _get_eval_fun(self, orig_sig):
+        @property
+        def eval_fun(self):
             """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
-            Must be called after parsing because the `construct_label` attribute must
-            be set on the token instance."""
+            Must be called after parsing because the `original_formal_sig` attribute
+            must be set on the token instance."""
+            orig_sig = self.original_formal_sig
             return self.parser_instance.construct_table.get_eval_fun(orig_sig, self)
 
-        def _get_ast_data(self, orig_sig):
+        @property
+        def ast_data(self):
             """Return the ast data saved by `_save_ast_data_and_ast_data`.
             Must be called after parsing because the `construct_label` attribute must
             be set on the token instance."""
+            orig_sig = self.original_formal_sig
             return self.parser_instance.construct_table.get_ast_data(orig_sig, self)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
             registered with it.  Returns `None` if no evaluation function is found."""
-            sig = self.expanded_formal_sig
+            #sig = self.expanded_formal_sig
             orig_sig = self.original_formal_sig
 
-            eval_fun = self._get_eval_fun(orig_sig)
+            eval_fun = self.eval_fun
 
+            # TODO: Consider if returning None is better than raising exception...
             if not eval_fun:
                 return None
 

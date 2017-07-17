@@ -67,13 +67,12 @@ def def_literal(parser, token_label, val_type=None,
     handler but not a tail handler.  (Though note that the token itparser
     might also have a tail handler.)
 
-    A function `val_type_override_fun` can be passed in, taking a token and
-    a lexer as its two arguments and returning a `TypeSig` object.  If it
-    is set then it will be called from the head handler and the type
-    signature of the node will be assigned the signature returned by the
-    function.  This can be useful for dynamic typing such as when identifiers
-    in an interpreted language are generic variables which can holding different
-    types."""
+    A function `val_type_override_fun` can be passed in, taking a token and a
+    lexer as its two arguments and returning a `TypeObject` instance.  If it is
+    set then it will called in the handler at parse-time to get the type to set
+    as the `val_type` of the node.  This can be useful for dynamic typing such
+    as when identifiers in an interpreted language are generic variables which
+    can holding different types."""
     def head_handler_literal(tok, lex):
         if val_type_override_fun:
             tok.process_and_check_kwargs = {"val_type_override":

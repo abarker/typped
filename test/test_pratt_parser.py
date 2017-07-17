@@ -133,7 +133,7 @@ def basic_setup(request):
     if case_number == 3:
         parser = pp.PrattParser(skip_type_checking=True)
     else:
-        parser = pp.PrattParser(max_peek_tokens=case_number)
+        parser = pp.PrattParser(max_peek_tokens=case_number) # Note case num as maxpeek.
     define_default_tokens(parser)
     define_syntax(parser)
     #if case_number == 4: # Test save and restore state.
@@ -435,7 +435,7 @@ def test_types_mixed_numerical_bool_expressions():
     assert str(e.value).startswith("Ambiguous type resolution: The actual argument"
                                    " types match multiple signatures.")
 
-def test_types_overloaded_return():
+def test_types_overloaded_on_return():
     """Repeat the general tests from test_types_mixed_numerical_bool_expressions
     to make sure none of them break, then test cases specific to overloading on
     return types."""
@@ -496,16 +496,20 @@ def test_types_overloaded_return():
             "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
 
     # more functions
 
