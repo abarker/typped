@@ -85,7 +85,8 @@ Using the lexer
 ===============
 
 This is a simple example of using the lexer.  Notice that multiple token definitions
-can be combined using the `def_multi_tokens` method.::
+can be combined using the `def_multi_tokens` method.  It is usually better to
+define a shorter alias for the function call, however.::
 
     lex = Lexer()
 
@@ -1561,6 +1562,8 @@ class Lexer(object):
 def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):
     """A convenience function that takes a function (or method) and a list of tuples
     and calls `function` with the values in those tuple as arguments."""
+    # TODO: Modify this to take *args and **kwargs and pass all unrecognized
+    # kwargs to the function being called.
     retval_list = []
     for t in tuple_list:
         try:

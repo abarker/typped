@@ -72,7 +72,8 @@ def def_literal(parser, token_label, val_type=None,
     set then it will called in the handler at parse-time to get the type to set
     as the `val_type` of the node.  This can be useful for dynamic typing such
     as when identifiers in an interpreted language are generic variables which
-    can holding different types."""
+    can holding different types.  This option currently does not work for
+    overloading on return types."""
     def head_handler_literal(tok, lex):
         if val_type_override_fun:
             tok.process_and_check_kwargs = {"val_type_override":
@@ -90,13 +91,12 @@ def def_literal(parser, token_label, val_type=None,
 def def_multi_literals(parser, tuple_list):
     """An interface to the `def_literal` method which takes a list of
     tuples.  The `def_literal` method will be called for each tuple, unpacked
-    in the order in the tuple.  Unspecified optional arguments get their default
-    values."""
-    # TODO: This makes it difficult to change the order in the
-    # def_literal function arguments... it also causes problems with keyword
-    # argument setting (all args need to be non-keywords).  Deprecate this, maybe,
-    # or at least make it preferred to use `lit = parser.def_literal` and then just
-    # write that a bunch of times...
+    in the order in the tuple.  Unspecified optional arguments are assigned
+    their default values.
+
+    Usually it is better to define `literal = parser.def_literal` and use that
+    as a shorter alias.  This method does not allow for keyword arguments and
+    depends on argument ordering."""
     return multi_funcall(parser.def_literal, tuple_list)
 
 #
@@ -451,7 +451,10 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
 
     An evaluation function can optionally be created automatically, but by default is
     not.  See the `def_assignment_op_dynamic` routine for more details since the
-    mechanism is the same."""
+    mechanism is the same.
+
+    This method may not correctly set the return type when overloading on
+    return types because currently `val_type_override` is used to set it."""
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
     def precondition_lhs_is_identifier(lex, lookbehind):
@@ -479,7 +482,6 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
 
     def tail_handler(tok, lex, left):
         """Parse the assignment operation, checking that the types match."""
-        # TODO: this uses expanded_formal_type but really should use actual_type...
         tok.append_children(left, tok.recursive_parse(recurse_bp))
         identifier = tok[0].value
         if not parser.skip_type_checking:
@@ -491,7 +493,6 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                 val_t = val_type
             # Set the type returned by the assignment operation.
             tok.process_and_check_kwargs = {"val_type_override": val_t}
-            # TODO: Below uses expanded_formal_sig and NOT the actual_sig which should be used!
             # Check that the static types match.
             formal_type = symbol_type_dict.get(identifier, None)
             if formal_type is None:
@@ -499,7 +500,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                         "Variable identifier '{0}' has not been declared with a type."
                         .format(identifier))
             if not rhs_type.matches_formal_type(formal_type):
-                # TODO: need to do reverse lookup on Typped types back to implemented lang
+                # TODO: should do a reverse lookup on Typped types back to implemented lang
                 # types for better error message... but need that dict available.
                 raise TypeErrorInParsedLanguage("The value assigned to variable '{0}'"
                             " does not match its defined type {1}.  Its actual type"
@@ -527,7 +528,6 @@ def _eval_dynamically_typed_assignment(parser, symbol_value_dict, symbol_type_di
     value (so `x=4` returns `4` which can then be part of another expression)."""
     def eval_fun(subtree_tok):
         if (hasattr(parser, "allowed_dynamic_assignment_types") and not
-                # TODO: Below uses expanded_formal_sig and NOT the actual_sig which should be used!
                 any(subtree_tok[1].expanded_formal_sig.val_type.matches_formal_type(formal_type)
                     for formal_type in parser.allowed_dynamic_assignment_types)):
                 raise TypeErrorInParsedLanguage("Actual type {0} in assignment does not"
@@ -561,7 +561,11 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
     instance.  An exception will be raised by the generated evaluation function
     if an assigned value does not have an actual type consistent with a formal
     type on that list.  If new types are created later they can be directly
-    appended to that list without having to overload the assignment operator."""
+    appended to that list without having to overload the assignment operator.
+
+    This method may not correctly set the return type when overloading on
+    return types because currently `val_type_override` is used to set it."""
+
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
     if allowed_types is not None:
@@ -592,8 +596,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
         recurse_bp = prec - 1
 
     def tail_handler(tok, lex, left):
-        # Set return type to r.h.s. type (TODO later maybe have option...)
-        # TODO: this uses expanded_formal_type but really should use actual_type...
+        # Set return type to r.h.s. type (TODO later maybe have return type option...)
         tok.append_children(left, tok.recursive_parse(recurse_bp))
         if not parser.skip_type_checking:
             rhs_type = tok[1].expanded_formal_sig.val_type
@@ -628,7 +631,10 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
     The `def_assignment_op_dynamic` routine should be used to handle the
     corresponding variable assignment operation.  That is, the assignment that
     dynamically sets the type of the literal to the type of the assigned value
-    (storing it in `symbol_type_dict` by default)."""
+    (storing it in `symbol_type_dict` by default).
+
+    This method may not correctly set the return type when overloading on
+    return types because currently `val_type_override` is used to set it."""
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
 

@@ -3,8 +3,8 @@
 
 This module contains convenience functions for defining commonly-used groups of
 tokens.  The functions are all copied to the `PrattParser` class as methods
-because the namespace is convenient.  They can be used standalone or as methods
-of a parser instance.
+simply because the namespace is convenient.  They can be used standalone or as
+methods of a parser instance.
 
 """
 
