@@ -39,7 +39,7 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
         NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
 from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import (TypeTable, TypeSig, TypeErrorInParsedLanguage,
-                         actual_matches_formal)
+                         actual_matches_formal_default)
 from .helpers import all_precond_funs
 
 #
@@ -56,7 +56,7 @@ from .helpers import all_precond_funs
 
 def def_literal(parser, token_label, val_type=None,
                 construct_label=None, precond_fun=None, precond_priority=1,
-                typesig_override_fun=None,
+                val_type_override_fun=None,
                 eval_fun=None, ast_data=None):
     """Defines the token with label `token_label` to be a literal in the
     syntax of the language being parsed.  This method adds a head handler
@@ -67,7 +67,7 @@ def def_literal(parser, token_label, val_type=None,
     handler but not a tail handler.  (Though note that the token itparser
     might also have a tail handler.)
 
-    A function `typesig_override_fun` can be passed in, taking a token and
+    A function `val_type_override_fun` can be passed in, taking a token and
     a lexer as its two arguments and returning a `TypeSig` object.  If it
     is set then it will be called from the head handler and the type
     signature of the node will be assigned the signature returned by the
@@ -75,10 +75,9 @@ def def_literal(parser, token_label, val_type=None,
     in an interpreted language are generic variables which can holding different
     types."""
     def head_handler_literal(tok, lex):
-        if typesig_override_fun:
-            tok.process_and_check_kwargs = {"typesig_override":
-                                            typesig_override_fun(tok, lex)}
-                                            #"check_override_sig": True,
+        if val_type_override_fun:
+            tok.process_and_check_kwargs = {"val_type_override":
+                                            val_type_override_fun(tok, lex)}
         return tok
 
     return parser.def_construct(HEAD, head_handler_literal, token_label,
@@ -123,8 +122,7 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label,
         lex.match_next(rbrac_token_label, raise_on_fail=True)
         if not parser.skip_type_checking:
             child_type = tok.children[0].expanded_formal_sig.val_type
-            tok.process_and_check_kwargs = { #"check_override_sig":True,
-                    "typesig_override": TypeSig(child_type, [child_type])}
+            tok.process_and_check_kwargs = {"val_type_override": child_type}
         return tok
 
     return parser.def_construct(HEAD, head_handler, lbrac_token_label,
@@ -492,14 +490,15 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                 val_t = rhs_type
             else:
                 val_t = val_type
-            tok.process_and_check_kwargs = { # Type returned by assignment operation.
-                    "typesig_override": TypeSig(val_t, [None, rhs_type])}
+            # Set the type returned by the assignment operation.
+            tok.process_and_check_kwargs = {"val_type_override": val_t}
             # TODO: Below uses expanded_formal_sig and NOT the actual_sig which should be used!
             # Check that the static types match.
             formal_type = symbol_type_dict.get(identifier, None)
             if formal_type is None:
                 raise TypeErrorInParsedLanguage(
-                        "Variable '{0}' has not been defined.".format(identifier))
+                        "Variable identifier '{0}' has not been declared with a type."
+                        .format(identifier))
             if not rhs_type.matches_formal_type(formal_type):
                 # TODO: need to do reverse lookup on Typped types back to implemented lang
                 # types for better error message... but need that dict available.
@@ -599,8 +598,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
         tok.append_children(left, tok.recursive_parse(recurse_bp))
         if not parser.skip_type_checking:
             rhs_type = tok[1].expanded_formal_sig.val_type
-            tok.process_and_check_kwargs = {
-                    "typesig_override": TypeSig(rhs_type, [None, rhs_type])}
+            tok.process_and_check_kwargs = {"val_type_override": rhs_type}
         return tok
 
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label,
@@ -635,12 +633,12 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
 
-    def literal_typesig_override_fun(tok, lex):
+    def literal_val_type_override_fun(tok, lex):
         """Function hook passed to `def_literal` to assign a type signature."""
         if tok.value in symbol_type_dict:
-            return TypeSig(symbol_type_dict[tok.value], [])
+            return symbol_type_dict[tok.value]
         else:
-            return TypeSig(default_type, [])
+            return default_type
 
     if not create_eval_fun:
         eval_fun = None
@@ -649,7 +647,7 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
             return symbol_value_dict.get(tok.value, default_eval_value)
 
     parser.def_literal(token_label, val_type=None,
-                       typesig_override_fun=literal_typesig_override_fun,
+                       val_type_override_fun=literal_val_type_override_fun,
                        eval_fun=eval_fun)
 
 #

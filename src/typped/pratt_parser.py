@@ -30,7 +30,7 @@ Attributes set on token instances (scanned tokens) during parsing:
 * `parser_instance` -- the parser instance that parsed the token
 * `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
 * `expanded_formal_sig` -- a `TypeSig` instance of the expanded formal signature
-* `actual_sig` -- a `TypeSig` instance of the actual signature  TODO TODO
+* `actual_sig` -- a `TypeSig` instance of the actual signature
 * `construct_label` -- the string label of the winning construct
 
 Note that both `original_formal_sig` and `expanded_formal_sig` are set to the
@@ -396,7 +396,7 @@ def token_subclass_factory():
             # argument portion of the original typesig.)
             self.original_formal_sig = "Unresolved" # The matching orig sig.
             self.expanded_formal_sig = "Unresolved" # Expanded version of above.
-            #self.actual_sig = {} # Currently just look at tree, can read off the types.
+            self.actual_sig = "Unresolved" # The actual signature.
 
         @classmethod
         def prec(cls):
@@ -424,30 +424,25 @@ def token_subclass_factory():
             self.children = modified_children
 
         def process_and_check_node(self, construct,
-                                   typesig_override=None, check_override_sig=False):
+                                   val_type_override=None, typesig_override=None):
             """This routine is automatically called just after a handler
             function returns a subtree.  It is called for the root of the
             returned subtree.  It sets some attributes and checks that the
             actual types match some defined type signature for the function.
 
-            The `typesig_override` argument must be a `TypeSig` instance.  It
-            will be *assigned* to the node as its `expanded_formal_sig` after
-            all normal type-checking, overriding any other settings.  This is
-            useful for handling things like parentheses and brackets which
-            inherit the type of their child (assuming the parens and brackets
-            are kept as nodes in the parse tree and not eliminated).  The
-            `eval_fun` and `ast_data` found by the normally-resolved typesig
-            are also keyed under the override signature.
+            If `val_type_override` is set to a `TypeObject` instance then the
+            return type of the node is set to that type after all other
+            processing and type-checking for the subtree is finished (except
+            for a possible second pass from a higher node if return types are
+            overloaded on).  This is useful for handling things like
+            parentheses and brackets which inherit the type of their child
+            (assuming the parens and brackets are kept as nodes in the parse
+            tree and not eliminated).
 
-            If `check_override_sig` is true then the overridden signature will
-            be set to the only possible signature before type-checking and will
-            then be type-checked.  It is expanded as usual in the checking
-            process.  Note that this causes a conflict if evaluation functions
-            or AST data is stored with the token, because that information is
-            in a dict keyed by the original type signature.  In this case,
-            though, the override signature becomes the original type signature,
-            which will generally not have the correct information keyed under
-            it."""
+            The `typesig_override` argument must be a `TypeSig` instance.  If
+            set it will be *assigned* to the node as its only possible
+            `expanded_formal_sig` before type checking (instead of looking up
+            the registered ones).  Type checking then proceeds as usual."""
 
             # TODO: The ast_data and eval_fun attributes are not currently set
             # on the final tokens expression tree tokens.  Either set them or
@@ -455,16 +450,8 @@ def token_subclass_factory():
             # when no type-checking is done.  Cannot set them until final type
             # is determined.  So THAT is presumably where it should be done.
 
-            # TODO: Below now in pratt_constructs.  Delete when tested more.
-            ##
-            ## Just return and skip type-checking if the skip option is set.
-            ##
-            #
-            #if self.parser_instance.skip_type_checking:
-            #    return
-
             # Get all the sigs registered for the node's construct.
-            if typesig_override and check_override_sig:
+            if typesig_override is not None:
                 all_possible_sigs = [typesig_override]
             else:
                 all_possible_sigs = construct.original_sigs
@@ -479,30 +466,20 @@ def token_subclass_factory():
                 # subtree.  In this case, since the signature is fixed by
                 # argument types (regardless of where the top-down pass
                 # starts from) we can in this case resolve the types in the
-                # subtree early.  Note `check_types_not_in_tree_second_pass` is
+                # subtree early.  Note `check_types_in_tree_second_pass` is
                 # also called on the root node from the `parse` method.
                 if len(self.matching_sigs) == 1: # matching_sigs set by _check_types
                     self.check_types_in_tree_second_pass()
 
-            # Do the override in the case where no checking is done on the
-            # override sig.  Only the `expanded_formal_sig` is set to the
-            # override sig; the `original_formal_sig` is the one found in
-            # the actual checking above.  Note that no expansion is done on
-            # the override sig (maybe it should be).
-            if typesig_override and not check_override_sig:
-                orig_sig = self.expanded_formal_sig.original_formal_sig
-                self.original_formal_sig = orig_sig
-                prev_eval_fun = self._get_eval_fun(orig_sig)
-                prev_ast_data = self._get_ast_data(orig_sig)
-                # Note this permanently modifies the class below... clarify the
-                # semantics of what SHOULD happen in this case.  TODO
-                self.parser_instance.construct_table.save_eval_fun_and_ast_data(
-                                                 self.is_head, self.token_label,
-                                                 self.construct_label, typesig_override,
-                                                 prev_eval_fun, prev_ast_data, self.value)
-                # Force the final, actual typesig to be the override sig.
+            # Implement val_type override if set.
+            if val_type_override:
+                # Note that the original_formal_sig attribute was already set.
+                # The ast_data and eval_fun are keyed on that.
+                # TODO: Except this may not work in two-pass situations!  Consider....
                 # TODO: this isn't the actual sig, but the expanded formal sig...
-                self.expanded_formal_sig = typesig_override
+                # which is the correct one to set?
+                self.expanded_formal_sig = TypeSig(val_type_override,
+                                                   self.expanded_formal_sig.arg_types)
 
         def _check_types(self, all_possible_sigs, first_pass_of_two=False):
             """Utility function called from `process_and_check_node` to check
@@ -514,10 +491,10 @@ def token_subclass_factory():
             # messages) so the all_possible_sigs argument to this function really
             # isn't needed.
 
-            if not first_pass_of_two:
+            if not first_pass_of_two: # Single-pass upward, no overload on return types.
                 # Ordinary case, each child c has a unique c.expanded_formal_sig already set.
                 list_of_child_sig_lists = [[c.expanded_formal_sig] for c in self.children]
-            else:
+            else: # Two-pass up then down, overload on return types.
                 # First pass case, multiple sigs in child's self.matching_sigs list.
                 list_of_child_sig_lists = [c.matching_sigs for c in self.children]
 
@@ -528,6 +505,7 @@ def token_subclass_factory():
             # Below all_possible_sigs is saved ONLY for printing error messages.
             self.all_possible_sigs = all_possible_sigs
 
+            # If no overloading on return types we can finalize the actual types.
             if not first_pass_of_two:
                 if len(self.matching_sigs) != 1:
                     self._raise_type_mismatch_error(self.matching_sigs,
@@ -538,11 +516,12 @@ def token_subclass_factory():
                 # Saved sig used for eval_fun resolution, ast_data, semantic action, etc.
                 self.expanded_formal_sig = self.matching_sigs[0]
                 self.original_formal_sig = self.expanded_formal_sig.original_formal_sig
+                self.actual_sig = TypeSig(self.expanded_formal_sig.val_type,
+                                          [c.actual_sig.val_type for c in self.children])
 
                 # Delete some temporary attributes no longer needed since final pass.
                 delattr(self, "matching_sigs")
                 delattr(self, "all_possible_sigs")
-            return
 
         def check_types_in_tree_second_pass(self, root=False):
             """Recursively run the second pass on the token subtree with the
@@ -614,10 +593,19 @@ def token_subclass_factory():
             # We have a unique signature; set the node's type attributes
             self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
             self.original_formal_sig = self.expanded_formal_sig.original_formal_sig
+            # Start setting the actual signature; children will fill arg types when resolved.
+            self.actual_sig = TypeSig(self.expanded_formal_sig.val_type, [])
+            # Set the actual_sig arg_type for the parent (appending in sequence with others).
+            if self.parent is not None:
+                parent_args_so_far = list(self.parent.actual_sig.arg_types)
+                parent_args_so_far.append(self.expanded_formal_sig.val_type)
+                self.parent.actual_sig = TypeSig(self.parent.actual_sig.val_type,
+                                                 parent_args_so_far)
 
             # Update the matching_sigs attribute for each child (should be singleton).
             for count, child in enumerate(self.children):
-                if not hasattr(child, "matching_sigs"): continue # Already resolved.
+                if not hasattr(child, "matching_sigs"):
+                    continue # Already resolved.
                 matched_sigs = TypeSig.get_child_sigs_matching_return_arg_type(
                                           child, self.expanded_formal_sig.arg_types[count],
                                           child.matching_sigs)

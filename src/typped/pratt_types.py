@@ -471,7 +471,7 @@ class TypeSig(object):
 # NOTE: Consider if there is any advantage to having types themselves take
 # parameters other than the string labels.
 
-def actual_matches_formal(actual_type, formal_type):
+def actual_matches_formal_default(actual_type, formal_type):
     # TODO: this could be a method of a full class, which handles all the
     # type equivalence, alias, and conversion stuff.....
     # Alternately, it would fit in as part of the existing TypeTable class.
@@ -488,7 +488,8 @@ class TypeObject(object):
     """Instances of this class represent types."""
     # Be sure to update __hash__ if more type-defining components are added.
 
-    def __init__(self, type_label, actual_matches_formal_fun=actual_matches_formal):
+    def __init__(self, type_label,
+                       actual_matches_formal_fun=actual_matches_formal_default):
         """Instantiate a type object or a wildcare object with `None` argument."""
         super(TypeObject, self).__init__() # Call base class __init__.
         if type_label is None:
@@ -541,7 +542,7 @@ class TypeObject(object):
         different type objects, or a generic one can be passed to all of them.
 
         See also the related method `matches_formal_sig` of `TypeSig` which
-        checks each value and argument in a signature"""
+        checks both the value and the arguments in a signature"""
         return self.actual_matches_formal_fun(self, formal_type)
 
     def __eq__(self, type_obj):

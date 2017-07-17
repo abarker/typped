@@ -81,26 +81,27 @@ def setup_string_language_parser_dynamic_typing():
 
     parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
 
-    parser.def_infix_op("k_plus", 10, "left",
-                     val_type=t_int, arg_types=[t_int, t_int],
-                     eval_fun=lambda t: t[0].eval_subtree() + t[1].eval_subtree())
-    parser.def_infix_op("k_plus", 10, "left",
-                     val_type=t_str, arg_types=[t_str, t_str],
-                     eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
+    infix = parser.def_infix_op
+    infix("k_plus", 10, "left",
+          val_type=t_int, arg_types=[t_int, t_int],
+          eval_fun=lambda t: t[0].eval_subtree() + t[1].eval_subtree())
+    infix("k_plus", 10, "left",
+          val_type=t_str, arg_types=[t_str, t_str],
+          eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
 
-    parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_int, arg_types=[t_int, t_int],
-                     eval_fun=lambda t: t[0].eval_subtree() * t[1].eval_subtree())
-    parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_str, arg_types=[t_str, t_int],
-                     eval_fun=lambda t: (
-                         '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
-    parser.def_infix_op("k_ast", 20, "left",
-                     val_type=t_str, arg_types=[t_int, t_str],
-                     eval_fun=lambda t: (
-                         '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
+    infix("k_ast", 20, "left",
+          val_type=t_int, arg_types=[t_int, t_int],
+          eval_fun=lambda t: t[0].eval_subtree() * t[1].eval_subtree())
+    infix("k_ast", 20, "left",
+          val_type=t_str, arg_types=[t_str, t_int],
+          eval_fun=lambda t: (
+                   '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
+    infix("k_ast", 20, "left",
+          val_type=t_str, arg_types=[t_int, t_str],
+          eval_fun=lambda t: (
+                   '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
-    # Define assignment as an overloaded infix equals operator.
+    # Define assignment as an infix equals operator.
     parser.def_assignment_op_dynamic("k_equals", 5, "left", "k_identifier",
                                      val_type=None, allowed_types=[t_int, t_str])
     return parser
@@ -143,7 +144,7 @@ def setup_string_language_parser_static_typing():
     has simple variables which can represent either numbers or strings."""
     parser = pp.PrattParser()
 
-    # Define the tokens and types.
+    # Define the tokens.
 
     parser.def_default_whitespace()
     tok = parser.def_token
@@ -156,12 +157,15 @@ def setup_string_language_parser_static_typing():
     tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
     tok("k_string", r"(\"(.|[\r\n])*?\")")
 
+    # Define the types.
+
     t_int = parser.def_type("t_int") # Integer type.
     t_str = parser.def_type("t_str") # String type.
 
     # Define a new construct for type definitions in the language.  The
-    # `typped_dict_dict` is used to map types in the object language (strings
-    # "int" and "str") to the corresponding Typped types (t_int and t_str).
+    # `typped_type_dict` is used to map type names in the implemented language
+    # (the strings "int" and "str") to the corresponding Typped types
+    # (the `TypeObject` instances t_int and t_str).
 
     parser.typped_type_dict = {"int": t_int,
                                "str": t_str}
@@ -219,8 +223,7 @@ def setup_string_language_parser_static_typing():
           eval_fun=lambda t: (
                '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
-    # Define assignment as an overloaded infix equals operator.
-
+    # Define assignment as an infix equals operator.
     parser.def_assignment_op_static("k_equals", 5, "left", "k_identifier",
                                     create_eval_fun=True)
     return parser
