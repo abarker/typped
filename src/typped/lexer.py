@@ -315,12 +315,15 @@ class TokenNode(object):
     def traditional_repr(self):
         """Representation as a string that looks like class initialization."""
         return "TokenNode()"
+
     def value_repr(self):
         """Token representation as its value."""
         return str(self.value)
+
     def label_repr(self):
         """Token representation as its token label."""
         return str(self.token_label)
+
     def summary_repr(self):
         """Token representation as a summarizing string containing both the label and
         the value."""
@@ -328,17 +331,22 @@ class TokenNode(object):
         if isinstance(self.value, str):
             value_str = "'" + value_str + "'"
         return "<{0},{1}>".format(self.token_label, value_str)
+
     def tree_repr(self, indent=0):
         """Token representation as the root of a parse subtree, with formatting.
-        The optional `indent` parameter can be an indent string or an integer for
-        the number of spaces to indent."""
-        try: num_indent = int(indent)
-        except ValueError: pass
-        else: indent = " " * num_indent
+        The optional `indent` parameter can be either an indent string or else
+        an integer for the number of spaces to indent."""
+        try:
+            num_indent = int(indent)
+        except ValueError:
+            pass
+        else:
+            indent = " " * num_indent
         string = indent + self.summary_repr() + "\n"
         for c in self.children:
             string += c.tree_repr(indent=indent+" "*4)
         return string
+
     def string_tree_repr(self, only_vals=False, only_labels=False):
         """Token representation as the root of a parse subtree, in a string format.
         This is the default representation, used for `__repr__`."""
@@ -350,6 +358,7 @@ class TokenNode(object):
             string += ",".join(c.string_tree_repr() for c in self.children)
             string += ")"
         return string
+
     def old_repr(self):
         """This old representation is kept *only* because it is used in some tests."""
         if self.token_label == "k_number":

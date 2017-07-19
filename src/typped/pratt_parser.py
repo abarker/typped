@@ -197,7 +197,8 @@ if __name__ == "__main__":
                               "../../test/test_example_calculator.py",
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_types.py",
-                              "../../test/test_pratt_parser.py"
+                              "../../test/test_basic_usage_section_examples.py",
+                              "../../test/test_pratt_parser.py",
                               ], pytest_args="-v")
 
 import sys

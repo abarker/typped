@@ -24,53 +24,68 @@ parser and lexer state) at that time.  The conditions which can be taken into
 account include, for example, the actual string value that the lexer matched in
 the program text and the kind of token that is one peek ahead in the lexer.
 Note that this generalized behavior in Typped is optional and can easily be
-ignored if one wants to use only standard Pratt parser techniques.
+ignored if one only wants to use standard Pratt parser techniques.
 
-Define a **syntactic construct**, or simply a **construct**, to be some
+Since in Pratt parsing each head and tail handler essentially parses a
+different part of the grammar, our abstraction of handler functions is called a
+**syntactic construct**, or simply a **construct**.  A construct represents a
 particular kind of grammatical subexpression that is parsed and returned by a
-handler function (either head or tail).  Since Pratt parsers are top-down these
-tend to correspond to subtrees of the final expression tree.
+handler function.  Since Pratt parsers are top-down these grammatical parts
+tend to correspond to subtrees of the final expression tree.  A construct
+containing a head handler will be called a **head construct** and a construct
+containing a tail handler will be called a **tail construct**.  Constructs also
+contain other attributes, as we will see.
 
-In a standard Pratt parser a handler function, and hence a construct, is
-**triggered** whenever a particular kind of token is read in from the lexer in
-the ``recursive_parse`` routine.  Either the head handler or the tail handler
-associated with that kind of token is run, depending on whether or not the
-token is the first token in the subexpression being parsed or is a later one.
+In a standard Pratt parser a handler function is triggered whenever a
+particular kind of token is consumed from the lexer in the ``recursive_parse``
+routine.  Either the head handler or the tail handler function associated
+with that kind of token is run, depending on whether or not the token is the
+first token in the subexpression being parsed.
 
-In a preconditioned-dispatching Pratt parser a particular kind of token can
-have multiple head and tail handlers.  The triggering of which one to run is
-based on **preconditions functions**.  These are simply boolean-valued
-functions which are executed at the time when the choice needs to be made.  A
-preconditions function which returns true when evaluated is said to **match**
-in the current state.
+In a preconditioned-dispatching Pratt parser each handler function is
+associated with a unique construct, and each construct has associated with it
+the label of a **triggering token** which triggers that construct as
+potentially the one to use.  A single kind of token can potentially trigger
+multiple constructs (either head constructs or tail constructs, depending on
+the token's position).
 
-In this generalization a construct is expanded to include the following:
+When a token is consumed in ``recursive_parse`` it triggers a collection of
+constructs.  The choice of which one to actually use is based on the evaluation
+of **preconditions functions** associated with the constructs.  Preconditions
+functions are simply boolean-valued functions which are executed at the time
+when a handler function is required.  A preconditions function which returns
+true when evaluated is said to **match** in the current state.  The matching
+construct with the highest **preconditions priority** is selected, and its
+handler is run.
+
+Constructs are implemented as instances of ``Construct`` objects.  They contain
+the following attributes:
 
 * a kind of token which triggers the construct
-* a head or tail handler
+* a head or tail handler function
 * a preconditions function
 * a preconditions priority
-* a string label for the construct
+* a unique string label for the construct
 * other data, such as evaluation functions and type signatures
 
 Constructs are **registered** with a parser instance in order to define a
-particular grammar on the tokens of the construct (which were previously
-defined).  A construct with a head handler, triggered by a head token, may be
-called a head construct.  A construct with a tail handler may be called a tail
-construct.  The preconditions priority is a number which defaults to zero.
+particular grammar on the tokens of the language (which must have been
+previously defined).  The preconditions priority is a number which defaults to
+zero.
 
 Whenever the ``recursive_parse`` routine consumes a particular kind of token
 from the lexer, in a head or tail position, it sequentially executes the
-preconditions functions for all the constructs associated with that kind of
+preconditions functions for all the constructs triggered by with that kind of
 token, in that position.  The execution sequence is ordered by the
 preconditions priorities.  The construct associated with the first matching
-preconditions function is triggered.  Its handler function is then dispatched
-as the one to be run by the ``recursive_parse`` routine.  If there is no clear
+preconditions function is selected.  Its handler function is then dispatched as
+the one to be run by the ``recursive_parse`` routine.  If there is no clear
 winner among the highest-priority matching preconditions functions (i.e., more
-than one match has the highest priority) an exception is raised.
+than one match has the highest priority) then an exception is raised.
 
-In the case where there is at most one head construct and one tail construct
-per kind of token this algorithm clearly reduces to ordinary Pratt parsing.
+This algorithm clearly reduces to ordinary Pratt parsing in the case where
+there is at most one head construct and one tail construct per kind of token
+and the preconditions functions always evaluate as true.
 
 Using dispatching
 -----------------
@@ -99,9 +114,10 @@ version is shown here:
 Instead of directly calling a fixed head or tail handler for a token, the
 ``recursive_parse`` function instead calls a function ``dispatch_handler``.
 This function takes an argument which specifies whether to fetch a head or a
-tail handler.  This function select a construct, as described above, and
-returns the handler function.  For convenience the arguments to the handler are
-bound, since they are already known.
+tail handler.  This function selects a construct, as described above, and
+returns the handler function (actually a wrapper function that first runs the
+handler and then does type checking on the returned subtree).  For convenience
+the arguments to the handler are bound, since they are already known.
 
 The typing system which is implemented in the Typped parser is also based on
 the preconditioned dispatching design.  Type-signature information can
