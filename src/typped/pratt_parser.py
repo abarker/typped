@@ -920,20 +920,30 @@ def token_subclass_factory():
         #
 
         def summary_repr_with_types(self):
-            """A short summary repr."""
+            """A short summary repr of the node, without its children."""
             return ("<" + str(self.token_label) +
                     "," + str(self.value) +
                     "," + str(self.expanded_formal_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
-            """A repr that prints with tree-like indentation."""
-            string = self.summary_repr_with_types()
+            """Token representation as the root of a parse subtree, with formatting.
+            The optional `indent` parameter can be either an indent string or else
+            an integer for the number of spaces to indent.  Note that the ordinary
+            `tree_repr` method without types is also available, inherited from
+            the base node object."""
+            try:
+                num_indent = int(indent)
+            except ValueError:
+                pass
+            else:
+                indent = " " * num_indent
+            string = indent + self.summary_repr_with_types() + "\n"
             for c in self.children:
                 string += c.tree_repr_with_types(indent=indent+" "*4)
             return string
 
         def string_repr_with_types(self):
-            """A string repr that includes type information."""
+            """A string repr for the tree that includes type information."""
             string = self.summary_repr_with_types()
             if self.children:
                 string += "("

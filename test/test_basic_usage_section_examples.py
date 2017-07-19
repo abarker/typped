@@ -12,9 +12,29 @@ pytest_helper.script_run(self_test=True, pytest_args="-v")
 pytest_helper.auto_import()
 pytest_helper.sys_path("../examples")
 
-from basic_usage_section_examples import (setup_string_language_parser,
+from basic_usage_section_examples import (setup_string_language_parser_dynamic_typing,
+                                          setup_string_language_parser_static_typing,
                                           setup_simple_builtin_example,
                                           )
+
+#TODO: part of pytest-helper now... use that version when package updated.
+def unindent(unindent_level, string):
+    """Strip indentation from a docstring.  This function is useful in tests
+    where you have assertions that something equals a multi-line string.  It
+    allows the strings to be represented as multi-line docstrings but indented
+    in a way that matches the surrounding code.  Calling this function on a
+    string will 1) remove any leading or trailing newlines, and 2) strip
+    `indent_level` characters from the beginning of each line.  Raises an
+    exception on an attempt to strip non-whitespace."""
+    string = string.strip("\n")
+    lines = string.splitlines()
+    for l in lines:
+        string_to_strip = l[0:unindent_level]
+        if not string_to_strip.lstrip() == "":
+            raise pytest_helper.PytestHelperException("Attempt to unindent non-whitespace at"
+                    " the beginning of this line:\n'{0}'".format(l))
+    stripped = "\n".join(s[unindent_level:] for s in lines)
+    return stripped
 
 def test_simple_builtin_example():
     parser = setup_simple_builtin_example()
@@ -22,22 +42,38 @@ def test_simple_builtin_example():
     assert str(result_tree) == ("<k_plus,'+'>(<k_identifier,'x'>,<k_ast,'*'>("
            "<k_lpar,'('>(<k_plus,'+'>(<k_number,'4'>,<k_number,'3'>)),<k_number,'5'>))")
 
-
-def test_string_language_example_from_overview_docs():
+def test_string_language_parser_dynamic():
     """An example from the Sphinx docs overview section.  A simple language
-    that uses `+` to add numbers and concatenate strings.  Multiplication of a
+    that uses `+` to add ints and concatenate strings.  Multiplication of a
     number by a string repeats the string.  Multiplication of a string by a
     string is not defined.  It also has simple variables which can represent
     either numbers or strings."""
-    parser = setup_string_language_parser()
+    parser = setup_string_language_parser_dynamic_typing()
 
+    # Test basic parsing to syntax tree.
     result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.tree_repr())
-    print(result_tree.string_repr_with_types())
-    assert result_tree.string_repr_with_types() == "<k_plus,+,TypeObject(t_number)>(<k_identifier,x,TypeObject(t_number)>,<k_ast,*,TypeObject(t_number)>(<k_lpar,(,TypeObject(t_number)>(<k_plus,+,TypeObject(t_number)>(<k_number,4,TypeObject(t_number)>,<k_number,3,TypeObject(t_number)>)),<k_number,5,TypeObject(t_number)>))"
+    print(result_tree.tree_repr_with_types(indent=12))
+    assert result_tree.tree_repr_with_types() == unindent(12, """
+            <k_plus,+,TypeObject('t_int')>
+                <k_identifier,x,TypeObject('t_int')>
+                <k_ast,*,TypeObject('t_int')>
+                    <k_lpar,(,TypeObject('t_int')>
+                        <k_plus,+,TypeObject('t_int')>
+                            <k_int,4,TypeObject('t_int')>
+                            <k_int,3,TypeObject('t_int')>
+                    <k_int,5,TypeObject('t_int')>
+            """)
     result_tree = parser.parse('"foo" + "bar"')
-    print(result_tree.tree_repr())
-    print(result_tree.string_repr_with_types())
-    assert result_tree.string_repr_with_types() == """<k_plus,+,TypeObject(t_string)>(<k_string,"foo",TypeObject(t_string)>,<k_string,"bar",TypeObject(t_string)>)"""
-    #fail()
+    #print(resul1t_tree.tree_repr())
+    print(result_tree.tree_repr_with_types())
+    assert result_tree.tree_repr_with_types() == unindent(12, """
+            <k_plus,+,TypeObject('t_str')>
+                <k_string,"foo",TypeObject('t_str')>
+                <k_string,"bar",TypeObject('t_str')>
+            """)
+    # Test evaluations.
+    result = parser.parse("x")
+    assert result.eval_subtree() == 0
+    result = parser.parse("x = 4")
+    assert result.eval_subtree() == 4
 

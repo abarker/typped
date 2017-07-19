@@ -38,14 +38,22 @@ from typped.shared_settings_and_exceptions import ParserException
 
 def all_precond_funs(*funs):
     """Return a combined preconditions function that computes the conjunction function
-    of the preconditions functions passed in."""
+    of the preconditions functions passed in.  Any `None` object arguments are
+    ignored."""
+    funs = [f for f in funs if f is not None]
+    if len(funs) == 1:
+        return funs[0]
     def combine(lex, lookbehind):
         return all(fun(lex, lookbehind) for fun in funs)
     return combine
 
 def any_precond_fun(*funs):
     """Return a combined preconditions function that computes the disjunction function
-    of the preconditions functions passed in."""
+    of the preconditions functions passed in.  Any `None` object arguments are
+    ignored."""
+    funs = [f for f in funs if f is not None]
+    if len(funs) == 1:
+        return funs[0]
     def combine(lex, lookbehind):
         return any(fun(lex, lookbehind) for fun in funs)
     return combine

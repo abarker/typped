@@ -94,9 +94,11 @@ The ``parse`` function is assumed to return a syntax tree for the expression it
 parses.  In general, many parsers do not return a syntax tree but instead
 evaluate, interpret, or otherwise process the expressions as they go along.  We
 assume that any such evaluation or interpretation is applied at a later stage,
-based on the returned syntax tree.  (Pratt parsers in general can easily
-interpret or evaluate languages on-the-fly, but for simplicity the Typped
-package always forms a syntax tree by default.)
+based on the returned syntax tree.  Pratt parsers in general can easily
+interpret or evaluate languages on-the-fly, but for simplicity the builtin
+methods of the Typped package always form a syntax tree by default.  (If
+type-checking is disabled then arbitrary Pratt Parsers can still be defined
+using Typped.)
 
 .. _Operator precedence:
 

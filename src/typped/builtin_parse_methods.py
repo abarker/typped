@@ -438,7 +438,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                              symbol_value_dict=None, symbol_type_dict=None,
                              allowed_types=None,
                              precond_fun=None, precond_priority=0,
-                             val_type=None,
+                             val_type=None, eval_fun=None,
                              create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is statically typed, with
     types checked at parse time.  Each identifier (with token label
@@ -451,7 +451,8 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
 
     An evaluation function can optionally be created automatically, but by default is
     not.  See the `def_assignment_op_dynamic` routine for more details since the
-    mechanism is the same.
+    mechanism is the same.  If `eval_fun` is set then that evaluation function
+    will always be used.
 
     This method may not correctly set the return type when overloading on
     return types because currently `val_type_override` is used to set it."""
@@ -461,16 +462,11 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
         return lex.peek(-1).token_label == identifier_token_label
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    if precond_fun is not None:
-        precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
-    else:
-        precond_fun = precondition_lhs_is_identifier
+    precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
 
-    # Create an eval fun if caller requested it.
+    # Create an eval fun if requested.
     if create_eval_fun:
         eval_fun = _eval_statically_typed_assignment(parser, symbol_value_dict)
-    else:
-        eval_fun = None
 
     # Create the infix operator assignment construct and register it.
 
@@ -546,15 +542,15 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                               symbol_value_dict=None, symbol_type_dict=None,
                               allowed_types=None,
                               precond_fun=None, precond_priority=0,
-                              val_type=None,
-                              create_eval_fun=True, ast_data=None):
+                              val_type=None, eval_fun=None,
+                              create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is dynamically typed, with
     types checked at evaluation time (i.e., when the tree is interpreted).
 
     A precondition checks that the l.h.s. of the assignment operator is a token
     with label `identifier_token_label`.  If not an exception is raised.
 
-    No type checking is done on the r.h.s. by default.  To limit the types that
+    No type-checking is done on the r.h.s. by default.  To limit the types that
     can be assigned you can pass in a list or iterable of `TypeObject`
     instances as the argument `allowed_types`.  These formal types are stored
     as the list attribute `allowed_dynamic_assignment_types` of the parser
@@ -562,6 +558,11 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
     if an assigned value does not have an actual type consistent with a formal
     type on that list.  If new types are created later they can be directly
     appended to that list without having to overload the assignment operator.
+
+    If `create_eval_fun` is true (and `eval_fun` is not set) then an evaluation
+    function will be created automatically.  The `symbol_value_dict` is used
+    to store the values, which defaults to the parser attribute of the same
+    name.
 
     This method may not correctly set the return type when overloading on
     return types because currently `val_type_override` is used to set it."""
@@ -575,17 +576,12 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
         return lex.peek(-1).token_label == identifier_token_label
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    if precond_fun is not None:
-        precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
-    else:
-        precond_fun = precondition_lhs_is_identifier
+    precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
 
-    # Create an eval fun unless caller opted out.
+    # Create an eval fun if requested.
     if create_eval_fun:
         eval_fun = _eval_dynamically_typed_assignment(parser, symbol_value_dict,
                                                                symbol_type_dict)
-    else:
-        eval_fun = None
 
     # Create the infix operator assignment construct and register it.
 
@@ -614,19 +610,20 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 symbol_type_dict=None, construct_label=None,
                                 default_type=None,
                                 default_eval_value=None,
-                                create_eval_fun=True,
+                                eval_fun=None, create_eval_fun=False,
                                 precond_fun=None, precond_priority=1):
     """Define a dynamically typed literal, usually a variable-name identifier.
     The type is looked up in the dict `symbol_type_dict`, keyed by the string
     value of the token literal.
 
-    Provides an evaluation function automatically, which returns the value
-    looked up from `symbol_value_dict` keyed by the literal token's string value.
-    The default value returned by the evaluation if the symbol is not in the
-    dict is set via `default_eval_value`.  (Currently there must be some
-    default rather than raising an exception, with the default default value
-    set to `None`.)  Setting `create_eval_fun` false will skip the setting of
-    an evaluation function.
+    If `create_eval_fun` is true (and `eval_fun` is not set) then this method
+    will provides an evaluation function automatically.  This function returns
+    the value looked up from `symbol_value_dict`, keyed by the literal token's
+    string value.  The default value returned by the evaluation if the symbol
+    is not in the dict is set via `default_eval_value`.  (Currently there must
+    be some default rather than raising an exception, with the default default
+    value set to `None`.) Setting `create_eval_fun` false will skip the setting
+    of an evaluation function.
 
     The `def_assignment_op_dynamic` routine should be used to handle the
     corresponding variable assignment operation.  That is, the assignment that
@@ -645,15 +642,17 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
         else:
             return default_type
 
-    if not create_eval_fun:
-        eval_fun = None
-    else:
+    if create_eval_fun:
         def eval_fun(tok):
             return symbol_value_dict.get(tok.value, default_eval_value)
 
     parser.def_literal(token_label, val_type=None,
                        val_type_override_fun=literal_val_type_override_fun,
                        eval_fun=eval_fun)
+
+#
+# Utility functions used by this module.
+#
 
 #
 # The list of defined functions to be made into methods of the PrattParser class.
