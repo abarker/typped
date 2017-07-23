@@ -173,13 +173,15 @@ class RegexTrieDictScanner(object):
         if self.end_of_text_asserted:
             # TODO: could have option to delete end magic char or auto-call reset text.
             raise TrieDictScannerError("End of text was previously asserted, call"
-                                       " `clear` before inserting more text.""")
-        for char in text:
-            if char != self.rtd.magic_elem_never_matches:
-                self.curr_prefix_text.append(char)
-            else:
-                self.curr_prefix_text.append(char) # TODO making part of prefix for now...
+                                       " `reset` before inserting more text.""")
+
+        for count, char in enumerate(text):
+            if char == self.rtd.magic_elem_never_matches:
+                if count != len(text) - 1:
+                    raise TrieDictScannerError("Magic element that cannot match"
+                            "was found in the appended string, not at the end.")
                 self.end_of_text_asserted = True
+            self.curr_prefix_text.append(char)
 
         if final_text:
             self.assert_end_of_text()

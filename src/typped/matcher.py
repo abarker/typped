@@ -179,7 +179,6 @@ class Matcher(object):
 
     def remove_pattern(self, token_label):
         """Remove the pattern for the token corresponding to `token_label`."""
-        # TODO: Not tested.
         self.ignore_tokens.discard(token_label)
 
         if token_label in self.python_data_dict:
@@ -188,7 +187,7 @@ class Matcher(object):
             del self.python_fnl_data_dict[token_label]
             self.python_fnl_combo_regex_is_stale = True
         elif token_label in self.trie_regex_data_dict:
-            regex = regex_data_dict[token_label].regex_string
+            regex = self.trie_regex_data_dict[token_label][1]
             del self.rtd[regex]
             del self.trie_regex_data_dict[token_label]
         else:
@@ -250,7 +249,7 @@ class Matcher(object):
 
         if not combo_best_matches:
             raise MatcherException("No matches in Lexer, unknown token at "
-                    "the start of this unprocessed text:\n{0}"
+                    "the start of this unprocessed text:\n'{0}'"
                     .format(program[slice_indices[0]
                             :slice_indices[0] +
                                 error_msg_text_snippet_size]))
@@ -286,8 +285,7 @@ class Matcher(object):
         # TODO option not to get full text but pass slice indices...
         text = program[unprocessed_slice_indices[0]:unprocessed_slice_indices[1]]
         scanner.append_text(text)
-        if unprocessed_slice_indices[1] == len(text):
-            scanner.assert_end_of_text() # TODO: different for online, realtime
+        scanner.assert_end_of_text() # TODO: different for online, realtime
         match_list = scanner.get_prefix_matches(only_first=True)
         if not match_list:
             return []
