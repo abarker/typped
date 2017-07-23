@@ -193,10 +193,22 @@ class RegexTrieDictScanner(object):
         self.curr_prefix_text.append(self.rtd.magic_elem_never_matches)
 
     def get_prefix_matches(self, join_chars=True, only_first=False):
-        """Get all the prexix matches for the currently-inserted prefix text.
-        If the currently-inserted characters allow a prefix
-        match to be recognized as the longest possible (with respect to the
-        current patterns in the trie) then the match is returned.
+        """Get all longest prefix match or sequence of matches for the
+        currently-inserted prefix text.  If the currently-inserted characters
+        allow a prefix match to be recognized as the longest possible (with
+        respect to the current patterns in the trie) then a list containing
+        that match string is returned.
+
+        If `join_chars` is false (the default is true) then the matching
+        character sequence is not joined before being returned.  So the
+        returned list is a list of characters.  Any joining is done using the
+        character-joining operation for the underlying `RegexTrieDict`
+        instance.
+
+        Immediately after matches are returned the `last_values` attribute of
+        the matcher holds a list of a list of corresponding data values which
+        were stored in the trie with the patterns that matched the returned
+        matches.
 
         If `reinsert_on_match` is true then, after a match is found, the
         scanner is reset and all the text characters which were inserted but
@@ -206,6 +218,8 @@ class RegexTrieDictScanner(object):
         known-longest prefix matches is then returned.  More characters can
         then be inserted, with the same behavior.  Any remaining suffix becomes
         the new list attribute `curr_prefix_text` of the scanner instance.
+        The `last_values` attribute in this case holds a list of lists of
+        data items, corresponding to the list of prefix patterns.
 
         When a longest match is found that match is returned.   Otherwise, the
         return values are as follows:
@@ -221,17 +235,14 @@ class RegexTrieDictScanner(object):
            recognized as the list of matches.  The attribute `cannot_match` of the
            scanner instance is also set to `True` in this case.
 
-        If `join_chars` is true (the default) then any returned character
-        sequences are joined using the character-joining operation for the
-        underlying `RegexTrieDict` instance.
-
         Other useful user-accessible attributes of scanner:
 
-        The `last_returned` attribute is also set to the last returned value,
-        which can be a useful way to access the matches.
+        The `last_matches` attribute is set to the last returned match result,
+        which can be a useful way to access the matches.  The `last_values`
+        attribute holds the corresponding list of lists of associated values.
 
-        The raw matching nodes in the trie are in the attribute
-        `last_matching_nodes`.
+        The raw matching nodes in the trie for the last pattern match are in
+        the attribute `last_matching_nodes`.
 
         The list of appended characters which have not yet matched (and hence
         have not yet been removed from the current prefix) is stored in the
@@ -249,8 +260,9 @@ class RegexTrieDictScanner(object):
                     " starting this prefix search, so the search is now invalid.")
 
         if self.cannot_match:
-            self.last_returned = []
-            return self.last_returned
+            self.last_matches = []
+            self.last_values = []
+            return self.last_matches
 
         # TODO: This breaks on sequential inserts!  Need to save the last insertion point
         # and start there!
@@ -270,7 +282,7 @@ class RegexTrieDictScanner(object):
                 print("   DEBUG last matching index is:", count)
 
             if self.prefix_matcher.cannot_match():
-                # Note we do not need cannot match if test if we know the real next chars to insert!?!?
+                # Note we do not need cannot match test if we know the real next chars to insert!?!?
                 print("   DEBUG cannot_match is true in loop with index", count, self.curr_prefix_text[count])
                 self.cannot_match = True
                 if self.last_matching_nodes: # Found a previous match, use it.
@@ -278,14 +290,16 @@ class RegexTrieDictScanner(object):
                     break
                 else:                        # No matches were found, return empty.
                     print("   returning from inside the loop, no prev match")
-                    self.last_returned = []
-                    return self.last_returned
+                    self.last_matches = []
+                    self.last_values = []
+                    return self.last_matches
 
         else: # else for the for loop; finished loop without finding a match (no break)
             #if not self.cannot_match: # No prefixes found, but a match is still possible.
             print("DEBUG no matches found in whole prefix string, but still can match, returning None")
-            self.last_returned = None
-            return self.last_returned
+            self.last_matches = None
+            self.last_values = None
+            return self.last_matches
 
         #
         # We know some match was found; remove it, reset the scanner, and recurse if needed.
@@ -293,42 +307,53 @@ class RegexTrieDictScanner(object):
 
         # The subtraction conditional below is needed because a match of a full string ending
         # with the magic never-matches is considered to match only the non-magic characters
-        # as a pattern.  So we decrement to not include the final magic character.
+        # as a pattern.  So decrement to not include the final magic character.
         if self.curr_prefix_text[self.last_matching_index] == self.rtd.magic_elem_never_matches:
             self.last_matching_index -= 1
         match_text = self.curr_prefix_text[:self.last_matching_index + 1]
         print("match text is", match_text)
+        match_data_values = [n.node.data for n in self.last_matching_nodes]
+        print("match data_values are", match_data_values)
         new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
         print("new_prefix is", new_prefix)
         end_of_text_asserted = self.end_of_text_asserted
 
+        print("QQQ ready to reset... match_text is", match_text)
+
         # Reset the scanner.
         self.reset()
 
-        # Restore a few attributes.
+        # Restore a few attributes after the reset.
         self.append_text(new_prefix)
         assert self.curr_prefix_text == new_prefix
         assert self.end_of_text_asserted == end_of_text_asserted
 
         if join_chars:
-            self.last_returned = [self.string_joiner(match_text)]
+            self.last_matches = [self.string_joiner(match_text)]
         else:
-            self.last_returned = [match_text]
+            self.last_matches = [match_text]
+        self.last_values = [match_data_values]
 
         if only_first:
-            print("DEBUG returning an only_first match of", self.last_returned)
-            return self.last_returned
+            print("DEBUG returning an only_first match of", self.last_matches)
+            return self.last_matches
 
         #
         # Reinsert the unmatched text in the reset prefix matcher, calling recursively.
         #
 
-        return_list = self.last_returned
-        while self.get_prefix_matches(join_chars=join_chars, only_first=True):
-            return_list += self.last_returned
+        return_match_list = self.last_matches
+        return_values_list = self.last_values
+        print("first return match list is", return_match_list)
 
-        self.last_returned = return_list
-        return self.last_returned
+        while self.get_prefix_matches(join_chars=join_chars, only_first=True):
+            return_match_list += self.last_matches
+            return_values_list += self.last_values
+
+        self.last_matches = return_match_list
+        self.last_values = return_values_list
+        print("returning these final matches from scanner", self.last_matches)
+        return self.last_matches
 
 #
 # Exceptions specific to this module.
