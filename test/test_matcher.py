@@ -19,6 +19,8 @@ def test_basic():
     m.insert_pattern("k_science", r"zoology")
     m.insert_pattern("k_place", r"zoo")
     m.insert_pattern("k_lowercase_string", r"[a-z]+", on_ties=-1)
+    # TODO below patt for rtd matcher
+    #m.insert_pattern("k_lowercase_string", "\\*1\\(\\[a\\-z\\]\\)", on_ties=-1)
 
     test_string = "zooxyzwzoologywwwzodd"
     first_match = m.get_next_token_label_and_value(test_string, (0, len(test_string)))
@@ -50,6 +52,7 @@ def test_basic():
     sixth_match = m.get_next_token_label_and_value(test_string, (begin, end))
     assert sixth_match == ("k_underscore", "_")
 
+    # TODO: rtd matcher gets to here and fails....
     begin += len(sixth_match[1])
     seventh_match = m.get_next_token_label_and_value(test_string, (begin, end))
     assert seventh_match == ("k_lowercase_string", "wwwzodd")

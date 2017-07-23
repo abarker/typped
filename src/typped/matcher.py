@@ -82,8 +82,8 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_matcher.py",
-                              #"../../test/test_lexer.py",
-                              #"../../test/test_pratt_parser.py"
+                              "../../test/test_lexer.py",
+                              "../../test/test_pratt_parser.py"
                               ],
                               pytest_args="-v")
 
@@ -152,8 +152,6 @@ class Matcher(object):
         value."""
         # Note that this method does not check for reinsertions of the same
         # token label; the def_token that calls it is responsible for that.
-        options = "trie"
-
         if ignore:
             self.ignore_tokens.add(token_label)
         if options is None:
@@ -276,31 +274,42 @@ class Matcher(object):
     def _trie_get_raw_matches(self, program, unprocessed_slice_indices):
         """A utility routine that does the actual string match on the prefix of
         `self.program` using the `RegexTrieDictScanner`.  Returns a list of
-        `MatchedPrefixTuple` instances for all the best matches.  (In non-error
-        conditions the match must be unique, but for unresolved ties we want the
-        diagnostic data, too.)"""
+        `MatchedPrefixTuple` instances for all the best matches, including ties.
+        (In non-error conditions the match must be unique, but for unresolved ties
+        we want the diagnostic data, too.)"""
         if self.rtd_scanner is None:
             self.rtd_scanner = RegexTrieDictScanner(self.rtd)
         else:
             self.rtd_scanner.reset()
         scanner = self.rtd_scanner
 
+        # TODO option not to get full text but pass slice indices...
         text = program[unprocessed_slice_indices[0]:unprocessed_slice_indices[1]]
         scanner.append_text(text)
-        if unprocessed_slice_indices[1] == len(text) - 1:
+        if unprocessed_slice_indices[1] == len(text):
             scanner.assert_end_of_text() # TODO: different for online, realtime
         match_list = scanner.get_prefix_matches(only_first=True)
+        if not match_list:
+            return []
         match = match_list[0]
         print("returned match_list is", match_list)
         token_label_list = scanner.last_values[0]
 
-        final_match_list = []
+        longest_tuple = (0, -INFINITY)
         for token_label in token_label_list:
-            on_ties_val = self.trie_regex_data_dict[token_label][0]
-            final_match_list.append(MatchedPrefixTuple(length=len(match),
-                                                   on_ties=on_ties_val,
-                                                   matched_string=match,
-                                                   token_label=token_label))
+            match_length = len(match)
+            on_ties = self.trie_regex_data_dict[token_label][0]
+            match_len_tuple = (match_length, on_ties)
+            if match_len_tuple < longest_tuple:
+                continue
+            if match_len_tuple != longest_tuple:
+                # final_match_list.clear() # Only in Python 3.
+                final_match_list = []
+            longest_tuple = match_len_tuple
+            final_match_list.append(MatchedPrefixTuple(length=match_length,
+                                                 on_ties=on_ties,
+                                                 matched_string=match,
+                                                 token_label=token_label))
         return final_match_list
 
     def _python_get_raw_matches(self, program, unprocessed_slice_indices):

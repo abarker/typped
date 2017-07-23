@@ -1238,7 +1238,7 @@ class RegexTrieDict(TrieDict):
             # this level are errors.
 
             next_meta_elems = node_data.children().keys()
-            print("next meta elems are", next_meta_elems)
+            #print("next meta elems are", next_meta_elems)
 
             # Loop through the meta-elems stored at the node and handle each one.
             for meta_elem in next_meta_elems:
@@ -1267,7 +1267,7 @@ class RegexTrieDict(TrieDict):
                 # Handle begin-repetitions.
                 #
                 elif meta_elem == self.repetition:
-                    print("DEBUG got a *, meta_elem is", meta_elem)
+                    #print("DEBUG got a *, meta_elem is", meta_elem)
                     self.handle_begin_repetitions(
                                       node_data, query_elem, next_node_data_list)
 

@@ -143,7 +143,7 @@ class RegexTrieDictScanner(object):
         next insertion back at the root node of the `RegexTrieDict`."""
         self.cannot_match = False # Set true when nothing in trie can match curr prefix.
         self.matching_nodes = None # Currently-matching nodes for current prefix.
-        self.last_matching_nodes = None # Last node collection containing a match.
+        self.last_matching_nodestates = None # Last node collection containing a match.
         self.last_matching_index = None # Prefix index for last match.
         self.last_index_inserted_in_rtd_matcher = 0 # Last index of current pattern.
         self.end_of_text_asserted = False
@@ -242,7 +242,7 @@ class RegexTrieDictScanner(object):
         attribute holds the corresponding list of lists of associated values.
 
         The raw matching nodes in the trie for the last pattern match are in
-        the attribute `last_matching_nodes`.
+        the attribute `last_matching_nodestates`.
 
         The list of appended characters which have not yet matched (and hence
         have not yet been removed from the current prefix) is stored in the
@@ -272,20 +272,25 @@ class RegexTrieDictScanner(object):
             self.prefix_matcher.append_key_elem(char)
             self.last_index_inserted_in_rtd_matcher += 1
 
-            matching_nodes = self.prefix_matcher.get_meta(no_matches_retval=[],
+            matching_nodestates = self.prefix_matcher.get_meta(no_matches_retval=[],
                                                           raw_nodes=True)
-            print("   matching nodes after char", char, "are:", matching_nodes)
-            if matching_nodes:
-                print("   Found a matching node, setting as last_matching_nodes and index")
-                self.last_matching_nodes = matching_nodes
+
+            #print("   matching nodes after char", char, "are:")
+            #for n in matching_nodestates:
+            #    print("     ", n) # DEBUG
+
+            if matching_nodestates:
+                print("   Found a matching node, setting as last_matching_nodestates and index")
+                self.last_matching_nodestates = matching_nodestates
                 self.last_matching_index = count
                 print("   DEBUG last matching index is:", count)
+                print("   DEBUG the node strings are:", [n.node.data for n in matching_nodestates])
 
             if self.prefix_matcher.cannot_match():
                 # Note we do not need cannot match test if we know the real next chars to insert!?!?
                 print("   DEBUG cannot_match is true in loop with index", count, self.curr_prefix_text[count])
                 self.cannot_match = True
-                if self.last_matching_nodes: # Found a previous match, use it.
+                if self.last_matching_nodestates: # Found a previous match, use it.
                     print("   breaking the for loop, had a prev match ending at", self.last_matching_index)
                     break
                 else:                        # No matches were found, return empty.
@@ -312,7 +317,7 @@ class RegexTrieDictScanner(object):
             self.last_matching_index -= 1
         match_text = self.curr_prefix_text[:self.last_matching_index + 1]
         print("match text is", match_text)
-        match_data_values = [n.node.data for n in self.last_matching_nodes]
+        match_data_values = [n.node.data for n in self.last_matching_nodestates]
         print("match data_values are", match_data_values)
         new_prefix = self.curr_prefix_text[self.last_matching_index + 1:]
         print("new_prefix is", new_prefix)
