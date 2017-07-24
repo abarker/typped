@@ -127,6 +127,7 @@ class Matcher(object):
         self.rtd_escape_char = "\\"
 
         self.default_insert_options = "python"
+        #self.default_insert_options = "python_but_trie_for_simple"
 
     def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False,
                        options=None):
@@ -156,6 +157,15 @@ class Matcher(object):
             self.ignore_tokens.add(token_label)
         if options is None:
             options = self.default_insert_options
+
+        if options == "python_but_trie_for_simple":
+            converted = convert_simple_python_regex_to_rtd_regex(regex_string,
+                                                                 self.rtd_escape_char)
+            if converted:
+                regex_string = converted
+                options = "trie"
+            else:
+                options = "python"
 
         if options == "python":
             compiled_regex = re.compile(regex_string,
@@ -208,9 +218,9 @@ class Matcher(object):
         else:
             best_matches = []
         if best_matches:
-            best_matches_len = best_matches[0].length
+            best_matches_len = (best_matches[0].length, best_matches[0].on_ties)
         else:
-            best_matches_len = 0
+            best_matches_len = (0, -INFINITY)
 
         # Trie matches.
         if self.trie_regex_data_dict:
@@ -218,9 +228,9 @@ class Matcher(object):
         else:
             best_matches_trie = []
         if best_matches_trie:
-            best_matches_trie_len = best_matches_trie[0].length
+            best_matches_trie_len = (best_matches_trie[0].length, best_matches_trie[0].on_ties)
         else:
-            best_matches_trie_len = 0
+            best_matches_trie_len = (0, -INFINITY)
         print("best_matches_trie =", best_matches_trie)
         print("best_matches_trie_len =", best_matches_trie_len)
 
@@ -230,9 +240,9 @@ class Matcher(object):
         else:
             best_matches_fnl = []
         if best_matches_fnl:
-            best_matches_fnl_len = best_matches_fnl[0].length
+            best_matches_fnl_len = (best_matches_fnl[0].length, best_matches_fnl[0].on_ties)
         else:
-            best_matches_fnl_len = 0
+            best_matches_fnl_len = (0, -INFINITY)
 
         #
         # Pick the longest match and return it.
@@ -421,6 +431,8 @@ class MatcherException(LexerException):
 match_unescaped_prefix = "(?<!\\)(?:\\\\)*" # Prefix for finding unescaped character.
 
 regex_special_chars = ".^$*+?{}|()[]"
+regex_special_sequences = "0123456789AbBdDsSwWZ"
+#regex_char_ranges =
 standard_python_escapes = "abfnrtvx\\"
 
 match_unescaped_special = "|".join(match_unescaped_prefix + c for c in regex_special_chars)
@@ -432,6 +444,7 @@ def is_fixed_length(regex):
     length).  Otherwise, return false.  Note that zero-length matches are not
     considered fixed-length.  Only a subset of fixed-length patterns are recognized,
     currently those consisting of regular characters and/or character sets."""
+    # TODO: Needs to be more precise... can \b be use in char ranges, for example???
     # Note that fixed-length can be used with longest-matching, but it still
     # cannot catch matches that tie, i.e., those ties are still broken by
     # insertion order.
@@ -449,23 +462,83 @@ def is_fixed_length(regex):
     # the former wins, return that.  If the latter wins, do a secondary
     # sequential search on the patterns of that length.
     effective_length = 0
-    in_charset = False
+    inside_charset = False
     for char, is_escaped in process_elem_list_for_escapes(regex, "\\"):
         if char == "]" and not is_escaped:
-            if not in_charset:
+            if not inside_charset:
                 raise MatcherException("Closing character set range ']' with no `[`.")
-            in_charset = False
+            inside_charset = False
             continue
-        if in_charset:
+        if inside_charset:
             continue
-        if char == "[":
-            in_charset = True
+        if char == "[" and not is_escaped:
+            inside_charset = True
             effective_length += 1
             continue
         effective_length += 1
         if char in regex_special_chars and not is_escaped:
             return False
     return effective_length
+
+def convert_simple_python_regex_to_rtd_regex(regex, rtd_escape=None):
+    """Return the conversion to the `RegexTrieDict` version of the regex.
+    Currently regexes consisting of regular characters and/or character sets are
+    handled.
+
+    The `rtd_escape` argument, if present, should be the escape character
+    set as the `escape` attribute of the `RegexTrieDict` instance (defaulting to
+    the Python escape character).
+
+    Any Python regex special characters must be escaped to be treated as literals.
+    All but matches brackets cause `False` to be returned.  The special characters
+    are '{}'.""".format(regex_special_chars)
+    # TODO This needs to be more precise in handling special sequences, escapes, etc.
+    # See Python regex docs...
+    print("regex to convert is", regex)
+    python_escape = "\\"
+    if not rtd_escape:
+        rtd_escape = python_escape
+    same_escape = (python_escape == rtd_escape)
+
+    inside_charset = False
+    converted_char_list = []
+    for char, is_escaped in process_elem_list_for_escapes(regex, python_escape):
+        print("char is", char, "is_escaped is", is_escaped)
+        if char == "]" and inside_charset and not is_escaped:
+            if not inside_charset:
+                raise MatcherException("Closing character set range ']' with no `[`.")
+            converted_char_list.append(python_escape)
+            converted_char_list.append("]")
+            inside_charset = False
+        elif char == "[" and not is_escaped:
+            converted_char_list.append(python_escape)
+            converted_char_list.append("[")
+            inside_charset = True
+        elif char == "-" and not is_escaped and inside_charset:
+            converted_char_list.append(python_escape)
+            converted_char_list.append("-")
+        elif char == python_escape:
+            print("got a python escape")
+            converted_char_list.append(python_escape)
+            if is_escaped and same_escape:
+                print("python escape is escaped")
+                converted_char_list.append(python_escape)
+        elif char == rtd_escape and not same_escape:
+            if is_escaped:
+                # Python escaped RTD escapes are not allowed in
+                # simple patterns when the chars differ.
+                return False
+            converted_char_list.append(rtd_escape)
+            converted_char_list.append(rtd_escape)
+        elif char in regex_special_chars and not is_escaped:
+            return False
+        else:
+            if is_escaped and inside_charset:
+                converted_char_list.append(python_escape)
+            converted_char_list.append(char)
+    converted_string = "".join(converted_char_list)
+    print(converted_string)
+    return converted_string
 
 def test_fixed_length():
     assert is_fixed_length(r"xyz") == 3
@@ -475,6 +548,20 @@ def test_fixed_length():
     assert is_fixed_length(r"xy[a-z]\\*z") == False
     assert is_fixed_length(r"xy[a-z]\\") == 4
 #test_fixed_length()
+
+def test_simple_regex_conversion_python_to_rtd():
+    print(convert_simple_python_regex_to_rtd_regex("water[abc]salad"))
+    assert convert_simple_python_regex_to_rtd_regex("water[abc]salad") == "water\\[abc\\]salad"
+    assert convert_simple_python_regex_to_rtd_regex("water[a-c]salad") == "water\\[a\\-c\\]salad"
+    assert convert_simple_python_regex_to_rtd_regex("xyz") == "xyz"
+    assert convert_simple_python_regex_to_rtd_regex(r"x\yz") == r"xyz" # Note \y to y alone!
+    assert convert_simple_python_regex_to_rtd_regex(r"x\[yz\]") == r"x[yz]"
+    assert convert_simple_python_regex_to_rtd_regex("x\\\\z") == "x\\\\z"
+    assert convert_simple_python_regex_to_rtd_regex(r"[\s]") == r"\[\s\]"
+
+    assert convert_simple_python_regex_to_rtd_regex("w[a-c]~s", "~") == "w\\[a\\-c\\]~~s"
+    assert convert_simple_python_regex_to_rtd_regex("w(x|y)", "~") == False
+    assert convert_simple_python_regex_to_rtd_regex("w~*", "~") == False
 
 def _convert_simple_pattern(self, regex_string): # EXPERIMENTAL
     """This is EXPERIMENTAL: Consider option to recognize "simple" patterns and
