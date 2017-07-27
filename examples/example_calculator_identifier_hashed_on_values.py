@@ -6,6 +6,10 @@ in the general Typped documentation web page as a calculator example.
 
 """
 
+# TODO TODO TODO: Currently this is just a copy of the regular calculator example.
+# Convert to only define identifier tokens, not sin, cos, etc.  Use the key_on_values
+# kwargs to constructs...
+
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
@@ -155,6 +159,7 @@ def define_assignment_operator(parser):
 
     parser.def_infix_op("k_equals", 5, "right",
                 precond_fun=lambda lex, lb: lex.peek(-1).token_label == "k_identifier",
+                construct_label="lhs must be identifier",
                 eval_fun=eval_assign)
 
 def define_comments(parser):

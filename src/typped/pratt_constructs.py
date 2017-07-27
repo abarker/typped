@@ -2,11 +2,11 @@
 
 """
 
-This module holds the `SyntaxConstruct` class and the `ConstructTable`
+This module holds the `Construct` class and the `ConstructTable`
 class definitions.  They are basically just data containers, which are
 accessed by the `PrattParser` instances.  Each `PrattParser` instance
 has a `ConstructTable` instance.  The `ConstructTable` instances
-hold `SyntaxConstruct` instances.
+hold `Construct` instances.
 
 Constructs themselves are just handler functions for a pratt parser
 which are also associated with a triggering token label, a preconditions
@@ -48,7 +48,7 @@ def sort_handler_dict(d):
            d.items(), key=lambda item: item[1].precond_priority, reverse=True))
 
 
-class SyntaxConstruct(object):
+class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function
     containing extra context information such as the preconditions function,
@@ -92,6 +92,41 @@ class SyntaxConstruct(object):
                        eval_fun_dict = None,
                        ast_data_dict = None,
                        key_on_values=False):
+
+        """Initialize a `Construct` instance associated with the parser
+        `parser_instance`.  Users should usually use the `register_construct`
+        method of a `PrattParser` instance instead of instantiating a
+        `Construct` directly.  That routine calls the `register_construct`
+        method of a `ConstructTable` instance, which in turn instantiates a
+        `Construct`.
+
+        For a new construct the string `construct_label` should be unique among
+        constructs associated with the parser.  The `register_construct` method
+        of `ConstructTable` (parsers store constructs in instances of that
+        class) assumes overloading if the label is the same as an existing one
+        in the table.
+
+        The `trigger_head_or_tail` argument should be either `HEAD` or `TAIL`
+        (which are currently defined as the strings `"head"` and `"tail"`).
+
+        The `trigger_token_label` is the label of the triggering token.
+
+        The `handler_fun` argument should be passed the handler function.  It
+        will be used with preconditions function `precond_fun`, at priority
+        `precond_priority`.
+
+        The formal type signature, unexpanded since that is done at parse-time,
+        can be passed as `original_sig`.
+
+        An dictionary of evaluation functions and arbitrary data can be passed
+        as `eval_fun_dict` and `ast_data_dict`.  Otherwise new empty instances
+        are created.  Dicts are passed when redefining a construct (i.e.,
+        overloading) in order to save the previous data.
+
+        If `key_on_values` is set true then the string values of parsed tokens
+        are also used as part of the key for saving and looking up AST data and
+        evaluation functions."""
+
         self.parser_instance = parser_instance
         self.construct_label = construct_label
 
@@ -158,60 +193,60 @@ class SyntaxConstruct(object):
     # to that first.  Note that the typesig really needs to be the same for
     # this to be useful, but true for sin and cos.
 
-    def save_eval_fun_and_ast_data(self, type_sig, eval_fun, ast_data, string_value):
+    def save_eval_fun_and_ast_data(self, type_sig, eval_fun, ast_data, value_key):
         """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
         `TypeSig` instance `typesig` and also by the `arg_types` of that
         typesig.  If `key_on_values` is true for the construct then the
-        value `string_value` is also used in the hashing."""
+        value `value_key` is also used in the hashing."""
         if not self.key_on_values:
-            string_value = None
+            value_key = None
 
         # Save in dicts hashed with full signature (full overload with return).
-        dict_key = (type_sig, string_value)
+        dict_key = (type_sig, value_key)
         self.ast_data_dict[dict_key] = ast_data
         self.eval_fun_dict[dict_key] = eval_fun
         # Also save in dicts hashed only on args (overloading only on args).
-        dict_key = (type_sig.arg_types, string_value)
+        dict_key = (type_sig.arg_types, value_key)
         self.ast_data_dict[dict_key] = ast_data
         self.eval_fun_dict[dict_key] = eval_fun
         # Also save in dicts hashed only on precond label (no overloading).
-        dict_key = string_value
+        dict_key = value_key
         self.ast_data_dict[dict_key] = ast_data
         self.eval_fun_dict[dict_key] = eval_fun
 
-    def get_eval_fun(self, orig_sig, string_value=None):
+    def get_eval_fun(self, orig_sig, value_key=None):
         """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
         if not self.key_on_values:
-            string_value = None
+            value_key = None
         if self.parser_instance.overload_on_ret_types:
-            dict_key = (orig_sig, string_value)
+            dict_key = (orig_sig, value_key)
         elif self.parser_instance.overload_on_arg_types:
-            dict_key = (orig_sig.arg_types, string_value)
+            dict_key = (orig_sig.arg_types, value_key)
         else:
-            dict_key = string_value
+            dict_key = value_key
         return self.eval_fun_dict.get(dict_key, None)
 
-    def get_ast_data(self, orig_sig, string_value=None):
+    def get_ast_data(self, orig_sig, value_key=None):
         """Return the ast data saved by `_save_ast_data_and_ast_data`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
         if not self.key_on_values:
-            string_value = None
+            value_key = None
         if self.parser_instance.overload_on_ret_types:
-            dict_key = (orig_sig, string_value)
+            dict_key = (orig_sig, value_key)
         elif self.parser_instance.overload_on_arg_types:
-            dict_key = (orig_sig.arg_types, string_value)
+            dict_key = (orig_sig.arg_types, value_key)
         else:
-            dict_key = string_value
+            dict_key = value_key
         return self.ast_data_dict.get(dict_key, None)
 
 
 class ConstructTable(object):
-    """A dict holding `SyntaxConstruct` objects, with related methods.  Each
+    """A dict holding `Construct` objects, with related methods.  Each
     `PrattParser` instance has a `ConstructTable` instance to hold its constructs."""
     def __init__(self, parser_instance=None):
         self.parser_instance = parser_instance
@@ -221,23 +256,28 @@ class ConstructTable(object):
 
     def register_construct(self, head_or_tail, trigger_token_label, construct_label,
                            handler_fun, precond_fun, precond_priority=0,
-                           type_sig=TypeSig(None, None), key_on_values=False,
-                           eval_fun=None, ast_data=None, string_value=None,
+                           type_sig=TypeSig(None, None),
+                           eval_fun=None, ast_data=None, value_key=None,
                            parser_instance=None): # TODO may not need parser instance arg later...
-        """Register a construct (either head or tail) with the
-        subclass for this kind of token, setting the given properties.
-        This method is only ever called from the `def_construct`
-        method of a `PrattParser` instance.
+        """Register a construct (either head or tail) with the subclass for
+        this kind of token, setting the given properties.  This method is only
+        ever called from the `def_construct` method of a `PrattParser`
+        instance.
 
         The `head_or_tail` argument must be `HEAD` or `TAIL`.
 
         The `type_sig` argument must be a valid `TypeSig` instance.  Every
         unique type signature is saved, and non-unique ones have their
-        previously-associated data overwritten."""
+        previously-associated data overwritten.
+
+        If `value_key` is set then it will be used as part of the key on evaluation
+        functions and AST data.  The `key_on_values` attribute of the `Construct`
+        instance is set based on this being set, and must always be the same for a
+        given construct."""
         self.parser_instance = parser_instance
-        if key_on_values and not isinstance(str, string_value):
-            raise ParserException("A string value must be passed to "
-                    "`register_construct` in order to key on values.")
+        key_on_values = False
+        if value_key:
+            key_on_values = True
 
         # Todo: Consider this possible optimization in looking up handler
         # functions, instead of always linear search.  Some very commonly
@@ -280,14 +320,18 @@ class ConstructTable(object):
             token_construct_dict[trigger_token_label] = OrderedDict()
         sorted_construct_dict = token_construct_dict[trigger_token_label]
 
-        # Get and save any previous type sig data (for overloaded sigs
-        # corresponding to a single construct_label).
+        # Get and save any previous type sig info, ast data, and evaluation
+        # functions (for overloaded sigs corresponding to a single
+        # construct_label).
         prev_construct = sorted_construct_dict.get(construct_label, None)
         if prev_construct is None:
             prev_sigs = []
             prev_ast_data = {}
             prev_eval_funs = {}
         else:
+            if key_on_values != prev_construct.key_on_values:
+                raise ParserException("If any overload of a `Construct` instance "
+                        "supplies a `value_key` then all its overloads must also.")
             prev_sigs = prev_construct.original_sigs
             prev_ast_data = prev_construct.ast_data_dict
             prev_eval_funs = prev_construct.eval_fun_dict
@@ -305,28 +349,27 @@ class ConstructTable(object):
         TypeSig.append_sig_to_list_replacing_if_identical(prev_sigs, type_sig)
 
         # Set up the new construct.
-        new_construct = SyntaxConstruct(self.parser_instance,
-                                        construct_label=construct_label,
-                                        trigger_head_or_tail=head_or_tail,
-                                        trigger_token_label=trigger_token_label,
-                                        handler_fun=handler_fun,
-                                        precond_fun=precond_fun,
-                                        precond_priority=precond_priority,
-                                        original_sig=prev_sigs,
-                                        ast_data_dict=prev_ast_data,
-                                        eval_fun_dict=prev_eval_funs,
-                                        key_on_values=key_on_values)
-        # Also pass on the eval_fun_dict and ast_fun_dict.
+        new_construct = Construct(self.parser_instance,
+                                  construct_label=construct_label,
+                                  trigger_head_or_tail=head_or_tail,
+                                  trigger_token_label=trigger_token_label,
+                                  handler_fun=handler_fun,
+                                  precond_fun=precond_fun,
+                                  precond_priority=precond_priority,
+                                  original_sig=prev_sigs,
+                                  ast_data_dict=prev_ast_data,
+                                  eval_fun_dict=prev_eval_funs,
+                                  key_on_values=key_on_values)
         sorted_construct_dict[construct_label] = new_construct
 
         # Re-sort the OrderedDict, since we added an item.
         resorted_handler_dict = sort_handler_dict(sorted_construct_dict)
         self.construct_dict[head_or_tail][trigger_token_label] = resorted_handler_dict
 
-        # Save the eval_fun and ast_data.
+        # Save the eval_fun and ast_data.  (Note `key_on_values` setting will be used.)
         self.save_eval_fun_and_ast_data(head_or_tail,
                                         trigger_token_label, construct_label,
-                                        type_sig, eval_fun, ast_data, string_value)
+                                        type_sig, eval_fun, ast_data, value_key)
 
         # Make sure we don't get multiple definitions with the same
         # priority when the new one is inserted.
@@ -459,7 +502,7 @@ class ConstructTable(object):
         return handler
 
     def save_eval_fun_and_ast_data(self, head_or_tail, trigger_token_label, construct_label,
-                                    type_sig, eval_fun, ast_data, string_value):
+                                    type_sig, eval_fun, ast_data, value_key):
         """This is a utility function that saves data in the `eval_fun_dict`
         and `ast_data_dict` associated with token `token_subclass`, keyed by
         the `TypeSig` instance `typesig` and also by the `arg_types` of that
@@ -467,7 +510,7 @@ class ConstructTable(object):
         evaluations and AST data."""
         # TODO: better error-checking,
         construct = self.construct_dict[head_or_tail][trigger_token_label][construct_label]
-        construct.save_eval_fun_and_ast_data(type_sig, eval_fun, ast_data, string_value)
+        construct.save_eval_fun_and_ast_data(type_sig, eval_fun, ast_data, value_key)
 
     def get_eval_fun(self, orig_sig, trigger_token_instance):
         """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.

@@ -1258,8 +1258,7 @@ class PrattParser(object):
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
                       construct_label=None, prec=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
-                      eval_fun=None, ast_data=None, key_on_values=False,
-                      string_value=None):
+                      eval_fun=None, ast_data=None, value_key=None):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
         token table, or an exception will be raised.
@@ -1280,12 +1279,17 @@ class PrattParser(object):
         This allows for different overloads to have different evaluation
         functions and AST-associated data.
 
-        If `key_on_values` is true then values will be used to key eval funs
-        and AST data.  The `string_value` is a value to set with this data.
-        Used, for example, when overloading a generic identifier with different
-        evaluations when the value is `sin`, `cos`, etc."""
+        If `value_key` is set to a string value then that value will be part of
+        the key tuple for saving AST data and evaluation functions.  This can
+        be used, for example, when overloading a generic identifier with
+        different evaluation functions for when the identifier value is `sin`,
+        `cos`, etc.  In looking up the AST data and evaluation function the
+        parsed token's actual string value (from the program text) is used as
+        the key.  If any overload of a particular construct provides a
+        `value_key` string then all the other overloads for that construct must
+        also (for the time being, at least)."""
         # Note that the parser_instance attribute of tokens is not necessarily
-        # set yet when this is called.
+        # set yet when this method is called.
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
@@ -1319,8 +1323,8 @@ class PrattParser(object):
         # Register the handler funs.
         construct = self.construct_table.register_construct(head_or_tail, trigger_token_label,
                                               construct_label, handler_fun, precond_fun,
-                                              precond_priority, type_sig, key_on_values,
-                                              eval_fun, ast_data, string_value,
+                                              precond_priority, type_sig,
+                                              eval_fun, ast_data, value_key,
                                               parser_instance=self)
         return construct
 

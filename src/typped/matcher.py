@@ -120,6 +120,7 @@ class Matcher(object):
         self.python_fnl_data_dict = collections.OrderedDict() # FNL regex data.
         self.python_fnl_combo_regex_is_stale = True # When to recompile big regex.
         self.python_fnl_combo_regex = True # When to recompile big regex.
+        self.sort_python_fnl = False # Whether to sort or use insertion ordering in FNL.
 
         self.trie_regex_data_dict = {} # Data for the regexes stored in the trie.
         self.rtd_scanner = None
@@ -127,7 +128,9 @@ class Matcher(object):
         self.rtd_escape_char = "\\"
 
         self.default_insert_options = "python"
+        #self.default_insert_options = "python_fnl"
         #self.default_insert_options = "python_but_trie_for_simple"
+        #self.default_insert_options = "python_but_fnl_for_fixed_length"
 
     def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False,
                        options=None):
@@ -141,18 +144,37 @@ class Matcher(object):
 
         If `options="python_fnl"` then the patterns are combined into a single
         regex whenever necessary.  This is faster, but gives "first not
-        longest" semantics.  That is, the first-defined patterns take
+        longest" (FNL) semantics.  That is, the first-defined patterns take
         precedence regardless of length.  In this case any `on_ties` values are
         used to pre-sort the list instead of breaking equal-length ties.
+        Unlike the `python` and `trie` options this method cannot detect
+        multiple token matches without an `on_ties` value to break the tie.
+        The insertion ordering is implicitly used to break ties.
+
+        TODO: Reconsider the `on_ties` semantics... maybe just for comparing across
+        methods?
 
         If `options="trie"` then the pattern is inserted in a `RegexTrieDict`
         for matching (and must be in the correct format).
 
+        Any of the above options can be set arbitrarily for each insertion.
         The default insert options for a `MatcherPythonRegex` instance can be
         changed by setting the attribute `default_insert_options` to the desired
-        value."""
-        # Note that this method does not check for reinsertions of the same
-        # token label; the def_token that calls it is responsible for that.
+        value.  The default can be changed between the above options at any time.
+
+        Two combined options are `python_but_trie_for_simple` and
+        `python_but_fnl_for_fixed_length`.  These use a hybrid approach to
+        limit the number of patterns which need to be sequentially searched
+        while still retaining longest-match behavior.  The latter option cannot
+        be used in combination with the ordinary FNL method because it always
+        sorts its regexes by length.  Like the ordinary FNL method this method
+        cannot catch all multiple-matches (such as for "cat" and "ca[rt]") but
+        it catches more.  It cannot detect multiple matches for same-length
+        patterns which are matched by the FNL matcher (vs. the Python matcher).
+
+        Note that this method does not check for reinsertions of the same token
+        label; the higher-level `def_token` routine which calls it is
+        responsible for that."""
         if ignore:
             self.ignore_tokens.add(token_label)
         if options is None:
@@ -166,6 +188,13 @@ class Matcher(object):
                 options = "trie"
             else:
                 options = "python"
+        elif options == "python_but_fnl_for_fixed_length":
+            length = is_fixed_length(regex_string)
+            if length:
+                options = "python_fnl"
+                self.sort_python_fnl = True
+            else:
+                options = "python"
 
         if options == "python":
             compiled_regex = re.compile(regex_string,
@@ -176,7 +205,6 @@ class Matcher(object):
             self.python_fnl_combo_regex_is_stale = True
             regex_data = (on_ties, regex_string)
             self.python_fnl_data_dict[token_label] = regex_data
-
         elif options == "trie":
             if self.rtd is None:
                 self.rtd = RegexTrieDict()
@@ -359,27 +387,33 @@ class Matcher(object):
 
     def _python_first_not_longest(self, program, unprocessed_slice_indices):
         """A low-level scanner that combines the regexes and has "first-defined
-        not longest" matching behavior for unresolved ties.  This method of
-        scanning is more efficient in recognizing the patterns, but its
+        not longest" (FNL) matching behavior for unresolved ties.  This method
+        of scanning is more efficient in recognizing the patterns, but its
         semantics depend on definition ordering and it has slow insert and
         delete time (since it builds one large regex and compiles it).  This
         implementation only assembles and compiles the combined patterns
         when it is actually called to scan text, if the current compiled
         regex is stale.
 
-        All the patterns are first sorted on any `on_ties` values provided, in
-        a stable sort so the insertion order otherwise stays the same.  So the
-        `on_ties` values have different semantics with this kind of scanner
-        than with the others.  The others use `on_ties` to break ties between
-        the longest matching patterns.  In this case, though, the first
-        matching pattern in the sorted list is chosen.  So `on_ties`
-        essentially becomes a way to override the effect of definition
-        ordering.
+        The `on_ties` values have different semantics with this kind of scanner
+        than with the others.  All the patterns are first sorted on any
+        `on_ties` values provided.  Since the sort is stable the ordering
+        within equal `on_ties` values remains by insertion order.
+        The other matchers use `on_ties` to break ties between the longest matching
+        patterns.  In this case, though, the first matching pattern in the
+        sorted list is chosen.  So `on_ties` essentially becomes a way to
+        override the effect of definition ordering *except* that if multiple
+        low-level matchers are used the `on_ties` values are also used to
+        break ties among the different ones used.
 
         This scanner simply returns the first match, so it does not catch
         errors due to unresolved ties!  This only applies to patterns stored in
         this matcher, however.  If a combination of matchers is used then
         some ties will still be caught.
+
+        If the attribute `sort_python_fnl` is true the sorting is modified.
+        Items in the dict are ordered by the tuples `(length, on_ties,
+        regex_string)`.  This is used in the hybrid Python-FNL matcher.
 
         This code is based on the tokenizer in the Python 3 documentation at
         https://docs.python.org/3.6/library/re.html#writing-a-tokenizer
@@ -388,11 +422,24 @@ class Matcher(object):
         http://lucumr.pocoo.org/2015/11/18/pythons-hidden-re-gems/
         but it is not used here."""
         if self.python_fnl_combo_regex_is_stale:
-            # Re-sort the ordered dict by on_ties values (stable sort keeps
-            # insertion order otherwise).
-            self.python_fnl_data_dict = collections.OrderedDict(
-                    sorted(self.python_fnl_data_dict.items(), key=lambda i: i[1][0],
-                           reverse=True))
+            # If the hybrid python-fnl method is being used, sort patterns by the tuples:
+            #    (length, on_ties, regex_string)
+            if self.sort_python_fnl:
+                self.python_fnl_data_dict = collections.OrderedDict(
+                        sorted(self.python_fnl_data_dict.items(),
+                            key=lambda i: (is_fixed_length(i[1][1]), i[1][0], i[1][1]),
+                               reverse=True))
+
+            # Otherwise, re-sort the ordered dict by their on_ties values.
+            else:
+                self.python_fnl_data_dict = collections.OrderedDict(
+                        sorted(self.python_fnl_data_dict.items(), key=lambda i: i[1][0],
+                               reverse=True))
+
+            print()
+            for i in self.python_fnl_data_dict.items():
+                print("sort tuple", (is_fixed_length(i[1][1]), i[1][0], i[1][1]))
+                print("dict item", i)
             # Build the big regex and compile it.
             regex_pieces = ["(?P<{0}>{1})".format(i[0], i[1][1])
                                          for i in self.python_fnl_data_dict.items()]
@@ -409,8 +456,9 @@ class Matcher(object):
             token_label = match_object.lastgroup
             matched_string = program[match_object.start():match_object.end()]
             match_length = len(matched_string)
+            on_ties = self.python_fnl_data_dict[token_label][0]
             match_list.append(MatchedPrefixTuple(length=match_length,
-                                                 on_ties=None,
+                                                 on_ties=on_ties,
                                                  matched_string=matched_string,
                                                  token_label=token_label))
         print("returned match_list is", match_list)
