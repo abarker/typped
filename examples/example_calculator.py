@@ -29,11 +29,12 @@ def define_general_tokens_and_literals(parser):
     parser.def_default_whitespace() # Does the same as the commented-out lines above.
 
     token_list = [
-            # Below is from: https://docs.python.org/2/library/re.html#simulating-scanf
-            #("k_float", r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"),
-            # But if we use the Python doc form exactly then 4 -4 would be interpreted
-            # as a multiplication jop for rather than correctly, as subtraction.
-            # So the [+-] part is left off and done as a prefix operator.
+            # This regex for a float is from:
+            # https://docs.python.org/2/library/re.html#simulating-scanf
+            #   ("k_float", # r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?")
+            # But if we used the Python doc form exactly then 4 -4 would be interpreted
+            # as a multiplication jop for rather than correctly, as subtraction.  So
+            # the [+-] part is left off and is done as a prefix operator instead.
             ("k_float", r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"),
 
             ("k_double_ast", r"(?:\*\*|\^)"), # Note ^ is defined as a synonym.
@@ -49,7 +50,7 @@ def define_general_tokens_and_literals(parser):
             ("k_bang", r"!"),
             ("k_equals", r"="),
             ]
-    parser.def_multi_tokens(token_list)
+    parser.def_multi_tokens(token_list, matcher_options="python_fnl")
 
     # Note that the token for the exponentiation operator has multiple symbols
     # defined for it in its regex (both '**' and '^').  The same thing could

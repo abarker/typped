@@ -251,7 +251,7 @@ general tokens and literals in the calculator language:
                ("k_bang", r"!"),
                ("k_equals", r"="),
                ]
-       parser.def_multi_tokens(token_list)
+       parser.def_multi_tokens(token_list, ignored=False)
 
        #
        # Literals.

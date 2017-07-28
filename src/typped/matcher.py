@@ -18,7 +18,7 @@ Using the matcher
 
 The trie method is still experimental, so the default is to use the Python
 regexes only.  Any patterns passed to the `get_next_token_label_and_value`
-with `options="trie"` will be stored instead in the trie.
+with `matcher_options="trie"` will be stored instead in the trie.
 
 The Python matcher has good insert and delete times, but can become inefficient
 for large numbers of patterns.  The trie is less efficient for small numbers of
@@ -133,16 +133,16 @@ class Matcher(object):
         #self.default_insert_options = "python_but_fnl_for_fixed_length"
 
     def insert_pattern(self, token_label, regex_string, on_ties=0, ignore=False,
-                       options=None):
+                       matcher_options=None):
         """Insert the pattern in the list of regex patterns.
 
         If `ignore` is true then the pattern is treated as an ignored pattern.
 
-        If `options="python"` then the patterns are saved as individual Python
+        If `matcher_options="python"` then the patterns are saved as individual Python
         regexes.  Each item on the list is checked against pattern for prefix
         matches.  This is the default.
 
-        If `options="python_fnl"` then the patterns are combined into a single
+        If `matcher_options="python_fnl"` then the patterns are combined into a single
         regex whenever necessary.  This is faster, but gives "first not
         longest" (FNL) semantics.  That is, the first-defined patterns take
         precedence regardless of length.  In this case any `on_ties` values are
@@ -154,7 +154,7 @@ class Matcher(object):
         TODO: Reconsider the `on_ties` semantics... maybe just for comparing across
         methods?
 
-        If `options="trie"` then the pattern is inserted in a `RegexTrieDict`
+        If `matcher_options="trie"` then the pattern is inserted in a `RegexTrieDict`
         for matching (and must be in the correct format).
 
         Any of the above options can be set arbitrarily for each insertion.
@@ -177,43 +177,44 @@ class Matcher(object):
         responsible for that."""
         if ignore:
             self.ignore_tokens.add(token_label)
-        if options is None:
-            options = self.default_insert_options
+        if matcher_options is None:
+            matcher_options = self.default_insert_options
 
-        if options == "python_but_trie_for_simple":
+        if matcher_options == "python_but_trie_for_simple":
             converted = convert_simple_python_regex_to_rtd_regex(regex_string,
                                                                  self.rtd_escape_char)
             if converted:
                 regex_string = converted
-                options = "trie"
+                matcher_options = "trie"
             else:
-                options = "python"
-        elif options == "python_but_fnl_for_fixed_length":
+                matcher_options = "python"
+        elif matcher_options == "python_but_fnl_for_fixed_length":
             length = is_fixed_length(regex_string)
             if length:
-                options = "python_fnl"
+                matcher_options = "python_fnl"
                 self.sort_python_fnl = True
             else:
-                options = "python"
+                matcher_options = "python"
 
-        if options == "python":
+        if matcher_options == "python":
             compiled_regex = re.compile(regex_string,
                                         re.VERBOSE|re.MULTILINE|re.UNICODE)
             regex_data = TokenPatternTuple(regex_string, compiled_regex, on_ties)
             self.python_data_dict[token_label] = regex_data
-        elif options == "python_fnl":
+        elif matcher_options == "python_fnl":
             self.python_fnl_combo_regex_is_stale = True
             regex_data = (on_ties, regex_string)
             self.python_fnl_data_dict[token_label] = regex_data
-        elif options == "trie":
+        elif matcher_options == "trie":
             if self.rtd is None:
                 self.rtd = RegexTrieDict()
                 self.rtd.define_meta_elems(escape=self.rtd_escape_char)
             self.trie_regex_data_dict[token_label] = (on_ties, regex_string)
             self.rtd[regex_string] = token_label
         else:
-            raise MatcherException("Bad option '{0}' passed to the insert_pattern method"
-                                 " of the MatcherPythonRegex instance.".format(options))
+            raise MatcherException("Bad option '{0}' passed to the insert_pattern "
+                                   "method of the MatcherPythonRegex instance."
+                                   .format(matcher_options))
 
     def remove_pattern(self, token_label):
         """Remove the pattern for the token corresponding to `token_label`."""
@@ -259,8 +260,6 @@ class Matcher(object):
             best_matches_trie_len = (best_matches_trie[0].length, best_matches_trie[0].on_ties)
         else:
             best_matches_trie_len = (0, -INFINITY)
-        print("best_matches_trie =", best_matches_trie)
-        print("best_matches_trie_len =", best_matches_trie_len)
 
         # Python first-not-longest matches.
         if self.python_fnl_data_dict:
@@ -328,7 +327,6 @@ class Matcher(object):
         if not match_list:
             return []
         match = match_list[0]
-        print("returned match_list is", match_list)
         token_label_list = scanner.last_values[0]
 
         longest_tuple = (0, -INFINITY)
@@ -436,10 +434,6 @@ class Matcher(object):
                         sorted(self.python_fnl_data_dict.items(), key=lambda i: i[1][0],
                                reverse=True))
 
-            print()
-            for i in self.python_fnl_data_dict.items():
-                print("sort tuple", (is_fixed_length(i[1][1]), i[1][0], i[1][1]))
-                print("dict item", i)
             # Build the big regex and compile it.
             regex_pieces = ["(?P<{0}>{1})".format(i[0], i[1][1])
                                          for i in self.python_fnl_data_dict.items()]
@@ -461,7 +455,6 @@ class Matcher(object):
                                                  on_ties=on_ties,
                                                  matched_string=matched_string,
                                                  token_label=token_label))
-        print("returned match_list is", match_list)
         return match_list
 
 #

@@ -150,26 +150,36 @@ The type system is discussed more in later sections.
 Uniqueness of constructs
 ------------------------
 
-A construct must always have a string label associated with it.  Equality or
-non-equality of two constructs for a given token in a give position (head or
-tail) is *defined* to be equality of their labels.  This is used to determine
-when a construct is being redefined.
+A construct always has a label associated with it.  Equality or non-equality of
+two constructs is determined by equality of triples of the form::
 
-When a construct is redefined and is passed the same type signature as the
-previous definition the new definition simply overwrites the old one.  When the
-type signatures of the two types are different, though, the construct is
-assumed to be overloaded based on types.
+   (head_or_tail, trigger_token_label, construct_label)
+
+If no construct label is provided to the ``def_construct`` call a unique label
+is generated.  Explicit labels are only required in order to modify or overload
+already-exiting constructs.
+
+To modify a construct or overload a construct (such as a construct for an
+overloaded infix operator) you simply call ``def_construct`` with the same
+construct label as a previous construct for that trigger token in that head or
+tail position.
+
+When an existing construct is redefined and ``def_construct`` is passed the
+same type signature as the previous definition the new one simply overwrites
+the old one.  When the type signatures of the two calls to ``def_construct``
+differ, however, overloading on types is assumed for the construct.
 
 Recall that function overloading based on argument types is used for
 syntactical constructs which parse the same (i.e., using the same handler
-function) but are then resolved into different things based on the actual types
-of the arguments (and possibly the return value).
+function) but which are then resolved into different semantic objects based on
+the actual types of the arguments which are processed at parse-time.
+Overloading can also involve the type of the function's return value.
 
-Redefining a construct for a given token and position acts like overwriting in
-the sense that only the new handler, preconditions function, and preconditions
-priority is saved.  In this case, though, any previous type signatures and any
-data associated with those signatures (such as evaluation functions) is saved
-along with the new ones.
+When overloading is determined on a ``def_construct`` call any previous type
+signatures and any data associated with those signatures (such as AST data and
+evaluation functions) is saved with the construct along with the new ones.  The
+handler function, precedence, preconditions function, and preconditions
+priority are overwritten with the most-recently-defined versions.
 
 .. topic:: Two ways to parse identifiers
 

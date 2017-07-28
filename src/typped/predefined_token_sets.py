@@ -62,13 +62,13 @@ default_token_label_dict = {
 
 def def_default_whitespace(parser, space_label="k_space", space_regex=r"[ \t]+",
                     newline_label="k_newline", newline_regex=r"[\n\f\r\v]+",
-                    options=None):
+                    matcher_options=None):
     """Define the standard whitespace tokens for space and newline, setting
     them as ignored tokens."""
     # Note + symbol for one or more, NOT the * symbol for zero or more.
     tok = parser.def_ignored_token
-    tok(space_label, space_regex, options=options)
-    tok(newline_label, newline_regex, options=options)
+    tok(space_label, space_regex, matcher_options=matcher_options)
+    tok(newline_label, newline_regex, matcher_options=matcher_options)
 
 def def_default_single_char_tokens(parser, chars=None, exclude=None, make_literals=False):
     """The characters in the string `chars` are defined as tokens with default labels.
@@ -86,19 +86,20 @@ def def_default_single_char_tokens(parser, chars=None, exclude=None, make_litera
         if make_literals:
             parser.def_literal(token_label)
 
-def def_multi_tokens(parser, tuple_list):
+def def_multi_tokens(parser, tuple_list, **kwargs):
     """A convenience function, to define multiple tokens at once.  Each element
     of the passed-in list should be a tuple containing the arguments to the
     ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-    # TODO: take keyword args and pass them all to the def_token routine.
-    return multi_funcall(parser.def_token, tuple_list, ParserException)
+    kwargs["exception_to_raise"] = ParserException
+    return multi_funcall(parser.def_token, tuple_list, **kwargs)
 
-def def_multi_ignored_tokens(parser, tuple_list):
+def def_multi_ignored_tokens(parser, tuple_list, **kwargs):
     """A convenience function, to define multiple ignored tokens at once.
     Each element of the passed-in list should be a tuple containing the arguments
     to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
     `Lexer` function."""
-    return multi_funcall(parser.def_ignored_token, tuple_list, ParserException)
+    kwargs["exception_to_raise"] = ParserException
+    return multi_funcall(parser.def_ignored_token, tuple_list, **kwargs)
 
 def def_default_float_token(parser, token_label="k_float", signed=True,
                             require_decimal=False, on_ties=0):

@@ -490,7 +490,7 @@ class TokenTable(object):
         self.pattern_matcher.undef_pattern(token_label)
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
-                  options=None):
+                  matcher_options=None):
         """Define a token and the regex to recognize it.  Returns the new
         token subclass.
 
@@ -518,7 +518,7 @@ class TokenTable(object):
 
         if regex_string is not None:
             self.pattern_matcher.insert_pattern(token_label, regex_string,
-                         on_ties, ignore=ignore, options=options)
+                         on_ties, ignore=ignore, matcher_options=matcher_options)
 
         # Initialize and return a bare-bones, default token_subclass.
         tok = self._create_token_subclass(token_label)
@@ -1233,12 +1233,12 @@ class Lexer(object):
     #
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
-                  options=None):
+                  matcher_options=None):
         """A convenience method to define a token. It calls the corresponding
         `def_token` method of the current `TokenTable` instance associated with
         the lexer, and does nothing else."""
         new_subclass = self.token_table.def_token(token_label, regex_string,
-                    on_ties=on_ties, ignore=ignore, options=options)
+                    on_ties=on_ties, ignore=ignore, matcher_options=matcher_options)
         return new_subclass
 
     def undef_token(self, token_label):
@@ -1247,25 +1247,27 @@ class Lexer(object):
         self.token_table.undef_token(token_label)
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0,
-                          options=None):
+                          matcher_options=None):
         """A convenience function to define an ignored token without setting
         `ignore=True`.  This just calls `def_token` with the value set."""
         return self.def_token(token_label, regex_string, on_ties=on_ties, ignore=True,
-                              options=options)
+                              matcher_options=matcher_options)
 
-    def def_multi_tokens(self, tuple_list):
+    def def_multi_tokens(self, tuple_list, **kwargs):
         """A convenience function, to define multiple tokens at once.  Each element
         of the passed-in list should be a tuple containing the arguments to the
-        ordinary `def_token` method.  Called in the same order as the list.  Returns
-        a tuple of the defined tokens."""
-        return multi_funcall(self.def_token, tuple_list)
+        ordinary `def_token` method.  Called in the same order as the list.  Any
+        keyword arguments are passed on to `def_token`.  Returns a tuple of the
+        defined tokens."""
+        return multi_funcall(self.def_token, tuple_list, **kwargs)
 
-    def def_multi_ignored_tokens(self, tuple_list):
+    def def_multi_ignored_tokens(self, tuple_list, **kwargs):
         """A convenience function, to define multiple tokens at once with
         `ignore=True` set.  Each element of the passed-in list should be a tuple
         containing the arguments to the ordinary `def_token` method.  Called in
-        the same order as the list.  Returns a tuple of the defined tokens."""
-        return multi_funcall(self.def_ignored_token, tuple_list)
+        the same order as the list.  Any keyword arguments are passed on to
+        `def_token`.  Returns a tuple of the defined tokens."""
+        return multi_funcall(self.def_ignored_token, tuple_list, **kwargs)
 
     def def_begin_end_tokens(self, begin_token_label, end_token_label):
         """Define the sentinel tokens at the beginning and end of the token
@@ -1286,12 +1288,12 @@ class Lexer(object):
 
     def def_default_whitespace(self, space_label="k_space", space_regex=r"[ \t]+",
                         newline_label="k_newline", newline_regex=r"[\n\f\r\v]+",
-                        options=None):
+                        matcher_options=None):
         """Define the standard whitespace tokens for space and newline, setting
         them as ignored tokens."""
         tok = self.def_ignored_token
-        tok(space_label, space_regex, options=options)
-        tok(newline_label, newline_regex, options=options)
+        tok(space_label, space_regex, matcher_options=matcher_options)
+        tok(newline_label, newline_regex, matcher_options=matcher_options)
 
     #
     # Some helper functions when using the Lexer class.
@@ -1568,19 +1570,24 @@ class Lexer(object):
             return token_instance
 
 
-def multi_funcall(function, tuple_list, exceptionToRaise=LexerException):
+def multi_funcall(function, tuple_list, **kwargs):
     """A convenience function that takes a function (or method) and a list of tuples
-    and calls `function` with the values in those tuple as arguments."""
-    # TODO: Modify this to take *args and **kwargs and pass all unrecognized
-    # kwargs to the function being called.
+    and calls `function` with the values in those tuple as arguments.
+    Any unrecognized keyword arguments are passed on to the function `function`
+    as keyword arguments.  If the `exception_to_raise` keyword argument is provided with
+    an exception then that exception will be called whenever a `TypeError` results from
+    the attempt to call `function` (defaulting to `LexerException`)."""
     retval_list = []
+    exception_to_raise = kwargs.pop("exception_to_raise", LexerException)
+    print("kwargs to pass to function are", kwargs)
     for t in tuple_list:
         try:
-            retval_list.append(function(*t))
+            retval_list.append(function(*t, **kwargs))
         except TypeError:
-            raise exceptionToRaise(
-                    "Bad multi-definition of {0}: Omitted required arguments."
-                    "\nError on this tuple: {1}".format(function.__name__, t))
+            raise exception_to_raise(
+                    "Bad multi-definition of {0}: Omitted required arguments or bad "
+                    "keyword arguments passed in.  Error on this tuple:\n{1}\nwith "
+                    "keyword arguments\n{2}".format(function.__name__, t, kwargs))
     return tuple(retval_list)
 
 def return_first_exception(*args):

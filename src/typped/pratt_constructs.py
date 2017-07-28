@@ -39,15 +39,6 @@ from .pratt_types import TypeSig, TypeErrorInParsedLanguage
 from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
                                              ParserException)
 
-def sort_handler_dict(d):
-    """Return the sorted `OrderedDict` version of the dict `d` passed in,
-    sorted by the precondition priority in the items.  Used in
-    `PrattParser.register_handler_fun` to keep handlers sorted by priority."""
-    # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
-    return OrderedDict(sorted(
-           d.items(), key=lambda item: item[1].precond_priority, reverse=True))
-
-
 class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function
@@ -533,4 +524,17 @@ class ConstructTable(object):
         else:
             construct = self.construct_dict[TAIL][trigger_token_instance.token_label][construct_label]
         return construct.get_ast_data(orig_sig, trigger_token_instance.value)
+
+#
+# Utility functions.
+#
+
+def sort_handler_dict(d):
+    """Return the sorted `OrderedDict` version of the dict `d` passed in,
+    sorted by the precondition priority in the items.  Used in
+    `PrattParser.register_handler_fun` to keep handlers sorted by priority."""
+    # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
+    return OrderedDict(sorted(
+           d.items(), key=lambda item: item[1].precond_priority, reverse=True))
+
 

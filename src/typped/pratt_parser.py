@@ -237,8 +237,7 @@ from . import builtin_parse_methods, predefined_token_sets
 # If a TokenTable is made to fully define a parser then you only need to save that...
 # but you need to clutter it with non-token data.
 
-# The default construct label is a tuple so it never matches an actual string.
-DEFAULT_CONSTRUCT_LABEL = ("always-true-default-precondition",)
+DEFAULT_CONSTRUCT_LABEL_STRING = "default_construct_label"
 
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     """The default precondition function; always returns true."""
@@ -965,6 +964,10 @@ def token_subclass_factory():
 # PrattTokenTable
 #
 
+# TODO: PrattTokenTable isn't used... probably not needed, but might want extra
+# attributes with token table if that is going to characterize the full parser
+# state.  Probably not a good idea, but consider and delete below if not.
+
 class PrattTokenTable(TokenTable):
     """Define and save tokens to be used by the `PrattParser` class and instances."""
     def __init__(self, token_subclass_factory_fun=token_subclass_factory,
@@ -1043,6 +1046,7 @@ class PrattParser(object):
         self.raise_exception_on_precondition_ties = True
 
         self.construct_table = ConstructTable() # Dict of registered constructs.
+        self.default_construct_label_number = 0 # For unique construct labels.
 
         if lexer: # Lexer passed in.
             self.lex = lexer
@@ -1068,7 +1072,6 @@ class PrattParser(object):
         else:
             self.type_table = TypeTable(self)
 
-
         self.num_lookahead_tokens = max_peek_tokens
         self.jop_token_label = None # Label of the jop token, if any.
         self.jop_token_subclass = None # The actual jop token, if defined.
@@ -1079,13 +1082,19 @@ class PrattParser(object):
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
 
+    def _next_unique_construct_label(self):
+        """Return the next unique default label for constructs.  It is a tuple so it
+        never matches an actual string label."""
+        self.default_construct_label_number += 1
+        return (DEFAULT_CONSTRUCT_LABEL_STRING, self.default_construct_label_number)
+
     #
     # Methods defining tokens.
     #
 
     def def_token_master(self, token_label, regex_string=None, on_ties=0, ignore=False,
-                         ignored_token_label=None, token_kind="regular",
-                         options=None):
+                         token_kind="regular", ignored_token_label=None,
+                         matcher_options=None):
         """The master method for defining tokens; all the convenience methods
         actually call it.  Allows for factoring out some common code and
         keeping the attributes of all the different kinds of tokens up-to-date.
@@ -1094,20 +1103,21 @@ class PrattParser(object):
 
         The `token_kind` argument must be one of the following strings:
         `"regular"`, `"ignored"`, `"begin"`, `"end"`, `"jop"`, or
-        `"null-string"`.
+        `"null-string"`.  The `ignored_token_label` is used only when defining
+        a jop.
 
         Tokens can be shared between parsers if all their properties are the
         same.  Null-string and jop tokens are the exception, but they are special
-        and are never returned by the lexer, only by a particular parser."""
+        in that they are never returned by the lexer, only by a particular parser."""
         token_table = self.token_table
 
         if token_kind == "regular":
             tok = token_table.def_token(token_label, regex_string,
-                       on_ties=on_ties, ignore=ignore, options=options)
+                       on_ties=on_ties, ignore=ignore, matcher_options=matcher_options)
 
         elif token_kind == "ignored":
             tok = token_table.def_token(token_label, regex_string,
-                       on_ties=on_ties, ignore=True, options=options)
+                       on_ties=on_ties, ignore=True, matcher_options=matcher_options)
 
         elif token_kind == "begin":
             tok = token_table.def_begin_token(token_label)
@@ -1165,17 +1175,17 @@ class PrattParser(object):
         return tok
 
     def def_token(self, token_label, regex_string, on_ties=0, ignore=False,
-                  options=None):
+                  matcher_options=None):
         """Define a token.  Use this instead of the Lexer `def_token` method,
         since it adds extra attributes to the tokens."""
         return self.def_token_master(token_label, regex_string, on_ties, ignore,
-                              token_kind="regular", options=options)
+                              token_kind="regular", matcher_options=matcher_options)
 
     def def_ignored_token(self, token_label, regex_string, on_ties=0,
-                          options=None):
+                          matcher_options=None):
         """A convenience function to define a token with `ignored=True`."""
         return self.def_token_master(token_label, regex_string, on_ties, ignore=True,
-                              token_kind="ignored", options=options)
+                              token_kind="ignored", matcher_options=matcher_options)
 
     def def_begin_end_tokens(self, begin_token_label="k_begin",
                                    end_token_label="k_end"):
@@ -1256,25 +1266,37 @@ class PrattParser(object):
     #
 
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
-                      construct_label=None, prec=None, precond_fun=None,
+                      construct_label=None, prec=0, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None, value_key=None):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
         token table, or an exception will be raised.
 
-        Currently returns the token that is modified.
+        Stores the construct instance in the parser's construct table and also
+        return the construct instance.
 
-        Both head and tail functions can be passed in one call, but they must
-        have the same construct label and precondition priority.
+        The `head_or_tail` argument should be set to either `HEAD` or `TAIL`.
+        If `head_or_tail==TAIL` then the operator precedence will be set to
+        `prec`.  For a head handler the `prec` value is ignored.
 
-        If `tail` is set then the prec will also be set unless `prec` is
-        `None`.  For a head the `prec` value is ignored.  If `tail` is set and
-        `prec` is `None` then the prec value defaults to zero.
+        Uniqueness of constructs is essentially determined by triples of the
+        form::
+
+           (head_or_tail, trigger_token_label, construct_label)
+
+        Note that preconditions functions are *not* part of the tuple.
+        Defining distinct constructs which match in `head_or_tail` and also in
+        their `trigger_token_label` requires distinct construct labels.
+        Otherwise overloading is assumed and the last-defined properties (such
+        as the preconditions function) are used for all but the overloaded
+        parts (AST data and evaluation functions keyed by type signatures).  A
+        unique, default construct label is provided if one is not supplied, so
+        labels are really only required in order to specify overloading.
 
         The `eval_fun` and the `ast_data` arguments are saved in the dicts
         `eval_fun_dict` and `ast_data_dict` respectively, keyed by the
-        `TypeSig` defined by `val_type` and `arg_types`, as well as by
+        `TypeSig` (defined by `val_type` and `arg_types`), as well as by
         `arg_types` alone for when overloading on return values is not used.
         This allows for different overloads to have different evaluation
         functions and AST-associated data.
@@ -1300,7 +1322,9 @@ class PrattParser(object):
             prec = 0
 
         if construct_label is None:
-            construct_label = DEFAULT_CONSTRUCT_LABEL
+            self.construct_label = self._next_unique_construct_label()
+        else:
+            self.construct_label = construct_label
 
         if precond_fun is None:
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
