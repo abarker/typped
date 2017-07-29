@@ -86,21 +86,6 @@ def def_default_single_char_tokens(parser, chars=None, exclude=None, make_litera
         if make_literals:
             parser.def_literal(token_label)
 
-def def_multi_tokens(parser, tuple_list, **kwargs):
-    """A convenience function, to define multiple tokens at once.  Each element
-    of the passed-in list should be a tuple containing the arguments to the
-    ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
-    kwargs["exception_to_raise"] = ParserException
-    return multi_funcall(parser.def_token, tuple_list, **kwargs)
-
-def def_multi_ignored_tokens(parser, tuple_list, **kwargs):
-    """A convenience function, to define multiple ignored tokens at once.
-    Each element of the passed-in list should be a tuple containing the arguments
-    to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
-    `Lexer` function."""
-    kwargs["exception_to_raise"] = ParserException
-    return multi_funcall(parser.def_ignored_token, tuple_list, **kwargs)
-
 def def_default_float_token(parser, token_label="k_float", signed=True,
                             require_decimal=False, on_ties=0):
     """Define a token for floats with default label 'k_float'.  If `signed` is true (the
@@ -126,6 +111,25 @@ def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0):
         regex = r"[-+]?(\d+)"
     tok = parser.def_token(token_label, regex, on_ties=on_ties)
     return tok
+
+#
+# Multi-token definitions.
+#
+
+def def_multi_tokens(parser, tuple_list, **kwargs):
+    """A convenience function, to define multiple tokens at once.  Each element
+    of the passed-in list should be a tuple containing the arguments to the
+    ordinary `def_token` method.  Calls the equivalent `Lexer` function."""
+    kwargs["exception_to_raise"] = ParserException
+    return multi_funcall(parser.def_token, tuple_list, **kwargs)
+
+def def_multi_ignored_tokens(parser, tuple_list, **kwargs):
+    """A convenience function, to define multiple ignored tokens at once.
+    Each element of the passed-in list should be a tuple containing the arguments
+    to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent
+    `Lexer` function."""
+    kwargs["exception_to_raise"] = ParserException
+    return multi_funcall(parser.def_ignored_token, tuple_list, **kwargs)
 
 
 # This list of functions is copied to the PrattParser class as methods.

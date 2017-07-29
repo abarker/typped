@@ -183,7 +183,7 @@ priority are overwritten with the most-recently-defined versions.
 
 .. topic:: Two ways to parse identifiers
 
-   The Typped parser and lexer are dynamic; both can be updated on-the-fly.
+   The Typped parser and lexer are both dynamic and can be updated on-the-fly.
    This flexibility allows for a different style of defining identifiers than
    is traditionally used.  Consider an example where function name
    identifiers are being parsed.  Assume that the language being parsed has
@@ -194,55 +194,41 @@ priority are overwritten with the most-recently-defined versions.
    
    In the traditional parser design a generic function-name identifier is
    defined for the lexer and any further processing is done by the parser, based
-   on the actual string value found in the program text.  This allows for a
+   on the actual string value found in the program text.  This allows a
    fixed lexer to be used.  When the lexer is dynamic, though, it is possible
    to define a new token for each definition of an identifier.
    
    Suppose we have functions ``add`` and ``exp``.  In the traditional approach
    the lexer would identify each as a function name identifier, and return that
-   information along with the actual text string.  In the dynamic approach you
-   would define a new token for ``exp`` at the time it is defined (and might
-   not even need a general identifier token).  Similarly for the ``add``
-   function.  The lexer would then return a unique token for each function,
-   pushing some of the parsing down to the lexer level.
+   information along with the actual text string.  In the dynamic-lexer
+   approach you would define a new token for ``add`` at the time it is defined.
+   Similarly for the ``exp`` function.  The lexer would then return a unique
+   token for each function, pushing some of the parsing down to the lexer
+   level.
 
    An advantage of the dynamic approach is that it can help to avoid
    ambiguities in parsing complex languages.  The disadvantages are that it may
-   take more space to define the new tokens, it may be slower to parse with so
-   many possible tokens, and the function names (and hence their tokens) must
-   be defined before being used.
+   take slightly more space to define the new tokens, it may be slower to scan
+   with so many possible tokens, and the function names (and hence their
+   tokens) must be defined before being used.
 
-   Recall that Pratt parsers are based on tokens (rather than production rules
-   in a grammar like recursive descent).  Defining a new token type for each
-   function name opens some possibilities.  This is especially true in the
-   Typped package where type signature information is also stored with the
-   tokens.
+   A disadvantage of using a common identifier token for all function names is
+   evaluation functions then cannot be automatically associated with the
+   tokens.  To get around this the `def_construct` method takes a keyword
+   argument `value_key` can be passed strings like `add` and `exp`.  The
+   evaluation functions are then keyed on those values, too.  During lookup
+   the actual text string for the token is used to look back up the evaluation
+   function.
 
-   TODO --> Below is a case for overload on value, too.  Just save a dict
-   mapping values to signatures and look up that way.
-
-   In order to use the built-in Typped type checking a single construct
-   (triggered by, say, the function identifier token) cannot be used to parse
-   all functions.  That is because the association of function-name values to
-   type signatures and evaluation functions would be lost.  You would need to
-   define a unique new construct for each one by changing the construct name
-   slightly on each definition (such as by appending the function-name value to
-   it).  This new construct would need a precondition of seeing the actual
-   function name as the token value to avoid ties with the other such
-   constructs.
-
-   An alternative approach is to dynamically define a different token for each
-   such function.  Then separate constructs would result from each definition
-   because the triggering token for each one would be different.  This is
-   sometimes easier.
-   
-   While there are some disadvantages to defining many tokens, the Typped lexer
-   is designed to efficiently scan large numbers of tokens provided they have a
-   simple pattern.  Simple patterns (currently restricted to fixed strings for
-   this speedup) are stored in a trie data structure and are essentially all
-   scanned in parallel by walking down the trie.  The insert and delete time is
-   linear in the pattern length.  So, while the Typped parser can be used in
-   either way, the use of dynamic token definitions is worth considering.
+   As far as the efficiency of defining many tokens, the Typped lexer is
+   designed to very efficiently scan large numbers of tokens provided they have
+   a simple pattern.  The `Matcher` used by the lexer can use a trie use one of
+   several hybrid approaches.  For example, simple patterns (currently
+   restricted to fixed strings for this speedup) can be automatically stored in
+   a trie data structure and essentially all scanned in parallel by walking
+   down the trie.  Their insert and delete time is linear in the pattern
+   length.  So, while the Typped parser can be used in either way, the use of
+   dynamic token definitions is worth considering.
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------

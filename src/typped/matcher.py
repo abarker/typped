@@ -292,18 +292,20 @@ class Matcher(object):
                                 error_msg_text_snippet_size]))
 
         if len(combo_best_matches) > 1: # An unresolved tie, raise an exception.
-            # TODO: Later make a better-looking format for the data in error msg.
-            winning_tuples_as_dicts = [list(t._asdict().items()) for t in combo_best_matches]
-            raise MatcherException("There were multiple token-pattern matches"
-                    " with the same length, found in Lexer.  Set the on_ties"
-                    " keyword arguments to break ties.  The possible token"
-                    " types and their matched text are: {0}\n"
-                    " Ambiguity at the start of this "
-                    " unprocessed text:\n{1}".format(winning_tuples_as_dicts,
-                        program[slice_indices[0]
-                            :slice_indices[0] +
-                                error_msg_text_snippet_size]))
-
+            matched_text = combo_best_matches[0].matched_string
+            assert all(m.matched_string == matched_text for m in combo_best_matches)
+            winning_tokens = [(m.token_label, m.on_ties) for m in combo_best_matches]
+            #for t in combo_best_matches:
+            #    print("t is:", t)
+            #winning_tuples_as_dicts = [list(t._asdict().items()) for t in combo_best_matches]
+            raise MatcherException("Multiple token patterns matched in the lexer, with"
+                    " equal (length, on_ties) tuples.  Maybe use the on_ties keyword"
+                    " argument to def_token to break ties.  The matching"
+                    " (token_label, on_ties) pairs are: {0}\nThe ambiguity occurred"
+                    " at the start of this" " unprocessed text:\n{1}"
+                    .format(winning_tokens, program[
+                            slice_indices[0]:
+                            slice_indices[0]+ error_msg_text_snippet_size]))
         final_best = combo_best_matches[0]
         return final_best.token_label, final_best.matched_string
 
