@@ -1,10 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 
-.. |br| raw:: html
-
-   <p>
-
 This module contains classes defining types and methods which can be called by
 the `PrattParser` class when checking types.  It defines the class `TypeSig`
 and the class `TypeObject`, as well as a dict class for storing
@@ -46,6 +42,11 @@ a `TypeTable` class, defined in this module.
 
 """
 
+# For ideas on how to define composite types, etc., look at PEP-483:
+# https://www.python.org/dev/peps/pep-0483/
+# https://docs.python.org/3/library/typing.html
+# Similarity to Python 3's type hinting would be good.
+
 from __future__ import print_function, division, absolute_import
 
 if __name__ == "__main__":
@@ -59,9 +60,6 @@ from .shared_settings_and_exceptions import ParserException
 #
 # Formal and actual type specs for functions.
 #
-
-# For ideas on how to define composite types, etc., look at PEP-483:
-# https://www.python.org/dev/peps/pep-0483/
 
 class Varargs(object):
     """This class is used to define type signatures which can check a variable

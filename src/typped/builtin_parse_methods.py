@@ -2,10 +2,11 @@
 """
 
 These are predefined, built-in parsing routines designed to parse various
-general types of constructs.  The functions can be called directly, accessed
-from the `typped` package namespace, or as methods of `PrattParser` instances.
-(The functions are copied to the `PrattParser` class after they are defined
-because the namespace is convenient to use.)
+general types of constructs.  These functions are methods of the `PrattParser`
+class because that namespace is convenient to use.  They can also be used
+directly, as standalone functions.  It can be useful to look at the source code
+for ideas of how to implement general constructs which are not covered by a
+builtin routine.
 
 As a reminder, here a comparison of the terminology used in the Typped package
 with the traditional Pratt parser terminology:

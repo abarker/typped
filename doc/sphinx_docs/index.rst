@@ -13,7 +13,7 @@ Typped: A typed Pratt parser employing dispatching
    http://www.sphinx-doc.org/en/stable/config.html#confval-rst_prolog
 
 ..
-   todoLaterBelow
+   todoLaterBelow  doesn't work to highlight inline, see drst file...
    .. role:: python(code)
        :language: py
        :class: highlight
@@ -28,8 +28,9 @@ Typped: A typed Pratt parser employing dispatching
    Here is some awesome code :py:`a = b + c`.
 
 The Typped package provides a general Python framework for defining and using
-Pratt parsers.  A parsed language can optionally be typed, with basic types
-which are type-checked on parsing.  Overloading on types is also allowed.
+Pratt parsers.  The parsed languages can optionally be typed, with basic types
+which are checked at parse-time.  Overloading on types is also allowed.
+
 Default parser methods are provided for many standard constructs such as, for
 example, infix operators and ordinary function calls.  Users can define their
 own customized functions or methods in order to parse more-complicated and/or
@@ -38,14 +39,14 @@ which can be used to define and implement recursive descent parsing of a
 grammar within the Typped framework (integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
-logic languages and mathematical languages with syntax close to what is used
-informally.  Because it is based on Pratt parsing it is especially good at
-parsing expression languages (or sublanguages) which have various operators at
-different precedence levels.  The parsers and lexers can be modified
-on-the-fly, allowing the parsed languages to be fully dynamic.  Pratt parsing
-tends to be fairly efficient in this context, but the package is written in
-pure Python so it is probably not the best choice if parsing speed is a crucial
-factor.
+logic languages and mathematical languages which use syntax approximating the
+often-ambiguous informal syntax which is used in practice.  Because it is based
+on Pratt parsing it is especially good at parsing expression languages which
+have various operators at different precedence levels.  The parsers and lexers
+are modifiable on-the-fly, allowing the parsed languages to be fully dynamic.
+Pratt parsing tends to be fairly efficient in this context, but the package is
+written in pure Python so it is probably not the best choice if parsing speed
+is a crucial factor.
 
 .. warning::
 
@@ -65,9 +66,9 @@ The current way to install is to clone the GitHub repo and install with pip:
    pip install .
 
 As usual, use a virtual environment or at least run pip with the ``--user``
-option unless you really want to modify the system Python installation (in
-which case you may also need to use ``sudo`` on a Linux system).  Use the
-``-e`` option to pip if you want to experiment with the code.
+option.  (If you really want to modify the system Python installation the
+command needs to be run with administrative privileges.)  Use the ``-e`` option
+to pip if you want to experiment with the code.
 
 At a more stable development point Typped will be uploaded to PyPI so users can
 install Typped directly:

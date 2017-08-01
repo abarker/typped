@@ -279,34 +279,6 @@ This completes the discussion of the higher-level top-down recursion routines
 ``parse`` and ``recursive_parse``.  The next section discusses head and tail
 handlers, to complete the mutual recursion.
 
-.. topic:: Some notes on this subsection.
-
-   - In the Typped package the ``recursive_parse`` function is a method of the
-     ``TokenNode`` class which represents tokens.  This is not necessary, since
-     it is essentially a static function.  The namespace is convenient, though,
-     because ``recursive_parse`` is generally called from handler functions
-     which are passed a token instance as an argument.  It also allows
-     ``recursive_parse`` to access to the corresponding ``PrattParser``
-     instance (which is used for more advanced features).
-
-   - The implementation of ``recursive_parse`` in the Typped package is
-     actually a generalization which calls ``head_dispatcher`` instead of
-     ``head_handler``, and ``tail_dispatcher`` instead ``tail_handler`` (this
-     will be discussed later).  The general principle, however, is the same.
-
-   - The ``processed_left`` structure can in general be a partial parse tree,
-     the result of a numerical evaluation, or anything else.  The handler
-     functions can build and return any processed form for their tokens.  The
-     Typped package, however, always builds a parse tree out of token nodes
-     (which can be evaluated later, if desired). 
-
-   - Outside of an error condition the algorithm never even looks at the
-     precedence of a token having only a head handler (i.e., a token which can
-     only occur in the beginning position of an expression).  The precedence of
-     such a head-only token is usually taken to be 0, but it really does not
-     need to be defined at all.  So token precedences can be treated as
-     properties associated with tail-handler functions.
-
 This table summarizes the correspondence between Pratt's terminology and the
 terminology that is used in this documentation and in the code:
 
@@ -321,6 +293,41 @@ terminology that is used in this documentation and in the code:
    +----------------------------------+--------------------------+
    | tail handler function            | left denotation, led     |
    +----------------------------------+--------------------------+
+
+.. topic:: Some notes on this subsection.
+
+   - In the Typped package the ``recursive_parse`` function is a method of the
+     ``TokenNode`` class which represents tokens.  This is not necessary, since
+     it is essentially a static function.  The namespace is convenient, though,
+     because ``recursive_parse`` is generally called from handler functions
+     which are passed a token instance as an argument.  It also allows
+     ``recursive_parse`` to access to the corresponding ``PrattParser``
+     instance (which is used for more advanced features). |br|
+
+   - The implementation of ``recursive_parse`` in the Typped package is
+     actually a generalization which calls ``head_dispatcher`` instead of
+     ``head_handler``, and ``tail_dispatcher`` instead ``tail_handler`` (this
+     will be discussed later).  The general principle, however, is the same. |br|
+
+   - The ``processed_left`` structure can in general be a partial parse tree,
+     the result of a numerical evaluation, or anything else.  The handler
+     functions can build and return any processed form for their tokens.  The
+     Typped package, however, always builds an expression tree out of token
+     nodes (which can be evaluated later, if desired). |br|
+
+   - In the Typped package the handler functions are not made into
+     directly-callable methods of the token subclasses.  Instead, they are
+     stored with the `PrattParser` instance.  Access is keyed by the token
+     label as well as by other data.  This is because the Typped package
+     generalizes to allow for multiple head and tail handlers, which are
+     looked up and dispatched before being called. |br|
+
+   - Outside of an error condition the algorithm never even looks at the
+     precedence of a token having only a head handler (i.e., a token which can
+     only occur in the beginning position of an expression).  The precedence of
+     such a head-only token is usually taken to be 0, but it really does not
+     need to be defined at all.  So token precedences can be treated as
+     properties associated with tail-handler functions. |br|
 
 The handler functions head and tail
 -----------------------------------
@@ -371,15 +378,6 @@ instance ``lex``:
 
 All other head and tail handlers are also made into methods for the
 subtoken that they are associated with (but see the note below).
-
-.. note::
-
-   In the Typped package the handler functions are not made into
-   directly-callable methods of the token subclasses.  Instead, they are just
-   registered with the token subclass using the ``modify_token`` method of
-   ``PrattParser``, which stores them in a dict attribute.  This is because the
-   Typped package generalizes to allow for multiple head and tail handlers,
-   which are then looked up and dispatched before being called.
 
 Non-literal tokens
 ~~~~~~~~~~~~~~~~~~
