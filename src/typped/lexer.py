@@ -215,9 +215,18 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_pratt_parser.py",
+                              "../../test/test_matcher.py",
                               "../../test/test_lexer.py",
                               ],
                               pytest_args="-v")
+
+from typped import cythonize
+if cythonize:
+    #import pyximport
+    #pyximport.install()
+    from . import token_buffer
+    TB = token_buffer.TokenBuffer
+    from .matcher import Matcher
 
 import collections
 from .matcher import Matcher
@@ -740,6 +749,8 @@ class TokenBuffer(object):
                     " Current token was deleted.")
             assert len(self.token_buffer) == self.max_deque_size
 
+if cythonize:
+    TokenBuffer = TB
 
 class GenTokenState(object):
     """The state of the token_generator program execution."""
@@ -826,6 +837,9 @@ class Lexer(object):
             token_table = TokenTable()
         self.set_token_table(token_table)
 
+        if cythonize:
+            if max_peek_tokens is None: max_peek_tokens = -1
+            if max_deque_size is None: max_deque_size = -1
         self.token_buffer = TokenBuffer(self._unbuffered_token_getter,
                                               max_peek=max_peek_tokens,
                                               max_deque_size=max_deque_size)

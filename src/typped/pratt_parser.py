@@ -209,7 +209,7 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
 from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
-from .matcher import Matcher
+#from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
@@ -968,11 +968,11 @@ def token_subclass_factory():
 # attributes with token table if that is going to characterize the full parser
 # state.  Probably not a good idea, but consider and delete below if not.
 
-class PrattTokenTable(TokenTable):
-    """Define and save tokens to be used by the `PrattParser` class and instances."""
-    def __init__(self, token_subclass_factory_fun=token_subclass_factory,
-                       pattern_matcher_class=Matcher):
-        super(PrattTokenTable, self).__init__() # Call base class __init__.
+#class PrattTokenTable(TokenTable):
+#    """Define and save tokens to be used by the `PrattParser` class and instances."""
+#    def __init__(self, token_subclass_factory_fun=token_subclass_factory,
+#                       pattern_matcher_class=Matcher):
+#        super(PrattTokenTable, self).__init__() # Call base class __init__.
 
 #
 # Parser

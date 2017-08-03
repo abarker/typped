@@ -3,6 +3,11 @@ from __future__ import print_function, division, absolute_import
 
 # TODO: Make these only include necessary imports or use __all__ in modules.
 
+cythonize = True
+if cythonize:
+    import pyximport
+    pyximport.install()
+
 from .pratt_parser import *
 from .pratt_types import *
 from .lexer import *
