@@ -296,7 +296,7 @@ def test_some_error_conditions():
     lex.next(4)
     with raises(LexerException) as e:
         assert lex.next().value == "egg"
-    assert str(e.value).startswith("There were multiple token-pattern")
+    assert str(e.value).startswith("Multiple token patterns matched")
 
     # Undefined token.
     lex.set_text("eggy; 4") # Matches identifier, because that is longer.
