@@ -13,10 +13,46 @@ Docs on the setup function kwargs:
 """
 
 from __future__ import absolute_import, print_function
+
 import glob
 import os.path
 from setuptools import setup, find_packages
 import codecs # Use a consistent encoding.
+
+#
+# Handle optional Cython.
+#
+
+USE_CYTHON = False
+cmdclass = {}
+
+if USE_CYTHON:
+    from setuptools.extension import Extension
+    from Cython.Build import cythonize
+    from Cython.Distutils import build_ext
+    extensions = [
+          Extension("typped.matcher",
+                   ["./src/typped/matcher.py"],
+                   #include_dirs=[numpy.get_include()]
+                   ),
+          Extension("typped.token_buffer",
+                   ["./src/typped/token_buffer.pyx"],
+                   ),
+          Extension("typped.lexer",
+                   ["./src/typped/lexer.py"],
+                   ),
+    ]
+
+    # Note commented-out way doesn't seem to work for pure Python mode.
+    #ext_modules = cythonize(["./src/typped/*.pyx", "./src/typped/matcher.py",])
+    cmdclass.update({'build_ext': build_ext})
+    ext_modules = cythonize(extensions)
+else:
+    ext_modules = None
+
+#
+# Regular setup.py.
+#
 
 # Get the long description from the README.rst file.
 current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -66,6 +102,9 @@ setup(
     author_email="Allen.L.Barker@gmail.com",
     include_package_data=True,
     zip_safe=False,
+
+    ext_modules=ext_modules,
+    cmdclass=cmdclass,
 
     # Automated stuff below.
     long_description=long_description,

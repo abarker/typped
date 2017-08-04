@@ -44,7 +44,7 @@ cdef class TokenBuffer(object):
         self.current_offset = 0
         self.reference_point = 0
 
-    cpdef init(self, begin_token):
+    cpdef reset(self, begin_token):
         """Initialize the token buffer, or clear an reset it.  Any saved
         offsets are no longer valid, but no check is made for that."""
         self.current_offset = 0

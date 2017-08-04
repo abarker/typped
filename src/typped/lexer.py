@@ -220,17 +220,15 @@ if __name__ == "__main__":
                               ],
                               pytest_args="-v")
 
-from typped import cythonize
-if cythonize:
-    #import pyximport
-    #pyximport.install()
+import collections
+from .shared_settings_and_exceptions import LexerException, is_subclass_of
+
+from typped import cython
+if cython.compiled:
     from . import token_buffer
     TB = token_buffer.TokenBuffer
-    from .matcher import Matcher
 
-import collections
 from .matcher import Matcher
-from .shared_settings_and_exceptions import LexerException, is_subclass_of
 
 #
 # TokenNode
@@ -599,7 +597,7 @@ class TokenBuffer(object):
         self.current_offset = 0
         self.reference_point = 0
 
-    def init(self, begin_token):
+    def reset(self, begin_token):
         """Initialize the token buffer, or clear an reset it.  Any saved
         offsets are no longer valid, but no check is made for that."""
         self.current_offset = 0
@@ -749,7 +747,7 @@ class TokenBuffer(object):
                     " Current token was deleted.")
             assert len(self.token_buffer) == self.max_deque_size
 
-if cythonize:
+if cython.compiled:
     TokenBuffer = TB
 
 class GenTokenState(object):
@@ -837,7 +835,7 @@ class Lexer(object):
             token_table = TokenTable()
         self.set_token_table(token_table)
 
-        if cythonize:
+        if cython.compiled:
             if max_peek_tokens is None: max_peek_tokens = -1
             if max_deque_size is None: max_deque_size = -1
         self.token_buffer = TokenBuffer(self._unbuffered_token_getter,
@@ -931,7 +929,7 @@ class Lexer(object):
         if self.final_mod_function:
             begin_tok = self.final_mod_function(self, begin_tok)
         tb = self.token_buffer
-        tb.init(begin_tok) # Begin token set as current; first next() returns it.
+        tb.reset(begin_tok) # Begin token set as current; first next() returns it.
         self.token = tb[0]
         assert tb[0].is_begin_token() # DEBUG check, remove later
 

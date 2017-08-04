@@ -3,10 +3,13 @@ from __future__ import print_function, division, absolute_import
 
 # TODO: Make these only include necessary imports or use __all__ in modules.
 
-cythonize = True
-if cythonize:
-    import pyximport
-    pyximport.install()
+#if __name__ == "__main__": # This needs to be before the Cython import below.
+#    import pytest_helper
+
+try:
+    import cython
+except ImportError:
+    from . import cython_shadow as cython
 
 from .pratt_parser import *
 from .pratt_types import *
