@@ -10,6 +10,8 @@ from __future__ import print_function, division, absolute_import
 import collections
 from .shared_settings_and_exceptions import LexerException, is_subclass_of
 
+#ctypedef object (*tok_getter_type)()
+
 cdef class TokenBuffer(object):
     """An abstraction of the token buffer.  This is used internally by the
     `Lexer` class and should not usually be accessed by users.  It is basically
@@ -22,10 +24,11 @@ cdef class TokenBuffer(object):
     at `current_offset`, which is zero for the current token.  (The current
     offset is itself relative to a reference point, but users do not need to
     know that detail)."""
-    cdef public token_getter_fun, token_buffer
-    cdef public int max_deque_size, max_peek, current_offset, reference_point
+    cdef token_getter_fun
+    cdef public token_buffer
+    cdef public long max_deque_size, max_peek, current_offset, reference_point
 
-    def __init__(self, token_getter_fun, int max_peek, int max_deque_size,):
+    def __init__(self, token_getter_fun, long max_peek, long max_deque_size,):
         """Initialize the buffer."""
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
@@ -52,7 +55,7 @@ cdef class TokenBuffer(object):
         self.token_buffer.clear()
         self._append(begin_token)
 
-    cpdef int state_to_offset(self, int state):
+    cpdef int state_to_offset(self, long state):
         """Return the offset into the current deque that corresponds to what
         was the offset (absolute index to the current token) at the time when
         the state was saved."""
@@ -63,7 +66,7 @@ cdef class TokenBuffer(object):
         `go_back` or `push_back` methods of the lexer use this."""
         return self._offset_to_absolute(self.current_offset)
 
-    def __getitem__(self, int index):
+    def __getitem__(self, long index):
         """Index the buffer relative to the current offset.  Zero is the
         current token.  Negative indices go back in the buffer.  They **do not**
         index from the end of the buffer, as with ordinary Python indexing."""
@@ -100,7 +103,7 @@ cdef class TokenBuffer(object):
         begin_point = self._offset_to_absolute(self.current_offset) + 1
         return len(self.token_buffer) - begin_point
 
-    def move_forward(self, int num_toks=1):
+    def move_forward(self, long num_toks=1):
         """Move the current token (i.e., the offset) forward by one.  This is
         the token buffer's equivalent of `next`, except that it returns
         previously-buffered tokens if possible.  The `Lexer` method `next`
@@ -117,7 +120,7 @@ cdef class TokenBuffer(object):
             self._fill_to_current_offset()
         return self[0]
 
-    def move_back(self, int num_toks=1):
+    def move_back(self, long num_toks=1):
         """Move the current token (i.e., offset) back `num_toks` tokens.  Will
         always stop at the begin-token.  Users should check the condition if it
         matters.  If the move attempts to move back to before the
@@ -140,14 +143,14 @@ cdef class TokenBuffer(object):
     # Internal utility methods below.
     #
 
-    cdef inline int _index_to_absolute(self, int index):
+    cdef inline int _index_to_absolute(self, long index):
         """Convert an index into an absolute index into the current deque.
         Note that any changes to the current offset or to the reference
         point (the latter via _append) will invalidate the absolute reference.
         In those cases it will need to be re-calculated."""
         return index + self.current_offset + self.reference_point
 
-    cdef inline int _offset_to_absolute(self, int offset):
+    cdef inline int _offset_to_absolute(self, long offset):
         """Convert an offset into an absolute index into the current deque.
         Note that calls to `_append` can modify the reference point and
         invalidate the absolute index.  Needs to be re-calculated after

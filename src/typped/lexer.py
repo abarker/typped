@@ -144,7 +144,8 @@ Some boolean-valued informational methods:
 Other attributes:
 
 * `token` --- the current token (the most recent one returned by `next`)
-* `all_tokens_count` --- num of tokens since text was set (begin and end not counted)
+* `all_token_count` --- num of tokens since text was set (begin and end not counted)
+* `non_ignored_token_count` --- num of not-ignored tokens since text was set
 * `default_helper_exception` --- the default exception for helpers like `match_next`
 * `text_is_set` --- whether or not text has been set for the lexer
 
@@ -197,14 +198,6 @@ Code
 
 """
 
-# TODO: consider adding a method to return the processed part and the unprocessed
-# part of the orginal text.  Shouldn't be too hard when up-to-speed on the Lexer
-# workings (just calculate the right slices into self.program).  Slight complication
-# with lookahead and how to define it.
-
-# TODO: Look at the shlex package and see if anything that could be used or ideas to
-# borrow.  https://docs.python.org/3.6/library/shlex.html
-
 # TODO: implement move_back, the equivalent of push_back except you think of it
 # as moving in the token buffer rather than pushing back a token (it is still a
 # peek token).
@@ -222,12 +215,6 @@ if __name__ == "__main__":
 
 import collections
 from .shared_settings_and_exceptions import LexerException, is_subclass_of
-
-from typped import cython
-if cython.compiled:
-    from . import token_buffer
-    TB = token_buffer.TokenBuffer
-
 from .matcher import Matcher
 
 #
@@ -548,13 +535,13 @@ class TokenTable(object):
         self.end_token_subclass = tok
         return tok
 
-    def get_next_token_label_and_value(self, program, prog_unprocessed,
-                                          ERROR_MSG_TEXT_SNIPPET_SIZE):
+    def get_next_token_label_and_value(self, program, prog_unprocessed_indices,
+                                             ERROR_MSG_TEXT_SNIPPET_SIZE):
         """Return the next token label for the start of the current program
         text, as in the string `program` and indexed by the numbers in
         the ordered-pair tuple `prog_unprocessed`."""
         return self.pattern_matcher.get_next_token_label_and_value(
-                                              program, prog_unprocessed,
+                                              program, prog_unprocessed_indices,
                                               ERROR_MSG_TEXT_SNIPPET_SIZE)
 
     def ignored_tokens(self):
@@ -578,8 +565,10 @@ class TokenBuffer(object):
     offset is itself relative to a reference point, but users do not need to
     know that detail)."""
 
-    def __init__(self, token_getter_fun, max_peek=None, max_deque_size=None,):
-        """Initialize the buffer."""
+    def __init__(self, token_getter_fun, max_peek=-1, max_deque_size=-1,):
+        """Initialize the buffer.  If `max_deque_size` equals -1 then the
+        size is unlimited (`None` is not used so that Cython has a single type).
+        Similarly for `max_peek`, the maximum peek lookahead allowed."""
         self.token_getter_fun = token_getter_fun
         self.max_deque_size = max_deque_size
         self.max_peek = max_peek
@@ -629,7 +618,7 @@ class TokenBuffer(object):
         #    # The indices call returns the above three in a tuple.
         #    return [self[i] for i in range(*index.indices(len(self)))]
         if isinstance(index, int): # The ordinary case.
-            if self.max_peek is not None and index > self.max_peek:
+            if self.max_peek != -1 and index > self.max_peek:
                 raise LexerException("User-set maximum peeking level of {0} was"
                                      " exceeded.".format(self.max_peek))
             while self._index_to_absolute(index) >= len(self.token_buffer):
@@ -737,7 +726,7 @@ class TokenBuffer(object):
             if tok.is_end_token() and self.token_buffer[-1].is_end_token():
                 return tok
         self.token_buffer.append(tok)
-        if (self.max_deque_size is not None
+        if (self.max_deque_size != -1
                 and len(self.token_buffer) > self.max_deque_size):
             self.reference_point -= 1
             self.token_buffer.popleft() # Do an explicit popleft.
@@ -747,8 +736,6 @@ class TokenBuffer(object):
                     " Current token was deleted.")
             assert len(self.token_buffer) == self.max_deque_size
 
-if cython.compiled:
-    TokenBuffer = TB
 
 class GenTokenState(object):
     """The state of the token_generator program execution."""
@@ -829,15 +816,16 @@ class Lexer(object):
         the initializer."""
         self.text_is_set = False
         self.token = None
-        self.all_token_count = None
+        #self.all_token_count = None
 
         if token_table is None:
             token_table = TokenTable()
         self.set_token_table(token_table)
 
-        if cython.compiled:
-            if max_peek_tokens is None: max_peek_tokens = -1
-            if max_deque_size is None: max_deque_size = -1
+        if max_deque_size is None:
+            max_deque_size = -1
+        if max_peek_tokens is None:
+            max_peek_tokens = -1
         self.token_buffer = TokenBuffer(self._unbuffered_token_getter,
                                               max_peek=max_peek_tokens,
                                               max_deque_size=max_deque_size)
@@ -971,7 +959,9 @@ class Lexer(object):
             self.already_returned_end_token = True
         return self.token
 
-    __next__ = next # For Python 3.
+    #__next__ = next # For Python 3.
+    def __next__(self): # NOTE: Cython needs this wrapper (instead of assignment) or else
+        return self.next() # it doesn't think Lexer is an iterator.  But extra overhead.
 
     def __iter__(self):
         return self # Class provides its own __next__ method.
@@ -1069,11 +1059,13 @@ class Lexer(object):
         return popped_to_begin_token, current_token_is_first
 
     def go_back(self, num_toks=1, num_is_raw=False):
-        """This method allows the lexer to go back in time by `num_toks`
-        tokens.  The call `go_back(num_to_pop)` will undo the effects of the
-        last `num_to_pop` calls to `next`.  This operation is different from
-        the usual pushback operations because the program text is re-scanned,
-        rather than simply backing up to already-scanned tokens.
+        """This method allows the lexer to go back in the token buffer by
+        `num_toks` tokens.  The call `go_back(n)` will undo the effects of the
+        last `n` calls to `next`.  This operation is different from the usual
+        pushback operations because the program text will be re-scanned for the
+        current token and later tokens (rather than simply backing up to
+        already-scanned tokens and saving the most-recent as lookahead tokens,
+        like with `move_back`).
 
         Going back one with `go_back(1)` or just `go_back()` results in the
         current token being set back to the previous token and also re-scanned
@@ -1085,9 +1077,12 @@ class Lexer(object):
 
         This method returns the current token after any re-scanning.
 
-        Values of `num_toks` less than one apply to saved loohahead tokens (if
-        any).  The call `go_back(-1)` flushes all lookahead tokens saved in the
-        buffer except the one immediately following the current token.
+        Negative numbers of tokens can be specified.  When `num_toks <= 0` the
+        operation only applies to saved loohahead tokens (if there are any).
+        The call `go_back(-1)` flushes all lookahead tokens saved in the buffer
+        except the one immediately following the current token.  The current
+        offset in the token buffer never moves forward when this method is
+        called; only can only go back or stay the same.
 
         If `num_is_raw` is true then `num_toks` is interpreted as the actual
         number of tokens to go back, including any in the buffer (which are
@@ -1117,7 +1112,9 @@ class Lexer(object):
         # For negative values just pop the required number off the end of token_buffer.
         if num_toks < 0:
             peekahead_num = abs(num_toks)
+            print("the peekahead num is:", peekahead_num)
             self._pop_tokens(token_buffer.num_tokens_after_current() - peekahead_num)
+            print("returning token with value:", self.token.value)
             return self.token
 
         # We will re-scan at least one token, so reset `already_returned_end_token`.
@@ -1591,7 +1588,6 @@ def multi_funcall(function, tuple_list, **kwargs):
     the attempt to call `function` (defaulting to `LexerException`)."""
     retval_list = []
     exception_to_raise = kwargs.pop("exception_to_raise", LexerException)
-    print("kwargs to pass to function are", kwargs)
     for t in tuple_list:
         try:
             retval_list.append(function(*t, **kwargs))

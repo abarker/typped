@@ -68,14 +68,22 @@ the `__init__` method. ::
 
 """
 
-# New options to consider:
-#   "fnl_for_fixed_length"
-#   "trie_for_simple"
-# The first is fairly easy: you just test first thing in the insert method and
-# set the option to "python" if not fixed length, otherwise to the fnl method.
-# Only problem is that you no longer catch ties on fixed-length, so on_ties
-# doesn't do anything in that case.  That case still reverts to first-not-longest.
-# The trie version would not have that limitation, but has more overhead.
+# New options to consider: "fnl_for_fixed_length" "trie_for_simple" The first
+# is fairly easy: you just test first thing in the insert method and set the
+# option to "python" if not fixed length, otherwise to the fnl method.  Only
+# problem is that you no longer catch ties on fixed-length, so on_ties doesn't
+# do anything in that case.  That case still reverts to first-not-longest.  The
+# trie version would not have that limitation, but has more overhead.
+#
+#
+# Note that this regex plugin replacement has an additional "partial" feature
+# which detects partial matches:
+#    https://pypi.python.org/pypi/regex/
+# Might be useful for the realtime, online stuff.  The docs say: "A partial
+# match is one that matches up to the end of string, but that string has been
+# truncated and you want to know whether a complete match could be possible if
+# the string had not been truncated."  Could even go overboard and wrap the C
+# code.  Just look at that project's setup.py and do similar in Cython.
 
 from __future__ import print_function, division, absolute_import
 
@@ -293,7 +301,7 @@ class Matcher(object):
 
         if len(combo_best_matches) > 1: # An unresolved tie, raise an exception.
             matched_text = combo_best_matches[0].matched_string
-            assert all(m.matched_string == matched_text for m in combo_best_matches)
+            #assert all(m.matched_string == matched_text for m in combo_best_matches)
             winning_tokens = [(m.token_label, m.on_ties) for m in combo_best_matches]
             #for t in combo_best_matches:
             #    print("t is:", t)
