@@ -1108,8 +1108,10 @@ class PrattParser(object):
         a jop.
 
         Tokens can be shared between parsers if all their properties are the
-        same.  Null-string and jop tokens are the exception, but they are special
-        in that they are never returned by the lexer, only by a particular parser."""
+        same.  Note that for now this includes the precedence value for any
+        tail handlers (since that is made a token attribute).  Null-string and
+        jop tokens are the exception, but they are special in that they are
+        never returned by the lexer, only by a particular parser."""
         token_table = self.token_table
 
         if token_kind == "regular":
@@ -1123,7 +1125,7 @@ class PrattParser(object):
         elif token_kind == "begin":
             tok = token_table.def_begin_token(token_label)
             self.begin_token_label = token_label
-            # Define dummy handlers for the begin-token.
+            # Define dummy handlers for the begin-token, just to catch errors.
             def begin_head(self, lex):
                 """Dummy head handler for begin-tokens."""
                 raise CalledBeginTokenHandler("Called head-handler for begin token.")
@@ -1131,12 +1133,13 @@ class PrattParser(object):
                 """Dummy tail-handler for begin-tokens."""
                 raise CalledBeginTokenHandler("Called tail-handler for begin token.")
             self.def_construct(HEAD, begin_head, token_label)
-            self.def_construct(TAIL, begin_tail, token_label)
+            self.def_construct(TAIL, begin_tail, token_label, dummy_handler=True)
             self.begin_token_subclass = tok
 
         elif token_kind == "end":
             tok = token_table.def_end_token(token_label)
             self.end_token_label = token_label
+            # Define dummy handlers for the end-token, just to catch errors.
             def end_head(self, lex):
                 """Dummy head handler for end-tokens."""
                 raise CalledEndTokenHandler("Called head-handler for end token.")
@@ -1144,7 +1147,7 @@ class PrattParser(object):
                 """Dummy tail-handler for end-tokens."""
                 raise CalledEndTokenHandler("Called tail-handler for end token.")
             self.def_construct(HEAD, end_head, token_label)
-            self.def_construct(TAIL, end_tail, token_label)
+            self.def_construct(TAIL, end_tail, token_label, dummy_handler=True)
             self.end_token_subclass = tok
 
         elif token_kind == "jop":
@@ -1267,9 +1270,9 @@ class PrattParser(object):
     #
 
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
-                      construct_label=None, prec=0, precond_fun=None,
+                      prec=0, construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
-                      eval_fun=None, ast_data=None, value_key=None):
+                      eval_fun=None, ast_data=None, value_key=None, dummy_handler=False):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
         token table, or an exception will be raised.
@@ -1279,7 +1282,11 @@ class PrattParser(object):
 
         The `head_or_tail` argument should be set to either `HEAD` or `TAIL`.
         If `head_or_tail==TAIL` then the operator precedence will be set to
-        `prec`.  For a head handler the `prec` value is ignored.
+        `prec`.  For a head handler the `prec` value is ignored and effectively
+        set to zero.  For a tail handler a `prec` value greater than zero is
+        required or else an exception will be raised (unless `dummy_handler` is
+        set true).  Similarly, an exception is raised for a non-zero `prec`
+        value for a head-handler (the default value).
 
         Uniqueness of constructs is essentially determined by triples of the
         form::
@@ -1319,8 +1326,14 @@ class PrattParser(object):
                     " be None or an iterable returning type labels (e.g., a list"
                     " or tuple).")
 
-        if head_or_tail == TAIL and (prec is None):
-            prec = 0
+        if head_or_tail == TAIL and prec <= 0 and not dummy_handler:
+            raise ParserException("Attempt to define a construct for trigger token"
+                    " '{0}' with a tail hander and a precedence of zero or less."
+                    .format(trigger_token_label))
+        if head_or_tail == HEAD and prec != 0 and not dummy_handler:
+            raise ParserException("Attempt to define a construct for trigger token"
+                    " '{0}' with a head hander and a precedence not equal to zero."
+                    .format(trigger_token_label))
 
         if construct_label is None:
             self.construct_label = self._next_unique_construct_label()
@@ -1339,6 +1352,8 @@ class PrattParser(object):
             # Below line formerly just created a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
+        # TODO: Precedence is currently saved as a token attribute.  Consider
+        # saving it in the construct instead.
         if head_or_tail == TAIL:
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
@@ -1346,7 +1361,8 @@ class PrattParser(object):
         type_sig = TypeSig(val_type, arg_types)
 
         # Register the handler funs.
-        construct = self.construct_table.register_construct(head_or_tail, trigger_token_label,
+        construct = self.construct_table.register_construct(head_or_tail,
+                                              trigger_token_label,
                                               construct_label, handler_fun, precond_fun,
                                               precond_priority, type_sig,
                                               eval_fun, ast_data, value_key,

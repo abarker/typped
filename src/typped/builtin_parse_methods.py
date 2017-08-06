@@ -56,7 +56,7 @@ from .helpers import all_precond_funs
 #
 
 def def_literal(parser, token_label, val_type=None,
-                precond_fun=None, precond_priority=1,
+                precond_fun=None, precond_priority=0,
                 val_type_override_fun=None,
                 eval_fun=None, ast_data=None):
     """Defines the token with label `token_label` to be a literal in the
@@ -105,7 +105,7 @@ def def_multi_literals(parser, tuple_list):
 # Brackets and parens.
 #
 
-def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label,
+def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
                      precond_fun=None, precond_priority=0,
                      eval_fun=None, ast_data=None):
     """Define a matching bracket grouping operation.  The returned type is
@@ -124,7 +124,10 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label,
         if not parser.skip_type_checking:
             child_type = tok.children[0].expanded_formal_sig.val_type
             tok.process_and_check_kwargs = {"val_type_override": child_type}
-        return tok
+        if in_tree:
+            return tok
+        else:
+            return tok[0]
 
     construct_label = "def_bracket_pair with {} tokens as triggers".format(lbrac_token_label)
     return parser.def_construct(HEAD, head_handler, lbrac_token_label,
@@ -175,7 +178,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
                 # This checks for errors like f(x,)
                 lex.match_next(rpar_token_label, raise_on_success=True)
         lex.match_next(rpar_token_label, raise_on_fail=True) # Closing rpar.
-        tok.process_not_in_tree() # Need when comma is an operator that gets removed.
+        tok.process_not_in_tree() # Needed when comma is an operator that gets removed.
         if (parser.skip_type_checking and num_args is not None
                                     and len(tok.children) != num_args):
             print("tok is", tok, "tok children are", tok.children)
@@ -277,7 +280,8 @@ def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
     if assoc not in ["left", "right"]:
         raise ParserException('Argument assoc must be "left" or "right".')
     recurse_bp = prec
-    if assoc == "right": recurse_bp = prec - 1
+    if assoc == "right":
+        recurse_bp = prec - 1
 
     def tail_handler(tok, lex, left):
         tok.append_children(left, tok.recursive_parse(recurse_bp))
@@ -618,7 +622,6 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
-# TODO remove construct_label and set val to pass.... here and anywhere else left
 def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 symbol_type_dict=None,
                                 default_type=None,

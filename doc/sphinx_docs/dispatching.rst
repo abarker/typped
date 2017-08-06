@@ -1,6 +1,6 @@
 
-Preconditioned dispatching
-==========================
+Constructs and preconditioned dispatching
+=========================================
 
 This section describes the use of preconditioned dispatching in the
 ``PrattParser`` class.  Many Typped users will never need to explicitly use the

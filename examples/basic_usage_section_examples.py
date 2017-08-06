@@ -17,7 +17,7 @@ import operator
 import cmd
 import readline
 
-def setup_simple_builtin_example():
+def define_parser_tokens_and_literals_simple_example():
     import typped as pp
     parser = pp.PrattParser()
 
@@ -30,6 +30,11 @@ def setup_simple_builtin_example():
     tok("k_plus", r"\+")
     tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
 
+    return parser
+
+def setup_simple_builtin_example():
+    parser = define_parser_tokens_and_literals_simple_example()
+
     parser.def_literal("k_number")
     parser.def_literal("k_identifier")
 
@@ -40,11 +45,44 @@ def setup_simple_builtin_example():
 
     return parser
 
+def setup_simple_non_builtin_example():
+    parser = define_parser_tokens_and_literals_simple_example()
+
+    def literal_head_handler(tok, lex):
+        return tok
+    parser.def_construct(pp.HEAD, literal_head_handler, "k_number")
+    parser.def_construct(pp.HEAD, literal_head_handler, "k_identifier")
+
+    def infix_op_tail_handler_10(tok, lex, left):
+        tok.append_children(left, tok.recursive_parse(10)) # Use 9 for right assoc.
+        return tok
+    parser.def_construct(pp.TAIL, infix_op_tail_handler_10, "k_plus", prec=10)
+
+    def infix_op_tail_handler_20(tok, lex, left):
+        tok.append_children(left, tok.recursive_parse(20)) # Use 19 for right assoc.
+        return tok
+    parser.def_construct(pp.TAIL, infix_op_tail_handler_20, "k_ast", prec=20)
+
+    def paren_head_handler(tok, lex):
+        expr = tok.recursive_parse(0)
+        lex.match_next("k_rpar", raise_on_fail=True)
+        return expr # Do not include the parens themselves, just the arg.
+    parser.def_construct(pp.HEAD, paren_head_handler, "k_lpar")
+
+    return parser
+
 def run_simple_builtin_example():
     parser = setup_simple_builtin_example()
     result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.value)
     print(result_tree.tree_repr())
+
+def run_simple_non_builtin_example():
+    parser = setup_simple_non_builtin_example()
+    result_tree = parser.parse("x + (4 + 3)*5")
+    print(result_tree.tree_repr())
+
+def define_basic_infix_parser_from_scratch():
+    parser = pp.PrattParser()
 
 def setup_string_language_parser_dynamic_typing():
     """A simple dynamically-typed language that uses `+` to add integers and
@@ -368,9 +406,13 @@ def run_string_language_static_typing_parser():
 
 if __name__ == "__main__":
     underline_len = 70
-    print("\nExample 1, simple language.")
+    print("\nExample 1, simple language using builtins.")
     print("=" * underline_len + "\n")
     run_simple_builtin_example()
+
+    print("\nExample 2, simple language not using builtins.")
+    print("=" * underline_len + "\n")
+    run_simple_non_builtin_example()
 
     print("\nExample 2, dynamically typed word and string language.")
     print("=" * underline_len + "\n")
