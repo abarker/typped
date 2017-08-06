@@ -702,21 +702,21 @@ struct __pyx_obj_6typped_5lexer___pyx_scope_struct_2_basic_token_subclass_factor
 struct __pyx_opt_args_6typped_7matcher_7Matcher_insert_pattern;
 struct __pyx_opt_args_6typped_7matcher_7Matcher_get_next_token_label_and_value;
 
-/* "matcher.pxd":24
+/* "matcher.pxd":25
  *     #
  * 
- *     cpdef insert_pattern(self, str token_label, regex_string, long on_ties=*,             # <<<<<<<<<<<<<<
+ *     cpdef insert_pattern(self, str token_label, regex_string, on_ties=*,             # <<<<<<<<<<<<<<
  *                          long ignore=*, matcher_options=*)
  * 
  */
 struct __pyx_opt_args_6typped_7matcher_7Matcher_insert_pattern {
   int __pyx_n;
-  long on_ties;
+  PyObject *on_ties;
   long ignore;
   PyObject *matcher_options;
 };
 
-/* "matcher.pxd":34
+/* "matcher.pxd":35
  *     cdef list best_matches, best_matches_trie, best_matches_fnl, winning_tokens
  *     cdef tuple best_matches_len, best_matches_trie_len, best_matches_fnl_len, max_len
  *     cpdef get_next_token_label_and_value(self, program, slice_indices,             # <<<<<<<<<<<<<<
@@ -793,13 +793,13 @@ struct __pyx_opt_args_6typped_5lexer_10TokenTable__create_token_subclass {
 /* "typped/lexer.pxd":77
  *     cpdef undef_token(self, str token_label)
  * 
- *     cpdef def_token(self, str token_label, regex_string, long on_ties=*, bint ignore=*,             # <<<<<<<<<<<<<<
+ *     cpdef def_token(self, str token_label, regex_string, on_ties=*, bint ignore=*,             # <<<<<<<<<<<<<<
  *                   matcher_options=*)
  * 
  */
 struct __pyx_opt_args_6typped_5lexer_10TokenTable_def_token {
   int __pyx_n;
-  long on_ties;
+  PyObject *on_ties;
   int ignore;
   PyObject *matcher_options;
 };
@@ -924,8 +924,8 @@ struct __pyx_opt_args_6typped_5lexer_5Lexer_no_ignored_before {
   int raise_on_success;
 };
 
-/* "matcher.pxd":6
- * # So consider converting the code to use that.
+/* "matcher.pxd":7
+ * # also need to be implemented, so probably not.
  * 
  * cdef class Matcher(object):             # <<<<<<<<<<<<<<
  *     #
@@ -1088,8 +1088,8 @@ struct __pyx_obj_6typped_5lexer___pyx_scope_struct_2_basic_token_subclass_factor
 
 
 
-/* "matcher.pxd":6
- * # So consider converting the code to use that.
+/* "matcher.pxd":7
+ * # also need to be implemented, so probably not.
  * 
  * cdef class Matcher(object):             # <<<<<<<<<<<<<<
  *     #
@@ -1100,6 +1100,7 @@ struct __pyx_vtabstruct_6typped_7matcher_Matcher {
   PyObject *(*insert_pattern)(struct __pyx_obj_6typped_7matcher_Matcher *, PyObject *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_6typped_7matcher_7Matcher_insert_pattern *__pyx_optional_args);
   PyObject *(*get_next_token_label_and_value)(struct __pyx_obj_6typped_7matcher_Matcher *, PyObject *, PyObject *, int __pyx_skip_dispatch, struct __pyx_opt_args_6typped_7matcher_7Matcher_get_next_token_label_and_value *__pyx_optional_args);
   PyObject *(*_python_get_raw_matches)(struct __pyx_obj_6typped_7matcher_Matcher *, PyObject *, PyObject *);
+  PyObject *(*_python_first_not_longest)(struct __pyx_obj_6typped_7matcher_Matcher *, PyObject *, PyObject *, int __pyx_skip_dispatch);
 };
 static struct __pyx_vtabstruct_6typped_7matcher_Matcher *__pyx_vtabptr_6typped_7matcher_Matcher;
 
@@ -2617,7 +2618,7 @@ static int __pyx_pf_6typped_5lexer_10TokenTable_2__contains__(struct __pyx_obj_6
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_4__getitem__(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label); /* proto */
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_6undef_token_subclass(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label); /* proto */
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_8undef_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label); /* proto */
-static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_10def_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label, PyObject *__pyx_v_regex_string, long __pyx_v_on_ties, int __pyx_v_ignore, PyObject *__pyx_v_matcher_options); /* proto */
+static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_10def_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label, PyObject *__pyx_v_regex_string, PyObject *__pyx_v_on_ties, int __pyx_v_ignore, PyObject *__pyx_v_matcher_options); /* proto */
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_12def_begin_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_begin_token_label); /* proto */
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_14def_end_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_end_token_label); /* proto */
 static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_16get_next_token_label_and_value(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_program, PyObject *__pyx_v_prog_unprocessed_indices, long __pyx_v_ERROR_MSG_TEXT_SNIPPET_SIZE); /* proto */
@@ -7335,7 +7336,7 @@ static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_8undef_token(struct __pyx_
 
 static PyObject *__pyx_pw_6typped_5lexer_10TokenTable_11def_token(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds); /*proto*/
 static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label, PyObject *__pyx_v_regex_string, int __pyx_skip_dispatch, struct __pyx_opt_args_6typped_5lexer_10TokenTable_def_token *__pyx_optional_args) {
-  long __pyx_v_on_ties = ((long)0);
+  PyObject *__pyx_v_on_ties = ((PyObject *)__pyx_int_0);
   int __pyx_v_ignore = ((int)0);
 
   /* "typped/lexer.py":487
@@ -7354,12 +7355,11 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
   PyObject *__pyx_t_3 = NULL;
   PyObject *__pyx_t_4 = NULL;
   PyObject *__pyx_t_5 = NULL;
-  PyObject *__pyx_t_6 = NULL;
-  int __pyx_t_7;
-  PyObject *__pyx_t_8 = NULL;
+  int __pyx_t_6;
+  PyObject *__pyx_t_7 = NULL;
+  int __pyx_t_8;
   int __pyx_t_9;
-  int __pyx_t_10;
-  struct __pyx_opt_args_6typped_7matcher_7Matcher_insert_pattern __pyx_t_11;
+  struct __pyx_opt_args_6typped_7matcher_7Matcher_insert_pattern __pyx_t_10;
   __Pyx_RefNannySetupContext("def_token", 0);
   if (__pyx_optional_args) {
     if (__pyx_optional_args->__pyx_n > 0) {
@@ -7388,69 +7388,65 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
     __Pyx_GOTREF(__pyx_t_1);
     if (!PyCFunction_Check(__pyx_t_1) || (PyCFunction_GET_FUNCTION(__pyx_t_1) != (PyCFunction)__pyx_pw_6typped_5lexer_10TokenTable_11def_token)) {
       __Pyx_XDECREF(__pyx_r);
-      __pyx_t_3 = __Pyx_PyInt_From_long(__pyx_v_on_ties); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 486, __pyx_L1_error)
+      __pyx_t_3 = __Pyx_PyBool_FromLong(__pyx_v_ignore); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 486, __pyx_L1_error)
       __Pyx_GOTREF(__pyx_t_3);
-      __pyx_t_4 = __Pyx_PyBool_FromLong(__pyx_v_ignore); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 486, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_4);
       __Pyx_INCREF(__pyx_t_1);
-      __pyx_t_5 = __pyx_t_1; __pyx_t_6 = NULL;
-      __pyx_t_7 = 0;
-      if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_5))) {
-        __pyx_t_6 = PyMethod_GET_SELF(__pyx_t_5);
-        if (likely(__pyx_t_6)) {
-          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_5);
-          __Pyx_INCREF(__pyx_t_6);
+      __pyx_t_4 = __pyx_t_1; __pyx_t_5 = NULL;
+      __pyx_t_6 = 0;
+      if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_4))) {
+        __pyx_t_5 = PyMethod_GET_SELF(__pyx_t_4);
+        if (likely(__pyx_t_5)) {
+          PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_4);
+          __Pyx_INCREF(__pyx_t_5);
           __Pyx_INCREF(function);
-          __Pyx_DECREF_SET(__pyx_t_5, function);
-          __pyx_t_7 = 1;
+          __Pyx_DECREF_SET(__pyx_t_4, function);
+          __pyx_t_6 = 1;
         }
       }
       #if CYTHON_FAST_PYCALL
-      if (PyFunction_Check(__pyx_t_5)) {
-        PyObject *__pyx_temp[6] = {__pyx_t_6, __pyx_v_token_label, __pyx_v_regex_string, __pyx_t_3, __pyx_t_4, __pyx_v_matcher_options};
-        __pyx_t_2 = __Pyx_PyFunction_FastCall(__pyx_t_5, __pyx_temp+1-__pyx_t_7, 5+__pyx_t_7); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+      if (PyFunction_Check(__pyx_t_4)) {
+        PyObject *__pyx_temp[6] = {__pyx_t_5, __pyx_v_token_label, __pyx_v_regex_string, __pyx_v_on_ties, __pyx_t_3, __pyx_v_matcher_options};
+        __pyx_t_2 = __Pyx_PyFunction_FastCall(__pyx_t_4, __pyx_temp+1-__pyx_t_6, 5+__pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
+        __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
         __Pyx_GOTREF(__pyx_t_2);
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       } else
       #endif
       #if CYTHON_FAST_PYCCALL
-      if (__Pyx_PyFastCFunction_Check(__pyx_t_5)) {
-        PyObject *__pyx_temp[6] = {__pyx_t_6, __pyx_v_token_label, __pyx_v_regex_string, __pyx_t_3, __pyx_t_4, __pyx_v_matcher_options};
-        __pyx_t_2 = __Pyx_PyCFunction_FastCall(__pyx_t_5, __pyx_temp+1-__pyx_t_7, 5+__pyx_t_7); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_6); __pyx_t_6 = 0;
+      if (__Pyx_PyFastCFunction_Check(__pyx_t_4)) {
+        PyObject *__pyx_temp[6] = {__pyx_t_5, __pyx_v_token_label, __pyx_v_regex_string, __pyx_v_on_ties, __pyx_t_3, __pyx_v_matcher_options};
+        __pyx_t_2 = __Pyx_PyCFunction_FastCall(__pyx_t_4, __pyx_temp+1-__pyx_t_6, 5+__pyx_t_6); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
+        __Pyx_XDECREF(__pyx_t_5); __pyx_t_5 = 0;
         __Pyx_GOTREF(__pyx_t_2);
         __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       } else
       #endif
       {
-        __pyx_t_8 = PyTuple_New(5+__pyx_t_7); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 486, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_8);
-        if (__pyx_t_6) {
-          __Pyx_GIVEREF(__pyx_t_6); PyTuple_SET_ITEM(__pyx_t_8, 0, __pyx_t_6); __pyx_t_6 = NULL;
+        __pyx_t_7 = PyTuple_New(5+__pyx_t_6); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 486, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_7);
+        if (__pyx_t_5) {
+          __Pyx_GIVEREF(__pyx_t_5); PyTuple_SET_ITEM(__pyx_t_7, 0, __pyx_t_5); __pyx_t_5 = NULL;
         }
         __Pyx_INCREF(__pyx_v_token_label);
         __Pyx_GIVEREF(__pyx_v_token_label);
-        PyTuple_SET_ITEM(__pyx_t_8, 0+__pyx_t_7, __pyx_v_token_label);
+        PyTuple_SET_ITEM(__pyx_t_7, 0+__pyx_t_6, __pyx_v_token_label);
         __Pyx_INCREF(__pyx_v_regex_string);
         __Pyx_GIVEREF(__pyx_v_regex_string);
-        PyTuple_SET_ITEM(__pyx_t_8, 1+__pyx_t_7, __pyx_v_regex_string);
+        PyTuple_SET_ITEM(__pyx_t_7, 1+__pyx_t_6, __pyx_v_regex_string);
+        __Pyx_INCREF(__pyx_v_on_ties);
+        __Pyx_GIVEREF(__pyx_v_on_ties);
+        PyTuple_SET_ITEM(__pyx_t_7, 2+__pyx_t_6, __pyx_v_on_ties);
         __Pyx_GIVEREF(__pyx_t_3);
-        PyTuple_SET_ITEM(__pyx_t_8, 2+__pyx_t_7, __pyx_t_3);
-        __Pyx_GIVEREF(__pyx_t_4);
-        PyTuple_SET_ITEM(__pyx_t_8, 3+__pyx_t_7, __pyx_t_4);
+        PyTuple_SET_ITEM(__pyx_t_7, 3+__pyx_t_6, __pyx_t_3);
         __Pyx_INCREF(__pyx_v_matcher_options);
         __Pyx_GIVEREF(__pyx_v_matcher_options);
-        PyTuple_SET_ITEM(__pyx_t_8, 4+__pyx_t_7, __pyx_v_matcher_options);
+        PyTuple_SET_ITEM(__pyx_t_7, 4+__pyx_t_6, __pyx_v_matcher_options);
         __pyx_t_3 = 0;
-        __pyx_t_4 = 0;
-        __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_5, __pyx_t_8, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
+        __pyx_t_2 = __Pyx_PyObject_Call(__pyx_t_4, __pyx_t_7, NULL); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 486, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_2);
-        __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
+        __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
       }
-      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __pyx_r = __pyx_t_2;
       __pyx_t_2 = 0;
       __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
@@ -7466,9 +7462,9 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
  *             raise LexerException("A token with label '{0}' is already defined.  It "
  *             "must be undefined before it can be redefined.".format(token_label))
  */
-  __pyx_t_9 = (__Pyx_PySequence_ContainsTF(__pyx_v_token_label, ((PyObject *)__pyx_v_self), Py_EQ)); if (unlikely(__pyx_t_9 < 0)) __PYX_ERR(0, 509, __pyx_L1_error)
-  __pyx_t_10 = (__pyx_t_9 != 0);
-  if (__pyx_t_10) {
+  __pyx_t_8 = (__Pyx_PySequence_ContainsTF(__pyx_v_token_label, ((PyObject *)__pyx_v_self), Py_EQ)); if (unlikely(__pyx_t_8 < 0)) __PYX_ERR(0, 509, __pyx_L1_error)
+  __pyx_t_9 = (__pyx_t_8 != 0);
+  if (__pyx_t_9) {
 
     /* "typped/lexer.py":510
  *         the `insert_pattern` method of whatever matcher is being used."""
@@ -7487,94 +7483,94 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
  * 
  *         if regex_string is not None:
  */
-    __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_kp_s_A_token_with_label_0_is_already, __pyx_n_s_format); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 511, __pyx_L1_error)
-    __Pyx_GOTREF(__pyx_t_8);
-    __pyx_t_4 = NULL;
-    if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_8))) {
-      __pyx_t_4 = PyMethod_GET_SELF(__pyx_t_8);
-      if (likely(__pyx_t_4)) {
-        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_8);
-        __Pyx_INCREF(__pyx_t_4);
+    __pyx_t_7 = __Pyx_PyObject_GetAttrStr(__pyx_kp_s_A_token_with_label_0_is_already, __pyx_n_s_format); if (unlikely(!__pyx_t_7)) __PYX_ERR(0, 511, __pyx_L1_error)
+    __Pyx_GOTREF(__pyx_t_7);
+    __pyx_t_3 = NULL;
+    if (CYTHON_UNPACK_METHODS && likely(PyMethod_Check(__pyx_t_7))) {
+      __pyx_t_3 = PyMethod_GET_SELF(__pyx_t_7);
+      if (likely(__pyx_t_3)) {
+        PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_7);
+        __Pyx_INCREF(__pyx_t_3);
         __Pyx_INCREF(function);
-        __Pyx_DECREF_SET(__pyx_t_8, function);
+        __Pyx_DECREF_SET(__pyx_t_7, function);
       }
     }
-    if (!__pyx_t_4) {
-      __pyx_t_5 = __Pyx_PyObject_CallOneArg(__pyx_t_8, __pyx_v_token_label); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 511, __pyx_L1_error)
-      __Pyx_GOTREF(__pyx_t_5);
+    if (!__pyx_t_3) {
+      __pyx_t_4 = __Pyx_PyObject_CallOneArg(__pyx_t_7, __pyx_v_token_label); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 511, __pyx_L1_error)
+      __Pyx_GOTREF(__pyx_t_4);
     } else {
       #if CYTHON_FAST_PYCALL
-      if (PyFunction_Check(__pyx_t_8)) {
-        PyObject *__pyx_temp[2] = {__pyx_t_4, __pyx_v_token_label};
-        __pyx_t_5 = __Pyx_PyFunction_FastCall(__pyx_t_8, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 511, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-        __Pyx_GOTREF(__pyx_t_5);
+      if (PyFunction_Check(__pyx_t_7)) {
+        PyObject *__pyx_temp[2] = {__pyx_t_3, __pyx_v_token_label};
+        __pyx_t_4 = __Pyx_PyFunction_FastCall(__pyx_t_7, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 511, __pyx_L1_error)
+        __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_GOTREF(__pyx_t_4);
       } else
       #endif
       #if CYTHON_FAST_PYCCALL
-      if (__Pyx_PyFastCFunction_Check(__pyx_t_8)) {
-        PyObject *__pyx_temp[2] = {__pyx_t_4, __pyx_v_token_label};
-        __pyx_t_5 = __Pyx_PyCFunction_FastCall(__pyx_t_8, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 511, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_4); __pyx_t_4 = 0;
-        __Pyx_GOTREF(__pyx_t_5);
+      if (__Pyx_PyFastCFunction_Check(__pyx_t_7)) {
+        PyObject *__pyx_temp[2] = {__pyx_t_3, __pyx_v_token_label};
+        __pyx_t_4 = __Pyx_PyCFunction_FastCall(__pyx_t_7, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 511, __pyx_L1_error)
+        __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_GOTREF(__pyx_t_4);
       } else
       #endif
       {
-        __pyx_t_3 = PyTuple_New(1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 511, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-        __Pyx_GIVEREF(__pyx_t_4); PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_4); __pyx_t_4 = NULL;
+        __pyx_t_5 = PyTuple_New(1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 511, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_5);
+        __Pyx_GIVEREF(__pyx_t_3); PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_3); __pyx_t_3 = NULL;
         __Pyx_INCREF(__pyx_v_token_label);
         __Pyx_GIVEREF(__pyx_v_token_label);
-        PyTuple_SET_ITEM(__pyx_t_3, 0+1, __pyx_v_token_label);
-        __pyx_t_5 = __Pyx_PyObject_Call(__pyx_t_8, __pyx_t_3, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 511, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_5);
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        PyTuple_SET_ITEM(__pyx_t_5, 0+1, __pyx_v_token_label);
+        __pyx_t_4 = __Pyx_PyObject_Call(__pyx_t_7, __pyx_t_5, NULL); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 511, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_4);
+        __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       }
     }
-    __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    __pyx_t_8 = NULL;
+    __Pyx_DECREF(__pyx_t_7); __pyx_t_7 = 0;
+    __pyx_t_7 = NULL;
     if (CYTHON_UNPACK_METHODS && unlikely(PyMethod_Check(__pyx_t_2))) {
-      __pyx_t_8 = PyMethod_GET_SELF(__pyx_t_2);
-      if (likely(__pyx_t_8)) {
+      __pyx_t_7 = PyMethod_GET_SELF(__pyx_t_2);
+      if (likely(__pyx_t_7)) {
         PyObject* function = PyMethod_GET_FUNCTION(__pyx_t_2);
-        __Pyx_INCREF(__pyx_t_8);
+        __Pyx_INCREF(__pyx_t_7);
         __Pyx_INCREF(function);
         __Pyx_DECREF_SET(__pyx_t_2, function);
       }
     }
-    if (!__pyx_t_8) {
-      __pyx_t_1 = __Pyx_PyObject_CallOneArg(__pyx_t_2, __pyx_t_5); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
-      __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+    if (!__pyx_t_7) {
+      __pyx_t_1 = __Pyx_PyObject_CallOneArg(__pyx_t_2, __pyx_t_4); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
+      __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       __Pyx_GOTREF(__pyx_t_1);
     } else {
       #if CYTHON_FAST_PYCALL
       if (PyFunction_Check(__pyx_t_2)) {
-        PyObject *__pyx_temp[2] = {__pyx_t_8, __pyx_t_5};
+        PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_4};
         __pyx_t_1 = __Pyx_PyFunction_FastCall(__pyx_t_2, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
+        __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_1);
-        __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       } else
       #endif
       #if CYTHON_FAST_PYCCALL
       if (__Pyx_PyFastCFunction_Check(__pyx_t_2)) {
-        PyObject *__pyx_temp[2] = {__pyx_t_8, __pyx_t_5};
+        PyObject *__pyx_temp[2] = {__pyx_t_7, __pyx_t_4};
         __pyx_t_1 = __Pyx_PyCFunction_FastCall(__pyx_t_2, __pyx_temp+1-1, 1+1); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
-        __Pyx_XDECREF(__pyx_t_8); __pyx_t_8 = 0;
+        __Pyx_XDECREF(__pyx_t_7); __pyx_t_7 = 0;
         __Pyx_GOTREF(__pyx_t_1);
-        __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
+        __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
       } else
       #endif
       {
-        __pyx_t_3 = PyTuple_New(1+1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 510, __pyx_L1_error)
-        __Pyx_GOTREF(__pyx_t_3);
-        __Pyx_GIVEREF(__pyx_t_8); PyTuple_SET_ITEM(__pyx_t_3, 0, __pyx_t_8); __pyx_t_8 = NULL;
-        __Pyx_GIVEREF(__pyx_t_5);
-        PyTuple_SET_ITEM(__pyx_t_3, 0+1, __pyx_t_5);
-        __pyx_t_5 = 0;
-        __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_3, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
+        __pyx_t_5 = PyTuple_New(1+1); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 510, __pyx_L1_error)
+        __Pyx_GOTREF(__pyx_t_5);
+        __Pyx_GIVEREF(__pyx_t_7); PyTuple_SET_ITEM(__pyx_t_5, 0, __pyx_t_7); __pyx_t_7 = NULL;
+        __Pyx_GIVEREF(__pyx_t_4);
+        PyTuple_SET_ITEM(__pyx_t_5, 0+1, __pyx_t_4);
+        __pyx_t_4 = 0;
+        __pyx_t_1 = __Pyx_PyObject_Call(__pyx_t_2, __pyx_t_5, NULL); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 510, __pyx_L1_error)
         __Pyx_GOTREF(__pyx_t_1);
-        __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+        __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
       }
     }
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
@@ -7598,9 +7594,9 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
  *             self.pattern_matcher.insert_pattern(token_label, regex_string,
  *                          on_ties, ignore=ignore, matcher_options=matcher_options)
  */
-  __pyx_t_10 = (__pyx_v_regex_string != Py_None);
-  __pyx_t_9 = (__pyx_t_10 != 0);
-  if (__pyx_t_9) {
+  __pyx_t_9 = (__pyx_v_regex_string != Py_None);
+  __pyx_t_8 = (__pyx_t_9 != 0);
+  if (__pyx_t_8) {
 
     /* "typped/lexer.py":514
  * 
@@ -7609,11 +7605,11 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
  *                          on_ties, ignore=ignore, matcher_options=matcher_options)
  * 
  */
-    __pyx_t_11.__pyx_n = 3;
-    __pyx_t_11.on_ties = __pyx_v_on_ties;
-    __pyx_t_11.ignore = __pyx_v_ignore;
-    __pyx_t_11.matcher_options = __pyx_v_matcher_options;
-    __pyx_t_1 = ((struct __pyx_vtabstruct_6typped_7matcher_Matcher *)__pyx_v_self->pattern_matcher->__pyx_vtab)->insert_pattern(__pyx_v_self->pattern_matcher, __pyx_v_token_label, __pyx_v_regex_string, 0, &__pyx_t_11); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 514, __pyx_L1_error)
+    __pyx_t_10.__pyx_n = 3;
+    __pyx_t_10.on_ties = __pyx_v_on_ties;
+    __pyx_t_10.ignore = __pyx_v_ignore;
+    __pyx_t_10.matcher_options = __pyx_v_matcher_options;
+    __pyx_t_1 = ((struct __pyx_vtabstruct_6typped_7matcher_Matcher *)__pyx_v_self->pattern_matcher->__pyx_vtab)->insert_pattern(__pyx_v_self->pattern_matcher, __pyx_v_token_label, __pyx_v_regex_string, 0, &__pyx_t_10); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 514, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_1);
     __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0;
 
@@ -7674,8 +7670,7 @@ static PyObject *__pyx_f_6typped_5lexer_10TokenTable_def_token(struct __pyx_obj_
   __Pyx_XDECREF(__pyx_t_3);
   __Pyx_XDECREF(__pyx_t_4);
   __Pyx_XDECREF(__pyx_t_5);
-  __Pyx_XDECREF(__pyx_t_6);
-  __Pyx_XDECREF(__pyx_t_8);
+  __Pyx_XDECREF(__pyx_t_7);
   __Pyx_AddTraceback("typped.lexer.TokenTable.def_token", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = 0;
   __pyx_L0:;
@@ -7692,7 +7687,7 @@ static PyMethodDef __pyx_mdef_6typped_5lexer_10TokenTable_11def_token = {"def_to
 static PyObject *__pyx_pw_6typped_5lexer_10TokenTable_11def_token(PyObject *__pyx_v_self, PyObject *__pyx_args, PyObject *__pyx_kwds) {
   PyObject *__pyx_v_token_label = 0;
   PyObject *__pyx_v_regex_string = 0;
-  long __pyx_v_on_ties;
+  PyObject *__pyx_v_on_ties = 0;
   int __pyx_v_ignore;
   PyObject *__pyx_v_matcher_options = 0;
   PyObject *__pyx_r = 0;
@@ -7701,6 +7696,7 @@ static PyObject *__pyx_pw_6typped_5lexer_10TokenTable_11def_token(PyObject *__py
   {
     static PyObject **__pyx_pyargnames[] = {&__pyx_n_s_token_label,&__pyx_n_s_regex_string,&__pyx_n_s_on_ties,&__pyx_n_s_ignore,&__pyx_n_s_matcher_options,0};
     PyObject* values[5] = {0,0,0,0,0};
+    values[2] = ((PyObject *)__pyx_int_0);
 
     /* "typped/lexer.py":487
  * 
@@ -7776,11 +7772,7 @@ static PyObject *__pyx_pw_6typped_5lexer_10TokenTable_11def_token(PyObject *__py
     }
     __pyx_v_token_label = ((PyObject*)values[0]);
     __pyx_v_regex_string = values[1];
-    if (values[2]) {
-      __pyx_v_on_ties = __Pyx_PyInt_As_long(values[2]); if (unlikely((__pyx_v_on_ties == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 486, __pyx_L3_error)
-    } else {
-      __pyx_v_on_ties = ((long)0);
-    }
+    __pyx_v_on_ties = values[2];
     if (values[3]) {
       __pyx_v_ignore = __Pyx_PyObject_IsTrue(values[3]); if (unlikely((__pyx_v_ignore == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 486, __pyx_L3_error)
     } else {
@@ -7816,7 +7808,7 @@ static PyObject *__pyx_pw_6typped_5lexer_10TokenTable_11def_token(PyObject *__py
   return __pyx_r;
 }
 
-static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_10def_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label, PyObject *__pyx_v_regex_string, long __pyx_v_on_ties, int __pyx_v_ignore, PyObject *__pyx_v_matcher_options) {
+static PyObject *__pyx_pf_6typped_5lexer_10TokenTable_10def_token(struct __pyx_obj_6typped_5lexer_TokenTable *__pyx_v_self, PyObject *__pyx_v_token_label, PyObject *__pyx_v_regex_string, PyObject *__pyx_v_on_ties, int __pyx_v_ignore, PyObject *__pyx_v_matcher_options) {
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
   PyObject *__pyx_t_1 = NULL;
@@ -18710,10 +18702,9 @@ static PyObject *__pyx_pf_6typped_5lexer_5Lexer_42def_token(struct __pyx_obj_6ty
   PyObject *__pyx_v_new_subclass = NULL;
   PyObject *__pyx_r = NULL;
   __Pyx_RefNannyDeclarations
-  long __pyx_t_1;
-  int __pyx_t_2;
-  PyObject *__pyx_t_3 = NULL;
-  struct __pyx_opt_args_6typped_5lexer_10TokenTable_def_token __pyx_t_4;
+  int __pyx_t_1;
+  PyObject *__pyx_t_2 = NULL;
+  struct __pyx_opt_args_6typped_5lexer_10TokenTable_def_token __pyx_t_3;
   __Pyx_RefNannySetupContext("def_token", 0);
 
   /* "typped/lexer.py":1249
@@ -18732,8 +18723,7 @@ static PyObject *__pyx_pf_6typped_5lexer_5Lexer_42def_token(struct __pyx_obj_6ty
  *         return new_subclass
  * 
  */
-  __pyx_t_1 = __Pyx_PyInt_As_long(__pyx_v_on_ties); if (unlikely((__pyx_t_1 == (long)-1) && PyErr_Occurred())) __PYX_ERR(0, 1250, __pyx_L1_error)
-  __pyx_t_2 = __Pyx_PyObject_IsTrue(__pyx_v_ignore); if (unlikely((__pyx_t_2 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1250, __pyx_L1_error)
+  __pyx_t_1 = __Pyx_PyObject_IsTrue(__pyx_v_ignore); if (unlikely((__pyx_t_1 == (int)-1) && PyErr_Occurred())) __PYX_ERR(0, 1250, __pyx_L1_error)
 
   /* "typped/lexer.py":1249
  *         `def_token` method of the current `TokenTable` instance associated with
@@ -18742,14 +18732,14 @@ static PyObject *__pyx_pf_6typped_5lexer_5Lexer_42def_token(struct __pyx_obj_6ty
  *                     on_ties=on_ties, ignore=ignore, matcher_options=matcher_options)
  *         return new_subclass
  */
-  __pyx_t_4.__pyx_n = 3;
-  __pyx_t_4.on_ties = __pyx_t_1;
-  __pyx_t_4.ignore = __pyx_t_2;
-  __pyx_t_4.matcher_options = __pyx_v_matcher_options;
-  __pyx_t_3 = ((struct __pyx_vtabstruct_6typped_5lexer_TokenTable *)__pyx_v_self->token_table->__pyx_vtab)->def_token(__pyx_v_self->token_table, ((PyObject*)__pyx_v_token_label), __pyx_v_regex_string, 0, &__pyx_t_4); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 1249, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_3);
-  __pyx_v_new_subclass = __pyx_t_3;
-  __pyx_t_3 = 0;
+  __pyx_t_3.__pyx_n = 3;
+  __pyx_t_3.on_ties = __pyx_v_on_ties;
+  __pyx_t_3.ignore = __pyx_t_1;
+  __pyx_t_3.matcher_options = __pyx_v_matcher_options;
+  __pyx_t_2 = ((struct __pyx_vtabstruct_6typped_5lexer_TokenTable *)__pyx_v_self->token_table->__pyx_vtab)->def_token(__pyx_v_self->token_table, ((PyObject*)__pyx_v_token_label), __pyx_v_regex_string, 0, &__pyx_t_3); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 1249, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_v_new_subclass = __pyx_t_2;
+  __pyx_t_2 = 0;
 
   /* "typped/lexer.py":1251
  *         new_subclass = self.token_table.def_token(token_label, regex_string,
@@ -18773,7 +18763,7 @@ static PyObject *__pyx_pf_6typped_5lexer_5Lexer_42def_token(struct __pyx_obj_6ty
 
   /* function exit code */
   __pyx_L1_error:;
-  __Pyx_XDECREF(__pyx_t_3);
+  __Pyx_XDECREF(__pyx_t_2);
   __Pyx_AddTraceback("typped.lexer.Lexer.def_token", __pyx_clineno, __pyx_lineno, __pyx_filename);
   __pyx_r = NULL;
   __pyx_L0:;
@@ -31406,8 +31396,8 @@ PyMODINIT_FUNC PyInit_lexer(void)
   __pyx_type_6typped_5lexer___pyx_scope_struct_2_basic_token_subclass_factory.tp_print = 0;
   __pyx_ptype_6typped_5lexer___pyx_scope_struct_2_basic_token_subclass_factory = &__pyx_type_6typped_5lexer___pyx_scope_struct_2_basic_token_subclass_factory;
   /*--- Type import code ---*/
-  __pyx_ptype_6typped_7matcher_Matcher = __Pyx_ImportType("typped.matcher", "Matcher", sizeof(struct __pyx_obj_6typped_7matcher_Matcher), 1); if (unlikely(!__pyx_ptype_6typped_7matcher_Matcher)) __PYX_ERR(3, 6, __pyx_L1_error)
-  __pyx_vtabptr_6typped_7matcher_Matcher = (struct __pyx_vtabstruct_6typped_7matcher_Matcher*)__Pyx_GetVtable(__pyx_ptype_6typped_7matcher_Matcher->tp_dict); if (unlikely(!__pyx_vtabptr_6typped_7matcher_Matcher)) __PYX_ERR(3, 6, __pyx_L1_error)
+  __pyx_ptype_6typped_7matcher_Matcher = __Pyx_ImportType("typped.matcher", "Matcher", sizeof(struct __pyx_obj_6typped_7matcher_Matcher), 1); if (unlikely(!__pyx_ptype_6typped_7matcher_Matcher)) __PYX_ERR(3, 7, __pyx_L1_error)
+  __pyx_vtabptr_6typped_7matcher_Matcher = (struct __pyx_vtabstruct_6typped_7matcher_Matcher*)__Pyx_GetVtable(__pyx_ptype_6typped_7matcher_Matcher->tp_dict); if (unlikely(!__pyx_vtabptr_6typped_7matcher_Matcher)) __PYX_ERR(3, 7, __pyx_L1_error)
   /*--- Variable import code ---*/
   /*--- Function import code ---*/
   /*--- Execution code ---*/

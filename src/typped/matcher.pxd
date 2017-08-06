@@ -1,7 +1,8 @@
 
 # For the namedtuples, this discussion says that cdef classes are more lightweight:
 # http://grokbase.com/t/gg/cython-users/129mpzbcy7/namedtuples-in-cython
-# So consider converting the code to use that.
+# Consider converting the code to use that.  But comparisons and indexing would
+# also need to be implemented, so probably not.
 
 cdef class Matcher(object):
     #
@@ -21,7 +22,7 @@ cdef class Matcher(object):
     # Methods
     #
 
-    cpdef insert_pattern(self, str token_label, regex_string, long on_ties=*,
+    cpdef insert_pattern(self, str token_label, regex_string, on_ties=*,
                          long ignore=*, matcher_options=*)
 
     # -----------------------------------------------------------------------
@@ -36,20 +37,19 @@ cdef class Matcher(object):
 
     # -----------------------------------------------------------------------
 
-    cpdef insert_pattern(self, str token_label, regex_string, long on_ties=*, long ignore=*,
+    cpdef insert_pattern(self, str token_label, regex_string, on_ties=*, long ignore=*,
                          matcher_options=*)
 
     # -----------------------------------------------------------------------
 
-    #cdef str token_label
-    #cdef long on_ties
     cdef _python_get_raw_matches(self, program, unprocessed_slice_indices)
 
     # -----------------------------------------------------------------------
 
-    #cdef long matched_length #, on_ties
-    # Uncommenting below line causes compilation error...
-    #cdef _python_first_not_longest(self, program, unprocessed_slice_indices)
+    # This definition below currently must be a cpdef, not a cdef.  Otherwise
+    # it gives a compile error.  Apparently some Python construct in it gives
+    # Cython problems.
+    cpdef _python_first_not_longest(self, program, unprocessed_slice_indices)
 
     # -----------------------------------------------------------------------
 

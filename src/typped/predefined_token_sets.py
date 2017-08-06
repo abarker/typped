@@ -16,7 +16,7 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_production_rules.py",
+    pytest_helper.script_run(["../../test/test_ebnf_classes_and_operators.py",
                               "../../test/test_example_calculator.py",
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"

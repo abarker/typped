@@ -27,7 +27,7 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_production_rules.py",
+    pytest_helper.script_run(["../../test/test_ebnf_classes_and_operators.py",
                               "../../test/test_example_calculator.py",
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_parser.py"
@@ -178,13 +178,25 @@ class Construct(object):
 
         return subtree
 
-    # TODO: Test keying/hashing on string value with an example that uses an
-    # identifier token with different meanings for, say, sin and cos.
-    # Language really only needs to read a stdfun, so could just add feature
-    # to that first.  Note that the typesig really needs to be the same for
-    # this to be useful, but true for sin and cos.
+    def save_eval_fun(self, eval_fun, type_sig=TypeSig(None), value_key=None):
+        """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
+        `TypeSig` instance `typesig` and also by the `arg_types` of that
+        typesig.  If `key_on_values` is true for the construct then the
+        value `value_key` is also used in the hashing."""
+        if not self.key_on_values:
+            value_key = None
 
-    def save_eval_fun_and_ast_data(self, type_sig, eval_fun, ast_data, value_key):
+        # Save in dicts hashed with full signature (full overload with return).
+        dict_key = (type_sig, value_key)
+        self.eval_fun_dict[dict_key] = eval_fun
+        # Also save in dicts hashed only on args (overloading only on args).
+        dict_key = (type_sig.arg_types, value_key)
+        self.eval_fun_dict[dict_key] = eval_fun
+        # Also save in dicts hashed only on precond label (no overloading).
+        dict_key = value_key
+        self.eval_fun_dict[dict_key] = eval_fun
+
+    def save_ast_data(self, ast_data, type_sig=TypeSig(None), value_key=None):
         """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
         `TypeSig` instance `typesig` and also by the `arg_types` of that
         typesig.  If `key_on_values` is true for the construct then the
@@ -195,18 +207,15 @@ class Construct(object):
         # Save in dicts hashed with full signature (full overload with return).
         dict_key = (type_sig, value_key)
         self.ast_data_dict[dict_key] = ast_data
-        self.eval_fun_dict[dict_key] = eval_fun
         # Also save in dicts hashed only on args (overloading only on args).
         dict_key = (type_sig.arg_types, value_key)
         self.ast_data_dict[dict_key] = ast_data
-        self.eval_fun_dict[dict_key] = eval_fun
         # Also save in dicts hashed only on precond label (no overloading).
         dict_key = value_key
         self.ast_data_dict[dict_key] = ast_data
-        self.eval_fun_dict[dict_key] = eval_fun
 
     def get_eval_fun(self, orig_sig, value_key=None):
-        """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
+        """Return the evaluation function saved by `_save_eval_fun`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
@@ -221,7 +230,7 @@ class Construct(object):
         return self.eval_fun_dict.get(dict_key, None)
 
     def get_ast_data(self, orig_sig, value_key=None):
-        """Return the ast data saved by `_save_ast_data_and_ast_data`.
+        """Return the ast data saved by `_save_ast_data`.
         Must be called after parsing because the `construct_label` attribute must
         be set on the token instance.  Keyed on `is_head`, `construct_label`, and
         original signature."""
@@ -357,10 +366,13 @@ class ConstructTable(object):
         resorted_handler_dict = sort_handler_dict(sorted_construct_dict)
         self.construct_dict[head_or_tail][trigger_token_label] = resorted_handler_dict
 
-        # Save the eval_fun and ast_data.  (Note `key_on_values` setting will be used.)
-        self.save_eval_fun_and_ast_data(head_or_tail,
-                                        trigger_token_label, construct_label,
-                                        type_sig, eval_fun, ast_data, value_key)
+        # Save the eval_fun and ast_data.  Note the construct's `key_on_values`
+        # setting will be used.  Note this could be saved directly to new_construct
+        # above instead of going through the ConstructTable method.
+        self.save_eval_fun(head_or_tail, trigger_token_label, construct_label,
+                                                type_sig, eval_fun, value_key)
+        self.save_ast_data(head_or_tail, trigger_token_label, construct_label,
+                                                type_sig, ast_data, value_key)
 
         # Make sure we don't get multiple definitions with the same
         # priority when the new one is inserted.
@@ -492,8 +504,8 @@ class ConstructTable(object):
                     " function: must be HEAD or TAIL or the equivalent.")
         return handler
 
-    def save_eval_fun_and_ast_data(self, head_or_tail, trigger_token_label, construct_label,
-                                    type_sig, eval_fun, ast_data, value_key):
+    def save_eval_fun(self, head_or_tail, trigger_token_label, construct_label,
+                                                  type_sig, eval_fun, value_key=None):
         """This is a utility function that saves data in the `eval_fun_dict`
         and `ast_data_dict` associated with token `token_subclass`, keyed by
         the `TypeSig` instance `typesig` and also by the `arg_types` of that
@@ -501,10 +513,21 @@ class ConstructTable(object):
         evaluations and AST data."""
         # TODO: better error-checking,
         construct = self.construct_dict[head_or_tail][trigger_token_label][construct_label]
-        construct.save_eval_fun_and_ast_data(type_sig, eval_fun, ast_data, value_key)
+        construct.save_eval_fun(eval_fun, type_sig, value_key)
+
+    def save_ast_data(self, head_or_tail, trigger_token_label, construct_label,
+                                                  type_sig, ast_data, value_key=None):
+        """This is a utility function that saves data in the `eval_fun_dict`
+        and `ast_data_dict` associated with token `token_subclass`, keyed by
+        the `TypeSig` instance `typesig` and also by the `arg_types` of that
+        typesig.  This is used so overloaded instances can have different
+        evaluations and AST data."""
+        # TODO: better error-checking,
+        construct = self.construct_dict[head_or_tail][trigger_token_label][construct_label]
+        construct.save_ast_data(ast_data, type_sig, value_key)
 
     def get_eval_fun(self, orig_sig, trigger_token_instance):
-        """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
+        """Return the evaluation function saved by `_save_eval_fun`.
         Must be called after parsing because the `construct_label` and `is_head`
         attributes must be set on the token instance."""
         construct_label = trigger_token_instance.construct_label # Attribute set during parsing.

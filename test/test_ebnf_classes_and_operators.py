@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 
-Test the code in the `production_rules.py` file as well as the functions in
-`register_grammar_with_parser.py` and the `PrattParser` code for handling
-null-string tokens, etc.
+Test the code in the `ebnf_classes_and_overloads.py` file as well as the
+functions in `register_grammar_with_parser.py` and the `PrattParser` code for
+handling null-string tokens, etc.
 
 """
 

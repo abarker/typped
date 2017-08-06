@@ -193,8 +193,9 @@ from __future__ import print_function, division, absolute_import
 # Run tests when invoked as a script.
 if __name__ == "__main__":
     import pytest_helper
-    pytest_helper.script_run(["../../test/test_production_rules.py",
+    pytest_helper.script_run(["../../test/test_ebnf_classes_and_operators.py",
                               "../../test/test_example_calculator.py",
+                              "../../test/test_example_calculator_identifier_keyed_on_values.py",
                               "../../test/test_parser_called_from_parser.py",
                               "../../test/test_pratt_types.py",
                               "../../test/test_basic_usage_section_examples.py",
@@ -276,8 +277,8 @@ class TokenSubclassMeta(type):
 
         # Below is ugly, but avoids mutual import problems.  Used as an easy
         # way to define token addition so that it works in the grammars defined
-        # by the production_rules module.
-        from .production_rules import (Tok, Not, Prec, nExactly, nOrMore, Repeat)
+        # by the ebnf_classes_and_operators module.
+        from .ebnf_classes_and_operators import (Tok, Not, Prec, nExactly, nOrMore, Repeat)
         # These are saved in a dict below because if they are made attributes
         # then Python 2 complains about "TypeError: unbound method Tok() must
         # be called with TokenClass_k_lpar instance as first argument (got
@@ -304,7 +305,7 @@ class TokenSubclassMeta(type):
         return string
 
     #
-    # These overloads work with the production_rules module.
+    # These overloads work with the ebnf_classes_and_operators module.
     #
 
     # TODO: Could have a flag to turn off overloads, maybe... tokens know

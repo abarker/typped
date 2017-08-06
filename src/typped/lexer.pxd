@@ -74,7 +74,7 @@ cdef class TokenTable(object):
 
     cpdef undef_token(self, str token_label)
 
-    cpdef def_token(self, str token_label, regex_string, long on_ties=*, bint ignore=*,
+    cpdef def_token(self, str token_label, regex_string, on_ties=*, bint ignore=*,
                   matcher_options=*)
 
     cpdef def_begin_token(self, str begin_token_label)

@@ -15,7 +15,7 @@ from .pratt_parser import *
 from .pratt_types import *
 from .lexer import *
 from .shared_settings_and_exceptions import *
-from .production_rules import *
+from .ebnf_classes_and_operators import *
 from .helpers import *
 
 # Pickling below doesn't work, at least not like this.
