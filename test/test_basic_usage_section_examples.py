@@ -43,12 +43,39 @@ def test_simple_builtin_example():
            "<k_lpar,'('>(<k_plus,'+'>(<k_number,'4'>,<k_number,'3'>)),<k_number,'5'>))")
 
 def test_string_language_parser_dynamic():
-    """An example from the Sphinx docs overview section.  A simple language
-    that uses `+` to add ints and concatenate strings.  Multiplication of a
-    number by a string repeats the string.  Multiplication of a string by a
-    string is not defined.  It also has simple variables which can represent
-    either numbers or strings."""
+    """An example from the Sphinx docs overview section."""
     parser = setup_string_language_parser_dynamic_typing()
+
+    # Test basic parsing to syntax tree.
+    result_tree = parser.parse("x + (4 + 3)*5")
+    print(result_tree.tree_repr_with_types(indent=12))
+    assert result_tree.tree_repr_with_types() == unindent(12, """
+            <k_plus,+,TypeObject('t_int')>
+                <k_identifier,x,TypeObject('t_int')>
+                <k_ast,*,TypeObject('t_int')>
+                    <k_lpar,(,TypeObject('t_int')>
+                        <k_plus,+,TypeObject('t_int')>
+                            <k_int,4,TypeObject('t_int')>
+                            <k_int,3,TypeObject('t_int')>
+                    <k_int,5,TypeObject('t_int')>
+            """)
+    result_tree = parser.parse('"foo" + "bar"')
+    #print(resul1t_tree.tree_repr())
+    print(result_tree.tree_repr_with_types())
+    assert result_tree.tree_repr_with_types() == unindent(12, """
+            <k_plus,+,TypeObject('t_str')>
+                <k_string,"foo",TypeObject('t_str')>
+                <k_string,"bar",TypeObject('t_str')>
+            """)
+    # Test evaluations.
+    result = parser.parse("x")
+    assert result.eval_subtree() == 0
+    result = parser.parse("x = 4")
+    assert result.eval_subtree() == 4
+
+def test_string_language_parser_static():
+    """An example from the Sphinx docs overview section."""
+    parser = setup_string_language_parser_static_typing()
 
     # Test basic parsing to syntax tree.
     result_tree = parser.parse("x + (4 + 3)*5")
