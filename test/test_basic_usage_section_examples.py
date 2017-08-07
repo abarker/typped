@@ -77,6 +77,9 @@ def test_string_language_parser_static():
     """An example from the Sphinx docs overview section."""
     parser = setup_string_language_parser_static_typing()
 
+    # TODO: finish below... currently just copied from dynamic tests.
+    # Note the first test should raise "undefined variable" error.
+
     # Test basic parsing to syntax tree.
     result_tree = parser.parse("x + (4 + 3)*5")
     print(result_tree.tree_repr_with_types(indent=12))
