@@ -36,8 +36,12 @@ if __name__ == "__main__":
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
 
+# TODO: Work out the exceptions to call... Do we really want separate
+# ParserException and ErrorInParsedLanguage exceptions?  Will need to
+# change many places, then... maybe a TyppedException vs. a ParserException??
 from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
-        NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
+        NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler,
+        ErrorInParsedLanguage)
 from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import (TypeTable, TypeSig, TypeErrorInParsedLanguage,
                          actual_matches_formal_default)
@@ -121,13 +125,12 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
         """A head handler for the left bracket of the pair."""
         tok.append_children(tok.recursive_parse(0))
         lex.match_next(rbrac_token_label, raise_on_fail=True)
+        if not in_tree:
+            return tok[0]
         if not parser.skip_type_checking:
             child_type = tok.children[0].expanded_formal_sig.val_type
             tok.process_and_check_kwargs = {"val_type_override": child_type}
-        if in_tree:
-            return tok
-        else:
-            return tok[0]
+        return tok
 
     construct_label = "def_bracket_pair with {} tokens as triggers".format(lbrac_token_label)
     return parser.def_construct(HEAD, head_handler, lbrac_token_label,
@@ -438,7 +441,7 @@ def _eval_statically_typed_assignment(parser, symbol_value_dict):
 
     return eval_fun
 
-def set_static_type(parser, symbol_value_dict=None, symbol_type_dict=None):
+def _set_static_type(parser, symbol_value_dict=None, symbol_type_dict=None):
     """Called when a static type definition is parsed in the object language.  It
     associates a Typped type with the type in the language.  This allows static type
     checking to work.  The default `symbol_type_dict` is `parser.symbol_type_dict`."""
@@ -624,8 +627,8 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
 
 def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 symbol_type_dict=None,
-                                default_type=None,
-                                default_eval_value=None,
+                                default_type=None, default_eval_value=None,
+                                raise_if_undefined=False,
                                 eval_fun=None, create_eval_fun=False,
                                 precond_fun=None, precond_priority=1):
     """Define a dynamically typed literal, usually a variable-name identifier.
@@ -648,6 +651,8 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
 
     This method may not correctly set the return type when overloading on
     return types because currently `val_type_override` is used to set it."""
+    # TODO: raise_if_undefined could take a string or even a full exception to raise.
+    # instead of using the hardcoded message and error.
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
 
@@ -662,8 +667,23 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
         def eval_fun(tok):
             return symbol_value_dict.get(tok.value, default_eval_value)
 
+    # Note that this precondition is used to raise an exception if the identifier
+    # is not defined as a key in symbol_type_dict.  May be better to do this in an
+    # explicit head-handler rather than calling def_literal.
+    if raise_if_undefined:
+        def precond_raise_if_undefined(lex, lookbehind):
+            if not lex.token.value in parser.symbol_type_dict:
+                raise ErrorInParsedLanguage("Undefined identifier: '{0}'"
+                                            .format(lex.token.value))
+            return True
+        if not precond_fun:
+            precond_fun = precond_raise_if_undefined
+        else:
+            precond_fun = all_precond_funs(precond_fun, precond_raise_if_undefined)
+
     parser.def_literal(token_label, val_type=None,
                        val_type_override_fun=literal_val_type_override_fun,
+                       precond_fun=precond_fun, precond_priority=precond_priority,
                        eval_fun=eval_fun)
 
 #

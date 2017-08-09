@@ -684,13 +684,13 @@ def token_subclass_factory():
             registered with it.  Returns `None` if no evaluation function is found."""
             #sig = self.expanded_formal_sig
             orig_sig = self.original_formal_sig
-
             eval_fun = self.eval_fun
 
             # TODO: Consider if returning None is better than raising exception...
             if not eval_fun:
                 return None
 
+            # TODO: Consider if special exception should be raised.
             #if not eval_fun:
             #    raise ParserException("An evaluation function is needed for token with "
             #            "value '{0}' and label '{1}' but no defined and matching "

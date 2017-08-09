@@ -6,16 +6,14 @@ This file contains the runnable code for the Basic Usage section of the Sphinx d
 """
 from __future__ import print_function, division, absolute_import
 
-if __name__ == "__main__":
-    import pytest_helper
-    #pytest_helper.script_run("../test/test_example_number_string_lang_from_intro.py",
-    #                         pytest_args="-v")
-
-#pytest_helper.sys_path("../src") # Only needed when package isn't pip installed.
 import typped as pp
 import operator
 import cmd
 import readline
+
+#
+# Example 1.
+#
 
 def define_parser_tokens_and_literals_simple_example():
     import typped as pp
@@ -45,6 +43,15 @@ def setup_simple_builtin_example():
 
     return parser
 
+def run_simple_builtin_example():
+    parser = setup_simple_builtin_example()
+    result_tree = parser.parse("x + (4 + 3)*5")
+    print(result_tree.tree_repr())
+
+#
+# Example 2.
+#
+
 def setup_simple_non_builtin_example():
     parser = define_parser_tokens_and_literals_simple_example()
 
@@ -71,18 +78,14 @@ def setup_simple_non_builtin_example():
 
     return parser
 
-def run_simple_builtin_example():
-    parser = setup_simple_builtin_example()
-    result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.tree_repr())
-
 def run_simple_non_builtin_example():
     parser = setup_simple_non_builtin_example()
     result_tree = parser.parse("x + (4 + 3)*5")
     print(result_tree.tree_repr())
 
-def define_basic_infix_parser_from_scratch():
-    parser = pp.PrattParser()
+#
+# Example 3.
+#
 
 def setup_string_language_parser_dynamic_typing():
     """A simple dynamically-typed language that uses `+` to add integers and
@@ -176,6 +179,10 @@ def run_string_language_dynamic_typing_parser():
 
     NumberStringLangREPL().cmdloop()
 
+#
+# Example 4.
+#
+
 def setup_string_language_parser_static_typing():
     """A simple statically-typed language that uses `+` to add integers and
     concatenate strings.  Multiplication of a number by a string repeats the
@@ -193,7 +200,7 @@ def setup_string_language_parser_static_typing():
     tok("k_ast", r"\*")
     tok("k_plus", r"\+")
     tok("k_equals", r"=")
-    tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    tok("k_identifier", r"[a-zA-Z_](?:\w*)")
     tok("k_string", r"(\"(.|[\r\n])*?\")")
 
     # Define the types.
@@ -209,39 +216,40 @@ def setup_string_language_parser_static_typing():
     parser.typped_type_dict = {"int": t_int,
                                "str": t_str}
 
-    def head_handler(tok, lex):
-        """Handler function that parses type declarations."""
+    def typedecl_precond_fun(lex, lookbehind):
+        """This construct will only be triggered for identifiers stored as keys in
+        the dict `parser.typped_type_dict`."""
+        return (lex.token.token_label == "k_identifier" and
+                lex.token.value in parser.typped_type_dict)
+
+    def typedecl_head_handler(tok, lex):
+        """Handler function for the construct that parses type declarations."""
         if not lex.match_next("k_identifier", consume=False):
             raise pp.ParserException("Type declaration not followed by an identifier.")
-
+        # Note the identifier is set as a key in symbol_type_dict before recursive_parse.
+        # Otherwise the definition-checking in def_literal_typed_from_dict would fail.
         parser.symbol_type_dict[lex.peek().value] = parser.typped_type_dict[tok.value]
         type_decl_expr = tok.recursive_parse(0)
         if type_decl_expr.children and type_decl_expr.token_label != "k_equals":
             # TODO: Could be done by argument type checking, too.
-            raise pp.ParseException("Only identifiers or assignment expressions are"
-                                    " allowed in type declarations.")
+            # TODO: Need a different exception to raise for object language errors...
+            raise pp.ParserException("Only identifiers or assignment expressions are"
+                                     " allowed in type declarations.")
         tok.append_children(type_decl_expr)
         # TODO: wouldn't hurt to set the typesig override here, too.
         return tok
 
-    def precond_fun(lex, lookbehind):
-        """Construct will only be triggered for identifiers in `parser.typped_type_dict`."""
-        return (lex.token.token_label == "k_identifier" and
-                lex.token.value in parser.typped_type_dict)
-
-    def operator_eval_fun(t):
-        return t[0].value + " " + t.value + " " + t[1].value
-
-    def eval_fun(tok):
+    def typedecl_eval_fun(tok):
         """Evaluate a type declaration when interpreting the language."""
         if tok[0].token_label == "k_equals":
-            return operator_eval_fun(tok[0])
+            return tok[0].eval_subtree() + "; " + tok[0][0].value
         else:
             return "None"
 
-    parser.def_construct(pp.HEAD, head_handler, "k_identifier",
-                         construct_label="c_type_declaration", precond_fun=precond_fun,
-                         precond_priority=10, val_type=t_int, eval_fun=eval_fun)
+    parser.def_construct(pp.HEAD, typedecl_head_handler, "k_identifier",
+                         construct_label="c_type_declaration",
+                         precond_fun=typedecl_precond_fun, precond_priority=10,
+                         val_type=t_int, eval_fun= typedecl_eval_fun)
 
     # Now define the syntax of the language.
 
@@ -249,25 +257,38 @@ def setup_string_language_parser_static_typing():
     literal("k_int", val_type=t_int, eval_fun=lambda t: t.value)
     literal("k_string", val_type=t_str, eval_fun=lambda t: t.value)
 
+    # TODO: Note that `raise_if_undefined` works, but we still have not made the
+    # distinction between *defined* types and *assigned* types.  So just `x`
+    # should be an error if it is defined but not assigned a value... the
+    # value is not necessarily known, though.  That or use default values...
+
     parser.def_literal_typed_from_dict("k_identifier",
                                        eval_fun=lambda t: t.value,
-                                       default_type=t_int, default_eval_value=0)
+                                       default_type=t_int, default_eval_value=0,
+                                       raise_if_undefined=True)
 
-    parser.def_bracket_pair("k_lpar", "k_rpar", # TODO square too, to be different...
-                            eval_fun=lambda t: "(" + t[1].eval_subtree() + ")")
+    parser.def_bracket_pair("k_lpar", "k_rpar",
+                            eval_fun=lambda t: "(" + t[0].eval_subtree() + ")")
+
+    def operator_eval_fun(tok):
+        """A general eval fun for operators.  It just reconstructs a string."""
+        if tok.children:
+            return tok[0].eval_subtree() + " " + tok.value + " " + tok[1].eval_subtree()
+        else:
+            return tok.value
 
     infix = parser.def_infix_op
     infix("k_plus", 10, "left", val_type=t_int, arg_types=[t_int, t_int],
-            eval_fun=operator_eval_fun)
+          eval_fun=operator_eval_fun)
     infix("k_plus", 10, "left", val_type=t_str, arg_types=[t_str, t_str],
-            eval_fun=operator_eval_fun)
+          eval_fun=operator_eval_fun)
 
     infix("k_ast", 20, "left", val_type=t_int, arg_types=[t_int, t_int],
-            eval_fun=operator_eval_fun)
+          eval_fun=operator_eval_fun)
     infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_str, t_int],
-            eval_fun=operator_eval_fun)
+          eval_fun=operator_eval_fun)
     infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_int, t_str],
-            eval_fun=operator_eval_fun)
+          eval_fun=operator_eval_fun)
 
     # Define assignment as an infix equals operator.
     parser.def_assignment_op_static("k_equals", 5, "left", "k_identifier",
@@ -292,20 +313,29 @@ def run_string_language_static_typing_parser():
         def default(self, line):
             try:
                 result = self.parser.parse(line)
-                print("Parsed expression tree:\n", result.tree_repr(), sep="")
-                print("Translation to Python:")
-                python_command = result.eval_subtree()
-                print(python_command)
-                print("\nPython evaluation:")
-                result = eval(compile(python_command, '<string>', 'single'),
-                                      self.globals_dict, self.locals_dict)
-                print()
-            except (ValueError, ZeroDivisionError) as e:
-                print(e)
-            except pp.TypeErrorInParsedLanguage as e:
-                print(e)
+                print("\nParsed expression tree:\n", result.tree_repr(), sep="")
+            except (pp.TypeErrorInParsedLanguage, pp.ParserException) as e:
+                print("Error during parsing:\n", e, "\n", sep="")
             except Exception as e:
-                print(e)
+                print("Error during parsing:\n", e, "\n", sep="")
+            else:
+                try:
+                    print("Translation to Python:")
+                    python_command = result.eval_subtree()
+                    print(python_command)
+                except (ValueError, ZeroDivisionError) as e:
+                    print("Error during translation to Python:\n", e, "\n", sep="")
+                except Exception as e:
+                    print("Error during translation to Python:\n", e, "\n", sep="")
+                else:
+                    try:
+                        print("\nPython evaluation:")
+                        # The Python eval below also prints to stdout.
+                        result = eval(compile(python_command, '<string>', 'single'),
+                                              self.globals_dict, self.locals_dict)
+                        print()
+                    except Exception as e:
+                        print("Error in evaluating the Python code:\n", e, "\n", sep="")
 
         def do_EOF(self, line):
             print("\nBye.")
@@ -324,11 +354,11 @@ if __name__ == "__main__":
     print("=" * underline_len + "\n")
     run_simple_non_builtin_example()
 
-    print("\nExample 2, dynamically typed word and string language.")
+    print("\nExample 3, dynamically typed word and string language.")
     print("=" * underline_len + "\n")
     run_string_language_dynamic_typing_parser()
 
-    print("\nExample 3, statically typed word and string language.")
+    print("\nExample 4, statically typed word and string language.")
     print("=" * underline_len + "\n")
     run_string_language_static_typing_parser()
 

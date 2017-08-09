@@ -42,6 +42,11 @@ class NoHandlerFunctionDefined(ParserException):
     handler function (head or tail, whichever it was looking for)."""
     pass
 
+class ErrorInParsedLanguage(ParserException):
+    """Raised for syntax errors and other errors in the language that is being
+    parsed.  For type errors the exception `TypeErrorInParsedLanguage` is raised."""
+    pass
+
 #
 # Utility functions.
 #
