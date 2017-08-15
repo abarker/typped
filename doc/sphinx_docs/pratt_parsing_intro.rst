@@ -384,7 +384,7 @@ Non-literal tokens
 
 Generally, head and tail handlers do two things while constructing the result
 value to return: 1) they call ``recursive_parse`` to evaluate sub-subexpressions
-of their subexpression and 2) they possibly peek at and/or consume additional
+of their subexpression, and 2) they possibly peek at and/or consume additional
 tokens from the lexer.  This is the definition of the tail handler for the
 ``+`` operator:
 
@@ -395,18 +395,18 @@ tokens from the lexer.  This is the definition of the tail handler for the
          return self
 
 This tail handler (like all tail handlers) is passed the current
-``processed_left`` expression evaluation as ``left``.  It needs to build and
-return its parse subtree, with its own ``+`` node as the subtree root.  The
-``left`` argument passed in should contain the previously-evaluated subtree for
-the left operand of ``+``.  So that subtree is set as the left child of the
-current ``+`` node.  To get the right operand, the ``recursive_parse`` function
-is called.  It returns the subtree for the next subexpression (following the
-current ``+`` token), which is set as the right child of the ``+`` node.  The
-completed subtree is then returned.
+``processed_left`` expression evaluation as the parameter ``left``.  It needs
+to build and return its parse subtree, with its own ``+`` node as the subtree
+root.  The ``left`` argument passed in should contain the previously-evaluated
+subtree for the left operand of ``+``.  So that subtree is set as the left
+child of the current ``+`` node.  To get the right operand, the
+``recursive_parse`` function is called.  It returns the subtree for the next
+subexpression (following the current ``+`` token), which is set as the right
+child of the ``+`` node.  The completed subtree is then returned.
 
 The tail handler for the ``*`` operator is identical to the definition for
-``+`` except that it is made into a method of the subclass representing ``*``.
-We will assume that the precedence defined for ``+`` is 3, and that the
+``+`` except that it is associated with the subclass representing the token
+``*``.  We will assume that the precedence defined for ``+`` is 3, and that the
 precedence for ``*`` is 4.
 
 An example parse

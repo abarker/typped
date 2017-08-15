@@ -21,41 +21,36 @@ def define_general_tokens_and_literals(parser):
     # Tokens.
     #
 
-    #whitespace_tokens = [
-    #        ("k_space", r"[ \t]+"),       # Note + symbol, one or more, NOT * symbol.
-    #        ("k_newline", r"[\n\f\r\v]+") # Note + symbol, one or more, NOT * symbol.
-    #        ]
-    #parser.def_multi_ignored_tokens(whitespace_tokens)
+    # tok("k_space", r"[ \t]+"),       # Note + symbol, one or more, NOT * symbol.
+    # tok("k_newline", r"[\n\f\r\v]+") # Note + symbol, one or more, NOT * symbol.
     parser.def_default_whitespace() # Does the same as the commented-out lines above.
 
-    token_list = [
-            # This token tuple for a float is based on the regex from:
-            # https://docs.python.org/2/library/re.html#simulating-scanf
-            #   ("k_float", r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?")
-            # But if we used the Python doc form exactly then 4 -4 would be interpreted
-            # as a multiplication jop for rather than correctly, as subtraction.  So
-            # the [+-] part is left off and is implemented as a prefix operator instead.
-            ("k_float", r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"),
+    tok = parser.def_token
+    tok("k_plus", r"\+")
+    tok("k_minus", r"\-")
+    tok("k_fslash", r"/")
+    tok("k_ast", r"\*")
+    tok("k_lpar", r"\(")
+    tok("k_rpar", r"\)")
+    tok("k_lbrac", r"\[")
+    tok("k_rbrac", r"\]")
+    tok("k_comma", r",")
+    tok("k_bang", r"!")
+    tok("k_equals", r"=")
 
-            ("k_double_ast", r"(?:\*\*|\^)"), # Note ^ is defined as a synonym.
-            ("k_plus", r"\+"),
-            ("k_minus", r"\-"),
-            ("k_fslash", r"/"),
-            ("k_ast", r"\*"),
-            ("k_lpar", r"\("),
-            ("k_rpar", r"\)"),
-            ("k_lbrac", r"\["),
-            ("k_rbrac", r"\]"),
-            ("k_comma", r","),
-            ("k_bang", r"!"),
-            ("k_equals", r"="),
-            ]
-    parser.def_multi_tokens(token_list)
-
-    # Note that the token for the exponentiation operator has multiple symbols
-    # defined for it in its regex (both '**' and '^').  The same thing could
+    # The token for the exponentiation operator has multiple symbols defined
+    # for it in its regex (both '**' and '^').  The same thing could
     # alternately be done by keeping the tokens separate and later defining a
     # handler function for each one, both of which do exponentiation.
+    tok("k_double_ast", r"(?:\*\*|\^)") # Note ^ is a synonym for **.
+
+    # This token definition for a float is based on the regex from
+    # https://docs.python.org/2/library/re.html#simulating-scanf
+    #   r"[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?"
+    # But if we used the Python doc form exactly then 4 -4 would be interpreted
+    # as a multiplication jop for rather than correctly, as subtraction.  So
+    # the [+-] part is left off and is implemented as a prefix operator instead.
+    tok("k_float", r"(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?")
 
     #
     # Literals.

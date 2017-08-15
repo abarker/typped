@@ -24,7 +24,10 @@ instance.  Then either the recursive descent parser can call the Pratt parser
 to handle subexpressions, or the handlers of the Pratt parser can call the
 recursive descent functions to parse sub-grammars.
 
-.. warning:: Some of these features are still experimental.
+.. warning::
+
+   Some of these features are still experimental, as is the current partial
+   implementation.
 
 Similarities and differences between the parsing methods
 --------------------------------------------------------
@@ -159,7 +162,8 @@ This is a simple example of using the EBNF grammar.
 .. note::
 
    For now, see the test ``test_parsing_from_basic_expression_grammar`` in the
-   test file ``test_production_rules.py``.
+   test file ``test_production_rules.py``.  The current implementation is
+   basically a proof-of-concept.
 
 ..
    TODO: Keep this example synced with the test file.

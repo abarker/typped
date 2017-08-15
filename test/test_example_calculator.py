@@ -56,3 +56,8 @@ def test_overloaded_function_name_eval():
     assert close_to(parse_and_eval(parser, "log(e, 10)"), 0.43429448190)
     assert parse_and_eval(parser, "log(e, e)") == 1
 
+def test_semicolon_separators():
+    parser = setup_basic_calculator()
+    assert close_to(parse_and_eval(parser, "x = pi sin(3) 3; 1 x^4 - 1"), 2.12924005)
+    assert parse_and_eval(parser, "x = 3; x = 4; x = 5; x") == 5
+

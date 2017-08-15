@@ -77,11 +77,12 @@ Whenever the ``recursive_parse`` routine consumes a particular kind of token
 from the lexer, in a head or tail position, it sequentially executes the
 preconditions functions for all the constructs triggered by with that kind of
 token, in that position.  The execution sequence is ordered by the
-preconditions priorities.  The construct associated with the first matching
-preconditions function is selected.  Its handler function is then dispatched as
-the one to be run by the ``recursive_parse`` routine.  If there is no clear
-winner among the highest-priority matching preconditions functions (i.e., more
-than one match has the highest priority) then an exception is raised.
+preconditions priority values.  The construct associated with the first
+matching preconditions function is selected.  Its handler function is then
+dispatched as the one to be run by the ``recursive_parse`` routine.  If there
+is no clear winner among the highest-priority matching preconditions functions
+(i.e., more than one match has the highest priority) then an exception is
+raised.
 
 This algorithm clearly reduces to ordinary Pratt parsing in the case where
 there is at most one head construct and one tail construct per kind of token
@@ -266,12 +267,17 @@ The code for this example can be found in a runnable form in the file
 ``example_stdfun_lookahead.py``.
 
 In this example the ``PrattParser`` class is extended by creating a subclass
-with additional methods.  It is not strictly necessary to create a subclass,
-however.  An ordinary function can also be used just by renaming the ``self``
-variable to something like ``parser`` and then explicitly passing in a parser
+with additional methods.  In particular, a general method is added which parses
+standard functions.  If a general method is not required then the code could
+instead just define the handler and preconditions function and call
+``def_construct``.
+
+For a general parsing method it is not strictly necessary to create a subclass
+of ``PrattParser``.  An ordinary function can also be used.   Just rename the
+``self`` variable to something like ``parser`` and explicitly pass in a parser
 instance when calling it.  Extending the class has the advantage that the newer
-methods are accessed in the same way as the built-in ones and can be easily
-accessed in the parser instance's namespace.
+methods are called in the same way as the built-in ones, and the parser
+instance's namespace is convenient for accessing the function.
 
 In this example the method ``def_stdfun_lookahead`` is added to the
 ``PrattParser``.  This is only an example, since the ``PrattParser`` class
@@ -290,57 +296,57 @@ function name in the case where the peek token is an lpar with no intervening
 space.
 
 .. TODO: Keep up-to-date with the code in latest version from Python file
-   ``example_stdfun_lookahead.py``  Maybe add more tests
-   (maybe as a pytest file).
+   ``example_stdfun_lookahead.py``  Add a test file in tests dir to test it.
 
 .. code-block:: python
 
-   class MyParser(PrattParser):
-       """Subclass and add a new method to the `PrattParser` class as an example."""
+   def define_parser_subclass():
 
-       def __init__(self, *args, **kwargs):
-           """Call the superclass initializer."""
-           super(MyParser, self).__init__(*args, **kwargs)
+       class MyParser(pp.PrattParser):
+           """Subclass and add a new method to the `PrattParser` class as an example."""
 
-       def def_stdfun_lookahead(self, fname_token_label, lpar_token_label,
-                      rpar_token_label, comma_token_label, num_args,
-                      precond_priority=1):
-           """Define a standard function with a fixed number of arguments."""
+           def __init__(self, *args, **kwargs):
+               """Call the superclass initializer."""
+               super(MyParser, self).__init__(*args, **kwargs)
 
-           # Define the preconditions function and a unique label for it.
-           def preconditions(lex, lookbehind):
-               # Note that helper functions like `match_next` could also be used.
-               peek_tok = lex.peek()
-               if peek_tok.ignored_before: return False
-               if peek_tok.token_label != lpar_token_label: return False
-               return True
-           precond_label = "lpar after, no whitespace between" # Some unique label.
+           def def_stdfun_lookahead(self, fname_token_label, lpar_token_label,
+                                    rpar_token_label, comma_token_label, num_args,
+                                    precond_priority=1):
+               """Define a standard function with a fixed number of arguments."""
 
-           # Define the head-handler function.
-           def head_handler(tok, lex):
-               # Below match is for a precondition, so it will match and consume.
-               lex.match_next(lpar_token_label, raise_on_fail=True)
+               # Define the preconditions function.
+               def preconditions(lex, lookbehind):
+                   peek_tok = lex.peek()
+                   if peek_tok.ignored_before: # No space allowed between name and lpar.
+                       return False
+                   if peek_tok.token_label != lpar_token_label:
+                       return False
+                   return True
 
-               # Read comma-separated subexpressions as arguments.
-               for i in range(num_args-1):
-                   tok.append_children(tok.recursive_parse(0))
-                   lex.match_next(comma_token_label, raise_on_fail=True)
-                   lex.match_next(rpar_token_label, raise_on_true=True) # Error.
-               if num_args != 0:
-                   tok.append_children(tok.recursive_parse(0))
-               lex.match_next(rpar_token_label, raise_on_fail=True)
+               # Define the head-handler function.
+               def head_handler(tok, lex):
+                   # Below match_next is for a precondition, so it will match and consume.
+                   lex.match_next(lpar_token_label, raise_on_fail=True)
 
-               # Always call this function at the end of a handler function.
-               tok.process_and_check_node(head_handler)
-               return tok
+                   # Read comma-separated subexpressions as arguments.
+                   for i in range(num_args-1):
+                       tok.append_children(tok.recursive_parse(0))
+                       lex.match_next(comma_token_label, raise_on_fail=True)
+                       lex.match_next(rpar_token_label, raise_on_success=True) # Error.
+                   if num_args != 0:
+                       tok.append_children(tok.recursive_parse(0))
+                   # Consume closing paren.
+                   lex.match_next(rpar_token_label, raise_on_fail=True)
+                   return tok
 
-           # Register the construct with the parser.
-           construct_label = "parse function with lpar, no space after name"
-           self.def_construct(fname_token_label, prec=0,
-                              head=head_handler,
-                              construct_label=construct_label,
-                              precond_fun=preconditions,
-                              precond_priority=precond_priority)
+               # Register the construct with the parser.
+               construct_label = "function call using precondition on function name"
+               self.def_construct(pp.HEAD, head_handler, fname_token_label, prec=0,
+                                  construct_label=construct_label,
+                                  precond_fun=preconditions,
+                                  precond_priority=precond_priority)
+       return MyParser
+
 
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and
@@ -355,28 +361,37 @@ The function defined above could be called as follows:
 
 .. code-block:: python
 
-    parser = MyParser()
-    parser.def_default_whitespace()
+   def define_grammar(MyParser):
+       parser = MyParser()
+       parser.def_default_whitespace()
 
-    tokens = [("k_number", r"\d+"),
-              ("k_lpar", r"\("),
-              ("k_rpar", r"\)"),
-              ("k_comma", r","),
-              ("k_add", r"add"),
-              ("k_sub", r"sub"),
-             ]
-    parser.def_multi_tokens(tokens)
+       tok = parser.def_token
+       tok("k_number", r"\d+"),
+       tok("k_lpar", r"\("),
+       tok("k_rpar", r"\)"),
+       tok("k_comma", r","),
+       tok("k_add", r"add"),
+       tok("k_sub", r"sub"),
 
-    literals = [("k_number"),
-                ("k_lpar"),
-                ("k_rpar"),
-               ]
-    parser.def_multi_literals(literals)
+       lit = parser.def_literal
+       lit("k_number")
+       lit("k_lpar")
+       lit("k_rpar")
 
-    parser.def_stdfun("k_add", "k_lpar", "k_rpar", "k_comma", 2)
-    parser.def_stdfun("k_sub", "k_lpar", "k_rpar", "k_comma", 2)
+       parser.def_stdfun_lookahead("k_add", "k_lpar", "k_rpar", "k_comma", 2)
+       parser.def_stdfun_lookahead("k_sub", "k_lpar", "k_rpar", "k_comma", 2)
 
-    print(parser.parse("add(4, sub(5, 6)").tree_repr())
+       return parser
+
+Now this code can be run:
+
+.. code-block:: python
+
+    MyParser = define_parser_subclass()
+    parser_instance = define_grammar(MyParser)
+    expr = "add(4, sub(5,6))"
+    expr_tree = parser_instance.parse(expr)
+    print(expr_tree.tree_repr(indent=3))
 
 When run, the above code produces this output:
 

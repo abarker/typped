@@ -8,8 +8,9 @@ Typped: A typed Pratt parser employing dispatching
 ==================================================
 
 ..
-   Use |nbsp| for nonbreaking space, and |br| for adding line breaks.  Both are
-   defined in conf.py, which also sets the default role to code globally.
+   NOTE: Use |nbsp| for nonbreaking space, and |br| for adding line breaks.
+   Both are defined in conf.py, which also sets the default role to code,
+   globally for all pages.
    http://www.sphinx-doc.org/en/stable/config.html#confval-rst_prolog
 
 ..
