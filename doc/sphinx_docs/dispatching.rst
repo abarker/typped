@@ -156,19 +156,22 @@ two constructs is determined by equality of triples of the form::
 
    (head_or_tail, trigger_token_label, construct_label)
 
-If no construct label is provided to the ``def_construct`` call a unique label
-is generated.  Explicit labels are only required in order to modify or overload
-already-exiting constructs.
+So redefining a head (tail) construct results in a new head (tail) construct if
+the triggering token label is different or the construct is given a different
+label.  If no construct label is provided to the ``def_construct`` call a
+unique label is generated.  Explicit labels are only required in order to
+modify or overload already-exiting constructs.
 
 To modify a construct or overload a construct (such as a construct for an
 overloaded infix operator) you simply call ``def_construct`` with the same
-construct label as a previous construct for that trigger token in that head or
-tail position.
+triggering token label and construct label as a previous construct for that
+trigger token in that head or tail position.
 
 When an existing construct is redefined and ``def_construct`` is passed the
-same type signature as the previous definition the new one simply overwrites
-the old one.  When the type signatures of the two calls to ``def_construct``
-differ, however, overloading on types is assumed for the construct.
+same type signature as the previous definition the new construct simply
+replaces the old one.  When the type signatures of the two calls to
+``def_construct`` differ, however, overloading on types is assumed for the
+construct.
 
 Recall that function overloading based on argument types is used for
 syntactical constructs which parse the same (i.e., using the same handler
