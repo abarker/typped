@@ -27,14 +27,14 @@ Note that this generalized behavior in Typped is optional and can easily be
 ignored if one only wants to use standard Pratt parser techniques.
 
 Since in Pratt parsing each head and tail handler essentially parses a
-different part of the grammar, our abstraction of handler functions is called a
-**syntactic construct**, or simply a **construct**.  A construct represents a
-particular kind of grammatical subexpression that is parsed and returned by a
-handler function.  Since Pratt parsers are top-down these grammatical parts
-tend to correspond to subtrees of the final expression tree.  A construct
-containing a head handler will be called a **head construct** and a construct
-containing a tail handler will be called a **tail construct**.  Constructs also
-contain other attributes, as we will see.
+different part of the grammar, the Typped packages uses an abstraction of
+handler functions called a **syntactic construct**, or simply a **construct**.
+A construct represents a particular kind of grammatical subexpression that is
+parsed and returned by a handler function.  Since Pratt parsers are top-down
+these grammatical parts tend to correspond to subtrees of the final expression
+tree.  A construct containing a head handler will be called a **head
+construct** and a construct containing a tail handler will be called a **tail
+construct**.  Constructs also contain other attributes, as we will see.
 
 In a standard Pratt parser a handler function is triggered whenever a
 particular kind of token is consumed from the lexer in the ``recursive_parse``
@@ -69,13 +69,13 @@ the following attributes:
 * other data, such as evaluation functions and type signatures
 
 Constructs are **registered** with a parser instance in order to define a
-particular grammar on the tokens of the language (which must have been
-previously defined).  The preconditions priority is a number which defaults to
-zero.
+particular grammar on the tokens of the language (the tokens must be separately
+defined with ``def_token``).  The preconditions priority is a number which
+defaults to zero.
 
 Whenever the ``recursive_parse`` routine consumes a particular kind of token
 from the lexer, in a head or tail position, it sequentially executes the
-preconditions functions for all the constructs triggered by with that kind of
+preconditions functions for all the constructs triggered by that kind of
 token, in that position.  The execution sequence is ordered by the
 preconditions priority values.  The construct associated with the first
 matching preconditions function is selected.  Its handler function is then
@@ -116,14 +116,10 @@ Instead of directly calling a fixed head or tail handler for a token, the
 ``recursive_parse`` function instead calls a function ``dispatch_handler``.
 This function takes an argument which specifies whether to fetch a head or a
 tail handler.  This function selects a construct, as described above, and
-returns the handler function (actually a wrapper function that first runs the
-handler and then does type checking on the returned subtree).  For convenience
-the arguments to the handler are bound, since they are already known.
-
-The typing system which is implemented in the Typped parser is also based on
-the preconditioned dispatching design.  Type-signature information can
-optionally be associated with any particular head or tail handler function.
-The type system is discussed more in later sections.
+returns the handler function (which is actually a wrapper function that first
+runs the handler and then does type checking on the returned subtree).  For
+convenience the arguments to the handler are bound, since they are already
+known.
 
 .. note::
 
@@ -173,11 +169,17 @@ replaces the old one.  When the type signatures of the two calls to
 ``def_construct`` differ, however, overloading on types is assumed for the
 construct.
 
+Note that identity of constructs does *not* involve preconditions functions.
+This is mainly because of the difficulty of determining when two preconditions
+functions are identical in the sense of computing the same thing.  The
+construct labels are in a sense serving as labels for preconditions functions.
+
 Recall that function overloading based on argument types is used for
-syntactical constructs which parse the same (i.e., using the same handler
-function) but which are then resolved into different semantic objects based on
-the actual types of the arguments which are processed at parse-time.
-Overloading can also involve the type of the function's return value.
+syntactical constructs which parse the same (i.e., with the same preconditions
+and using the same handler function) but which are then resolved into different
+semantic objects based on the actual types of the arguments which are processed
+at parse-time.  Overloading can also involve the type of the function's return
+value.
 
 When overloading is determined on a ``def_construct`` call any previous type
 signatures and any data associated with those signatures (such as AST data and
@@ -427,13 +429,15 @@ argument to ``def_stdfun`` (along with its label).
    will cause multiple constructs to match as a normal thing.  These ties will not
    be uniquely resolvable by a priority system.
    
-   To resolve an overload with multiple constructs the expression must first be
-   parsed to find the actual types.  This requires a handler function, which is
-   circular since the construct determines the handler.  One approach might be
-   to assume that all the corresponding handler functions are identical in case
-   of ties and just pick one to call, but that could mask some error
-   conditions.  The associated evaluation function and AST data would still
-   need to be selected from among the collection of matching constructs.  It
-   seems simpler to just to store all the overloaded signatures and their
-   associated data with a construct.
+   To resolve an overload the expression must first be parsed to find the
+   actual types.  Resolving the actual types requires a handler function, which
+   is stored with a construct.  This is circular if separate constructs are
+   used for each overload.  One approach might be to assume that if there are
+   multiple constructs which match at the same priority then they all have the
+   same handler function.  You could then just pick one to call, but that could
+   mask some error conditions.  After the actual types are found a unique
+   construct would still need to be determined from among the matches in order
+   to access the associated evaluation function and AST data.  It seems simpler
+   to just to store all the overloaded signatures and their associated data
+   with a single construct.
 

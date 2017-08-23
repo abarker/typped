@@ -1,3 +1,9 @@
+"""
+
+Cython definition file for `lexer.py` to improve the results of compiling in
+pure Python mode.
+
+"""
 
 # Maybe use this to share token_getter_fun between Lexer and TokenBuffer.
 #ctypedef object (*tok_getter_type)()

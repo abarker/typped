@@ -35,21 +35,20 @@ which are checked at parse-time.  Overloading on types is also allowed.
 Default parser methods are provided for many standard constructs such as, for
 example, infix operators and ordinary function calls.  Users can define their
 own customized functions or methods in order to parse more-complicated and/or
-more-specific grammatical constructs.  An EBNF-like Python syntax is provided
-which can be used to define and implement recursive descent parsing of a
-grammar within the Typped framework (integrated with Pratt parsing).
+more-specific grammatical constructs.  An EBNF-like Python syntax is also
+provided, which can be used to define and implement recursive descent parsing
+of a grammar within the Typped framework (integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
 logic languages and mathematical languages which use syntax approximating the
 often-ambiguous informal syntax which is used in practice.  Because it is based
 on Pratt parsing it is especially good at parsing expression languages which
-have various operators at different precedence levels.  The parsers and lexers
-are modifiable on-the-fly, allowing the parsed languages to be fully dynamic.
-Pratt parsing tends to be fairly efficient in this context, but the package is
-written in pure Python so it is probably not the best choice if parsing speed
-is a crucial factor.
+have various operators at different precedence levels.  Pratt parsing tends to
+be fairly efficient in this context, but the Typped package focuses more on
+ease-of-use than execution speed.  The parsers and lexers are modifiable
+on-the-fly, allowing the parsed languages to be fully dynamic.
 
-.. warning::
+.. note::
 
    This is alpha-level software.  Many features are experimental and/or
    partially implemented, and the documentation is incomplete.  The user API
@@ -92,7 +91,6 @@ Content
    types_in_typped
    juxtaposition_operators
    recursive_descent
-   .. extending_prattparser
    parsers_calling_other_parsers
    .. templates
    lookbehind

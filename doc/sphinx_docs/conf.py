@@ -32,7 +32,10 @@ sys.path.insert(0, os.path.abspath("../../src"))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
+    'sphinx.ext.autosectionlabel',
 ]
+
+autosectionlabel_prefix_document = True # Prefix doc name, e.g., `index:Introduction`
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

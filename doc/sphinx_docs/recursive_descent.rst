@@ -24,7 +24,7 @@ instance.  Then either the recursive descent parser can call the Pratt parser
 to handle subexpressions, or the handlers of the Pratt parser can call the
 recursive descent functions to parse sub-grammars.
 
-.. warning::
+.. note::
 
    Some of these features are still experimental, as is the current partial
    implementation.
@@ -162,7 +162,7 @@ This is a simple example of using the EBNF grammar.
 .. note::
 
    For now, see the test ``test_parsing_from_basic_expression_grammar`` in the
-   test file ``test_production_rules.py``.  The current implementation is
+   test file ``test_ebnf_classes_and_operators.py``.  The current implementation is
    basically a proof-of-concept.
 
 ..
@@ -181,8 +181,8 @@ parser instance.  (The EBNF language itself, defined with Python overloading,
 is mostly implemented.)
 
 For details of the current state of the Python EBNF language see the docs for
-the module ``production_rules.py``.
+the module ``ebnf_classes_and_operators.py``.
 
-.. TODO: add link to the production_rules.py file or wherever that documentation
-   of the Python overloads ends up.
+.. TODO: add link to the ebnf_classes_and_operators.py file or wherever that
+   documentation of the Python overloads ends up.
 

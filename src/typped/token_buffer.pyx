@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 
-Cythonized `TokenBuffer`.  Note that the `None` defaults to `__init__` are
-assumed to be `-1`, unlike in the non-Cython version.
+NOT CURRENTLY USED.
+
+This is the `TokenBuffer` class, extracted from `lexer.py`, done is full Cython
+(rather than pure Python mode Cython).
 
 """
 

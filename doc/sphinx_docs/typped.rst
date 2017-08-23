@@ -12,7 +12,7 @@ APIs and code for the modules in the Typped package
    typped.shared_settings_and_exceptions
    typped.pratt_constructs
    typped.pratt_types
-   typped.production_rules
+   typped.ebnf_classes_and_operators
    typped.register_grammar_with_parser
    typped.lexer
    typped.regex_trie_dict

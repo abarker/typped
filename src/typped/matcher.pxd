@@ -1,4 +1,9 @@
+"""
 
+Cython definition file for `matcher.py` to improve the results of compiling in
+pure Python mode.
+
+"""
 # For the namedtuples, this discussion says that cdef classes are more lightweight:
 # http://grokbase.com/t/gg/cython-users/129mpzbcy7/namedtuples-in-cython
 # Consider converting the code to use that.  But comparisons and indexing would

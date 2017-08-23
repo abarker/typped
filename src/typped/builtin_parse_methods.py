@@ -2,28 +2,15 @@
 """
 
 These are predefined, built-in parsing routines designed to parse various
-general types of constructs.  These functions are methods of the `PrattParser`
-class because that namespace is convenient to use.  They can also be used
-directly, as standalone functions.  It can be useful to look at the source code
-for ideas of how to implement general constructs which are not covered by a
-builtin routine.
+general types of constructs.  These functions are all made into methods of the
+`PrattParser` class simply because that namespace is convenient to use.  They
+can also be used directly, as standalone functions.
 
-As a reminder, here a comparison of the terminology used in the Typped package
-with the traditional Pratt parser terminology:
-
-+----------------------------------+--------------------------+
-| This code                        | Pratt's terminology      |
-+==================================+==========================+
-| token precedence                 | left binding power, lbp  |
-+----------------------------------+--------------------------+
-| subexpression precedence         | right binding power, rbp |
-+----------------------------------+--------------------------+
-| head handler function            | null denotation, nud     |
-+----------------------------------+--------------------------+
-| tail handler function            | left denotation, led     |
-+----------------------------------+--------------------------+
+Looking at the source code can be useful for ideas of how to implement general
+constructs which are not covered by a builtin routine.
 
 """
+
 
 from __future__ import print_function, division, absolute_import
 
@@ -47,9 +34,45 @@ from .pratt_types import (TypeTable, TypeSig, TypeErrorInParsedLanguage,
                          actual_matches_formal_default)
 from .helpers import all_precond_funs
 
+# As a reminder for those who are used to traditional Pratt parser terminology
+# and are looking at the code for ideas on how to write general parsing
+# functions in Typped, here a comparison of the terminology used in the Typped
+# package with the traditional Pratt parser terminology:
+#
+# +----------------------------------+--------------------------+
+# | This code                        | Pratt's terminology      |
+# +==================================+==========================+
+# | token precedence                 | left binding power, lbp  |
+# | subexpression precedence         | right binding power, rbp |
+# | head handler function            | null denotation, nud     |
+# | tail handler function            | left denotation, led     |
+# +----------------------------------+--------------------------+
+
 #
 # Methods defining syntax elements.
 #
+
+# TODO TODO TODO TODO: Potential big problem with the way preconditions functions
+# are implemented here... the construct label is set but it does not include the
+# preconditions function or its name, etc.  At least DOCUMENT that to use the
+# preconditions function you may need to also set the construct_label to a unique
+# name!  The construct does the parsing; the preconditions labels just determine
+# which ones get dispatched.  So you really need different labels.  DOCUMENT
+# here and in Sphinx dispatching.rst file.
+#
+# --> Recall that when None is passed to def_construct it generates a unique
+#     construct label.  Construct identity is based on
+#         (head_or_tail, trigger_token_label, construct_label)
+#     So when no construct label is passed in we should NOT set the label
+#     or should set it as some prefix to also be randomized (new option to
+#     def_construct).  This then REQUIRES a construct_label to get overloading,
+#     though.  Thinking about it, that doesn't seem like such a bad idea...
+#     Convenient for some methods to just define a fixed name, BUT that simple
+#     usage will conflict with more-advanced things where they want to use
+#     preconditions functions... (recall that construct labels were originally
+#     labels on preconditions functions, and in some sense still are).
+#     So, either construct_label to use preconditions funs or construct_label
+#     to use overloading... latter seems less common and more intuitive...
 
 # TODO these define and undefine methods each need a corresponding undefine
 # method (or one that does all).   They all return the construct (or should)
