@@ -137,7 +137,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
         if peek_tok.ignored_before: return False
         if not lex.match_next(lpar_token_label, consume=False): return False
         return True
-    construct_label = "lpar after, no whitespace between" # Should be a unique label.
+    precond_label = "lpar after, no whitespace between" # Should be a unique label.
 
     def head_handler(tok, lex):
         # Below match is for a precondition, so it will match and consume.
@@ -157,7 +157,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
 
     #arg_types = [None]*num_args
     parser.def_construct(pp.HEAD, head_handler, formula_name_token_label, prec=0,
-                         construct_label=construct_label,
+                         precond_label=precond_label,
                          precond_fun=preconditions, precond_priority=1)
 
 def define_wff_parser(term_parser):

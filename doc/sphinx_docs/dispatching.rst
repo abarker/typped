@@ -65,7 +65,7 @@ the following attributes:
 * a head or tail handler function
 * a preconditions function
 * a preconditions priority
-* a unique string label for the construct
+* a preconditions label (used to determine equality of preconditions functions)
 * other data, such as evaluation functions and type signatures
 
 Constructs are **registered** with a parser instance in order to define a
@@ -147,32 +147,37 @@ known.
 Uniqueness of constructs
 ------------------------
 
-A construct always has a label associated with it.  Equality or non-equality of
-two constructs is determined by equality of triples of the form::
+Equality or non-equality of two constructs is determined by equality of triples
+of the form::
 
-   (head_or_tail, trigger_token_label, construct_label)
+   (head_or_tail, trigger_token_label, precond_label)
 
-So redefining a head (tail) construct results in a new head (tail) construct if
-the triggering token label is different or the construct is given a different
-label.  If no construct label is provided to the ``def_construct`` call a
-unique label is generated.  Explicit labels are only required in order to
-modify or overload already-exiting constructs.
+Ideally the identity of constructs would involve preconditions functions
+themselves rather than an assigned label.  Labels are used because of the
+difficulty of determining when two preconditions functions are identical in the
+sense of computing the same thing.
+
+Based on this definition of equality of constructs, redefining a head (tail)
+construct results in a new head (tail) construct if either the triggering token
+label or the preconditions label is different.  If no preconditions function is
+passed to `def_construct` (or to the builtin parsing methods) then a default
+always-true function is used with a default label.  If a function is provided
+without a preconditions label then a new, unique label is generated.  So if a
+preconditions function is specified it is assumed to be unique unless a label
+is also provided which matches the label of a pre-existing function.  Explicit
+precondition labels are only required in order to modify or overload
+already-existing constructs which use a non-default preconditions function.
 
 To modify a construct or overload a construct (such as a construct for an
 overloaded infix operator) you simply call ``def_construct`` with the same
-triggering token label and construct label as a previous construct for that
-trigger token in that head or tail position.
+triggering token label and preconditions label as a previous construct for that
+trigger token in that same head or tail position.
 
 When an existing construct is redefined and ``def_construct`` is passed the
 same type signature as the previous definition the new construct simply
 replaces the old one.  When the type signatures of the two calls to
 ``def_construct`` differ, however, overloading on types is assumed for the
 construct.
-
-Note that identity of constructs does *not* involve preconditions functions.
-This is mainly because of the difficulty of determining when two preconditions
-functions are identical in the sense of computing the same thing.  The
-construct labels are in a sense serving as labels for preconditions functions.
 
 Recall that function overloading based on argument types is used for
 syntactical constructs which parse the same (i.e., with the same preconditions
@@ -345,9 +350,9 @@ space.
                    return tok
 
                # Register the construct with the parser.
-               construct_label = "function call using precondition on function name"
+               precond_label = "function call using precondition on function name"
                self.def_construct(pp.HEAD, head_handler, fname_token_label, prec=0,
-                                  construct_label=construct_label,
+                                  precond_label=precond_label,
                                   precond_fun=preconditions,
                                   precond_priority=precond_priority)
        return MyParser

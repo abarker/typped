@@ -36,25 +36,30 @@ from typped.shared_settings_and_exceptions import ParserException
 # Combining preconditions functions.
 #
 
-def all_precond_funs(*funs):
-    """Return a combined preconditions function that computes the conjunction function
-    of the preconditions functions passed in.  Any `None` object arguments are
-    ignored."""
-    funs = [f for f in funs if f is not None]
-    if len(funs) == 1:
-        return funs[0]
-    def combine(lex, lookbehind):
-        return all(fun(lex, lookbehind) for fun in funs)
-    return combine
+def combine_precond_funs(*fun_label_tuples, all_true=True):
+    """Takes any number of tuples `(precond_fun, precond_label)` as arguments.  Returns
+    a combined preconditions function that computes the conjunction function
+    of the preconditions functions passed in.  Also returns the concatenation of the
+    labels.  Any `None` object arguments are ignored.
 
-def any_precond_fun(*funs):
-    """Return a combined preconditions function that computes the disjunction function
-    of the preconditions functions passed in.  Any `None` object arguments are
-    ignored."""
-    funs = [f for f in funs if f is not None]
-    if len(funs) == 1:
-        return funs[0]
-    def combine(lex, lookbehind):
-        return any(fun(lex, lookbehind) for fun in funs)
-    return combine
+    If `all_true` is set false then the combined function is true when any of
+    the individual functions are true, not all of them."""
+    labels = [t[1] for t in fun_label_tuples if t[1] is not None]
+    combo_label = "".join(labels)
+    combo_label = combo_label if combo_label != "" else None
+
+    funs = [t[0] for t in fun_label_tuples if t[0] is not None]
+    if not funs:
+        return None, combo_label
+    elif len(fun_label_tuples) == 1:
+        return fun_label_tuples[0]
+
+    if all_true:
+        def combined_fun(lex, lookbehind):
+            return all(fun(lex, lookbehind) for fun in funs)
+    else: # any_true
+        def combined_fun(lex, lookbehind):
+            return any(fun(lex, lookbehind) for fun in funs)
+
+    return combined_fun, combo_label
 

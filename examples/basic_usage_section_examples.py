@@ -247,7 +247,7 @@ def setup_string_language_parser_static_typing():
             return "None"
 
     parser.def_construct(pp.HEAD, typedecl_head_handler, "k_identifier",
-                         construct_label="c_type_declaration",
+                         precond_label="p_type_declaration",
                          precond_fun=typedecl_precond_fun, precond_priority=10,
                          val_type=t_int, eval_fun= typedecl_eval_fun)
 

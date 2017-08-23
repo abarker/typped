@@ -32,7 +32,7 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
 from .lexer import Lexer, TokenNode, TokenTable, multi_funcall
 from .pratt_types import (TypeTable, TypeSig, TypeErrorInParsedLanguage,
                          actual_matches_formal_default)
-from .helpers import all_precond_funs
+from .helpers import combine_precond_funs
 
 # As a reminder for those who are used to traditional Pratt parser terminology
 # and are looking at the code for ideas on how to write general parsing
@@ -52,28 +52,6 @@ from .helpers import all_precond_funs
 # Methods defining syntax elements.
 #
 
-# TODO TODO TODO TODO: Potential big problem with the way preconditions functions
-# are implemented here... the construct label is set but it does not include the
-# preconditions function or its name, etc.  At least DOCUMENT that to use the
-# preconditions function you may need to also set the construct_label to a unique
-# name!  The construct does the parsing; the preconditions labels just determine
-# which ones get dispatched.  So you really need different labels.  DOCUMENT
-# here and in Sphinx dispatching.rst file.
-#
-# --> Recall that when None is passed to def_construct it generates a unique
-#     construct label.  Construct identity is based on
-#         (head_or_tail, trigger_token_label, construct_label)
-#     So when no construct label is passed in we should NOT set the label
-#     or should set it as some prefix to also be randomized (new option to
-#     def_construct).  This then REQUIRES a construct_label to get overloading,
-#     though.  Thinking about it, that doesn't seem like such a bad idea...
-#     Convenient for some methods to just define a fixed name, BUT that simple
-#     usage will conflict with more-advanced things where they want to use
-#     preconditions functions... (recall that construct labels were originally
-#     labels on preconditions functions, and in some sense still are).
-#     So, either construct_label to use preconditions funs or construct_label
-#     to use overloading... latter seems less common and more intuitive...
-
 # TODO these define and undefine methods each need a corresponding undefine
 # method (or one that does all).   They all return the construct (or should)
 # so consider it the undef_construct method is sufficient...
@@ -83,7 +61,7 @@ from .helpers import all_precond_funs
 #
 
 def def_literal(parser, token_label, val_type=None,
-                precond_fun=None, precond_priority=0,
+                precond_fun=None, precond_priority=0, precond_label=None,
                 val_type_override_fun=None,
                 eval_fun=None, ast_data=None):
     """Defines the token with label `token_label` to be a literal in the
@@ -108,10 +86,9 @@ def def_literal(parser, token_label, val_type=None,
                                             val_type_override_fun(tok, lex)}
         return tok
 
-    construct_label = "def_literal with {} tokens as triggers".format(token_label)
     return parser.def_construct(HEAD, head_handler_literal, token_label,
                                 val_type=val_type, arg_types=(),
-                                construct_label=construct_label,
+                                precond_label=precond_label,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
                                 eval_fun=eval_fun, ast_data=ast_data)
@@ -133,7 +110,7 @@ def def_multi_literals(parser, tuple_list):
 #
 
 def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
-                     precond_fun=None, precond_priority=0,
+                     precond_fun=None, precond_priority=0, precond_label=None,
                      eval_fun=None, ast_data=None):
     """Define a matching bracket grouping operation.  The returned type is
     set to the type of its single child (i.e., the type of the contents of
@@ -155,18 +132,19 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
             tok.process_and_check_kwargs = {"val_type_override": child_type}
         return tok
 
-    construct_label = "def_bracket_pair with {} tokens as triggers".format(lbrac_token_label)
     return parser.def_construct(HEAD, head_handler, lbrac_token_label,
-                             construct_label=construct_label,
-                             precond_fun=precond_fun, precond_priority=precond_priority,
-                             eval_fun=eval_fun, ast_data=ast_data)
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                precond_label=precond_label,
+                                eval_fun=eval_fun, ast_data=ast_data)
 
 #
 # Standard functions.
 #
 
 def def_stdfun(parser, fname_token_label, lpar_token_label,
-               rpar_token_label, comma_token_label, precond_priority=1,
+               rpar_token_label, comma_token_label, precond_fun=None,
+               precond_priority=1, precond_label=None,
                val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                num_args=None, value_key=None):
     """This definition of stdfun uses lookahead to the opening paren or
@@ -184,13 +162,18 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
     if not parser.skip_type_checking and num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
-    def preconditions(lex, lookbehind):
+    def precond_followed_by_lpar(lex, lookbehind):
         """Must be followed by a token with label 'lpar_token_label', with no
         whitespace in-between."""
         peek_tok = lex.peek()
         if peek_tok.ignored_before: return False
         if peek_tok.token_label != lpar_token_label: return False
         return True
+    precond_followed_by_lpar_label = "{0} followed by lpar with no space".format(
+                                                               fname_token_label)
+
+    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                            (precond_followed_by_lpar, precond_followed_by_lpar_label))
 
     def head_handler(tok, lex):
         # Below match is for a precondition, so it will match and consume.
@@ -213,16 +196,18 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
                         num_args, len(tok.children)))
         return tok
 
-    construct_label = "def_stdfun with {} tokens as triggers".format(fname_token_label)
     return parser.def_construct(HEAD, head_handler, fname_token_label, prec=0,
-                construct_label=construct_label,
-                precond_fun=preconditions, precond_priority=precond_priority,
-                val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                ast_data=ast_data, value_key=value_key)
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                precond_label=precond_label,
+                                val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun, ast_data=ast_data,
+                                value_key=value_key)
 
 
 def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                          rpar_token_label, comma_token_label, prec_of_lpar,
+                         precond_fun=None, precond_priority=0, precond_label=None,
                          val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                          num_args=None, value_key=None):
     """This is an alternate version of stdfun that defines lpar as an infix
@@ -234,7 +219,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
     if num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
-    def precond_fun(lex, lookbehind):
+    def precond_fun_peekback(lex, lookbehind):
         """Check that the peek backward token label for the function name
         is `fname_token_label`.  This is necessary to get the type sig info
         to work when different functions take different numbers (and
@@ -244,12 +229,20 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
         `lpar_token_label` token.  The label would otherwise never be checked.
 
         One could do a similar thing checking the value of the previous token
-        if the fnames are all, say, identifiers or some common token kind.
-        Maybe even have a flag to indicate this when worked out better."""
+        if the fnames are all, say, identifiers or some common token kind."""
+        # TODO: Update to allow optional peeking back to value instead of token label.
         prev_tok = lex.peek(-1)
-        if prev_tok.token_label != fname_token_label: return False
-        if lex.token.ignored_before: return False # No space allowed after fun name.
+        if prev_tok.token_label != fname_token_label:
+            return False
+        if lex.token.ignored_before:
+            return False # No space allowed after fun name.
         return True
+    precond_fun_peekback_label = "peek back to function name token {0}".format(
+                                                             fname_token_label)
+
+    # Combine above precond with any user-defined ones.
+    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                                    (precond_fun_peekback, precond_fun_peekback_label))
 
     def tail_handler(tok, lex, left):
         # Nothing between fun name and lpar_token.
@@ -263,13 +256,11 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
         lex.match_next(rpar_token_label, raise_on_fail=True)
         return left
 
-    # Note we need to generate a unique construct_label for each fname_token_label.
-    construct_label = "def_stdfun_lpar_tail with {} tokens as triggers".format(
-                                                             fname_token_label)
     return parser.def_construct(TAIL, tail_handler, lpar_token_label,
                               prec=prec_of_lpar,
-                              construct_label=construct_label,
                               precond_fun=precond_fun,
+                              precond_priority=precond_priority,
+                              precond_label=precond_label,
                               val_type=val_type, arg_types=arg_types,
                               eval_fun=eval_fun, ast_data=ast_data, value_key=value_key)
 
@@ -279,7 +270,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
 
 def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
                        repeat=False, not_in_tree=False,
-                       precond_fun=None, precond_priority=0,
+                       precond_fun=None, precond_priority=0, precond_label=None,
                        val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     # TODO only this utility method currently supports "not_in_tree" kwarg.
     # General and easy mechanism, though.  Test more and add to other
@@ -316,39 +307,43 @@ def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
                 lex.match_next(op, raise_on_fail=True)
                 #assert tok.prec() == recurse_bp or tok.prec()-1 == recurse_bp # DEBUG
                 tok.append_children(tok.recursive_parse(recurse_bp))
-            if not repeat: break
+            if not repeat:
+                break
             # Peek ahead and see if we need to loop another time.
-            if lex.peek().token_label != operator_token_labels[0]: break
+            if lex.peek().token_label != operator_token_labels[0]:
+                break
             lex.match_next(operator_token_labels[0], raise_on_fail=True)
             tok.append_children(tok.recursive_parse(recurse_bp))
-        if not_in_tree: tok.not_in_tree = True
+        if not_in_tree:
+            tok.not_in_tree = True
         return tok
-    construct_label = "def_infix_multi_op with {} tokens as operators".format(
-                                                        operator_token_labels)
+
     return parser.def_construct(TAIL, tail_handler, operator_token_labels[0], prec=prec,
-                              construct_label=construct_label, precond_fun=precond_fun,
-                              precond_priority=precond_priority,
-                              val_type=val_type, arg_types=arg_types,
-                              eval_fun=eval_fun, ast_data=ast_data)
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                precond_label=precond_label,
+                                val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun, ast_data=ast_data)
 
 
 def def_infix_op(parser, operator_token_label, prec, assoc, not_in_tree=False,
-                 precond_fun=None, precond_priority=0,
+                 precond_fun=None, precond_priority=0, precond_label=None,
                  val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     """This just calls the more general method `def_multi_infix_op`."""
     return parser.def_infix_multi_op([operator_token_label], prec, assoc,
-                                   not_in_tree=not_in_tree,
-                                   precond_fun=precond_fun,
-                                   precond_priority=precond_priority,
-                                   val_type=val_type, arg_types=arg_types,
-                                   eval_fun=eval_fun, ast_data=ast_data)
+                                     not_in_tree=not_in_tree,
+                                     precond_fun=precond_fun,
+                                     precond_priority=precond_priority,
+                                     precond_label=precond_label,
+                                     val_type=val_type, arg_types=arg_types,
+                                     eval_fun=eval_fun, ast_data=ast_data)
 
 #
 # Prefix operators.
 #
 
 def def_prefix_op(parser, operator_token_label, prec,
-                  precond_fun=None, precond_priority=0,
+                  precond_fun=None, precond_priority=0, precond_label=None,
                   val_type=None, arg_types=None,
                   eval_fun=None, ast_data=None):
     """Define a prefix operator.  Note that head handlers do not have
@@ -361,13 +356,12 @@ def def_prefix_op(parser, operator_token_label, prec,
         tok.append_children(tok.recursive_parse(prec))
         return tok
 
-    construct_label = "def_prefix_op with {} tokens as triggers".format(
-                                                   operator_token_label)
     return parser.def_construct(HEAD, head_handler, operator_token_label,
-                              construct_label=construct_label, precond_fun=precond_fun,
-                              precond_priority=precond_priority,
-                              val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                              ast_data=ast_data)
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                precond_label=precond_label,
+                                val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun, ast_data=ast_data)
 
 #
 # Postfix operators.
@@ -375,7 +369,7 @@ def def_prefix_op(parser, operator_token_label, prec,
 
 
 def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True,
-                   precond_fun=None, precond_priority=0,
+                   precond_fun=None, precond_priority=0, precond_label=None,
                    val_type=None, arg_types=None, eval_fun=None,
                    ast_data=None):
     """Define a postfix operator.  If `allow_ignored_before` is false then
@@ -387,11 +381,10 @@ def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True
         tok.append_children(left)
         return tok
 
-    construct_label = "def_postfix_op with {} tokens as triggers".format(
-                                                    operator_token_label)
     return parser.def_construct(TAIL, tail_handler, operator_token_label, prec=prec,
-                             construct_label=construct_label, precond_fun=precond_fun,
+                             precond_fun=precond_fun,
                              precond_priority=precond_priority,
+                             precond_label=precond_label,
                              val_type=val_type, arg_types=arg_types,
                              eval_fun=eval_fun, ast_data=ast_data)
 
@@ -400,7 +393,8 @@ def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True
 # Juxtaposition operators.
 #
 
-def def_jop(parser, prec, assoc, precond_fun=None, precond_priority=None,
+def def_jop(parser, prec, assoc,
+            precond_fun=None, precond_priority=None, precond_label=None,
             val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     """The function `precond_fun` is called to determine whether or not to
     infer a juxtaposition operator between the previously-parsed
@@ -425,10 +419,10 @@ def def_jop(parser, prec, assoc, precond_fun=None, precond_priority=None,
         tok.append_children(left, right_operand)
         return tok
 
-    construct_label = "jop defined from def_jop"
     return parser.def_construct(TAIL, tail_handler, parser.jop_token_label, prec=prec,
-                                construct_label=construct_label, precond_fun=precond_fun,
+                                precond_fun=precond_fun,
                                 precond_priority=precond_priority,
+                                precond_label=precond_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -475,7 +469,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                              identifier_token_label,
                              symbol_value_dict=None, symbol_type_dict=None,
                              allowed_types=None,
-                             precond_fun=None, precond_priority=0,
+                             precond_fun=None, precond_priority=0, precond_label=None,
                              val_type=None, eval_fun=None,
                              create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is statically typed, with
@@ -496,11 +490,14 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
     return types because currently `val_type_override` is used to set it."""
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
-    def precondition_lhs_is_identifier(lex, lookbehind):
+    def precond_lhs_is_identifier(lex, lookbehind):
         return lex.peek(-1).token_label == identifier_token_label
+    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
+                                                            identifier_token_label)
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
+    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
 
     # Create an eval fun if requested.
     if create_eval_fun:
@@ -541,12 +538,12 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                             " is {2}.".format(identifier, formal_type, rhs_type))
         return tok
 
-    construct_label = "def_assignment_op_static with {} tokens as triggers".format(
+    precond_label = "def_assignment_op_static with {} tokens as triggers".format(
                                                          assignment_op_token_label)
-    return parser.def_construct(TAIL, tail_handler, assignment_op_token_label,
-                                prec=prec, construct_label=construct_label,
+    return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
+                                precond_label=precond_label,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -581,7 +578,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                               identifier_token_label,
                               symbol_value_dict=None, symbol_type_dict=None,
                               allowed_types=None,
-                              precond_fun=None, precond_priority=0,
+                              precond_fun=None, precond_priority=0, precond_label=None,
                               val_type=None, eval_fun=None,
                               create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is dynamically typed, with
@@ -612,11 +609,14 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
     if allowed_types is not None:
         parser.allowed_dynamic_assignment_types = allowed_types
 
-    def precondition_lhs_is_identifier(lex, lookbehind):
+    def precond_lhs_is_identifier(lex, lookbehind):
         return lex.peek(-1).token_label == identifier_token_label
+    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
+                                                        identifier_token_label)
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun = all_precond_funs(precondition_lhs_is_identifier, precond_fun)
+    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
 
     # Create an eval fun if requested.
     if create_eval_fun:
@@ -639,12 +639,12 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
             tok.process_and_check_kwargs = {"val_type_override": rhs_type}
         return tok
 
-    construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
+    precond_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
                                                           assignment_op_token_label)
-    return parser.def_construct(TAIL, tail_handler, assignment_op_token_label,
-                                prec=prec, construct_label=construct_label,
+    return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
+                                precond_label=precond_label,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -653,7 +653,7 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 default_type=None, default_eval_value=None,
                                 raise_if_undefined=False,
                                 eval_fun=None, create_eval_fun=False,
-                                precond_fun=None, precond_priority=1):
+                                precond_fun=None, precond_priority=1, precond_label=None):
     """Define a dynamically typed literal, usually a variable-name identifier.
     The type is looked up in the dict `symbol_type_dict`, keyed by the string
     value of the token literal.
@@ -699,15 +699,17 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                 raise ErrorInParsedLanguage("Undefined identifier: '{0}'"
                                             .format(lex.token.value))
             return True
+        precond_raise_if_undefined_label = "raise if undefined precond"
         if not precond_fun:
             precond_fun = precond_raise_if_undefined
         else:
-            precond_fun = all_precond_funs(precond_fun, precond_raise_if_undefined)
+            precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                            (precond_raise_if_undefined, precond_raise_if_undefined_label))
 
     parser.def_literal(token_label, val_type=None,
                        val_type_override_fun=literal_val_type_override_fun,
                        precond_fun=precond_fun, precond_priority=precond_priority,
-                       eval_fun=eval_fun)
+                       precond_label=precond_label, eval_fun=eval_fun)
 
 #
 # Utility functions used by this module.

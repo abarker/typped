@@ -308,7 +308,7 @@ def test_jop(basic_setup):
                           "<k_jop,None>(<k_number,'4'>,<k_sin,'sin'>(<k_number,'0'>))")
 
 
-def test_types_mixed_numerical_bool_expressions():
+def test_types_mixed_numerical_bool_expressions_arg_overload():
     """Test type-checking on number-valued and bool-valued expressions, using
     only overloading on argument types."""
     # setup

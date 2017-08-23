@@ -352,7 +352,7 @@ def define_logic_language(parser):
     def logical_not_token_precond_wff_state(lex, lookbehind):
         pstack_state = lex.token.parser_instance.pstack[-1]
         return pstack_state == "wff"
-    construct_label = "logical_not_token_precond_wff_state"
+    precond_label = "logical_not_token_precond_wff_state"
     precond_priority = 0
 
     def head_handler(tok, lex):
@@ -362,7 +362,7 @@ def define_logic_language(parser):
         return tok
 
     parser.def_construct(pp.HEAD, head_handler, "k_not", prec=0,
-                     construct_label=construct_label,
+                     precond_label=precond_label,
                      precond_fun=logical_not_token_precond_wff_state,
                      precond_priority=precond_priority,
                      #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
@@ -376,7 +376,7 @@ def define_logic_language(parser):
     def implies_token_in_wff_prime_state_precond(lex, lookbehind):
         pstack_state = lex.token.parser_instance.pstack[-1]
         return pstack_state == "wff_prime"
-    construct_label = "implies_token_in_wff_prime_state_precond"
+    precond_label = "implies_token_in_wff_prime_state_precond"
     precond_priority = 0
 
     def head_handler(tok, lex): # ??????????? TAIL OR HEAD??????????
@@ -385,12 +385,12 @@ def define_logic_language(parser):
         return tok
 
     parser.def_construct(pp.HEAD, head_handler, "k_implies", prec=0, # PREC??????????
-                     construct_label=construct_label,
-                     precond_fun=implies_token_in_wff_prime_state_precond,
-                     precond_priority=precond_priority,
-                     #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                     #ast_data=ast_data
-                     )
+                         precond_label=precond_label,
+                         precond_fun=implies_token_in_wff_prime_state_precond,
+                         precond_priority=precond_priority,
+                         #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                         #ast_data=ast_data
+                         )
 
     # TODO still need the null-state token....
 
