@@ -962,20 +962,6 @@ def token_subclass_factory():
     return TokenSubclass # Return from token_subclass_factory function.
 
 #
-# PrattTokenTable
-#
-
-# TODO: PrattTokenTable isn't used... probably not needed, but might want extra
-# attributes with token table if that is going to characterize the full parser
-# state.  Probably not a good idea, but consider and delete below if not.
-
-#class PrattTokenTable(TokenTable):
-#    """Define and save tokens to be used by the `PrattParser` class and instances."""
-#    def __init__(self, token_subclass_factory_fun=token_subclass_factory,
-#                       pattern_matcher_class=Matcher):
-#        super(PrattTokenTable, self).__init__() # Call base class __init__.
-
-#
 # Parser
 #
 
@@ -1083,11 +1069,16 @@ class PrattParser(object):
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
 
-    def _next_unique_construct_label(self):
+    def _next_unique_construct_label(self, autolabel_prefix=None):
         """Return the next unique default label for constructs.  It is a tuple so it
         never matches an actual string label."""
         self.default_construct_label_number += 1
-        return (DEFAULT_CONSTRUCT_LABEL_STRING, self.default_construct_label_number)
+        if isinstance(autolabel_prefix, str):
+            string_prefix = autolabel_prefix
+        else:
+            string_prefix = DEFAULT_CONSTRUCT_LABEL_STRING
+        return "{0}__uniquelabel__{1}".format(
+                string_prefix, self.default_construct_label_number)
 
     #
     # Methods defining tokens.
@@ -1272,10 +1263,11 @@ class PrattParser(object):
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
                       prec=0, construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
-                      eval_fun=None, ast_data=None, value_key=None, dummy_handler=False):
+                      eval_fun=None, ast_data=None, value_key=None,
+                      autolabel_prefix=None, dummy_handler=False):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
-        token table, or an exception will be raised.
+        token table or an exception will be raised.
 
         Stores the construct instance in the parser's construct table and also
         return the construct instance.
@@ -1287,6 +1279,12 @@ class PrattParser(object):
         required or else an exception will be raised (unless `dummy_handler` is
         set true).  Similarly, an exception is raised for a non-zero `prec`
         value for a head-handler (the default value).
+
+        If `construct_label` is `None` then a unique string label will be
+        generated.  If the parameter `autolabel_prefix` is passed a string then
+        that value will be made the prefix of any automatically-generated
+        construct labels (i.e., when `construct_label` is `None`).  This can be
+        used to create more-informative labels, which can help in debugging.
 
         Uniqueness of constructs is essentially determined by triples of the
         form::
@@ -1336,7 +1334,7 @@ class PrattParser(object):
                     .format(trigger_token_label))
 
         if construct_label is None:
-            self.construct_label = self._next_unique_construct_label()
+            self.construct_label = self._next_unique_construct_label(autolabel_prefix)
         else:
             self.construct_label = construct_label
 

@@ -274,6 +274,7 @@ class ConstructTable(object):
         functions and AST data.  The `key_on_values` attribute of the `Construct`
         instance is set based on this being set, and must always be the same for a
         given construct."""
+
         self.parser_instance = parser_instance
         key_on_values = False
         if value_key:
