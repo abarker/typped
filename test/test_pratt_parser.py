@@ -77,11 +77,9 @@ def define_syntax(parser):
     # Literals
     literals = [
             ("k_number", t_number), # Types not really used... note also order in list!
-            #("k_imag_number", "t_imag_number"),
             ("k_identifier",),
             ]
     #parser.def_literal("k_number", ast_data="d_number")
-    #parser.def_literal("k_imag_number", ast_data="d_imag_number")
     #parser.def_literal("k_identifier", ast_data="d_variable")
     parser.def_multi_literals(literals)
 

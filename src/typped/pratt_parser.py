@@ -1075,10 +1075,15 @@ class PrattParser(object):
         self.default_construct_label_number += 1
         if isinstance(autolabel_prefix, str):
             string_prefix = autolabel_prefix
-        else:
+        elif autolabel_prefix is None:
             string_prefix = DEFAULT_CONSTRUCT_LABEL_STRING
-        return "{0}__uniquelabel__{1}".format(
-                string_prefix, self.default_construct_label_number)
+        else:
+            raise ParserException("Value of autolabel_prefix value must be None or a"
+                                  " string.  Instead got: {0}".format(autolabel_prefix))
+        label = "{0}__uniquelabel__{1}".format(string_prefix,
+                                               self.default_construct_label_number)
+        print("generated label:", label)
+        return label
 
     #
     # Methods defining tokens.
@@ -1334,9 +1339,7 @@ class PrattParser(object):
                     .format(trigger_token_label))
 
         if construct_label is None:
-            self.construct_label = self._next_unique_construct_label(autolabel_prefix)
-        else:
-            self.construct_label = construct_label
+            construct_label = self._next_unique_construct_label(autolabel_prefix)
 
         if precond_fun is None:
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN

@@ -110,11 +110,11 @@ def def_literal(parser, token_label, val_type=None,
 
     construct_label = "def_literal with {} tokens as triggers".format(token_label)
     return parser.def_construct(HEAD, head_handler_literal, token_label,
-                              val_type=val_type, arg_types=(),
-                              construct_label=construct_label,
-                              precond_fun=precond_fun,
-                              precond_priority=precond_priority,
-                              eval_fun=eval_fun, ast_data=ast_data)
+                                val_type=val_type, arg_types=(),
+                                construct_label=construct_label,
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                eval_fun=eval_fun, ast_data=ast_data)
 
 
 def def_multi_literals(parser, tuple_list):
