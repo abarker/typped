@@ -6,17 +6,15 @@ This file contains the runnable code for the Basic Usage section of the Sphinx d
 """
 from __future__ import print_function, division, absolute_import
 
-import typped as pp
-import operator
 import cmd
-import readline
+import readline # pylint: disable=unused-import
+import typped as pp
 
 #
 # Example 1.
 #
 
 def define_parser_tokens_and_literals_simple_example():
-    import typped as pp
     parser = pp.PrattParser()
 
     parser.def_default_whitespace()
@@ -87,6 +85,106 @@ def run_simple_non_builtin_example():
 # Example 3.
 #
 
+def setup_string_language_parser_no_typing():
+    """A simple, untyped language that uses `+` to add integers and
+    concatenate strings.  Multiplication of a number by a string repeats the
+    string.  Multiplication of a string by a string is not defined.  It also
+    has simple variables which can represent either numbers or strings.   Any
+    errors are caught during the Python evaluation."""
+    parser = pp.PrattParser(skip_type_checking=True)
+
+    # Define the tokens.
+
+    parser.def_default_whitespace()
+    tok = parser.def_token
+    tok("k_int", r"-?\d+")
+    tok("k_lpar", r"\(")
+    tok("k_rpar", r"\)")
+    tok("k_ast", r"\*")
+    tok("k_plus", r"\+")
+    tok("k_equals", r"=")
+    tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+    tok("k_string", r"(\"(.|[\r\n])*?\")")
+
+    # Define the syntax of the language, supplying evaluation functions.
+
+    parser.def_literal("k_int", eval_fun=lambda t: int(t.value))
+    parser.def_literal("k_string", eval_fun=lambda t: t.value)
+    parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
+
+    def plus_op(x, y):
+        """Generic addition operation that works on all the defined cases.  Strings
+        are stored with quotes."""
+        if isinstance(x, int) or x[0] != "\"":
+            return int(x) + int(y)
+        return x[:-1] + y[1:]
+
+    def mult_op(x, y):
+        """Generic multiplication operation that works on all the defined cases.
+        Strings are stored with quotes."""
+        print("eval: x, y:", x, y)
+        if isinstance(x, int) and isinstance(y, int):
+            return x * y
+        if isinstance(x, int) or x[0] != '"':
+            return '"' + int(x) * y[1:-1] + '"'
+        elif isinstance(y, int) or y[0] != '"':
+            return '"' + int(y) * x[1:-1] + '"'
+        return int(x) * int(y)
+
+    infix = parser.def_infix_op
+    infix("k_plus", 10, "left",
+          eval_fun=lambda t: plus_op(t[0].eval_subtree(), t[1].eval_subtree()))
+
+    infix("k_ast", 20, "left",
+          eval_fun=lambda t:mult_op(t[0].eval_subtree(), t[1].eval_subtree()))
+
+    # Define assignment as an infix equals operator.
+    parser.def_assignment_op_untyped("k_equals", 5, "right", "k_identifier",
+                                     create_eval_fun=True)
+
+    # Define identifier literals with a lookup if needed.
+    d = parser.symbol_value_dict # Dict is created and set by def_assignment_op_untyped.
+    parser.def_literal("k_identifier",
+                       eval_fun=lambda t: d[t.value] if t.value in d else t.value)
+    return parser
+
+def run_string_language_parser_no_typing():
+    """REPL for the untyped number and string language."""
+
+    class NumberStringLangREPL(cmd.Cmd, object):
+        prompt = "> "
+        intro = "Enter ^D to exit the dynamically-typed number and string language."
+
+        def __init__(self):
+            super(NumberStringLangREPL, self).__init__()
+            self.parser = setup_string_language_parser_no_typing()
+
+        def emptyline(self):
+            pass
+
+        def default(self, line):
+            try:
+                result = self.parser.parse(line)
+                print(result.tree_repr())
+                print(result.eval_subtree())
+            except (ValueError, ZeroDivisionError) as e:
+                print(e)
+            except pp.TypeErrorInParsedLanguage as e:
+                print(e)
+            #except Exception as e:
+            #    print(e)
+
+        def do_EOF(self, line):
+            print("\nBye.")
+            return True
+
+    NumberStringLangREPL().cmdloop()
+
+
+#
+# Example 4.
+#
+
 def setup_string_language_parser_dynamic_typing():
     """A simple dynamically-typed language that uses `+` to add integers and
     concatenate strings.  Multiplication of a number by a string repeats the
@@ -143,12 +241,13 @@ def setup_string_language_parser_dynamic_typing():
                    '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
     # Define assignment as an infix equals operator.
-    parser.def_assignment_op_dynamic("k_equals", 5, "left", "k_identifier",
+    parser.def_assignment_op_dynamic("k_equals", 5, "right", "k_identifier",
                                      val_type=None, allowed_types=[t_int, t_str],
                                      create_eval_fun=True)
     return parser
 
-def run_string_language_dynamic_typing_parser():
+def run_string_language_parser_dynamic_typing():
+    """REPL for the dynamically-typed number and string language."""
 
     class NumberStringLangREPL(cmd.Cmd, object):
         prompt = "> "
@@ -180,7 +279,7 @@ def run_string_language_dynamic_typing_parser():
     NumberStringLangREPL().cmdloop()
 
 #
-# Example 4.
+# Example 5.
 #
 
 def setup_string_language_parser_static_typing():
@@ -295,7 +394,8 @@ def setup_string_language_parser_static_typing():
                                      eval_fun=operator_eval_fun)
     return parser
 
-def run_string_language_static_typing_parser():
+def run_string_language_parser_static_typing():
+    """REPL for the statically-typed number and string language."""
 
     class NumberStringLangREPL(cmd.Cmd, object):
         prompt = "> "
@@ -304,7 +404,7 @@ def run_string_language_static_typing_parser():
         def __init__(self):
             super(NumberStringLangREPL, self).__init__()
             self.parser = setup_string_language_parser_static_typing()
-            self.globals_dict = {"__builtins__": __builtins__}
+            self.builtins_dict = {"__builtins__": __builtins__}
             self.locals_dict = {}
 
         def emptyline(self):
@@ -332,7 +432,7 @@ def run_string_language_static_typing_parser():
                         print("\nPython evaluation:")
                         # The Python eval below also prints to stdout.
                         result = eval(compile(python_command, '<string>', 'single'),
-                                              self.globals_dict, self.locals_dict)
+                                              self.builtins_dict, self.locals_dict)
                         print()
                     except Exception as e:
                         print("Error in evaluating the Python code:\n", e, "\n", sep="")
@@ -354,12 +454,16 @@ if __name__ == "__main__":
     print("=" * underline_len + "\n")
     run_simple_non_builtin_example()
 
-    print("\nExample 3, dynamically typed word and string language.")
+    print("\nExample 3, untyped word and string language.")
     print("=" * underline_len + "\n")
-    run_string_language_dynamic_typing_parser()
+    run_string_language_parser_no_typing()
 
-    print("\nExample 4, statically typed word and string language.")
+    print("\nExample 4, dynamically typed word and string language.")
     print("=" * underline_len + "\n")
-    run_string_language_static_typing_parser()
+    run_string_language_parser_dynamic_typing()
+
+    print("\nExample 5, statically typed word and string language.")
+    print("=" * underline_len + "\n")
+    run_string_language_parser_static_typing()
 
 

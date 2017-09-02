@@ -87,7 +87,7 @@ def def_literal(parser, token_label, val_type=None,
         return tok
 
     return parser.def_construct(HEAD, head_handler_literal, token_label,
-                                val_type=val_type, arg_types=(),
+                                val_type=val_type, arg_types=[],
                                 precond_label=precond_label,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
@@ -427,10 +427,11 @@ def def_jop(parser, prec, assoc,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
 #
-# Statically typed variable assignments and evaluations.
+# Utility functions used in implementing assignment operators.
 #
 
-def _setup_symbol_dicts(parser, symbol_value_dict, symbol_type_dict):
+def _setup_symbol_dicts(parser, symbol_value_dict=None,
+                        symbol_type_dict=None, typing=True):
     """Return the dicts to use, substituting defaults for `None` and creating the
     defaults if they do not exist.  The defaults are `parser.symbol_value_dict` and
     `parser.symbol_type_dict`."""
@@ -438,10 +439,13 @@ def _setup_symbol_dicts(parser, symbol_value_dict, symbol_type_dict):
         if not hasattr(parser, "symbol_value_dict"):
             parser.symbol_value_dict = {}
         symbol_value_dict = parser.symbol_value_dict
-    if symbol_type_dict is None:
-        if not hasattr(parser, "symbol_type_dict"):
-            parser.symbol_type_dict = {}
-        symbol_type_dict = parser.symbol_type_dict
+    if typing:
+        if symbol_type_dict is None:
+            if not hasattr(parser, "symbol_type_dict"):
+                parser.symbol_type_dict = {}
+            symbol_type_dict = parser.symbol_type_dict
+    else:
+        symbol_type_dict = None
     return symbol_value_dict, symbol_type_dict
 
 def _eval_statically_typed_assignment(parser, symbol_value_dict):
@@ -464,6 +468,61 @@ def _set_static_type(parser, symbol_value_dict=None, symbol_type_dict=None):
     checking to work.  The default `symbol_type_dict` is `parser.symbol_type_dict`."""
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
+
+#
+# Untyped variable assignments and evaluations.
+#
+
+def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
+                              identifier_token_label,
+                              symbol_value_dict=None,
+                              precond_fun=None, precond_priority=0, precond_label=None,
+                              eval_fun=None, create_eval_fun=False, ast_data=None):
+    """Define an infix assignment operator which is statically typed, with
+    types checked at parse time.  Each identifier (with token label
+    `identifier_token_label` must already have a type associated with it in the
+    `symbol_type_dict`.  This dict and the type values in it should be set via
+    whatever kind of a type definition construct the language uses.
+
+    A precondition checks that the l.h.s. of the assignment operator is a token
+    with label `identifier_token_label`.  If not an exception is raised.
+
+    An evaluation function can optionally be created automatically, but by default is
+    not.  See the `def_assignment_op_dynamic` routine for more details since the
+    mechanism is the same.  If `eval_fun` is set then that evaluation function
+    will always be used.
+
+    This method may not correctly set the return type when overloading on
+    return types because currently `val_type_override` is used to set it."""
+    symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser,
+                                                              symbol_value_dict=None,
+                                                              typing=False)
+
+    def precond_lhs_is_identifier(lex, lookbehind):
+        return lex.peek(-1).token_label == identifier_token_label
+    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
+                                                        identifier_token_label)
+
+    # Combine above precond fun with user's precond fun if one was supplied.
+    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
+
+    # Create an eval fun if requested.
+    if create_eval_fun:
+        def eval_fun(subtree_tok):
+            rhs = subtree_tok[1].eval_subtree()
+            symbol_value_dict[subtree_tok[0].value] = rhs
+            return rhs
+
+    # Create an ordinary infix operator for untyped assignments.
+    return def_infix_op(parser, assignment_op_token_label, prec, assoc,
+                        precond_fun=precond_fun, precond_priority=0,
+                        precond_label=precond_label,
+                        eval_fun=eval_fun, ast_data=ast_data)
+
+#
+# Statically typed variable assignments and evaluations.
+#
 
 def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                              identifier_token_label,
@@ -546,7 +605,6 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                                 precond_label=precond_label,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
-
 
 #
 # Dynamically typed variable assignments and evaluations.
@@ -739,6 +797,7 @@ parse_methods = [
                  def_jop,
 
                  # Assignment-related methods.
+                 def_assignment_op_untyped,
                  def_assignment_op_static,
                  def_assignment_op_dynamic,
                  def_literal_typed_from_dict,

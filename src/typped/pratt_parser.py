@@ -1012,8 +1012,16 @@ class PrattParser(object):
         Lexer class).
 
         Setting `skip_type_checking=True` is slightly faster if typing is not
-        being used at all.  Setting `overload_on_ret_types` requires an extra
-        walk of the token tree, and implies overloading on argument types.
+        being used at all.  Overloading depends on type-checking to resolve the
+        actual types, so this flag implies that the overload flags are all
+        false.  The default is false.
+
+        The `overload_on_arg_types` flag specifies whether or not to overload
+        on argument types.  The default is true.
+
+        Setting `overload_on_ret_types` also overloads on argument types.  It
+        requires an extra walk of the token tree, and implies overloading on
+        argument types.  The default is false.
 
         If `partial_expressions` is set then no check will be made in the
         `parse` method to see if the parsing consumed up to the end-token in
@@ -1022,11 +1030,15 @@ class PrattParser(object):
         lexer's current token is the end-token."""
 
         ## Type-checking options below; these can be changed between calls to `parse`.
-        self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
-        self.overload_on_arg_types = overload_on_arg_types # Raise error on mult defs?
-        self.overload_on_ret_types = overload_on_ret_types # Requires extra processing.
         if overload_on_ret_types:
-            self.overload_on_arg_types = True # Overload on ret implies overload on args.
+            overload_on_arg_types = True # Overload on ret implies overload on args.
+        self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
+        if not skip_type_checking:
+            self.overload_on_arg_types = overload_on_arg_types
+            self.overload_on_ret_types = overload_on_ret_types
+        else: # Overloading requires type checking.
+            self.overload_on_arg_types = False
+            self.overload_on_ret_types = False
 
         # If exceptions are not raised on ties below, the last-set one has
         # precedence.  Define this before registering any handlers (done

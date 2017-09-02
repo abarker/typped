@@ -187,13 +187,13 @@ class Construct(object):
         if not self.key_on_values:
             value_key = None
 
-        # Save in dicts hashed with full signature (full overload with return).
+        # Save in dict hashed with full signature (full overload with return).
         dict_key = (type_sig, value_key)
         self.eval_fun_dict[dict_key] = eval_fun
-        # Also save in dicts hashed only on args (overloading only on args).
+        # Also save in dict hashed only on args (overloading only on args).
         dict_key = (type_sig.arg_types, value_key)
         self.eval_fun_dict[dict_key] = eval_fun
-        # Also save in dicts hashed only on precond label (no overloading).
+        # Also save in dict hashed only on precond label (no overloading).
         dict_key = value_key
         self.eval_fun_dict[dict_key] = eval_fun
 
@@ -205,21 +205,20 @@ class Construct(object):
         if not self.key_on_values:
             value_key = None
 
-        # Save in dicts hashed with full signature (full overload with return).
+        # Save in dict hashed with full signature (full overload with return).
         dict_key = (type_sig, value_key)
         self.ast_data_dict[dict_key] = ast_data
-        # Also save in dicts hashed only on args (overloading only on args).
+        # Also save in dict hashed only on args (overloading only on args).
         dict_key = (type_sig.arg_types, value_key)
         self.ast_data_dict[dict_key] = ast_data
-        # Also save in dicts hashed only on precond label (no overloading).
+        # Also save in dict hashed only on precond label (no overloading).
         dict_key = value_key
         self.ast_data_dict[dict_key] = ast_data
 
     def get_eval_fun(self, orig_sig, value_key=None):
         """Return the evaluation function saved by `_save_eval_fun`.
-        Must be called after parsing because the `precond_label` attribute must
-        be set on the token instance.  Keyed on `is_head`, `precond_label`, and
-        original signature."""
+        Must be called after parsing because type ` attributes must
+        be set on the token instance."""
         if not self.key_on_values:
             value_key = None
         if self.parser_instance.overload_on_ret_types:
@@ -232,9 +231,8 @@ class Construct(object):
 
     def get_ast_data(self, orig_sig, value_key=None):
         """Return the ast data saved by `_save_ast_data`.
-        Must be called after parsing because the `precond_label` attribute must
-        be set on the token instance.  Keyed on `is_head`, `precond_label`, and
-        original signature."""
+        Must be called after parsing because the type attributes must
+        be set on the token instance."""
         if not self.key_on_values:
             value_key = None
         if self.parser_instance.overload_on_ret_types:
@@ -341,9 +339,9 @@ class ConstructTable(object):
         if prev_construct and not self.parser_instance.overload_on_arg_types:
             raise TypeErrorInParsedLanguage("Value of overload_on_arg_types"
                    " is False but attempt to redefine and possibly set multiple"
-                   " signatures for the {0} function for token with label '{1}'"
-                   " with preconditions label '{2}'."
-                   .format(head_or_tail, self.token_label, precond_label))
+                   " signatures for the {0} function triggered by tokens with the"
+                   " label '{1}' with preconditions label '{2}'."
+                   .format(head_or_tail, trigger_token_label, precond_label))
 
         # For overloading, append the type_sig to prev_type_sigs_for_precond,
         # saving them all.  A static method of TypeSig currently does it
