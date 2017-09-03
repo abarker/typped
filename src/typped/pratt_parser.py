@@ -924,8 +924,8 @@ def token_subclass_factory():
         def summary_repr_with_types(self):
             """A short summary repr of the node, without its children."""
             return ("<" + str(self.token_label) +
-                    "," + str(self.value) +
-                    "," + str(self.expanded_formal_sig.val_type) + ">")
+                    ",'" + str(self.value) +
+                    "'," + str(self.expanded_formal_sig.val_type) + ">")
 
         def tree_repr_with_types(self, indent=""):
             """Token representation as the root of a parse subtree, with formatting.
@@ -1095,7 +1095,6 @@ class PrattParser(object):
                                   " string.  Instead got: {0}".format(autolabel_prefix))
         label = "{0}__uniquelabel__{1}".format(string_prefix,
                                                self.default_precond_label_number)
-        print("generated label:", label)
         return label
 
     #

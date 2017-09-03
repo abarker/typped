@@ -3,26 +3,35 @@ Implementing typed languages
 
 The Typped package provides a fairly general type-definition and type-checking
 mechanism.  It is optional, however, and can be ignored for untyped languages.
+Types can be used for detecting syntax errors (either dynamically or
+statically), for overloading operators, for validating data, etc.
+
 When types are defined and set up properly (using either the built-in methods
-of the ``PrattParser`` class or custom methods) the language will be
-automatically type-checked at parse-time.
+of the ``PrattParser`` class or custom methods) the resulting expression trees
+will be automatically type-checked at parse-time.  To disable type-checking
+altogether the argument ``skip_type_checking=True`` can be passed to the
+initializer of the ``PrattParser`` instance.
 
 Only simple types are currently implemented (though the mechanism can easily be
 made more general).  As of now type are essentially just string labels which
-are equivalent iff the labels are the same.  At some point type heirarchies and
-type conversions may be added.
+are equivalent iff the labels are the same.  At some point type heirarchies,
+type conversions, etc., may be added.
 
 Each construct registered with a parser instance can have type information
-associated with it.  This type signature is then checked against the actual
-types in the parse subtree returned by the handler function for the construct.
+associated with it.  Generally this is specified by giving the type of the root
+node in the expression subtree for the parsed construct as well as the types of
+the children of that node.  This type signature is then checked against the
+actual types in the parse subtree returned by the handler function for the
+construct.
 
 The type system allows for operator overloading, including optional overloading
-on return types.  The default is to allow overloading only on argument types.
-Overloading currently has the mild restriction that all overloads defined for
-an infix operator must share the same precedence value.  To disable all
-overloading, set ``overload_on_arg_types=False`` in the ``PrattParser``
+on return types.  The default is to allow overloading only on argument/child
+types.  Overloading currently has the mild restriction that all overloads
+defined for an infix operator must share the same precedence value.  To disable
+all overloading, set ``overload_on_arg_types=False`` in the ``PrattParser``
 initializer.  To allow overloading on return types as well as argument types,
-set ``overload_on_ret_types=True`` in the initializer.
+set ``overload_on_ret_types=True`` in the initializer.  The default is to allow
+overloading on argument types but not on return types.
 
 Overloading is specified by re-defining a construct for a token which already
 has a construct of that name.  If the construct name is the same but
@@ -30,17 +39,25 @@ the type of the arguments are different then an overloaded type specification
 is created.  If overloading on return types is allowed then the types are also
 considered different if the return type is different.
 
-Operator overloading can be used for constructs which parse the same, i.e.,
-using the same handler function, but can have multiple possible type
+Operator overloading can be used for constructs which parse the same (i.e., via
+the same handler function) but which can have multiple possible type
 signatures.  Type resolution is then based on the actual arguments found at
 parse-time.
 
+The nodes in the final parsed expression tree will have an attribute
+``type_sig`` giving the actual types, and an attribute ``original_sig`` giving
+the matching original signature.  The evaluation functions and AST data for a
+construct are stored keyed by the original signature which was passed in at the
+time when that (possible) overload was defined.
+
 Type information for a construct (e.g., an function evaluation subexpression)
 should generally be associated with the token which ends up as the the subtree
-root in the expression/parse tree.  Type-checking is done on the nodes of the
-parse tree as it is constructed, making sure that the types of the children of
-a node (if any) match the declared argument types, and that the types of the
-nodes themselves match their declared value type.
+root in the expression/parse tree.  Type-resolution and checking is done as
+soon as possible on the nodes of the parse tree as it is constructed bottom-up.
+Checking makes sure that the types of the children of a node (if any) match the
+declared argument types, and that the types of the nodes themselves match their
+declared value type.  If overloading on return types is allowed then a second
+downward pass can also be required to resolve signatures.
 
 Type signatures
 ---------------

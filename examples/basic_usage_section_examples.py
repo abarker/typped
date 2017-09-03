@@ -143,9 +143,16 @@ def setup_string_language_parser_no_typing():
                                      create_eval_fun=True)
 
     # Define identifier literals with a lookup if needed.
-    d = parser.symbol_value_dict # Dict is created and set by def_assignment_op_untyped.
-    parser.def_literal("k_identifier",
-                       eval_fun=lambda t: d[t.value] if t.value in d else t.value)
+    symbol_dict = parser.symbol_value_dict # Created and set by def_assignment_op_untyped.
+    default_identifier_eval_value = 0
+
+    def eval_literal_identifier(tok):
+        if tok.value in symbol_dict:
+            return symbol_dict[tok.value]
+        else:
+            return default_identifier_eval_value
+
+    parser.def_literal("k_identifier", eval_fun=eval_literal_identifier)
     return parser
 
 def run_string_language_parser_no_typing():
@@ -179,7 +186,6 @@ def run_string_language_parser_no_typing():
             return True
 
     NumberStringLangREPL().cmdloop()
-
 
 #
 # Example 4.
