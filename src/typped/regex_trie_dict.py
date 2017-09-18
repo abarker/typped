@@ -1,4 +1,4 @@
-"""
+r"""
 
 Introduction to `RegexTrieDict`
 ===============================
@@ -92,7 +92,7 @@ defined assuming that keys are strings of characters.  (In general, keys can be
 sequences of any kind of hashable elements.)  The default definitions are as
 follows::
 
-   define_meta_elems(escape="\\\\", repetition="*", l_group="(", r_group=")",
+   define_meta_elems(escape=".g\\\", repetition="*", l_group="(", r_group=")",
                      l_wildcard="[", r_wildcard="]", range_elem="-",
                      or_elem="|", dot=".", wildcard_patt_match_fun=None,
                      elem_to_digit_fun=None, canonicalize_fun=None)
@@ -100,16 +100,16 @@ follows::
 In order for an element of a key to be interpreted as a meta-symbol it **must**
 be preceded by the defined escape element.  So, assuming the keys are strings,
 pattern strings containing the above meta-symbols with their default
-definitions above would always appear as `"\\\\\\\\\\*"`, `"\\\\\\\\\\("`,
-`"\\\\\\\\\\)"`, `"\\\\\\\\\\["`, `"\\\\\\\\\\]"`, `"\\\\\\\\\\-"`, and
-`"\\\\\\\\\\|"`.  When the backslash character is the escape it is convenient
+definitions above would always appear as `".g\\\\\\\\\*"`, `"\\\\\\\\\\("`,
+`".g\\\\\\\\\)"`, `"\\\\\\\\\\["`, `"\\\\\\\\\\]"`, `"\\\\\\\\\\-"`, and
+`".g\\\\\\\\\|"`.  When the backslash character is the escape it is convenient
 to use raw strings, but remember that Python raw strings cannot end with a
 single backslash.
 
 There are no exceptions to the requirement that all meta-elements must be
 escaped, so it is a consistent rule which does not require memorization of
 which elements need to be escaped and which do not.  As usual, a double escape
-such as `r"\\\\\\\\\\"` or `"\\\\\\\\\\\\\\\\"` reverts to the literal escape
+such as `r".g\\\\\\\\\"` or `"\\\\\\\\\\\\\\\\"` reverts to the literal escape
 symbol, as does an escape not followed by any of the defined meta-elements.
 
 Keep in mind that when a `RegexTrieDict` is used with escaped elements in the
@@ -152,13 +152,13 @@ The language allows for single-character wildcards, i.e., wildcards which match
 a single character from some set of possibilities.  Like Python regexes, this
 language also recognizes an escaped dot as a metacharacter that matches
 anything (including newlines, as if `DOTALL` were set in Python).  For strings
-the default dot symbol is set to `r"\\."`.
+the default dot symbol is set to `r".g\."`.
 
 As an example of character ranges with strings, consider these patterns are
 valid meta-keys using wildcards::
 
-   patt1 = r"abc\\[123\\]def"
-   patt2 = r"abc\\[1\\-3\\]def"
+   patt1 = r"abc.g\[123\\]def"
+   patt2 = r"abc.g\[1\\-3\\]def"
 
 The first pattern, `patt1`, matches `abc1def`, `abd2def`, and `abc3def` on
 meta-queries.  The second pattern, `patt2`, matches the same strings but uses a
@@ -182,13 +182,13 @@ Repetition patterns
 Repetition patterns match zero or more occurrences of the pattern group.  Here
 is an example with strings as keys::
 
-   patt1 = r"abc\\*\\(DD\\)efg"
+   patt1 = r"abc.g\*\\(DD\\)efg"
 
 This would match "abcefg", "abcDDefg", abcDDDDefg", etc.  The repetition
 pattern can also take optional numeric arguments, each separated by another
 asterick.  A single numeric argument, like in ::
 
-   patt = r"abc\\*10\\(DD\\)efg
+   patt = r"abc.g\*10\\(DD\\)efg
 
 specifies a minimum number of repetitions.  The previous example must have
 ten or more occurrences of `"dd"` in it.  So `"abcDDefg"` would not match,
@@ -196,7 +196,7 @@ but `"abcDDDDDDDDDDDDDDDDDDDDefg"` would match.  When two numbers are given
 they represent the minimum and the maximum number of repetitions, respectively.
 So the pattern ::
 
-   patt = r"abc\\*2\\*3\\(DD\\)efg"
+   patt = r"abc.g\*2\\*3\\(DD\\)efg"
 
 would not match `"abcDDefg"`, would match `"abcDDDDefg"` and `"abcDDDDDDefg"`, and
 would not match `"abcDDDDDDDDefg"`.
@@ -261,14 +261,14 @@ While traversing the trie, the repetition and "or" groups can cause branching wh
 increases the number of these parallel states.  Assuming a single item in the
 trie, branching of states occurs in these cases:
 
-1. For repetitions like `r"\*\(123\)"` each time the end of the loop is reached
+1. For repetitions like `r".g*\(123\)"` each time the end of the loop is reached
 the single state inside the loop splits into two states.  One loops back to the
 beginning of the loop, and one breaks out of the loop and continues.  So the
 worst-case number of states from such a loop is linear in the number of
 repetition of that loop so far in the query key-string (starting at two, since
 empty patterns can match).
 
-2. When a state reaches an "or" group like `r"\(A\|B\|C\)"` it splits into
+2. When a state reaches an "or" group like `r".g(A\|B\|C\)"` it splits into
 new states for each sub-group inside the group.  So that one state becomes as
 many states as there are sub-groups in the "or" group.
 

@@ -36,23 +36,30 @@ from typped.shared_settings_and_exceptions import ParserException
 # Combining preconditions functions.
 #
 
-def combine_precond_funs(*fun_label_tuples, all_true=True):
-    """Takes any number of tuples `(precond_fun, precond_label)` as arguments.  Returns
-    a combined preconditions function that computes the conjunction function
-    of the preconditions functions passed in.  Also returns the concatenation of the
-    labels.  Any `None` object arguments are ignored.
+def combine_precond_funs(*fun_and_label_tuples, **kwargs):
+    """Takes any number of tuples `(precond_fun, precond_label)` as arguments.
+    Returns a combined preconditions function that computes the conjunction
+    function of all the preconditions functions passed in.  Also returns the
+    concatenation of the labels.  Any `None` object arguments are ignored.
 
-    If `all_true` is set false then the combined function is true when any of
-    the individual functions are true, not all of them."""
-    labels = [t[1] for t in fun_label_tuples if t[1] is not None]
+    If the keyword argument `all_true` is set `False` then then "or" is used
+    instead of "and" and the combined function is true when any of the
+    individual functions are true, not necessarily all of them."""
+    for key in kwargs: # Catch kwarg errors; kwargs done like this for Python2 compat.
+        if key != "all_true":
+            raise ParserException("Invalid kwarg to combine_precond_funs: {0}."
+                                  .format(key))
+    all_true = kwargs.get("all_true", True)
+
+    labels = [t[1] for t in fun_and_label_tuples if t[1] is not None]
     combo_label = "".join(labels)
     combo_label = combo_label if combo_label != "" else None
 
-    funs = [t[0] for t in fun_label_tuples if t[0] is not None]
+    funs = [t[0] for t in fun_and_label_tuples if t[0] is not None]
     if not funs:
         return None, combo_label
-    elif len(fun_label_tuples) == 1:
-        return fun_label_tuples[0]
+    elif len(fun_and_label_tuples) == 1:
+        return fun_and_label_tuples[0]
 
     if all_true:
         def combined_fun(lex, lookbehind):

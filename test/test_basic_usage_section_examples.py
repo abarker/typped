@@ -8,7 +8,7 @@ code contains the examples in the Basic Usage section of the Sphinx documentatio
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
-pytest_helper.script_run(self_test=True, pytest_args="-v")
+pytest_helper.script_run(self_test=True, pytest_args="-vv")
 pytest_helper.auto_import()
 pytest_helper.sys_path("../examples")
 
@@ -18,25 +18,6 @@ from basic_usage_section_examples import (setup_string_language_parser_no_typing
                                           setup_simple_builtin_example,
                                           pp
                                           )
-
-#TODO: part of pytest-helper now... use that version when package updated.
-def unindent(unindent_level, string):
-    """Strip indentation from a docstring.  This function is useful in tests
-    where you have assertions that something equals a multi-line string.  It
-    allows the strings to be represented as multi-line docstrings but indented
-    in a way that matches the surrounding code.  Calling this function on a
-    string will 1) remove any leading or trailing newlines, and 2) strip
-    `indent_level` characters from the beginning of each line.  Raises an
-    exception on an attempt to strip non-whitespace."""
-    string = string.strip("\n")
-    lines = string.splitlines()
-    for l in lines:
-        string_to_strip = l[0:unindent_level]
-        if not string_to_strip.lstrip() == "":
-            raise pytest_helper.PytestHelperException("Attempt to unindent non-whitespace at"
-                    " the beginning of this line:\n'{0}'".format(l))
-    stripped = "\n".join(s[unindent_level:] for s in lines)
-    return stripped
 
 def test_simple_builtin_example():
     parser = setup_simple_builtin_example()
@@ -50,7 +31,7 @@ def test_string_language_parser_untyped():
 
     # Test basic parsing to syntax tree.
     result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.tree_repr(indent=12))
+    #print(result_tree.tree_repr(indent=12))
     assert result_tree.tree_repr() == unindent(12, """
             <k_plus,'+'>
                 <k_identifier,'x'>
@@ -60,14 +41,15 @@ def test_string_language_parser_untyped():
                             <k_int,'4'>
                             <k_int,'3'>
                     <k_int,'5'>
+
             """)
     result_tree = parser.parse('"foo" + "bar"')
-    #print(resul1t_tree.tree_repr())
-    print(result_tree.tree_repr())
+    #print(result_tree.tree_repr())
     assert result_tree.tree_repr() == unindent(12, """
             <k_plus,'+'>
                 <k_string,'"foo"'>
                 <k_string,'"bar"'>
+
             """)
     # Test evaluations.
     result = parser.parse("x")
@@ -83,7 +65,7 @@ def test_string_language_parser_dynamic():
 
     # Test basic parsing to syntax tree.
     result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.tree_repr_with_types(indent=12))
+    #print(result_tree.tree_repr_with_types(indent=12))
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_int')>
                 <k_identifier,'x',TypeObject('t_int')>
@@ -93,14 +75,16 @@ def test_string_language_parser_dynamic():
                             <k_int,'4',TypeObject('t_int')>
                             <k_int,'3',TypeObject('t_int')>
                     <k_int,'5',TypeObject('t_int')>
+
             """)
     result_tree = parser.parse('"foo" + "bar"')
     #print(resul1t_tree.tree_repr())
-    print(result_tree.tree_repr_with_types())
+    #print(result_tree.tree_repr_with_types())
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_str')>
                 <k_string,'"foo"',TypeObject('t_str')>
                 <k_string,'"bar"',TypeObject('t_str')>
+
             """)
     # Test evaluations.
     result = parser.parse("x")
@@ -120,7 +104,7 @@ def test_string_language_parser_static():
     result = parser.parse("int x")
     assert result.eval_subtree() == 'None'
     result_tree = parser.parse("x + (4 + 3)*5")
-    print(result_tree.tree_repr_with_types(indent=12))
+    #print(result_tree.tree_repr_with_types(indent=12))
 
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_int')>
@@ -131,17 +115,19 @@ def test_string_language_parser_static():
                             <k_int,'4',TypeObject('t_int')>
                             <k_int,'3',TypeObject('t_int')>
                     <k_int,'5',TypeObject('t_int')>
+
             """)
     result_tree = parser.parse('"foo" + "bar"')
     #print(resul1t_tree.tree_repr())
-    print(result_tree.tree_repr_with_types())
+    #print(result_tree.tree_repr_with_types())
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_str')>
                 <k_string,'"foo"',TypeObject('t_str')>
                 <k_string,'"bar"',TypeObject('t_str')>
+
             """)
 
-    # Test evaluations. TODO failing here
+    # Test evaluations.
     result = parser.parse("x")
     assert result.eval_subtree() == "x"
     result = parser.parse("x =    4")
@@ -151,9 +137,9 @@ def test_string_language_parser_static():
     with raises(pp.ErrorInParsedLanguage):
         result = parser.parse('x = "water"')
     #result = parser.parse('str x = "water"')
+    # TODO failing to properly redefine the type.
     result = parser.parse('str x')
     result = parser.parse('x = "water"')
     result = parser.parse('x + "tree"')
     assert result.eval_subtree() == '"watertree"'
-
 

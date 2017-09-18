@@ -113,7 +113,7 @@ def setup_string_language_parser_no_typing():
     parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
 
     def plus_op(x, y):
-        """Generic addition operation that works on all the defined cases.  Strings
+        """Generic addition operation that works on all the defined cases.  Note strings
         are stored with quotes."""
         if isinstance(x, int) or x[0] != "\"":
             return int(x) + int(y)
@@ -121,7 +121,7 @@ def setup_string_language_parser_no_typing():
 
     def mult_op(x, y):
         """Generic multiplication operation that works on all the defined cases.
-        Strings are stored with quotes."""
+        Note strings are stored with quotes."""
         print("eval: x, y:", x, y)
         if isinstance(x, int) and isinstance(y, int):
             return x * y
@@ -160,7 +160,7 @@ def run_string_language_parser_no_typing():
 
     class NumberStringLangREPL(cmd.Cmd, object):
         prompt = "> "
-        intro = "Enter ^D to exit the dynamically-typed number and string language."
+        intro = "Enter ^D to exit the untyped number and string language."
 
         def __init__(self):
             super(NumberStringLangREPL, self).__init__()

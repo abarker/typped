@@ -738,7 +738,7 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                                                       symbol_type_dict)
 
     def literal_val_type_override_fun(tok, lex):
-        """Function hook passed to `def_literal` to assign a type signature."""
+        """A function hook passed to `def_literal` to assign a type signature."""
         if tok.value in symbol_type_dict:
             return symbol_type_dict[tok.value]
         else:
