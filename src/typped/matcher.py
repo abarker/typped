@@ -98,7 +98,12 @@ if __name__ == "__main__":
 import re
 import collections
 from .shared_settings_and_exceptions import LexerException
-from .regex_trie_dict_scanner import RegexTrieDictScanner, RegexTrieDict
+
+has_regex_trie_dict = True
+try:
+    from regex_trie_dict.regex_trie_dict_scanner import RegexTrieDictScanner, RegexTrieDict
+except ImportError:
+    has_regex_trie_dict = False
 
 # Saved Python patterns are TokenPatternTuple instances.
 TokenPatternTuple = collections.namedtuple("TokenPatternTuple", [
@@ -214,6 +219,9 @@ class Matcher(object):
             regex_data = (on_ties, regex_string)
             self.python_fnl_data_dict[token_label] = regex_data
         elif matcher_options == "trie":
+            if not has_regex_trie_dict:
+                raise MatcherException("The regex-trie-dict package is required to use"
+                        " the 'trie' option with a Matcher.  Package not found.")
             if self.rtd is None:
                 self.rtd = RegexTrieDict()
                 self.rtd.define_meta_elems(escape=self.rtd_escape_char)
@@ -488,7 +496,40 @@ standard_python_escapes = "abfnrtvx\\"
 
 match_unescaped_special = "|".join(match_unescaped_prefix + c for c in regex_special_chars)
 
-from .regex_trie_dict import process_elem_list_for_escapes
+def process_string_for_escapes(string_or_char_list, escape_char,
+                               open_group=None, close_group=None):
+    """A utility routine which takes a string or character list with
+    possibly-escaped elements as an argument and returns a list of two-tuples.
+
+    The first element of a returned two-tuple is the actual character, and the
+    second a boolean for whether or not it is escaped.
+
+    If `open_group` and/or `close_group` is set to an opening or closing paren
+    or bracket character the function returns a list of three-tuples, where the
+    last element gives the level of parenthesis nesting, starting at zero and
+    increasing.  An open and its corresponding close have the same level."""
+    escaped = False
+    tuple_list = []
+    p_count = 0
+    for elem in string_or_char_list:
+        if elem == escape_char and not escaped:
+            escaped = True
+            continue
+        if escaped:
+            bool_val = True
+            if open_group and elem == open_group:
+                p_count += 1
+        else:
+            bool_val = False
+        if open_group or close_group:
+            tuple_list.append((elem, bool_val, p_count))
+        else:
+            tuple_list.append((elem, bool_val))
+        if escaped:
+            escaped = False
+            if close_group and elem == close_group:
+                p_count -= 1
+    return tuple_list
 
 def is_fixed_length(regex):
     """If the Python regex is fixed-length return its effective length (not its actual
@@ -514,7 +555,7 @@ def is_fixed_length(regex):
     # sequential search on the patterns of that length.
     effective_length = 0
     inside_charset = False
-    for char, is_escaped in process_elem_list_for_escapes(regex, "\\"):
+    for char, is_escaped in process_string_for_escapes(regex, "\\"):
         if char == "]" and not is_escaped:
             if not inside_charset:
                 raise MatcherException("Closing character set range ']' with no `[`.")
@@ -553,7 +594,7 @@ def convert_simple_python_regex_to_rtd_regex(regex, rtd_escape=None):
 
     inside_charset = False
     converted_char_list = []
-    for char, is_escaped in process_elem_list_for_escapes(regex, python_escape):
+    for char, is_escaped in process_string_for_escapes(regex, python_escape):
         print("char is", char, "is_escaped is", is_escaped)
         if char == "]" and inside_charset and not is_escaped:
             if not inside_charset:

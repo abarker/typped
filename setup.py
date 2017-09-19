@@ -33,6 +33,13 @@ EXTRA_GCC_COMPILE_ARGS = ["-O3"] # Optimize code more than the default.
 #
 
 cmdclass = {}
+
+# https://cython.readthedocs.io/en/latest/src/reference/compilation.html#compiler-directives
+global_cython_directives = {} # Set as compiler_directives kwarg to cythonize.
+global_cython_directives["infer_types"] = True
+global_cython_directives["optimize.use_switch"] = True
+global_cython_directives["optimize.unpack_method_calls"] = True
+
 EXTRA_COMPILE_ARGS = []
 ext_modules = None
 
@@ -45,7 +52,7 @@ if USE_CYTHON:
     if REGENERATE_C_CODE:
         try:
             from Cython.Build import cythonize
-            from Cython.Distutils import build_ext
+            from Cython.Distutils import build_ext # Assume OK for setuptools, too.
         except:
             raise ImportError("Cannot import Cython.  It is a dependency for the"
                               " selected option to regenerate Cython C code.")
@@ -71,11 +78,19 @@ if USE_CYTHON:
           #         ),
     ]
 
+    for ext in extensions:
+        # TODO: Useless if all global; need separate extensions to be useful.  Append above!
+        ext.cython_directives = {} # Local Cython directives, per extension.
+        # Embed signature information in docstrings for Sphinx to extract.
+        ext.cython_directives["embedsignature"] = True
+        #ext.cython_directives["infer_types"] = True
+
     if REGENERATE_C_CODE:
-        cmdclass.update({'build_ext': build_ext})
-        ext_modules = cythonize(extensions, compiler_directives={"infer_types": True})
+        cmdclass["build_ext"] = build_ext
+        global_cython_directives["infer_types"] = True
+        ext_modules = cythonize(extensions, compiler_directives=global_cython_directives)
     else:
-        ext_modules = extensions
+        ext_modules = extensions # Will use existing C code.
 
 #
 # Regular setup.py below.
