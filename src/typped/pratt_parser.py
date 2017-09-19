@@ -417,7 +417,6 @@ def token_subclass_factory():
         def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
             """Dispatch a callable function what will work as a handler.  The
             function also does type-checking after running the defined handler."""
-            # TODO: later consider calling not as token method....
             return self.parser_instance.construct_table.dispatch_handler(
                                         head_or_tail, self, lex, left, lookbehind)
 
@@ -986,7 +985,8 @@ class PrattParser(object):
                        skip_type_checking=False,
                        overload_on_arg_types=True,
                        overload_on_ret_types=False,
-                       partial_expressions=False):
+                       partial_expressions=False,
+                       raise_on_equal_priority_preconds=False):
         """Initialize the parser.
 
         The `max_peek_tokens` parameter is an optional arbitrary limit on the
@@ -1023,12 +1023,22 @@ class PrattParser(object):
         requires an extra walk of the token tree, and implies overloading on
         argument types.  The default is false.
 
-        If `partial_expressions` is set then no check will be made in the
+        If `partial_expressions` is set true then no check will be made in the
         `parse` method to see if the parsing consumed up to the end-token in
         the lexer.  Multiple expression text can be parsed by repeatedly
         calling `parse` when this option is true and checking whether the
-        lexer's current token is the end-token."""
+        lexer's current token is the end-token.
 
+        If `raise_on_equal_priority_preconds` is true then an exception will be
+        raised if two precondition functions are registered with the same
+        trigger token in the same head or tail position which have the same
+        precondition priority.  The default is false, and the last-defined
+        matching precondition function of the same priority will win any
+        competition.  This option can be used to ensure at language define-time
+        that there is no definition-order dependence in dispatching.  If two
+        such preconditions functions are mutually exclusive there is no problem
+        with them having the same priority, but this condition cannot be
+        checked by a program."""
         ## Type-checking options below; these can be changed between calls to `parse`.
         if overload_on_ret_types:
             overload_on_arg_types = True # Overload on ret implies overload on args.
@@ -1043,9 +1053,9 @@ class PrattParser(object):
         # If exceptions are not raised on ties below, the last-set one has
         # precedence.  Define this before registering any handlers (done
         # below in `def_begin_end_tokens`).
-        self.raise_exception_on_precondition_ties = True
+        self.raise_on_equal_priority_preconds = True
 
-        self.construct_table = ConstructTable() # Dict of registered constructs.
+        self.construct_table = ConstructTable(parser_instance=self) # Dict of constructs.
         self.default_precond_label_number = 0 # For unique precondition labels.
 
         if lexer: # Lexer passed in.
@@ -1077,7 +1087,9 @@ class PrattParser(object):
         self.jop_token_subclass = None # The actual jop token, if defined.
         self.null_string_token_label = None # Label of the null-string token, if any.
         self.null_string_token_subclass = None # The actual null-string token, if any.
-        self.partial_expressions = False # Whether to parse multiple expressions.
+
+        self.partial_expressions = partial_expressions # Whether to parse multiple expressions.
+        self.raise_on_equal_priority_preconds = raise_on_equal_priority_preconds
 
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
@@ -1364,7 +1376,7 @@ class PrattParser(object):
         else:
             raise ParserException("In call to def_construct: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
-                    " calling `def_token` first.".format(trigger_token_label))
+                    " calling def_token first.".format(trigger_token_label))
             # Below line formerly just created a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
@@ -1386,24 +1398,26 @@ class PrattParser(object):
                                               precond_label=precond_label,
                                               type_sig=type_sig,
                                               eval_fun=eval_fun, ast_data=ast_data,
-                                              value_key=value_key,
-                                              parser_instance=self)
+                                              value_key=value_key)
+                                              #parser_instance=self)
         return construct
 
     def undef_construct(self, token_label, head_or_tail, precond_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
-        `precond_label` and type signature.  The `head_or_tail` value should be
-        `HEAD` or `TAIL`.  If `all_precond` is set then all heads and tails for all
-        preconditions will be undefined.  If `all_overloads` then all
-        overloaded type signatures will be undefined.  The token itself is
-        never undefined; use the `undef_token` method for that."""
-        # TODO: rewrite to undef a construct.  Currently doesn't work!!!!!
-        TokenSubclass = self.token_table[token_label]
-        #TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
-        #                                   precond_label,
-        #                                   type_sig=TypeSig(val_type, arg_types),
-        #                                   all_handlers=all_handlers)
+        `precond_label` and type signature.
+
+        The `head_or_tail` value should be `HEAD` or `TAIL`.
+
+        If `all_precond` is set then all heads and tails for all preconditions
+        will be undefined.
+
+        If `all_overloads` then all overloaded type signatures will be
+        undefined."""
+        self.construct_table.unregister_construct(head_or_tail, trigger_token_label,
+                                                  precond_label,
+                                                  type_sig=TypeSig(val_type, arg_types),
+                                                  all_handlers=all_handlers)
 
     #
     # Methods dealing with types.
@@ -1521,9 +1535,8 @@ class PrattParser(object):
 
 
 #
-# Copy the predefined convenience function to the PrattParser as methods.
+# Copy the convenience functions from builtin_parse_methods to the PrattParser class.
 #
-
 
 for method in builtin_parse_methods.parse_methods:
     setattr(PrattParser, method.__name__, method)

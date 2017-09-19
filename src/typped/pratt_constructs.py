@@ -247,7 +247,9 @@ class Construct(object):
 class ConstructTable(object):
     """A dict holding `Construct` objects, with related methods.  Each
     `PrattParser` instance has a `ConstructTable` instance to hold its constructs."""
-    def __init__(self, parser_instance=None):
+    def __init__(self, parser_instance):
+        """Initialize a `ConstructTable` associated with the `PrattParser` instance
+        `parser_instance`."""
         self.parser_instance = parser_instance
         self.construct_dict = {}
         self.construct_dict[HEAD] = {}
@@ -256,8 +258,7 @@ class ConstructTable(object):
     def register_construct(self, head_or_tail, trigger_token_label, handler_fun,
                            precond_fun, precond_priority, precond_label,
                            type_sig=TypeSig(None, None),
-                           eval_fun=None, ast_data=None, value_key=None,
-                           parser_instance=None): # TODO may not need parser instance arg later...
+                           eval_fun=None, ast_data=None, value_key=None):
         """Register a construct (either head or tail) with the subclass for
         this kind of token, setting the given properties.  This method is only
         ever called from the `def_construct` method of a `PrattParser`
@@ -274,7 +275,6 @@ class ConstructTable(object):
         instance is set based on this being set, and must always be the same for a
         given construct."""
 
-        self.parser_instance = parser_instance
         key_on_values = False
         if value_key:
             key_on_values = True
@@ -315,10 +315,10 @@ class ConstructTable(object):
         # Be sure to also update the unregister method if implemented.
 
         # Set up the construct_dict structure if necessary.
-        token_construct_dict = self.construct_dict[head_or_tail]
-        if trigger_token_label not in token_construct_dict:
-            token_construct_dict[trigger_token_label] = OrderedDict()
-        sorted_construct_dict = token_construct_dict[trigger_token_label]
+        head_or_tail_construct_dict = self.construct_dict[head_or_tail]
+        if trigger_token_label not in head_or_tail_construct_dict:
+            head_or_tail_construct_dict[trigger_token_label] = OrderedDict()
+        sorted_construct_dict = head_or_tail_construct_dict[trigger_token_label]
 
         # Get and save any previous type sig info, ast data, and evaluation
         # functions (for overloaded sigs corresponding to a single
@@ -374,21 +374,13 @@ class ConstructTable(object):
         self.save_ast_data(head_or_tail, trigger_token_label, precond_label,
                                                 type_sig, ast_data, value_key)
 
-        # Make sure we don't get multiple definitions with the same
-        # priority when the new one is inserted.
-        #
-        # TODO: Note that WE MAY NOT WANT TO DO THIS AT ALL, or just give a
-        # warning.  See case of preconds for quantifiers in logic example
-        # which use MUTUALLY EXCLUSIVE handlers which have the same priority.
-        # Code below works but isn't being run... consider what it should
-        # do and delete if no use.
-        pre_check_for_same_priority = False # CODE WORKS BUT SHOULD IT EVER RUN?
-        if pre_check_for_same_priority:
+        # Make sure we don't get multiple definitions with the same priority if
+        # that checking is enabled.
+        if self.parser_instance.raise_on_equal_priority_preconds:
             for p_label, data_item in resorted_handler_dict.items():
                 if p_label == precond_label:
                     continue
-                if (data_item.precond_priority == precond_priority and
-                            self.parser_instance.raise_exception_on_precondition_ties):
+                if data_item.precond_priority == precond_priority:
                     raise ParserException("Two preconditions for the token"
                             " subclass named '{0}' for token with label '{1}' have"
                             " the same priority, {2}.  Their precondition labels"
