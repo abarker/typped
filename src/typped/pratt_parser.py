@@ -1400,10 +1400,10 @@ class PrattParser(object):
         never undefined; use the `undef_token` method for that."""
         # TODO: rewrite to undef a construct.  Currently doesn't work!!!!!
         TokenSubclass = self.token_table[token_label]
-        TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
-                                           precond_label,
-                                           type_sig=TypeSig(val_type, arg_types),
-                                           all_handlers=all_handlers)
+        #TokenSubclass.unregister_construct(head_or_tail, trigger_token_label,
+        #                                   precond_label,
+        #                                   type_sig=TypeSig(val_type, arg_types),
+        #                                   all_handlers=all_handlers)
 
     #
     # Methods dealing with types.
