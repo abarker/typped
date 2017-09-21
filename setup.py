@@ -15,7 +15,8 @@ Docs on the setup function kwargs:
 from __future__ import absolute_import, print_function
 
 import glob
-import os.path
+import os
+#import os.path
 from setuptools import setup, find_packages
 import codecs # Use a consistent encoding.
 
@@ -45,6 +46,16 @@ INCLUDE_DIRS = []
 #
 # Handle optional Cython.
 #
+
+if "--use-cython" in sys.argv:
+    REGENERATE_C_CODE = True
+    USE_CYTHON = True
+
+if not USE_CYTHON: # If not using Cython delete any .so files so they won't be used.
+    try:
+        os.remove(glob.glob(os.path.join("src", "typped", "*.so")))
+    except OSError: # File isn't there, permissions not there, is a directory, etc.
+        pass
 
 cmdclass = {}
 
