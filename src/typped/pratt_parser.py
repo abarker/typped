@@ -1402,7 +1402,7 @@ class PrattParser(object):
                                               #parser_instance=self)
         return construct
 
-    def undef_construct(self, token_label, head_or_tail, precond_label=None,
+    def undef_construct(self, head_or_tail, trigger_token_label, precond_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
         `precond_label` and type signature.
