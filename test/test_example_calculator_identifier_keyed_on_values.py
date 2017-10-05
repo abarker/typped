@@ -30,11 +30,6 @@ import example_calculator_identifier_keyed_on_values as example_calculator
 def close_to(x, y):
     return abs(x - y) < 1E-7
 
-@fixture(params=[True,False])
-def how_value_key_is_defined(request):
-    bool_value = request.param
-    example_calculator.REDEFINE_STDFUN_FOR_KEY_VALUE = bool_value
-
 def setup_basic_calculator():
     parser = pp.PrattParser()
     example_calculator.define_basic_calculator(parser)
@@ -48,12 +43,12 @@ def parse_and_eval(parser, expr):
 # Actual tests below.
 #
 
-def test_basic_arithmetic(how_value_key_is_defined):
+def test_basic_arithmetic():
     parser = setup_basic_calculator()
     assert parse_and_eval(parser, "3 + 3") == 6
     assert parse_and_eval(parser, "4 cos(0) - 4") == 0
 
-def test_variable_setting(how_value_key_is_defined):
+def test_variable_setting():
     parser = setup_basic_calculator()
     assert parse_and_eval(parser, "x") == 0 # Uninitialzed vars always return zero.
     assert close_to(parse_and_eval(parser, "e"), 2.71828182845) # Preset variable.
@@ -62,13 +57,13 @@ def test_variable_setting(how_value_key_is_defined):
     assert close_to(parse_and_eval(parser, "log(sqrt(x))"), 1)
     assert close_to(parse_and_eval(parser, "x sin(pi/2)"), 7.3890560989)
 
-def test_overloaded_function_name_eval(how_value_key_is_defined):
+def test_overloaded_function_name_eval():
     parser = setup_basic_calculator()
     assert parse_and_eval(parser, "log(e)") == 1
     assert close_to(parse_and_eval(parser, "log(e, 10)"), 0.43429448190)
     assert parse_and_eval(parser, "log(e, e)") == 1
 
-def test_semicolon_separators(how_value_key_is_defined):
+def test_semicolon_separators():
     parser = setup_basic_calculator()
     assert close_to(parse_and_eval(parser, "x = pi sin(3) 3; 1 x^4 - 1"), 2.12924005)
     assert parse_and_eval(parser, "x = 3; x = 4; x = 5; x") == 5

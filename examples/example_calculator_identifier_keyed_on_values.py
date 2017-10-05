@@ -7,15 +7,8 @@ in the general Typped documentation web page as a calculator example.
 This example is almost the same as that in `example_calculator.py` except that
 it uses a single identifier token for functions like `sin` and `cos`.  The
 other example defines a new token for each one.  This example uses the
-`value_key` keyword argument to allow for looking up the different evaluation
-functions.
-
-There are two ways to set the `value_key` (of, say, `"cos"`) for a construct.
-You can call the defining builtin `def_stdfun` each time, with only the
-`value_key` value changing.  That is often the easiest way.  Alternately, you
-can save the returned construct and just call its `save_eval_fun` method.  Both
-ways are implemented below.  To switch between them you can change the
-`REDEFINE_STDFUN_FOR_KEY_VALUE` variable's value.
+`token_value_key` keyword argument to allow for looking up the different
+evaluation functions.
 
 Note that the overloading on `log` works because the `num_args` keyword of
 `def_stdfun` is actually causing the `arg_types` for the construct to be set.
@@ -24,9 +17,9 @@ explicitly provide the corresponding `TypeSig` instances.  Also, you need to
 call `def_stdfun` for both the one-argument version of `log` and the
 two-argument version.  This is because the type signature for parsing the
 construct itself needs to be set.  Once you have a one-argument standard
-function you can add `value_key` strings to it, but for a two-place standard
+function you can add `token_value_key` strings to it, but for a two-place standard
 function you first need a new construct for two-argument standard functions.
-Then you can add the `value_key` to that.
+Then you can add the `token_value_key` to that.
 
 In this calculator implementation identifiers like `cos` and `sin` which
 represent functions in the language can also be assigned values as variables.
@@ -42,16 +35,12 @@ the keywords token having a higher `on_ties` value.
 
 """
 
-# TODO: Make automated testfile for this example in the test dir.
-
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
 import math
 import operator
 import typped as pp
-
-REDEFINE_STDFUN_FOR_KEY_VALUE = False
 
 def define_general_tokens_and_literals(parser):
     """Define some general tokens and literals in the calculator language.
@@ -125,43 +114,31 @@ def define_functions_and_operators(parser):
     parser.def_token("k_identifier", r"[a-zA-Z_](?:\w*)")
     stdfun = parser.def_stdfun
 
-    # The two different ways to set value_key: either call def_stdfun each time with
-    # the full arguments, or else save the construct and call its save_eval_fun method.
-    if REDEFINE_STDFUN_FOR_KEY_VALUE:
-        stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-               eval_fun=lambda t: math.sin(t[0].eval_subtree()), value_key="sin")
-        stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-               eval_fun=lambda t: math.cos(t[0].eval_subtree()), value_key="cos")
-        stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-               eval_fun=lambda t: math.sqrt(t[0].eval_subtree()), value_key="sqrt")
+    stdfun_construct = stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
+                       eval_fun=lambda t: math.sin(t[0].eval_subtree()), token_value_key="sin")
+    stdfun_construct.overload(num_args=1,
+           eval_fun=lambda t: math.cos(t[0].eval_subtree()), token_value_key="cos")
+    stdfun_construct.overload(num_args=1,
+           eval_fun=lambda t: math.sqrt(t[0].eval_subtree()), token_value_key="sqrt")
+    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
+    #       eval_fun=lambda t: math.cos(t[0].eval_subtree()), token_value_key="cos")
+    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
+    #       eval_fun=lambda t: math.sqrt(t[0].eval_subtree()), token_value_key="sqrt")
 
-        # Note that log is overloaded because different numbers of arguments are
-        # specified.  The two versions have different eval funs.
-        stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-               eval_fun=lambda t: math.log(t[0].eval_subtree()), value_key="log")
-        stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=2,
-               eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
-               value_key="log")
+    # Note that log is overloaded because different numbers of arguments are
+    # specified.  The two versions have different eval funs.
+    stdfun_construct.overload(num_args=1, token_value_key="log",
+                              eval_fun=lambda t: math.log(t[0].eval_subtree()))
+    #stdfun_construct = stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
+    #                          num_args=1, token_value_key="log",
+    #                          eval_fun=lambda t: math.log(t[0].eval_subtree()))
+    stdfun_construct.overload(num_args=2,
+           eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
+           token_value_key="log")
+    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=2,
+    #       eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
+    #       token_value_key="log")
 
-    else:
-        stdfun_construct_1 = stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
-                               num_args=1,
-                               eval_fun=lambda t: math.sin(t[0].eval_subtree()),
-                               value_key="sin")
-        stdfun_construct_1.save_eval_fun(lambda t: math.cos(t[0].eval_subtree()),
-                                       pp.TypeSig(None, [None]), value_key="cos")
-        stdfun_construct_1.save_eval_fun(lambda t: math.cos(t[0].eval_subtree()),
-                                       pp.TypeSig(None, [None]), value_key="cos")
-        stdfun_construct_1.save_eval_fun(lambda t: math.sqrt(t[0].eval_subtree()),
-                                       pp.TypeSig(None, [None]), value_key="sqrt")
-
-        # Note that we need to explicitly specify the type when overloading.
-        stdfun_construct_1.save_eval_fun(lambda t: math.log(t[0].eval_subtree()),
-                                       pp.TypeSig(None, [None]), value_key="log")
-        stdfun_construct_2 = stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
-               num_args=2,
-               eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
-               value_key="log")
 
     #
     # Basic operators, from highest to lowest precedence.

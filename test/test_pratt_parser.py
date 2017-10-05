@@ -310,7 +310,11 @@ def test_jop(basic_setup):
 
 def test_types_mixed_numerical_bool_expressions_arg_overload():
     """Test type-checking on number-valued and bool-valued expressions, using
-    only overloading on argument types."""
+    only overloading on argument types (i.e., not on values).
+
+    Note that a name like `f_bn2n` means 'function taking a bool and number to
+    a number', and a name line `f_nb2b` takes a number and a boolean to a
+    boolean."""
     # setup
 
     TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
@@ -362,7 +366,7 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
                                 val_type=t_number, arg_types=[t_bool,t_number],
                                 ast_data="d_test_fun_bool_number_to_number")
     parser.def_token("f_nb2b", r"f_nb2b")
-    parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
+    f_nb2b_construct = parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_bool, arg_types=[t_number, t_bool],
                                 ast_data="d_test_fun_number_bool_to_bool")
 
@@ -382,15 +386,15 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
     assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
 
-    # more functions
+    # Now some more function defs and some overloads.
 
     # parser.def_literal("d_true", "k_true", val_type=t_bool) # redefinition
-    parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_bool,t_number],
-                               ast_data="d_test_fun_bool_number_to_number")
+    #parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
+    #                           val_type=t_number, arg_types=[t_bool,t_number],
+    #                           ast_data="d_test_fun_bool_number_to_number")
 
     parser.def_token("g_bn2n", r"g_bn2n")
-    parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
+    g_bn2n_construct = parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                val_type=t_number, arg_types=[t_bool,t_number],
                                ast_data="d_test_fun_bool_number_to_number")
 
@@ -401,11 +405,14 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
 
-    # functions overloaded on arguments with same token_label, g_bn2n takes
+    # Now overloaded functions on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_number,t_bool],
+    #parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma", # This would be a redef...
+    #                           val_type=t_number, arg_types=[t_number,t_bool],
+    #                           ast_data="d_test_fun_bool_number_to_number")
+    g_bn2n_construct.overload(val_type=t_number, arg_types=[t_number,t_bool],
                                ast_data="d_test_fun_bool_number_to_number")
+
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
     assert tree.children[0].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
@@ -425,9 +432,11 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
                                    " match any type signature")
 
     # test multiple matches without fun overloading: give f_nb2b a number return version
-    parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_number, t_bool],
-                               ast_data="d_test_fun_number_bool_to_bool")
+    f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_bool],
+                              ast_data="d_test_fun_number_bool_to_bool")
+    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
+    #                           val_type=t_number, arg_types=[t_number, t_bool],
+    #                           ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Ambiguous type resolution: The actual argument"
@@ -485,9 +494,9 @@ def test_types_overloaded_on_return():
                                val_type=t_number, arg_types=[t_bool,t_number],
                                ast_data="d_test_fun_bool_number_to_number")
     parser.def_token("f_nb2b", r"f_nb2b")
-    parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_bool, arg_types=[t_number, t_bool],
-                               ast_data="d_test_fun_number_bool_to_bool")
+    f_nb2b_construct = parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
+                                         val_type=t_bool, arg_types=[t_number, t_bool],
+                                         ast_data="d_test_fun_number_bool_to_bool")
 
     # test some mixed type expressions
     assert parser.parse("f_bn2n(True,100)+100").string_tree_repr() == \
@@ -509,15 +518,15 @@ def test_types_overloaded_on_return():
     assert str(e.value).startswith("Type mismatch: The actual argument types do not"
                                    " match any type signature")
 
-    # more functions
+    # Define more functions and some overloads.
 
     # parser.def_literal("d_true", "k_true", val_type=t_bool) # redefinition
-    parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
-                                val_type=t_number, arg_types=[t_bool,t_number],
-                                ast_data="d_test_fun_bool_number_to_number")
+    #parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma", # This would be a redef...
+    #                            val_type=t_number, arg_types=[t_bool,t_number],
+    #                            ast_data="d_test_fun_bool_number_to_number")
 
     parser.def_token("g_bn2n", r"g_bn2n")
-    parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
+    g_bn2n_construct = parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_number, arg_types=[t_bool,t_number],
                                 ast_data="d_test_fun_bool_number_to_number")
 
@@ -528,11 +537,13 @@ def test_types_overloaded_on_return():
     assert tree.children[1].token_label == "g_bn2n"
     assert tree.children[1].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
 
-    # functions overloaded on arguments with same token_label, g_bn2n takes
+    # Functions overloaded on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_number,t_bool],
-                               ast_data="d_test_fun_bool_number_to_number")
+    g_bn2n_construct.overload(val_type=t_number, arg_types=[t_number,t_bool],
+                              ast_data="d_test_fun_bool_number_to_number")
+    #parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
+    #                           val_type=t_number, arg_types=[t_number,t_bool],
+    #                           ast_data="d_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
     assert tree.children[0].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
@@ -540,19 +551,24 @@ def test_types_overloaded_on_return():
     assert tree.children[1].expanded_formal_sig == TypeSig(t_number, (t_number, t_bool))
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(True,False)")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(0,100) + g_bn2n(1,False)")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("g_bn2n(True,100) + g_bn2n(1,False) + True")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
 
-    # overload f_nb2b with a version that returns a number
+    # Overload f_nb2b with a version that returns a number.
     print("========== defining first overload of f_nb2b")
-    parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_number, t_bool],
-                               ast_data="d_test_fun_number_bool_to_bool")
+    f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_bool],
+                              ast_data="d_test_fun_number_bool_to_bool")
+    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
+    #                           val_type=t_number, arg_types=[t_number, t_bool],
+    #                           ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)") # fails since two possibilities
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
@@ -561,10 +577,12 @@ def test_types_overloaded_on_return():
     assert parser.parse("f_nb2b(1,False) + 5").string_tree_repr() == "<k_plus,'+'>" \
                 "(<f_nb2b,'f_nb2b'>(<k_number,'1'>,<k_false,'False'>),<k_number,'5'>)"
 
-    # overload f_nb2b again, to also take two number arguments
-    parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-                               val_type=t_number, arg_types=[t_number, t_number],
-                               ast_data="d_test_fun_number_number_to_bool")
+    # Overload f_nb2b again, to also take two number arguments.
+    f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_number],
+                              ast_data="d_test_fun_number_number_to_bool")
+    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
+    #                           val_type=t_number, arg_types=[t_number, t_number],
+    #                           ast_data="d_test_fun_number_number_to_bool")
     # now args are ambiguous in this order
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(4, f_nb2b(4,False))")

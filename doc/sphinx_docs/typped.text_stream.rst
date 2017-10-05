@@ -1,5 +1,5 @@
-typped.text_stream module
-=========================
+typped.text_stream
+==================
 
 .. automodule:: typped.text_stream
     :members:

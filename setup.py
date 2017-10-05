@@ -13,6 +13,9 @@ To install with pip and the `--use-cython` option go to the home directory and t
 To install with Cython in developer mode use::
     pip install --install-option="--use-cython" -e .
 
+To force all the Cython .c files to be regenerated you can use the install
+option `--force-regen`.
+
 A setuptools-based setup module.
 
 See:
@@ -52,6 +55,7 @@ INCLUDE_DIRS = [] # Include directories.
 GLOBAL_CYTHON_DIRECTIVES = { # Set as compiler_directives kwarg to cythonize.
         "infer_types": True,
         #"embedsignature": True, # For Sphinx.
+        #"annotation_typing": False, # Whether to take type info from PEP484 annotations.
         "optimize.use_switch": True,
         "optimize.unpack_method_calls": True,
         }

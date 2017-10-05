@@ -160,7 +160,7 @@ sense of computing the same thing.
 Based on this definition of equality of constructs, redefining a head (tail)
 construct results in a new head (tail) construct if either the triggering token
 label or the preconditions label is different.  If no preconditions function is
-passed to `def_construct` (or to the builtin parsing methods) then a default
+passed to ``def_construct`` (or to the builtin parsing methods) then a default
 always-true function is used with a default label.  If a function is provided
 without a preconditions label then a new, unique label is generated.  So if a
 preconditions function is specified it is assumed to be unique unless a label
@@ -233,13 +233,13 @@ priority are overwritten with the most-recently-defined versions.
 
    As far as the efficiency of defining many tokens, the Typped lexer is
    designed to very efficiently scan large numbers of tokens provided they have
-   a simple pattern.  The `Matcher` used by the lexer can use a trie use one of
-   several hybrid approaches.  For example, simple patterns (currently
-   restricted to fixed strings for this speedup) can be automatically stored in
-   a trie data structure and essentially all scanned in parallel by walking
-   down the trie.  Their insert and delete time is linear in the pattern
-   length.  So, while the Typped parser can be used in either way, the use of
-   dynamic token definitions is worth considering.
+   a simple pattern.  The `Matcher` used by the lexer can use one of several
+   hybrid approaches.  For example, simple patterns (currently restricted to
+   fixed strings for this speedup) can be automatically stored in a trie data
+   structure and essentially all scanned in parallel by walking down the trie.
+   Their insert and delete time is linear in the pattern length.  So, while the
+   Typped parser can be used in either way, the use of dynamic token
+   definitions is worth considering.
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------

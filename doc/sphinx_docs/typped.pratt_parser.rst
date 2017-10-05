@@ -1,5 +1,5 @@
-typped.pratt_parser module
-==========================
+typped.pratt_parser
+===================
 
 .. automodule:: typped.pratt_parser
     :members:

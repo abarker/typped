@@ -220,23 +220,25 @@ from . import builtin_parse_methods, predefined_token_sets
 # and update docs and comments where not yet changed.
 
 # NOTE that the eval_fun stuff could also be used to also do a conversion to
-# AST.
+# AST.  Also at some point add "eval on the fly" capability (not too hard, but
+# extra complexity).
 
 # TODO: Consider allowing a string label of some sort when defining a parser,
 # something like "TermParser" or "parser for terms", "WffParser", etc.  Then
 # use that string in the exception messages.  When working with parsers called
 # from/by parsers these labels in error messages would be helpful for debugging.
 
-# TODO: Consider subclassing the TokenNode class, and then just pass a
-# subclassed one to the lexer...  Then the def_token stuff are just convenience
-# functions.  Makes it easier to define tokens outside of a particular parser,
-# so they could be shared (like have a set of common default tokens, for
-# example).  May be conceptually clearer, too.
-
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
 # If a TokenTable is made to fully define a parser then you only need to save that...
 # but you need to clutter it with non-token data.
+
+# As a debugging tool it would be nice to have a method to list of all the
+# precond funs (precond_label/construct_label) that MUST be mutually exclusive
+# in order to guarantee never having a tie.  Then the user can make sure they
+# are exclusive, or else change the priorities.  Gives a define-time check, not
+# having to wait until parse-time (perhaps waiting for some obscure
+# combination).  Shouldn't be too hard to write.
 
 DEFAULT_PRECOND_AUTOLABEL_PREFIX = "default_unique_precond_label"
 DEFAULT_ALWAYS_TRUE_PRECOND_LABEL = "default_always_true_precond"
@@ -652,10 +654,10 @@ def token_subclass_factory():
                          .format(self.value, self.token_label,
                              self.expanded_formal_sig,
                              list(c.summary_repr() for c in self.children),
+                             # Note this below can be "Unresolved", better message?
                              list(c.expanded_formal_sig.val_type
-                                 if not isinstance(c.expanded_formal_sig, str)
-                                 else c.expanded_formal_sig
-                                   for c in self.children), # Note this can be "Unresolved", clean up...
+                                  if not isinstance(c.expanded_formal_sig, str)
+                                  else c.expanded_formal_sig for c in self.children),
                              matching_sigs, self.all_possible_sigs))
             raise TypeErrorInParsedLanguage(basic_msg + diagnostic)
 
@@ -1292,7 +1294,7 @@ class PrattParser(object):
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
                       prec=0, precond_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
-                      eval_fun=None, ast_data=None, value_key=None,
+                      eval_fun=None, ast_data=None, token_value_key=None,
                       autolabel_prefix=None, dummy_handler=False):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
@@ -1336,17 +1338,74 @@ class PrattParser(object):
         This allows for different overloads to have different evaluation
         functions and AST-associated data.
 
-        If `value_key` is set to a string value then that value will be part of
+        If `token_value_key` is set to a string value then that value will be part of
         the key tuple for saving AST data and evaluation functions.  This can
         be used, for example, when overloading a generic identifier with
         different evaluation functions for when the identifier value is `sin`,
         `cos`, etc.  In looking up the AST data and evaluation function the
         parsed token's actual string value (from the program text) is used as
         the key.  If any overload of a particular construct provides a
-        `value_key` string then all the other overloads for that construct must
+        `token_value_key` string then all the other overloads for that construct must
         also (for the time being, at least)."""
         # Note that the parser_instance attribute of tokens is not necessarily
         # set yet when this method is called.
+
+        """ CONSIDER THIS API CHANGE:
+
+        Formally, equality of constructs is determined by triples of the form::
+
+           (head_or_tail, trigger_token_label, precond_fun)
+
+        In practice, since it is impractical to determine if two functions
+        compute the same thing, equality of constructs is determined by
+        equality of a unique `construct_label` associated with each construct.
+        If no label is supplied then a unique label will be generated.   The
+        labels are only required when redefining a construct, such as to define
+        overloads based on type signatures.
+
+        While a construct exists it is permanently associated with its
+        `head_or_tail` value and its `trigger_token_label`.  Attempts to
+        redefine a construct with different values than those already
+        associated with the construct label will raise an exception.
+
+        The preconditions function should also be considered a fixed part of a
+        construct, associated with its unique label, but for practical reasons
+        it is always overwritten on a redefinition if a new preconditions
+        function is supplied.  In a sense a construct label is effectively a
+        label on the preconditions function, but it is easier to think of it as
+        being a higher-level descriptive label for the full construct.
+
+        NOTE that the construct table then still needs to key on
+        [head_or_tail][trigger_token_label][construct_label] since it needs to
+        do a lookup at parse-time knowing the first two, running the preconds
+        to determine the latter.
+
+        Refactor plan: Just rename all precond_label to construct_label.  Then
+        make sure the code works as described above, with exclusions.  The
+        restriction enforcing code is there commented out.  It causes bugs
+        in overloading, though...
+
+        Problem arises in default precond fun, which uses the default precond
+        label.  In this case you KNOW the function, and can assume it uses
+        the same label.  If you convert precond_label to construct_label you
+        lose this information, since users will create descriptive one often...
+        Could check for this, I suppose, that is one known function that can
+        be compared directly with "is".  Maybe always test "is" but tell users
+        that they cannot count on it?
+
+        What if you take both construct_label and precond_label, and by default
+        generate a precond_label from the construct_label?  An extra argument,
+        though.
+
+        TODO in any case: Document the precond_fun/construct_label set automatically by
+        the builtin methods in their docstrings.  Makes a difference for when
+        users need to pass in their own...
+        """
+        #precond_label=None # TODO: This works!  Now the option to strip out all
+        # the precond_label kwargs in the various functions, and simplify the
+        # documentation.  This only works because now using explicit construct.overload
+        # for overloads in all examples -- need to remove multiple definition stuff
+        # for overloads.
 
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
@@ -1398,7 +1457,7 @@ class PrattParser(object):
                                               precond_label=precond_label,
                                               type_sig=type_sig,
                                               eval_fun=eval_fun, ast_data=ast_data,
-                                              value_key=value_key)
+                                              token_value_key=token_value_key)
                                               #parser_instance=self)
         return construct
 

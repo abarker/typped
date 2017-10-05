@@ -1,5 +1,5 @@
-typped.lexer module
-===================
+typped.lexer
+============
 
 .. automodule:: typped.lexer
     :members:

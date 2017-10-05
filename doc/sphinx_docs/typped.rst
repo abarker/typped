@@ -15,10 +15,7 @@ APIs and code for the modules in the Typped package
    typped.ebnf_classes_and_operators
    typped.register_grammar_with_parser
    typped.lexer
-   typped.regex_trie_dict
-   typped.regex_trie_dict_scanner
    .. typped.text_stream
-   typped.trie_dict
 
 .. Module contents
    ---------------

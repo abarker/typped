@@ -122,8 +122,8 @@ def define_functions_and_operators(parser):
     parser.def_stdfun("k_sqrt", "k_lpar", "k_rpar", "k_comma", num_args=1,
                       eval_fun=lambda t: np.sqrt(t[0].eval_subtree()))
 
-    # Note that log is overloaded because different numbers of arguments are
-    # specified.  The two versions have different eval funs.
+    # Note that log is not overloaded in this version because Numpy's log
+    # function does not take the second base arguments like Python.
     parser.def_token("k_log", r"log")
     parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", num_args=1,
                       eval_fun=lambda t: np.log(t[0].eval_subtree()))

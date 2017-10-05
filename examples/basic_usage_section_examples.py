@@ -90,7 +90,10 @@ def setup_string_language_parser_no_typing():
     concatenate strings.  Multiplication of a number by a string repeats the
     string.  Multiplication of a string by a string is not defined.  It also
     has simple variables which can represent either numbers or strings.   Any
-    errors are caught during the Python evaluation."""
+    errors are caught during the Python evaluation.
+
+    Since type-checking is disabled the overloading must be implemented
+    by general handler functions that check the arguments themselves."""
     parser = pp.PrattParser(skip_type_checking=True)
 
     # Define the tokens.
@@ -142,8 +145,9 @@ def setup_string_language_parser_no_typing():
     parser.def_assignment_op_untyped("k_equals", 5, "right", "k_identifier",
                                      create_eval_fun=True)
 
-    # Define identifier literals with a lookup if needed.
-    symbol_dict = parser.symbol_value_dict # Created and set by def_assignment_op_untyped.
+    # Define identifier literals with a lookup if needed.  Parser attribute
+    # symbol_value_dict was initialized by the def_assignment_op_untyped call.
+    symbol_dict = parser.symbol_value_dict
     default_identifier_eval_value = 0
 
     def eval_literal_identifier(tok):
@@ -226,25 +230,38 @@ def setup_string_language_parser_dynamic_typing():
 
     parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
 
+    # Overload the + operator twice.
     infix = parser.def_infix_op
-    infix("k_plus", 10, "left",
+    infix_plus_construct = infix("k_plus", 10, "left",
           val_type=t_int, arg_types=[t_int, t_int],
           eval_fun=lambda t: t[0].eval_subtree() + t[1].eval_subtree())
-    infix("k_plus", 10, "left",
+    infix_plus_construct.overload(
           val_type=t_str, arg_types=[t_str, t_str],
           eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
+    #infix("k_plus", 10, "left",
+    #      val_type=t_str, arg_types=[t_str, t_str],
+    #      eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
 
-    infix("k_ast", 20, "left",
+    # Overload the * operator three times.
+    infix_mult_construct = infix("k_ast", 20, "left",
           val_type=t_int, arg_types=[t_int, t_int],
           eval_fun=lambda t: t[0].eval_subtree() * t[1].eval_subtree())
-    infix("k_ast", 20, "left",
+    infix_mult_construct.overload(
           val_type=t_str, arg_types=[t_str, t_int],
           eval_fun=lambda t: (
                    '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
-    infix("k_ast", 20, "left",
+    infix_mult_construct.overload(
           val_type=t_str, arg_types=[t_int, t_str],
           eval_fun=lambda t: (
                    '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
+    #infix("k_ast", 20, "left",
+    #      val_type=t_str, arg_types=[t_str, t_int],
+    #      eval_fun=lambda t: (
+    #               '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
+    #infix("k_ast", 20, "left",
+    #      val_type=t_str, arg_types=[t_int, t_str],
+    #      eval_fun=lambda t: (
+    #               '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
     # Define assignment as an infix equals operator.
     parser.def_assignment_op_dynamic("k_equals", 5, "right", "k_identifier",
@@ -382,18 +399,26 @@ def setup_string_language_parser_static_typing():
         else:
             return tok.value
 
+    # Overload the + operator twice.
     infix = parser.def_infix_op
-    infix("k_plus", 10, "left", val_type=t_int, arg_types=[t_int, t_int],
-          eval_fun=operator_eval_fun)
-    infix("k_plus", 10, "left", val_type=t_str, arg_types=[t_str, t_str],
-          eval_fun=operator_eval_fun)
+    infix_plus_construct = infix("k_plus", 10, "left", val_type=t_int,
+                                 arg_types=[t_int, t_int], eval_fun=operator_eval_fun)
+    infix_plus_construct.overload(val_type=t_str, arg_types=[t_str, t_str],
+                                  eval_fun=operator_eval_fun)
+    #infix("k_plus", 10, "left", val_type=t_str, arg_types=[t_str, t_str],
+    #      eval_fun=operator_eval_fun)
 
-    infix("k_ast", 20, "left", val_type=t_int, arg_types=[t_int, t_int],
-          eval_fun=operator_eval_fun)
-    infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_str, t_int],
-          eval_fun=operator_eval_fun)
-    infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_int, t_str],
-          eval_fun=operator_eval_fun)
+    # Overload the * operator three times.
+    infix_mult_construct = infix("k_ast", 20, "left", val_type=t_int,
+                                 arg_types=[t_int, t_int], eval_fun=operator_eval_fun)
+    infix_mult_construct.overload(val_type=t_str, arg_types=[t_str, t_int],
+                                  eval_fun=operator_eval_fun)
+    infix_mult_construct.overload(val_type=t_str, arg_types=[t_int, t_str],
+                                  eval_fun=operator_eval_fun)
+    #infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_str, t_int],
+    #      eval_fun=operator_eval_fun)
+    #infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_int, t_str],
+    #      eval_fun=operator_eval_fun)
 
     # Define assignment as an infix equals operator.
     parser.def_assignment_op_static("k_equals", 5, "left", "k_identifier",

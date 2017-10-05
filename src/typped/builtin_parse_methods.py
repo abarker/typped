@@ -146,7 +146,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
                rpar_token_label, comma_token_label, precond_fun=None,
                precond_priority=1, precond_label=None,
                val_type=None, arg_types=None, eval_fun=None, ast_data=None,
-               num_args=None, value_key=None):
+               num_args=None, token_value_key=None):
     """This definition of stdfun uses lookahead to the opening paren or
     bracket token.
 
@@ -158,7 +158,9 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
     The `num_args` parameter is optional for specifying the number of
     arguments when typing is not being used.  If it is set to a nonnegative
     number then it will automatically set `arg_types` to the corresponding
-    list of `None` values; if `arg_types` is set then it is ignored."""
+    list of `None` values; if `arg_types` is set then it is ignored.  If
+    type-checking is disabled for the parser instance then the number of
+    arguments is instead checked by the handler function."""
     if not parser.skip_type_checking and num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
@@ -202,14 +204,14 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
                                 precond_label=precond_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data,
-                                value_key=value_key)
+                                token_value_key=token_value_key)
 
 
 def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                          rpar_token_label, comma_token_label, prec_of_lpar,
                          precond_fun=None, precond_priority=0, precond_label=None,
                          val_type=None, arg_types=None, eval_fun=None, ast_data=None,
-                         num_args=None, value_key=None):
+                         num_args=None, token_value_key=None):
     """This is an alternate version of stdfun that defines lpar as an infix
     operator (i.e., with a tail handler).  This function works in the usual cases
     but the current version without preconditions may have problems distinguishing
@@ -262,7 +264,8 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                               precond_priority=precond_priority,
                               precond_label=precond_label,
                               val_type=val_type, arg_types=arg_types,
-                              eval_fun=eval_fun, ast_data=ast_data, value_key=value_key)
+                              eval_fun=eval_fun, ast_data=ast_data,
+                              token_value_key=token_value_key)
 
 #
 # Infix operators.
