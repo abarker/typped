@@ -667,19 +667,25 @@ def token_subclass_factory():
 
         @property
         def eval_fun(self):
-            """Return the evaluation function saved by `_save_eval_fun_and_ast_data`.
-            Must be called after parsing because the `original_formal_sig` attribute
-            must be set on the token instance."""
+            """Return the evaluation function saved with the winning construct
+            dispatched for the token.  Must be called after parsing because the
+            `original_formal_sig` attribute and others must be set on the token
+            instance."""
             orig_sig = self.original_formal_sig
-            return self.parser_instance.construct_table.get_eval_fun(orig_sig, self)
+            construct_table = self.parser_instance.construct_table
+            construct = construct_table.lookup_construct_for_parsed_token(self)
+            return construct.get_eval_fun(orig_sig, token_value_key=self.value)
 
         @property
         def ast_data(self):
-            """Return the ast data saved by `_save_ast_data_and_ast_data`.
-            Must be called after parsing because the `precond_label` attribute must
-            be set on the token instance."""
+            """Return the ast data saved with the winning construct dispatched
+            for the token.  Must be called after parsing because the
+            `original_formal_sig` attribute and others must be set on the token
+            instance."""
             orig_sig = self.original_formal_sig
-            return self.parser_instance.construct_table.get_ast_data(orig_sig, self)
+            construct_table = self.parser_instance.construct_table
+            construct = construct_table.lookup_construct_for_parsed_token(self)
+            return construct.get_ast_data(orig_sig, token_value_key=self.value)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
@@ -1019,11 +1025,13 @@ class PrattParser(object):
         false.  The default is false.
 
         The `overload_on_arg_types` flag specifies whether or not to overload
-        on argument types.  The default is true.
+        on argument types.  The default is true.  Cannot be changed after
+        initialization.
 
         Setting `overload_on_ret_types` also overloads on argument types.  It
         requires an extra walk of the token tree, and implies overloading on
-        argument types.  The default is false.
+        argument types.  The default is false.  Cannot be changed after
+        initialization.
 
         If `partial_expressions` is set true then no check will be made in the
         `parse` method to see if the parsing consumed up to the end-token in
@@ -1041,7 +1049,7 @@ class PrattParser(object):
         such preconditions functions are mutually exclusive there is no problem
         with them having the same priority, but this condition cannot be
         checked by a program."""
-        ## Type-checking options below; these can be changed between calls to `parse`.
+        ## Type-checking options below; these cannot be changed after initialization.
         if overload_on_ret_types:
             overload_on_arg_types = True # Overload on ret implies overload on args.
         self.skip_type_checking = skip_type_checking # Skip all type checks, faster.
@@ -1456,7 +1464,8 @@ class PrattParser(object):
                                               precond_priority=precond_priority,
                                               precond_label=precond_label,
                                               type_sig=type_sig,
-                                              eval_fun=eval_fun, ast_data=ast_data,
+                                              eval_fun=eval_fun,
+                                              ast_data=ast_data,
                                               token_value_key=token_value_key)
                                               #parser_instance=self)
         return construct
