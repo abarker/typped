@@ -56,9 +56,9 @@ def define_parser_subclass():
                 return tok
 
             # Register the construct with the parser.
-            precond_label = "function call using precondition on function name"
+            construct_label = "function call using precondition on function name"
             self.def_construct(pp.HEAD, head_handler, fname_token_label, prec=0,
-                               precond_label=precond_label,
+                               construct_label=construct_label,
                                precond_fun=preconditions,
                                precond_priority=precond_priority)
     return MyParser

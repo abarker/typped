@@ -31,7 +31,7 @@ Attributes set on token instances (scanned tokens) during parsing:
 * `original_formal_sig` -- a `TypeSig` instance of the resolved original formal signature
 * `expanded_formal_sig` -- a `TypeSig` instance of the expanded formal signature
 * `actual_sig` -- a `TypeSig` instance of the actual signature
-* `precond_label` -- the string label of the winning preconditions function
+* `construct_label` -- the string label of the winning preconditions function
 
 Note that both `original_formal_sig` and `expanded_formal_sig` are set to the
 string `"Unresolved"` before the token is parsed.  The actual signature is
@@ -234,14 +234,14 @@ from . import builtin_parse_methods, predefined_token_sets
 # but you need to clutter it with non-token data.
 
 # As a debugging tool it would be nice to have a method to list of all the
-# precond funs (precond_label/construct_label) that MUST be mutually exclusive
-# in order to guarantee never having a tie.  Then the user can make sure they
-# are exclusive, or else change the priorities.  Gives a define-time check, not
-# having to wait until parse-time (perhaps waiting for some obscure
-# combination).  Shouldn't be too hard to write.
+# precond funs that MUST be mutually exclusive in order to guarantee never
+# having a tie.  Then the user can make sure they are exclusive, or else change
+# the priorities.  Gives a define-time check, not having to wait until
+# parse-time (perhaps waiting for some obscure combination).  Shouldn't be too
+# hard to write.
 
-DEFAULT_PRECOND_AUTOLABEL_PREFIX = "default_unique_precond_label"
-DEFAULT_ALWAYS_TRUE_PRECOND_LABEL = "default_always_true_precond"
+DEFAULT_CONSTRUCT_AUTOLABEL_PREFIX = "default_unique_construct_label"
+DEFAULT_ALWAYS_TRUE_CONSTRUCT_LABEL = "default_always_true_precond"
 
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     """The default precondition function; always returns true."""
@@ -704,10 +704,10 @@ def token_subclass_factory():
             #            "value '{0}' and label '{1}' but no defined and matching "
             #            "evaluation function was found in the dict of eval functions.  "
             #            "The resolved original signature is {2} and the resolve expanded"
-            #            " signature is {3}.  The resolved precond_label is {4}.  The "
+            #            " signature is {3}.  The resolved construct_label is {4}.  The "
             #            "token's eval_fun_dict is:\n   {5}."
             #            .format(self.value, self.token_label, orig_sig, sig,
-            #                    self.precond_label, self.eval_fun_dict))
+            #                    self.construct_label, self.eval_fun_dict))
 
             return eval_fun(self)
 
@@ -1066,7 +1066,7 @@ class PrattParser(object):
         self.raise_on_equal_priority_preconds = True
 
         self.construct_table = ConstructTable(parser_instance=self) # Dict of constructs.
-        self.default_precond_label_number = 0 # For unique precondition labels.
+        self.default_construct_label_number = 0 # For unique precondition labels.
 
         if lexer: # Lexer passed in.
             self.lex = lexer
@@ -1104,19 +1104,19 @@ class PrattParser(object):
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
 
-    def _next_unique_precond_label(self, autolabel_prefix=None):
+    def _next_unique_construct_label(self, autolabel_prefix=None):
         """Return the next unique default label for constructs.  It is a tuple so it
         never matches an actual string label."""
-        self.default_precond_label_number += 1
+        self.default_construct_label_number += 1
         if isinstance(autolabel_prefix, str):
             string_prefix = autolabel_prefix
         elif autolabel_prefix is None:
-            string_prefix = DEFAULT_PRECOND_AUTOLABEL_PREFIX
+            string_prefix = DEFAULT_CONSTRUCT_AUTOLABEL_PREFIX
         else:
             raise ParserException("Value of autolabel_prefix value must be None or a"
                                   " string.  Instead got: {0}".format(autolabel_prefix))
         label = "{0}__uniquelabel__{1}".format(string_prefix,
-                                               self.default_precond_label_number)
+                                               self.default_construct_label_number)
         return label
 
     #
@@ -1300,7 +1300,7 @@ class PrattParser(object):
     #
 
     def def_construct(self, head_or_tail, handler_fun, trigger_token_label,
-                      prec=0, precond_label=None, precond_fun=None,
+                      prec=0, construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None, token_value_key=None,
                       autolabel_prefix=None, dummy_handler=False):
@@ -1319,16 +1319,16 @@ class PrattParser(object):
         set true).  Similarly, an exception is raised for a non-zero `prec`
         value for a head-handler (the default value).
 
-        If `precond_label` is `None` then a unique string label will be
+        If `construct_label` is `None` then a unique string label will be
         generated.  If the parameter `autolabel_prefix` is passed a string then
         that value will be made the prefix of any automatically-generated
-        precondition labels (i.e., when `precond_label` is `None`).  This can be
+        precondition labels (i.e., when `construct_label` is `None`).  This can be
         used to create more-informative labels, which can help in debugging.
 
-        Uniqueness of constructs is essentially determined by triples of the
-        form::
+        When the option `overload_on_matching_construct_def` is set uniqueness
+        of constructs is essentially determined by triples of the form ::
 
-           (head_or_tail, trigger_token_label, precond_label)
+           (head_or_tail, trigger_token_label, construct_label)
 
         Note that preconditions functions are *not* part of the tuple.
         Defining distinct constructs which match in `head_or_tail` and also in
@@ -1409,8 +1409,8 @@ class PrattParser(object):
         the builtin methods in their docstrings.  Makes a difference for when
         users need to pass in their own...
         """
-        #precond_label=None # TODO: This works!  Now the option to strip out all
-        # the precond_label kwargs in the various functions, and simplify the
+        #construct_label=None # TODO: This works!  Now the option to strip out all
+        # the construct_label kwargs in the various functions, and simplify the
         # documentation.  This only works because now using explicit construct.overload
         # for overloads in all examples -- need to remove multiple definition stuff
         # for overloads.
@@ -1430,13 +1430,13 @@ class PrattParser(object):
                     .format(trigger_token_label))
 
         if precond_fun is None:
-            if precond_label:
-                raise ParserException("Call to def_construct with precond_label set"
-                        " to '{0}', but no precond_fun was provided.".format(precond_label))
+            if construct_label:
+                raise ParserException("Call to def_construct with construct_label set"
+                        " to '{0}', but no precond_fun was provided.".format(construct_label))
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
-            precond_label = DEFAULT_ALWAYS_TRUE_PRECOND_LABEL
-        elif precond_label is None:
-            precond_label = self._next_unique_precond_label(autolabel_prefix)
+            construct_label = DEFAULT_ALWAYS_TRUE_CONSTRUCT_LABEL
+        elif construct_label is None:
+            construct_label = self._next_unique_construct_label(autolabel_prefix)
 
         if trigger_token_label in self.token_table:
             token_subclass = self.get_token(trigger_token_label)
@@ -1462,7 +1462,7 @@ class PrattParser(object):
                                               handler_fun=handler_fun,
                                               precond_fun=precond_fun,
                                               precond_priority=precond_priority,
-                                              precond_label=precond_label,
+                                              construct_label=construct_label,
                                               type_sig=type_sig,
                                               eval_fun=eval_fun,
                                               ast_data=ast_data,
@@ -1470,10 +1470,10 @@ class PrattParser(object):
                                               #parser_instance=self)
         return construct
 
-    def undef_construct(self, head_or_tail, trigger_token_label, precond_label=None,
+    def undef_construct(self, head_or_tail, trigger_token_label, construct_label=None,
                          val_type=None, arg_types=None, all_handlers=False):
         """Undefine a head or tail function with the given `token_label`,
-        `precond_label` and type signature.
+        `construct_label` and type signature.
 
         The `head_or_tail` value should be `HEAD` or `TAIL`.
 
@@ -1482,8 +1482,9 @@ class PrattParser(object):
 
         If `all_overloads` then all overloaded type signatures will be
         undefined."""
+        # TODO: all_handlers no longer kwarg of unregister_construct.
         self.construct_table.unregister_construct(head_or_tail, trigger_token_label,
-                                                  precond_label,
+                                                  construct_label,
                                                   type_sig=TypeSig(val_type, arg_types),
                                                   all_handlers=all_handlers)
 

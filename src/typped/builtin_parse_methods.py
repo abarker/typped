@@ -61,7 +61,7 @@ from .helpers import combine_precond_funs
 #
 
 def def_literal(parser, token_label, val_type=None,
-                precond_fun=None, precond_priority=0, precond_label=None,
+                precond_fun=None, precond_priority=0, construct_label=None,
                 val_type_override_fun=None,
                 eval_fun=None, ast_data=None):
     """Defines the token with label `token_label` to be a literal in the
@@ -88,7 +88,7 @@ def def_literal(parser, token_label, val_type=None,
 
     return parser.def_construct(HEAD, head_handler_literal, token_label,
                                 val_type=val_type, arg_types=[],
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
                                 eval_fun=eval_fun, ast_data=ast_data)
@@ -110,7 +110,7 @@ def def_multi_literals(parser, tuple_list):
 #
 
 def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
-                     precond_fun=None, precond_priority=0, precond_label=None,
+                     precond_fun=None, precond_priority=0, construct_label=None,
                      eval_fun=None, ast_data=None):
     """Define a matching bracket grouping operation.  The returned type is
     set to the type of its single child (i.e., the type of the contents of
@@ -135,7 +135,7 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
     return parser.def_construct(HEAD, head_handler, lbrac_token_label,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
 #
@@ -144,7 +144,7 @@ def def_bracket_pair(parser, lbrac_token_label, rbrac_token_label, in_tree=True,
 
 def def_stdfun(parser, fname_token_label, lpar_token_label,
                rpar_token_label, comma_token_label, precond_fun=None,
-               precond_priority=1, precond_label=None,
+               precond_priority=1, construct_label=None,
                val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                num_args=None, token_value_key=None):
     """This definition of stdfun uses lookahead to the opening paren or
@@ -174,7 +174,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
     precond_followed_by_lpar_label = "{0} followed by lpar with no space".format(
                                                                fname_token_label)
 
-    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                             (precond_followed_by_lpar, precond_followed_by_lpar_label))
 
     def head_handler(tok, lex):
@@ -201,7 +201,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
     return parser.def_construct(HEAD, head_handler, fname_token_label, prec=0,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data,
                                 token_value_key=token_value_key)
@@ -209,7 +209,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
 
 def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                          rpar_token_label, comma_token_label, prec_of_lpar,
-                         precond_fun=None, precond_priority=0, precond_label=None,
+                         precond_fun=None, precond_priority=0, construct_label=None,
                          val_type=None, arg_types=None, eval_fun=None, ast_data=None,
                          num_args=None, token_value_key=None):
     """This is an alternate version of stdfun that defines lpar as an infix
@@ -243,7 +243,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                                                              fname_token_label)
 
     # Combine above precond with any user-defined ones.
-    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                                     (precond_fun_peekback, precond_fun_peekback_label))
 
     def tail_handler(tok, lex, left):
@@ -262,7 +262,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
                               prec=prec_of_lpar,
                               precond_fun=precond_fun,
                               precond_priority=precond_priority,
-                              precond_label=precond_label,
+                              construct_label=construct_label,
                               val_type=val_type, arg_types=arg_types,
                               eval_fun=eval_fun, ast_data=ast_data,
                               token_value_key=token_value_key)
@@ -273,7 +273,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
 
 def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
                        repeat=False, not_in_tree=False,
-                       precond_fun=None, precond_priority=0, precond_label=None,
+                       precond_fun=None, precond_priority=0, construct_label=None,
                        val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     # TODO only this utility method currently supports "not_in_tree" kwarg.
     # General and easy mechanism, though.  Test more and add to other
@@ -324,20 +324,20 @@ def def_infix_multi_op(parser, operator_token_labels, prec, assoc,
     return parser.def_construct(TAIL, tail_handler, operator_token_labels[0], prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
 
 def def_infix_op(parser, operator_token_label, prec, assoc, not_in_tree=False,
-                 precond_fun=None, precond_priority=0, precond_label=None,
+                 precond_fun=None, precond_priority=0, construct_label=None,
                  val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     """This just calls the more general method `def_multi_infix_op`."""
     return parser.def_infix_multi_op([operator_token_label], prec, assoc,
                                      not_in_tree=not_in_tree,
                                      precond_fun=precond_fun,
                                      precond_priority=precond_priority,
-                                     precond_label=precond_label,
+                                     construct_label=construct_label,
                                      val_type=val_type, arg_types=arg_types,
                                      eval_fun=eval_fun, ast_data=ast_data)
 
@@ -346,7 +346,7 @@ def def_infix_op(parser, operator_token_label, prec, assoc, not_in_tree=False,
 #
 
 def def_prefix_op(parser, operator_token_label, prec,
-                  precond_fun=None, precond_priority=0, precond_label=None,
+                  precond_fun=None, precond_priority=0, construct_label=None,
                   val_type=None, arg_types=None,
                   eval_fun=None, ast_data=None):
     """Define a prefix operator.  Note that head handlers do not have
@@ -362,7 +362,7 @@ def def_prefix_op(parser, operator_token_label, prec,
     return parser.def_construct(HEAD, head_handler, operator_token_label,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -372,7 +372,7 @@ def def_prefix_op(parser, operator_token_label, prec,
 
 
 def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True,
-                   precond_fun=None, precond_priority=0, precond_label=None,
+                   precond_fun=None, precond_priority=0, construct_label=None,
                    val_type=None, arg_types=None, eval_fun=None,
                    ast_data=None):
     """Define a postfix operator.  If `allow_ignored_before` is false then
@@ -387,7 +387,7 @@ def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True
     return parser.def_construct(TAIL, tail_handler, operator_token_label, prec=prec,
                              precond_fun=precond_fun,
                              precond_priority=precond_priority,
-                             precond_label=precond_label,
+                             construct_label=construct_label,
                              val_type=val_type, arg_types=arg_types,
                              eval_fun=eval_fun, ast_data=ast_data)
 
@@ -397,7 +397,7 @@ def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True
 #
 
 def def_jop(parser, prec, assoc,
-            precond_fun=None, precond_priority=None, precond_label=None,
+            precond_fun=None, precond_priority=None, construct_label=None,
             val_type=None, arg_types=None, eval_fun=None, ast_data=None):
     """The function `precond_fun` is called to determine whether or not to
     infer a juxtaposition operator between the previously-parsed
@@ -425,7 +425,7 @@ def def_jop(parser, prec, assoc,
     return parser.def_construct(TAIL, tail_handler, parser.jop_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type, arg_types=arg_types,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -479,7 +479,7 @@ def _set_static_type(parser, symbol_value_dict=None, symbol_type_dict=None):
 def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
                               identifier_token_label,
                               symbol_value_dict=None,
-                              precond_fun=None, precond_priority=0, precond_label=None,
+                              precond_fun=None, precond_priority=0, construct_label=None,
                               eval_fun=None, create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is statically typed, with
     types checked at parse time.  Each identifier (with token label
@@ -507,7 +507,7 @@ def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
                                                         identifier_token_label)
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                       (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
 
     # Create an eval fun if requested.
@@ -520,7 +520,7 @@ def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
     # Create an ordinary infix operator for untyped assignments.
     return def_infix_op(parser, assignment_op_token_label, prec, assoc,
                         precond_fun=precond_fun, precond_priority=0,
-                        precond_label=precond_label,
+                        construct_label=construct_label,
                         eval_fun=eval_fun, ast_data=ast_data)
 
 #
@@ -531,7 +531,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                              identifier_token_label,
                              symbol_value_dict=None, symbol_type_dict=None,
                              allowed_types=None,
-                             precond_fun=None, precond_priority=0, precond_label=None,
+                             precond_fun=None, precond_priority=0, construct_label=None,
                              val_type=None, eval_fun=None,
                              create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is statically typed, with
@@ -558,7 +558,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                                                             identifier_token_label)
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                       (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
 
     # Create an eval fun if requested.
@@ -600,12 +600,12 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                             " is {2}.".format(identifier, formal_type, rhs_type))
         return tok
 
-    precond_label = "def_assignment_op_static with {} tokens as triggers".format(
+    construct_label = "def_assignment_op_static with {} tokens as triggers".format(
                                                          assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -639,7 +639,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                               identifier_token_label,
                               symbol_value_dict=None, symbol_type_dict=None,
                               allowed_types=None,
-                              precond_fun=None, precond_priority=0, precond_label=None,
+                              precond_fun=None, precond_priority=0, construct_label=None,
                               val_type=None, eval_fun=None,
                               create_eval_fun=False, ast_data=None):
     """Define an infix assignment operator which is dynamically typed, with
@@ -676,7 +676,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
                                                         identifier_token_label)
 
     # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                       (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
 
     # Create an eval fun if requested.
@@ -700,12 +700,12 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
             tok.process_and_check_kwargs = {"val_type_override": rhs_type}
         return tok
 
-    precond_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
+    construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
                                                           assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
-                                precond_label=precond_label,
+                                construct_label=construct_label,
                                 val_type=val_type,
                                 eval_fun=eval_fun, ast_data=ast_data)
 
@@ -714,7 +714,7 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 default_type=None, default_eval_value=None,
                                 raise_if_undefined=False,
                                 eval_fun=None, create_eval_fun=False,
-                                precond_fun=None, precond_priority=1, precond_label=None):
+                                precond_fun=None, precond_priority=1, construct_label=None):
     """Define a dynamically typed literal, usually a variable-name identifier.
     The type is looked up in the dict `symbol_type_dict`, keyed by the string
     value of the token literal.
@@ -764,13 +764,13 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
         if not precond_fun:
             precond_fun = precond_raise_if_undefined
         else:
-            precond_fun, precond_label = combine_precond_funs((precond_fun, precond_label),
+            precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
                             (precond_raise_if_undefined, precond_raise_if_undefined_label))
 
     parser.def_literal(token_label, val_type=None,
                        val_type_override_fun=literal_val_type_override_fun,
                        precond_fun=precond_fun, precond_priority=precond_priority,
-                       precond_label=precond_label, eval_fun=eval_fun)
+                       construct_label=construct_label, eval_fun=eval_fun)
 
 #
 # Utility functions used by this module.

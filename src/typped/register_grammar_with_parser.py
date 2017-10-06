@@ -188,7 +188,7 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     # each peek token label.  Otherwise, the routine can fail because the
     # conditions can be wrongly considered identical to previously-defined
     # ones, and overwrite them (found and fixed such a bug, hard to track).
-    precond_label = ("precond for production {0} peek {1}"
+    construct_label = ("precond for production {0} peek {1}"
                                     .format(nonterm_label, peek_token_label))
 
     def head_handler(tok, lex):
@@ -305,14 +305,14 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     # Register the handler for the first item of the first case.
     precond_priority = 10000
     parser.def_construct(HEAD, head_handler, null_token.token_label, prec=0,
-                 precond_label=precond_label,
+                 construct_label=construct_label,
                  precond_fun=preconditions, precond_priority=precond_priority)
                  #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                  #ast_label=ast_label)
 
     prec = 10 # Temporary, will need to vary.
     parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
-                 precond_label=precond_label,
+                 construct_label=construct_label,
                  precond_fun=preconditions, precond_priority=precond_priority)
                  #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                  #ast_label=ast_label)
