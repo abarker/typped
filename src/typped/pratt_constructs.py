@@ -255,9 +255,10 @@ class Construct(object):
         return self
 
     def _unregister_overload(self, type_sig, token_value_key=None):
-        """Unregister an overload, but there must currently be more than one
-        (if there is only one the whole construct should be unregistered).
-        Called from the `unregister_construct` of `ConstructTable`.
+        """Unregister an overload.  If the last overload is deleted then the
+        ``original_sigs`` attribute will be empty so the construct should
+        usually be deleted since it cannot match any signature.  Called from
+        the `unregister_construct` of `ConstructTable`.
 
         If `token_value_key` is set then only that token value is removed, unless
         it is the last one in which case the whole signature is removed."""
@@ -367,9 +368,8 @@ class ConstructTable(object):
         # Consider it an overload if there is a previous construct with the same
         # precond_label, head_or_tail, and trigger_token_label.  Otherwise treat
         # it as a redefinition.
-        # TODO: Maybe rename to construct_label and redefine everything?  Consider
-        # an overload if
-        if prev_construct:
+        overload_on_matching_construct_def = True
+        if prev_construct and overload_on_matching_construct_def:
             prev_construct.overload(val_type=type_sig[0], arg_types=type_sig[1],
                                     eval_fun=eval_fun, ast_data=ast_data,
                                     token_value_key=token_value_key)
@@ -432,27 +432,30 @@ class ConstructTable(object):
         No error is raised if a matching construct function is not found."""
         # TODO Untested method.
 
-        precond_label_keyed_dict = self.construct_lookup_dict[
-                                        head_or_tail].get(precond_label, None)
-        if not precond_label_keyed_dict:
+        token_label_keyed_dict = self.construct_lookup_dict[head_or_tail]
+        if not token_label_keyed_dict:
             return
+
+        if trigger_token_label not in token_label_keyed_dict:
+            return
+        precond_label_keyed_dict = token_label_keyed_dict[trigger_token_label]
 
         if precond_label is None:
-            precond_label_keyed_dict = OrderedDict()
+            token_label_keyed_dict[trigger_token_label] = OrderedDict()
             return
 
-        if not precond_label in precond_label_keyed_dict:
+        if not precond_label in token_label_keyed_dict:
             return
+        ordered_construct_dict = token_label_keyed_dict.get(precond_label, None)
 
         if type_sig is None:
-            del precond_label_keyed_dict[precond_label]
+            del token_label_keyed_dict[precond_label]
             return
 
-        construct = precond_label_keyed_dict[precond_label]
-        if len(construct.type_sigs) == 1:
-            # TODO need to handle token_value_key if present, too...
-            del precond_label_keyed_dict[precond_label]
+        construct = token_label_keyed_dict[precond_label]
         construct._unregister_overload(type_sig, token_value_key)
+        if not construct.original_sigs:
+            del token_label_keyed_dict[precond_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
                                  lex=None, lookbehind=None, precond_label=None):
