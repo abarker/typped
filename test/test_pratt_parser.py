@@ -407,9 +407,6 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
 
     # Now overloaded functions on arguments with same token_label, g_bn2n takes
     # both number,bool and bool,number args (they could have diff tokens, too)
-    #parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma", # This would be a redef...
-    #                           val_type=t_number, arg_types=[t_number,t_bool],
-    #                           ast_data="d_test_fun_bool_number_to_number")
     g_bn2n_construct.overload(val_type=t_number, arg_types=[t_number,t_bool],
                                ast_data="d_test_fun_bool_number_to_number")
 
@@ -434,9 +431,6 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
     # test multiple matches without fun overloading: give f_nb2b a number return version
     f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_bool],
                               ast_data="d_test_fun_number_bool_to_bool")
-    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-    #                           val_type=t_number, arg_types=[t_number, t_bool],
-    #                           ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)")
     assert str(e.value).startswith("Ambiguous type resolution: The actual argument"
@@ -541,9 +535,6 @@ def test_types_overloaded_on_return():
     # both number,bool and bool,number args (they could have diff tokens, too)
     g_bn2n_construct.overload(val_type=t_number, arg_types=[t_number,t_bool],
                               ast_data="d_test_fun_bool_number_to_number")
-    #parser.def_stdfun("g_bn2n", "k_lpar", "k_rpar", "k_comma",
-    #                           val_type=t_number, arg_types=[t_number,t_bool],
-    #                           ast_data="d_test_fun_bool_number_to_number")
     tree = parser.parse("g_bn2n(True,100) + g_bn2n(33,False)")
     assert tree.children[0].token_label == "g_bn2n"
     assert tree.children[0].expanded_formal_sig == TypeSig(t_number, (t_bool, t_number))
@@ -566,9 +557,6 @@ def test_types_overloaded_on_return():
     print("========== defining first overload of f_nb2b")
     f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_bool],
                               ast_data="d_test_fun_number_bool_to_bool")
-    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-    #                           val_type=t_number, arg_types=[t_number, t_bool],
-    #                           ast_data="d_test_fun_number_bool_to_bool")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(1,False)") # fails since two possibilities
     assert str(e.value).startswith("Ambiguous type resolution (second pass)")
@@ -580,9 +568,6 @@ def test_types_overloaded_on_return():
     # Overload f_nb2b again, to also take two number arguments.
     f_nb2b_construct.overload(val_type=t_number, arg_types=[t_number, t_number],
                               ast_data="d_test_fun_number_number_to_bool")
-    #parser.def_stdfun("f_nb2b", "k_lpar", "k_rpar", "k_comma",
-    #                           val_type=t_number, arg_types=[t_number, t_number],
-    #                           ast_data="d_test_fun_number_number_to_bool")
     # now args are ambiguous in this order
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_nb2b(4, f_nb2b(4,False))")

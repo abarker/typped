@@ -238,9 +238,6 @@ def setup_string_language_parser_dynamic_typing():
     infix_plus_construct.overload(
           val_type=t_str, arg_types=[t_str, t_str],
           eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
-    #infix("k_plus", 10, "left",
-    #      val_type=t_str, arg_types=[t_str, t_str],
-    #      eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
 
     # Overload the * operator three times.
     infix_mult_construct = infix("k_ast", 20, "left",
@@ -254,14 +251,6 @@ def setup_string_language_parser_dynamic_typing():
           val_type=t_str, arg_types=[t_int, t_str],
           eval_fun=lambda t: (
                    '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
-    #infix("k_ast", 20, "left",
-    #      val_type=t_str, arg_types=[t_str, t_int],
-    #      eval_fun=lambda t: (
-    #               '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
-    #infix("k_ast", 20, "left",
-    #      val_type=t_str, arg_types=[t_int, t_str],
-    #      eval_fun=lambda t: (
-    #               '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
     # Define assignment as an infix equals operator.
     parser.def_assignment_op_dynamic("k_equals", 5, "right", "k_identifier",
@@ -405,8 +394,6 @@ def setup_string_language_parser_static_typing():
                                  arg_types=[t_int, t_int], eval_fun=operator_eval_fun)
     infix_plus_construct.overload(val_type=t_str, arg_types=[t_str, t_str],
                                   eval_fun=operator_eval_fun)
-    #infix("k_plus", 10, "left", val_type=t_str, arg_types=[t_str, t_str],
-    #      eval_fun=operator_eval_fun)
 
     # Overload the * operator three times.
     infix_mult_construct = infix("k_ast", 20, "left", val_type=t_int,
@@ -415,10 +402,6 @@ def setup_string_language_parser_static_typing():
                                   eval_fun=operator_eval_fun)
     infix_mult_construct.overload(val_type=t_str, arg_types=[t_int, t_str],
                                   eval_fun=operator_eval_fun)
-    #infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_str, t_int],
-    #      eval_fun=operator_eval_fun)
-    #infix("k_ast", 20, "left", val_type=t_str, arg_types=[t_int, t_str],
-    #      eval_fun=operator_eval_fun)
 
     # Define assignment as an infix equals operator.
     parser.def_assignment_op_static("k_equals", 5, "left", "k_identifier",

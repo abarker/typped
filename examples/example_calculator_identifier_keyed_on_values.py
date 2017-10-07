@@ -120,24 +120,14 @@ def define_functions_and_operators(parser):
            eval_fun=lambda t: math.cos(t[0].eval_subtree()), token_value_key="cos")
     stdfun_construct.overload(num_args=1,
            eval_fun=lambda t: math.sqrt(t[0].eval_subtree()), token_value_key="sqrt")
-    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-    #       eval_fun=lambda t: math.cos(t[0].eval_subtree()), token_value_key="cos")
-    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=1,
-    #       eval_fun=lambda t: math.sqrt(t[0].eval_subtree()), token_value_key="sqrt")
 
     # Note that log is overloaded because different numbers of arguments are
     # specified.  The two versions have different eval funs.
     stdfun_construct.overload(num_args=1, token_value_key="log",
                               eval_fun=lambda t: math.log(t[0].eval_subtree()))
-    #stdfun_construct = stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma",
-    #                          num_args=1, token_value_key="log",
-    #                          eval_fun=lambda t: math.log(t[0].eval_subtree()))
     stdfun_construct.overload(num_args=2,
            eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
            token_value_key="log")
-    #stdfun("k_identifier", "k_lpar", "k_rpar", "k_comma", num_args=2,
-    #       eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()),
-    #       token_value_key="log")
 
 
     #

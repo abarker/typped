@@ -94,8 +94,6 @@ def define_functions_and_operators(parser):
                           num_args=1, eval_fun=lambda t: math.log(t[0].eval_subtree()))
     log_fun_construct.overload(num_args=2,
                  eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()))
-    #parser.def_stdfun("k_log", "k_lpar", "k_rpar", "k_comma", num_args=2,
-    #           eval_fun=lambda t: math.log(t[0].eval_subtree(), t[1].eval_subtree()))
 
     #
     # Basic operators, from highest to lowest precedence.
