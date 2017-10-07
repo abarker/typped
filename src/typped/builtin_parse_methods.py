@@ -11,7 +11,6 @@ constructs which are not covered by a builtin routine.
 
 """
 
-
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -23,9 +22,16 @@ if __name__ == "__main__":
                               "../../test/test_pratt_parser.py"
                               ], pytest_args="-v")
 
+# TODO: Define default construct labels that are helpful for debugging.  Also,
+# print out construct labels in more error messages where appropriate.
+#
+# TODO: Factor out some of the common preconditions functions used here and put
+# them in the helpers module.  Then just import one from there, don't re-generate.
+#
 # TODO: Work out the exceptions to call... Do we really want separate
 # ParserException and ErrorInParsedLanguage exceptions?  Will need to
 # change many places, then... maybe a TyppedException vs. a ParserException??
+
 from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
         NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler,
         ErrorInParsedLanguage)
@@ -171,11 +177,8 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
         if peek_tok.ignored_before: return False
         if peek_tok.token_label != lpar_token_label: return False
         return True
-    precond_followed_by_lpar_label = "{0} followed by lpar with no space".format(
-                                                               fname_token_label)
 
-    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                            (precond_followed_by_lpar, precond_followed_by_lpar_label))
+    precond_fun = combine_precond_funs(precond_fun, precond_followed_by_lpar)
 
     def head_handler(tok, lex):
         # Below match is for a precondition, so it will match and consume.
@@ -239,12 +242,8 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
         if lex.token.ignored_before:
             return False # No space allowed after fun name.
         return True
-    precond_fun_peekback_label = "peek back to function name token {0}".format(
-                                                             fname_token_label)
 
-    # Combine above precond with any user-defined ones.
-    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                                    (precond_fun_peekback, precond_fun_peekback_label))
+    precond_fun = combine_precond_funs(precond_fun, precond_fun_peekback)
 
     def tail_handler(tok, lex, left):
         # Nothing between fun name and lpar_token.
@@ -503,12 +502,8 @@ def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
 
     def precond_lhs_is_identifier(lex, lookbehind):
         return lex.peek(-1).token_label == identifier_token_label
-    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
-                                                        identifier_token_label)
 
-    # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
+    precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
 
     # Create an eval fun if requested.
     if create_eval_fun:
@@ -554,12 +549,9 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                                                                       symbol_type_dict)
     def precond_lhs_is_identifier(lex, lookbehind):
         return lex.peek(-1).token_label == identifier_token_label
-    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
-                                                            identifier_token_label)
 
-    # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
+    precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
+    construct_label = parser._next_unique_construct_label()
 
     # Create an eval fun if requested.
     if create_eval_fun:
@@ -600,8 +592,8 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                             " is {2}.".format(identifier, formal_type, rhs_type))
         return tok
 
-    construct_label = "def_assignment_op_static with {} tokens as triggers".format(
-                                                         assignment_op_token_label)
+    #construct_label = "def_assignment_op_static with {} tokens as triggers".format(
+    #                                                     assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
@@ -672,12 +664,8 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
 
     def precond_lhs_is_identifier(lex, lookbehind):
         return lex.peek(-1).token_label == identifier_token_label
-    precond_lhs_is_identifier_label = "peek back to token labeled {0}".format(
-                                                        identifier_token_label)
 
-    # Combine above precond fun with user's precond fun if one was supplied.
-    precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                      (precond_lhs_is_identifier, precond_lhs_is_identifier_label))
+    precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
 
     # Create an eval fun if requested.
     if create_eval_fun:
@@ -700,8 +688,8 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
             tok.process_and_check_kwargs = {"val_type_override": rhs_type}
         return tok
 
-    construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
-                                                          assignment_op_token_label)
+    #construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
+    #                                                      assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
@@ -714,7 +702,8 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                                 default_type=None, default_eval_value=None,
                                 raise_if_undefined=False,
                                 eval_fun=None, create_eval_fun=False,
-                                precond_fun=None, precond_priority=1, construct_label=None):
+                                precond_fun=None, precond_priority=1,
+                                construct_label=None):
     """Define a dynamically typed literal, usually a variable-name identifier.
     The type is looked up in the dict `symbol_type_dict`, keyed by the string
     value of the token literal.
@@ -760,12 +749,11 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
                 raise ErrorInParsedLanguage("Undefined identifier: '{0}'"
                                             .format(lex.token.value))
             return True
-        precond_raise_if_undefined_label = "raise if undefined precond"
+
         if not precond_fun:
             precond_fun = precond_raise_if_undefined
         else:
-            precond_fun, construct_label = combine_precond_funs((precond_fun, construct_label),
-                            (precond_raise_if_undefined, precond_raise_if_undefined_label))
+            precond_fun = combine_precond_funs(precond_fun, precond_raise_if_undefined)
 
     parser.def_literal(token_label, val_type=None,
                        val_type_override_fun=literal_val_type_override_fun,

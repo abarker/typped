@@ -24,6 +24,10 @@ then does type checking and other options before returning the subtree.
 
 # TODO: Consider allowing empty constructs to be defined from init.  A minor
 # change, though, which can wait (if it is ever implemented).
+#
+# TODO: The final level of ConstructTable trees does not need to be an
+# OrderedDict anymore.  They can just be ordinary lists.  Construct labels are
+# now purely informational attributes of constructs.
 
 from __future__ import print_function, division, absolute_import
 
@@ -293,8 +297,6 @@ class Construct(object):
         if not self.original_sigs:
             self.is_empty = True
 
-construct_set = {Construct(1,2,3,4,5,6,lambda x: 4,8,9)}
-
 class ConstructTable(object):
     """A dict holding `Construct` objects, with related methods.  Each
     `PrattParser` instance has a `ConstructTable` instance to hold its
@@ -332,40 +334,63 @@ class ConstructTable(object):
         if token_value_key:
             key_on_token_values = True
 
-        # Todo: Consider this possible optimization in looking up handler
-        # functions, instead of always linear search.  Some very commonly used
-        # preconditions can be hashed on and will often give a unique result.
-        # Instead of using just `head_or_tail` and `trigger_token_label` to
-        # hash to the handler funs and then linear search, what about a tuple
-        # of several common conditions:
-
-        #    (head_or_tail, peek_token_label, pstate_stack_top)
-        # Then you need to check for those values and the None values,
-        # so three hashes:
-        #    (head_or_tail, None, pstate_stack_top)
-        #    (head_or_tail, peek_token_label, None)
-        #    (head_or_tail, None, None)
+        # Todo maybe later, if profiling shows it might be worth it: Consider
+        # possible optimizations in looking up handler functions, instead of
+        # always linear search after splitting on `head_or_tail` and
+        # `trigger_token_label` values.  Some other commonly used precondition
+        # could potentially also be used to reduce the possibilities.  But, by
+        # definition, the `head_or_tail` and `trigger_token_label` values are
+        # mutually exclusive in selecting constructs.  For others you also have
+        # the possibility of a "don't care" value, which increases the
+        # complexity.
         #
-        # Then in `lookup_winning_construct` go through all three of these sorted
-        # sublists in parallel, from the beginning, taking by top priority
-        # and running the precond funs.  Almost like a real `case`
-        # statement with jumps.  To get the optimized version you would
-        # need to specially register that the token uses the precondition,
-        # and give a value for it to look for (i.e., to be hashed under).
-        # Probably should pass precond assertions list to the
-        # `modify_token` routine, maybe something like:
-        #    precond_optimize_assert=(None,None,"wff")
-        # For those which register the optimization you still need a precond
-        # function itself, at least for the unique name, but you can leave off
-        # testing the asserted conditions because they won't be considered if
-        # the hash doesn't match.
+        # We could increase the tree depth and also hash on, say,
+        # `token_value`, `peek_token_label`, `pstate_stack_top`, etc.  That
+        # complicates the tree, though, and when a property does not matter
+        # then you need to go down all the branches at that split and yet end
+        # with a list that is sorted.
         #
-        # Note that the fallback behavior is the same as before (very
-        # slight performance penalty, a few hashes, especially with careful coding).
-        # On the other hand, how long will the list of handlers ever get?  Is
-        # it worth it?  Probably for doing recursive descent it is.
+        # A simpler optimization might be to just do the linear search but skip
+        # calling any preconditions function for a construct which does not
+        # match a declared requirement (among some predefined set).  Suppose a
+        # decorator is used on preconditions functions (which returns a wrapper
+        # that contains the extra info):
         #
-        # Be sure to also update the unregister method if implemented.
+        # @precond_fun(peek_token_label="k_lpar")
+        # def my_fun(...):
+        #    return True
+        #
+        # Alternately, a kwarg to the construct initializer could be passed
+        # along with the precond fun:
+        #
+        #    precond_optimize_assert=[(peek_token_label,"k_wff")]
+        #
+        # This could set an attribute of the construct when it is initialized.
+        # The attribute would give the required value or set of values.  Then
+        # in the loop you can look at that attribute of the constructs and skip
+        # with `continue` if the test fails.  But is looking up and comparing
+        # several attributes per construct to avoid calling some precond
+        # functions sufficiently faster than just linearly running the preconds
+        # funs to justify the complexity?  Probably not worth it.
+        #
+        # Alternative, with the same setup as now for mutually-exclusive
+        # properties but with this kind of thing done for each priority-sorted
+        # sublist above some threshold size (properties are things like "peek token
+        # label value" or "string value on top of pstate stack").
+        # 1) A list of dicts, one for each extra property to test on.
+        # 2) Each dict for a property has items keyed by the property values
+        #    (which are inserted into it as it is built up).  Each dict items contains
+        #    as its value a two-tuple containing 0) a priority-sorted lists of
+        #    constructs in the subset with that property value as well as 2) a set
+        #    of the constructs with that value for the property.
+        # 3) To look up a construct you get the ordereddict for each property,
+        #    looking up keyed by the property's value in the current precond context.
+        # 4) Take the intersection of these ordereddicts.  Algorithm: start with one
+        #    (smallest size is best) and sequentially (by ordering priority) compare
+        #    for membership in all the others, using the sets that are also saved.
+        #    Take first one that is contained in all of them.
+        # Premature optimization for now.  What sizes of sets involved would make
+        # it worth the overhead is another question.
 
         # Set up the construct_lookup_dict structure if necessary.
         head_or_tail_construct_dict = self.construct_lookup_dict[head_or_tail]
@@ -373,45 +398,29 @@ class ConstructTable(object):
             head_or_tail_construct_dict[trigger_token_label] = OrderedDict()
         sorted_construct_dict = head_or_tail_construct_dict[trigger_token_label]
 
-        # Get any previous construct saved under the construct_label (and for the
-        # same given head_or_tail and trigger_token_label).
-        prev_construct = sorted_construct_dict.get(construct_label, None)
-        #assert prev_construct is None # TODO no longer using multiple defs!!!
+        construct = Construct(self.parser_instance,
+                              construct_label=construct_label,
+                              trigger_head_or_tail=head_or_tail,
+                              trigger_token_label=trigger_token_label,
+                              handler_fun=handler_fun,
+                              precond_fun=precond_fun,
+                              precond_priority=precond_priority,
+                              original_sig=type_sig,
+                              key_on_token_values=key_on_token_values)
+        sorted_construct_dict[construct_label] = construct
 
-        # Consider it an overload if there is a previous construct with the same
-        # construct_label, head_or_tail, and trigger_token_label.  Otherwise treat
-        # it as a redefinition.
-        overload_on_matching_construct_def = True # TODO: probably make parser attribute
-        if prev_construct and overload_on_matching_construct_def:
-            prev_construct.overload(val_type=type_sig[0], arg_types=type_sig[1],
-                                    eval_fun=eval_fun, ast_data=ast_data,
-                                    token_value_key=token_value_key)
-            construct = prev_construct
+        # Re-sort the OrderedDict, since we added an item.  (Could be a little
+        # more efficient as a binary tree insertion, putting it in where it belongs,
+        # but the builtin Python sort is in C so it might still win.)
+        sorted_construct_dict = sort_construct_dict(sorted_construct_dict)
+        self.construct_lookup_dict[
+                       head_or_tail][trigger_token_label] = sorted_construct_dict
 
-        else: # No previous construct; create a new one.
-            construct = Construct(self.parser_instance,
-                                  construct_label=construct_label,
-                                  trigger_head_or_tail=head_or_tail,
-                                  trigger_token_label=trigger_token_label,
-                                  handler_fun=handler_fun,
-                                  precond_fun=precond_fun,
-                                  precond_priority=precond_priority,
-                                  original_sig=type_sig,
-                                  key_on_token_values=key_on_token_values)
-            sorted_construct_dict[construct_label] = construct
-
-            # Re-sort the OrderedDict, since we added an item.  (Could be a little
-            # more efficient as a linear insertion scan, putting it in where it belongs,
-            # but the builtin Python sort is in C so it might still win.)
-            sorted_construct_dict = sort_construct_dict(sorted_construct_dict)
-            self.construct_lookup_dict[
-                           head_or_tail][trigger_token_label] = sorted_construct_dict
-
-            # Save the eval_fun and ast_data.  Note the construct's `key_on_token_values`
-            # setting will be used.  Note this could be saved directly to new_construct
-            # above instead of going through the ConstructTable method.
-            construct.save_eval_fun(eval_fun, type_sig, token_value_key)
-            construct.save_ast_data(ast_data, type_sig, token_value_key)
+        # Save the eval_fun and ast_data.  Note the construct's `key_on_token_values`
+        # setting will be used.  Note this could be saved directly to new_construct
+        # above instead of going through the ConstructTable method.
+        construct.save_eval_fun(eval_fun, type_sig, token_value_key)
+        construct.save_ast_data(ast_data, type_sig, token_value_key)
 
         # Make sure we don't get multiple definitions with the same priority if
         # that checking is enabled.

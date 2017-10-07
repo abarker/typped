@@ -3,9 +3,9 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-==================================================
-Typped: A typed Pratt parser employing dispatching
-==================================================
+=================================================================
+Typped: A framework for typed Pratt parsers employing dispatching
+=================================================================
 
 ..
    NOTE: Use |nbsp| for nonbreaking space, and |br| for adding line breaks.
@@ -32,12 +32,12 @@ The Typped package provides a general Python framework for defining and using
 Pratt parsers.  The parsed languages can optionally be typed, with basic types
 which are checked at parse-time.  Overloading on types is also allowed.
 
-Default parser methods are provided for many standard constructs such as, for
-example, infix operators and ordinary function calls.  Users can define their
-own customized functions or methods in order to parse more-complicated and/or
-more-specific grammatical constructs.  An EBNF-like Python syntax is also
-provided, which can be used to define and implement recursive descent parsing
-of a grammar within the Typped framework (integrated with Pratt parsing).
+Default parser methods are provided for many standard constructs such as infix
+operators and ordinary function calls.  Users can define their own customized
+functions or methods in order to parse more-complicated and/or more-specific
+grammatical constructs.  An EBNF-like Python syntax is also provided, which can
+be used to define and implement recursive descent parsing of a grammar within
+the Typped framework (integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
 logic languages and mathematical languages which use syntax approximating the

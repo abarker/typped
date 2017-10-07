@@ -1430,11 +1430,7 @@ class PrattParser(object):
                     .format(trigger_token_label))
 
         if precond_fun is None:
-            if construct_label:
-                raise ParserException("Call to def_construct with construct_label set"
-                        " to '{0}', but no precond_fun was provided.".format(construct_label))
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
-            construct_label = DEFAULT_ALWAYS_TRUE_CONSTRUCT_LABEL
         elif construct_label is None:
             construct_label = self._next_unique_construct_label(autolabel_prefix)
 

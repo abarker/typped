@@ -3,10 +3,15 @@
 
 This module contains the functions which handle the recursive descent parsing
 of the rules of a `Grammar` object instance. Grammar objects are defined in
-`ebnf_classes_and_operators` module.  Only the function
-`register_rule_handlers_with_parser` is called externally (from
-`ebnf_classes_and_operators.py`).  The first argument takes a parser instance,
-and it is modified to parse the grammar which is also passed in.
+`ebnf_classes_and_operators` module.
+
+In ths module only the function `register_rule_handlers_with_parser` is
+formally exposed to be called externally (and it is only called from the
+`ebnf_classes_and_operators` module).
+
+The first argument to `register_rule_handlers_with_parser` is a parser
+instance.  The function modifies the parser to parse the grammar rule which is
+also passed in.
 
 """
 
@@ -36,20 +41,21 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     `nonterm_label`, as defined in the `Grammar` object `grammar`.
 
     This is run to initially process a caselist.  It partitions the caselist
-    for the `nonterm_label` nonterminal/pstate into separate caselists.  It
+    for the `nonterm_label` nonterminal/pstate into separate caselists for
+    cases which start with the same thing and may require backtracking.  It
     does the following:
 
     1. Look up the caselist for `nonterm_label` in the grammar object.
 
     2. Loop over that caselist, making a sub-caselists for cases which start
-    with the same thing (i.e., with the same first set).  Start with the first
-    case, and proceed until the initial caselist is fully processed and
+    with the same thing (i.e., which have the same first set).  Start with the
+    first case, and proceed until the initial caselist is fully processed and
     converted to a collection of sub-caselists.  (All production rule starts
     are currently considered the same, but when the first-set is computed then
     they will be grouped with others having the same first-set.)
 
     These sub-caselists which start with a token are stored in a dict
-    `token_start_cases`, keyed by the token label of the beginning token.
+    `token_literal_start_cases`, keyed by the token label of the beginning token.
     Those which start with a nonterminal are saved in a list
     `nonterm_start_cases`.
 
@@ -57,11 +63,12 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     `def_handlers_for_first_case_of_nonterminal` with that caselist.
 
     """
-    # TODO: finish first-sets and make the sub-caselists be groups that start
-    # with the same first-set.  Then make that a precond on it.  To start with,
-    # ONLY consider the first token literal in a case as far as calculating
-    # first sets (and make comment that users should note this for now, but
-    # later they might be auto-combined).
+    # TODO: finish implementing first-sets and make the sub-caselists be groups
+    # that start with the same first-set.  Then make that a precond on it.  To
+    # start with, ONLY consider the first literal token in a case as far as
+    # calculating first sets (and make comment that users should note this).  Later
+    # possibly add support for using several sequential token literals as an expanded
+    # start pattern.
 
     if not parser.null_string_token_subclass:
         parser.def_null_string_token() # Define null-string if necessary.
@@ -69,62 +76,8 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     caselist = grammar[nonterm_label]
     caselist = list(caselist) # Only need ordinary Python lists here.
 
-    token_start_cases = defaultdict(list) # Cases starting with a token.
-    nonterm_start_cases = [] # Cases starting with a nonterminal.
-
-    while caselist:
-        # Repeatedly cycle through caselist, comparing first case to later ones,
-        # saving common-start ones and then deleting all that were saved on that
-        # cycle from caselist.
-        first_saved = False
-        first_case = caselist[0]
-        first_item = first_case[0]
-        first_item_val = first_item.value
-        first_item_kind = first_item.kind_of_item
-        del_list = [0] # Cases to delete; they are saved on another list.
-        if first_item_kind == "token":
-            # Note that *sequences* of tokens could also be handled with
-            # some preconditioned lookahead, but may not be more efficient.
-            first_item_token_label = first_item_val.token_label
-            if not first_saved:
-                token_start_cases[first_item_token_label].append(first_case)
-                first_saved = True
-            for i, curr_case in enumerate(caselist[1:]):
-                curr_first_item = curr_case[0]
-                curr_first_item_val = curr_first_item.value
-                curr_first_item_kind = curr_first_item.kind_of_item
-                if curr_first_item_kind != "token":
-                    continue
-                # We know now that both are starting case-items are tokens.
-                curr_first_token_label = curr_first_item_val.token_label
-                # The token labels must also be the same.
-                if (curr_first_token_label == first_item_token_label):
-                    token_start_cases[first_item_token_label].append(curr_case)
-                    del_list.append(i)
-                else:
-                    continue # Each different kind of token gets its own handler.
-        elif first_item_kind == "nonterminal":
-            if not first_saved:
-                nonterm_start_cases.append(first_case)
-                first_saved = True
-            for i, curr_case in enumerate(caselist[1:]):
-                curr_first_item = curr_case[0]
-                curr_first_item_val = curr_first_item.value
-                curr_first_item_kind = curr_first_item.kind_of_item
-                if curr_first_item_kind != "nonterminal":
-                    continue
-                # We know now that both are starting case-items are nonterminals.
-                # LATER these can be given precomputed lookahead preconditions.
-                token_label = first_item_val
-                nonterm_start_cases.append(curr_case)
-                del_list.append(i)
-        else:
-            raise ParserException("Unrecognized kind of item in CaseList"
-                    "processed by def_production_rule.  The item is: "
-                    "{0}.".format(first_item))
-
-        for i in reversed(del_list):
-            del caselist[i]
+    # Partition the caselist into sub-caselists.
+    token_literal_start_cases, nonterm_start_cases = partition_caselist(caselist)
 
     # Register null-string handlers for each unique first item of some case.
     # All rules currently treated as non-unique.
@@ -132,7 +85,7 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
 
     # Use null-string with a peek in front of actual tokens, also, to avoid
     # special-curr_case handling in later code.
-    for token_label, caselist in token_start_cases.items():
+    for token_label, caselist in token_literal_start_cases.items():
         # Register handler with a precondition on the token label.
         # --> Here and elsewhere, assuming the token_label and pstate uniquely
         # identify in both cases, but may need more preconds (later). Todo
@@ -149,7 +102,7 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
 
 def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token,
                                                caselist, peek_token_label=None):
-                   # Below not used yet.... need to know cases of production...
+                   # Below params not used yet.... need to know cases of production...
                    #val_type=None, arg_types=None, eval_fun=None,
                    #ast_label=None):
 
@@ -190,6 +143,27 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     # ones, and overwrite them (found and fixed such a bug, hard to track).
     construct_label = ("precond for production {0} peek {1}"
                                     .format(nonterm_label, peek_token_label))
+
+    head_handler = generic_head_handler_function_factory(nonterm_label, caselist)
+
+    tail_handler = generic_tail_handler_function_factory()
+
+    # Register the handler for the first item of the first case.
+    precond_priority = 10000
+    parser.def_construct(HEAD, head_handler, null_token.token_label, prec=0,
+                 construct_label=construct_label,
+                 precond_fun=preconditions, precond_priority=precond_priority)
+                 #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                 #ast_label=ast_label)
+
+    prec = 10 # TODO: Temporary hardcode, will need to vary.
+    parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
+                 construct_label=construct_label,
+                 precond_fun=preconditions, precond_priority=precond_priority)
+
+def generic_head_handler_function_factory(nonterm_label, caselist):
+    """Return a generic head handler with `nonterm_label` and `caselist` bound
+    in the closure."""
 
     def head_handler(tok, lex):
         """The head handler assigned to the first token of the first case for
@@ -233,7 +207,8 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
                         item_token = item.value
                         item_token_label = item_token.token_label
                         if not lex.match_next(item_token_label, consume=False):
-                            raise BranchFail("Expected token not found.")
+                            raise BranchFail("Expected '{0}' token not found.".
+                                             format(item_token_label))
 
                         # Actual tree nodes must be processed by literal handler.
                         # Todo: document/improve this stuff, nice to push known label
@@ -281,42 +256,114 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
                 # Backtrack; need to restore to previous saved state.
                 lex.go_back_to_state(lex_saved_begin_state)
                 if last_case: # Give up, all cases failed.
-                    raise BranchFail("All rule cases failed.")
+                    raise BranchFail("All production rule cases failed.")
+    return head_handler
+                 #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+                 #ast_label=ast_label)
+
+def generic_tail_handler_function_factory():
+    """Return a generic tail handler function."""
 
     def tail_handler(tok, lex, left):
         """Just push the state, relay the call, and pop afterwards."""
+        # TODO Below not used or implemented at all yet, just a copied-over stub.
+        #
         # TODO: since routines head and tail are the same, maybe just define a
         # generic handler but look at a closure variable or bind the var as
         # a partial function for head vs. tail.....
         #
-        # TODO Below not used or implemented at all yet, just a copied-over stub.
-        #
         # Note that for tail-handler that we presumably want *this* token as the
         # subtree root.
-        raise ParserException("ERROR: No tail functions defined yet for"
-                " null-string tokens.")
+        # TODO: Assoc needs to be fixed in closure at least, and find recurse_bp
+        raise ParserException("ERROR: Tail functions not implemented yet for"
+                              " null-string tokens.")
+
+        if assoc not in ["left", "right"]:
+            raise ParserException('Argument assoc must be "left" or "right".')
+        recurse_bp = prec
+        if assoc == "right":
+            recurse_bp = prec - 1
+
         pstate_stack = tok.parser_instance.pstate_stack
         pstate_stack.append("pstate_label")
         processed = tok.recursive_parse(tok.subexp_prec,
                             processed_left=left, lookbehind=tok.lookbehind)
         pstate_stack.pop()
         return processed
+    return tail_handler
 
-    # Register the handler for the first item of the first case.
-    precond_priority = 10000
-    parser.def_construct(HEAD, head_handler, null_token.token_label, prec=0,
-                 construct_label=construct_label,
-                 precond_fun=preconditions, precond_priority=precond_priority)
-                 #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                 #ast_label=ast_label)
 
-    prec = 10 # Temporary, will need to vary.
-    parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
-                 construct_label=construct_label,
-                 precond_fun=preconditions, precond_priority=precond_priority)
-                 #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                 #ast_label=ast_label)
+def partition_caselist(caselist):
+    """Partition a caselist into sub-caselists.  Case lists here are ordinary
+    Python lists of `Case` instances, not full `CaseList` objects (which are
+    just needed for the overloaded grammar processing).
 
+    Return a defaultdict of caselists holding the ones which start with token
+    literal, keyed by the token labels.  Also return a list of caselists for
+    those that start with a nonterminal."""
+
+    token_literal_start_cases = defaultdict(list) # Cases starting with a token literal.
+    nonterm_start_cases = [] # Cases starting with a nonterminal.
+
+    while caselist: # Items deleted from caselist after processing; run until empty.
+
+        # Repeatedly cycle through caselist, comparing the first case to later
+        # ones, copying ones with a common start trigger to the relevant
+        # sub-caselist, and finally deleting from caselist all that were copied on
+        # that cycle.
+        first_saved = False
+        first_case = caselist[0]
+        first_item = first_case[0]
+        first_item_val = first_item.value
+        first_item_kind = first_item.kind_of_item
+        del_list = [0] # Cases to delete from caselist (after copying to other lists).
+
+        if first_item_kind == "token":
+            # Note that *sequences* of tokens could also be handled with
+            # some preconditioned lookahead, but may not be more efficient.
+            first_item_token_label = first_item_val.token_label
+            if not first_saved:
+                token_literal_start_cases[first_item_token_label].append(first_case)
+                first_saved = True
+            for i, curr_case in enumerate(caselist[1:]):
+                curr_first_item = curr_case[0]
+                curr_first_item_val = curr_first_item.value
+                curr_first_item_kind = curr_first_item.kind_of_item
+                if curr_first_item_kind != "token":
+                    continue
+                # We know now that both are starting case-items are tokens.
+                curr_first_token_label = curr_first_item_val.token_label
+                # The token labels must also be the same.
+                if (curr_first_token_label == first_item_token_label):
+                    token_literal_start_cases[first_item_token_label].append(curr_case)
+                    del_list.append(i)
+                else:
+                    continue
+
+        elif first_item_kind == "nonterminal":
+            if not first_saved:
+                nonterm_start_cases.append(first_case)
+                first_saved = True
+            for i, curr_case in enumerate(caselist[1:]):
+                curr_first_item = curr_case[0]
+                curr_first_item_val = curr_first_item.value
+                curr_first_item_kind = curr_first_item.kind_of_item
+                if curr_first_item_kind != "nonterminal":
+                    continue
+                # We know now that both are starting case-items are nonterminals.
+                # LATER these can be given precomputed lookahead preconditions.
+                token_label = first_item_val
+                nonterm_start_cases.append(curr_case)
+                del_list.append(i)
+
+        else:
+            raise ParserException("Unrecognized kind of item in CaseList"
+                    "processed by def_production_rule.  The item is: "
+                    "{0}.".format(first_item))
+
+        for i in reversed(del_list):
+            del caselist[i]
+    return token_literal_start_cases, nonterm_start_cases
 
 class BranchFail(ParserException):
     """Used in backtracking when parsing production rules.  Raised when a case of
