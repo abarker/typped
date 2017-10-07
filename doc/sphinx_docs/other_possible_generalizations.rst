@@ -108,6 +108,27 @@ You can currently do something similar inside a handler function if you really
 must.  You can save the state of the lexer, call ``recursive_parse`` to get a
 subexpression, and then restore the state of the lexer.
 
+Constructs with multiple possible trigger tokens
+------------------------------------------------
+
+The current implementation follows the Pratt parsing scheme of having handlers
+associated with triggering tokens, as well as the head or tail position.  In
+general, the looking at the current kind of token could instead be implemented
+as part of the preconditions functions.
+
+This would be less efficient in the sense that many more preconditions
+functions would potentially need to be sequentially run find the handler for a
+given token.  (The current implementation uses a tree to quickly go to a
+smaller set of constructs, based on the head or tail property and the token
+label.) There are, however, optimizations which could be applied to make this
+more efficient.  Preconditions functions would become more complex, since every
+construct which is based on the current kind of token (formerly the triggering
+token) would need to explicitly specify which kinds of tokens in some way.
+
+The current setup follows Pratt parsing more closely, and the equivalent to the
+above is to declare multiple constructs, one for each kind of triggering token.
+A null-string token could also be used to do something similar.
+
 More complex types
 ------------------
 

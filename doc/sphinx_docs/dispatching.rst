@@ -65,7 +65,7 @@ the following attributes:
 * a head or tail handler function
 * a preconditions function
 * a preconditions priority
-* a preconditions label (used to determine equality of preconditions functions)
+* a string label for the construct
 * other data, such as evaluation functions and type signatures
 
 Constructs are **registered** with a parser instance in order to define a
@@ -147,15 +147,26 @@ known.
 Uniqueness of constructs
 ------------------------
 
-Equality or non-equality of two constructs is determined by equality of triples
-of the form::
+Equality or non-equality of two constructs in the sense of being triggered by
+identical conditions is determined by equality of triples of the form::
 
-   (head_or_tail, trigger_token_label, precond_label)
+   (head_or_tail, trigger_token_label, precond_fun)
 
-Ideally the identity of constructs would involve preconditions functions
-themselves rather than an assigned label.  Labels are used because of the
-difficulty of determining when two preconditions functions are identical in the
-sense of computing the same thing.
+The preconditions priority is not included because it determines the
+interaction between different constructs match.  If two constructs match in the
+above tuple but have different ``precond_priority`` values then one will always
+shadow the other.  The shadowed construct will never run.
+
+Unfortunately it is impractical to determine in general when two preconditions
+functions are identical in the sense that they compute the same thing.  As
+a workaround, the construct label can be used instead::
+
+   (head_or_tail, trigger_token_label, construct_label)
+
+What should happen when a construct that triggers the same is redefined,
+perhaps with different type information?  Should overloading be done that way?
+The discussion below assumes that the option
+``overload_on_matching_construct_def`` is set true.
 
 Based on this definition of equality of constructs, redefining a head (tail)
 construct results in a new head (tail) construct if either the triggering token
@@ -350,9 +361,9 @@ space.
                    return tok
 
                # Register the construct with the parser.
-               precond_label = "function call using precondition on function name"
+               construct_label = "function call using precondition on function name"
                self.def_construct(pp.HEAD, head_handler, fname_token_label, prec=0,
-                                  precond_label=precond_label,
+                                  construct_label=construct_label,
                                   precond_fun=preconditions,
                                   precond_priority=precond_priority)
        return MyParser

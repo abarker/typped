@@ -22,6 +22,9 @@ then does type checking and other options before returning the subtree.
 
 """
 
+# TODO: Consider allowing empty constructs to be defined from init.  A minor
+# change, though, which can wait (if it is ever implemented).
+
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -66,7 +69,7 @@ class Construct(object):
     __slots__ = ["parser_instance", "construct_label", "trigger_head_or_tail",
                  "trigger_token_label", "handler_fun", "precond_fun",
                  "precond_priority", "original_sigs", "ast_data_dict",
-                 "eval_fun_dict", "key_on_token_values"]
+                 "eval_fun_dict", "key_on_token_values", "is_empty"]
     # At some point precedence (lbp) values might be incorporated into a
     # constructs, but for now all constructs for the same token would need the
     # same precedence.  The info seems to go here, though, at least for future
@@ -139,6 +142,7 @@ class Construct(object):
         self.ast_data_dict = defaultdict(dict)
         self.eval_fun_dict = defaultdict(dict)
         self.key_on_token_values = key_on_token_values
+        self.is_empty = False
 
     @staticmethod
     def run(construct, tok, lex, processed_left=None, lookbehind=None):
@@ -258,11 +262,11 @@ class Construct(object):
         self.save_ast_data(ast_data, type_sig, token_value_key)
         return self
 
-    def _unregister_overload(self, type_sig, token_value_key=None):
+    def unregister_overload(self, type_sig, token_value_key=None):
         """Unregister an overload.  If the last overload is deleted then the
-        ``original_sigs`` attribute will be empty so the construct should
-        usually be deleted since it cannot match any signature.  Called from
-        the `unregister_construct` of `ConstructTable`.
+        ``original_sigs`` attribute will be left empty.  The construct will
+        still be in the any ``ConstructTable`` that it was part of, though.
+        Called from the `unregister_construct` of `ConstructTable`.
 
         If `token_value_key` is set then only that token value is removed, unless
         it is the last one in which case the whole signature is removed."""
@@ -285,6 +289,11 @@ class Construct(object):
         if (dict_keys[0] not in self.eval_fun_dict
                 and dict_keys[0] not in self.ast_data_dict):
             self.original_sigs = [s for s in self.original_sigs if s != type_sig]
+
+        if not self.original_sigs:
+            self.is_empty = True
+
+construct_set = {Construct(1,2,3,4,5,6,lambda x: 4,8,9)}
 
 class ConstructTable(object):
     """A dict holding `Construct` objects, with related methods.  Each
@@ -324,12 +333,12 @@ class ConstructTable(object):
             key_on_token_values = True
 
         # Todo: Consider this possible optimization in looking up handler
-        # functions, instead of always linear search.  Some very commonly
-        # used preconditions can be hashed on and will often give a unique
-        # result.  Instead of using just `head_or_tail` to hash the handler
-        # funs and then linear search, what about a tuple of several common
-        # conditions:
-        #
+        # functions, instead of always linear search.  Some very commonly used
+        # preconditions can be hashed on and will often give a unique result.
+        # Instead of using just `head_or_tail` and `trigger_token_label` to
+        # hash to the handler funs and then linear search, what about a tuple
+        # of several common conditions:
+
         #    (head_or_tail, peek_token_label, pstate_stack_top)
         # Then you need to check for those values and the None values,
         # so three hashes:
@@ -395,7 +404,8 @@ class ConstructTable(object):
             # more efficient as a linear insertion scan, putting it in where it belongs,
             # but the builtin Python sort is in C so it might still win.)
             sorted_construct_dict = sort_construct_dict(sorted_construct_dict)
-            self.construct_lookup_dict[head_or_tail][trigger_token_label] = sorted_construct_dict
+            self.construct_lookup_dict[
+                           head_or_tail][trigger_token_label] = sorted_construct_dict
 
             # Save the eval_fun and ast_data.  Note the construct's `key_on_token_values`
             # setting will be used.  Note this could be saved directly to new_construct
@@ -502,6 +512,8 @@ class ConstructTable(object):
 
         # Sequentially run sorted precondition functions until one is true.
         for pre_label, construct in sorted_construct_dict.items():
+            if construct.is_empty: # Ignore empty constructs.
+                continue
             if construct.precond_fun(lex, lookbehind):
                 # Note construct_label is saved as a user-accesible attribute here.
                 trigger_token_instance.construct_label = construct.construct_label
