@@ -213,6 +213,8 @@ from .pratt_constructs import ConstructTable
 #from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
+# TODO: remove unique label generator...........................
+
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
 # parser instance associated with the lexer's current token table to every token
@@ -222,11 +224,6 @@ from . import builtin_parse_methods, predefined_token_sets
 # NOTE that the eval_fun stuff could also be used to also do a conversion to
 # AST.  Also at some point add "eval on the fly" capability (not too hard, but
 # extra complexity).
-
-# TODO: Consider allowing a string label of some sort when defining a parser,
-# something like "TermParser" or "parser for terms", "WffParser", etc.  Then
-# use that string in the exception messages.  When working with parsers called
-# from/by parsers these labels in error messages would be helpful for debugging.
 
 # Later, consider serialization of defined parsers, such as with JSON or (at
 # least) pickle http://www.discoversdk.com/blog/python-serialization-with-pickle
@@ -240,8 +237,7 @@ from . import builtin_parse_methods, predefined_token_sets
 # parse-time (perhaps waiting for some obscure combination).  Shouldn't be too
 # hard to write.
 
-DEFAULT_CONSTRUCT_AUTOLABEL_PREFIX = "default_unique_construct_label"
-DEFAULT_ALWAYS_TRUE_CONSTRUCT_LABEL = "default_always_true_precond"
+DEFAULT_PARSER_LABEL = "default_parser_label"
 
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     """The default precondition function; always returns true."""
@@ -311,15 +307,9 @@ class TokenSubclassMeta(type):
     # These overloads work with the ebnf_classes_and_operators module.
     #
 
-    # TODO: Could have a flag to turn off overloads, maybe... tokens know
-    # their parser_instance at parse time, so they can look at instance.  If
-    # Grammar is passed a parser and initialized before it could turn on
-    # overloads and compile could turn them off.  Kind of restrictive,
-    # though.  But could just put calls to a function to check and raise an
-    # error... Catches accidental uses, and can suggest maybe they need to
-    # init Grammar first...  These all return Item or related anyway,
-    # should catch most accidentals just because of that.
-
+    # TODO: Could have a flag to turn overloads on and off, maybe.
+    # Might want to turn off when not processing a grammar expression
+    # using the tokens, but it really shouldn't matter much.
     def __add__(cls, other):
         """Addition of two tokens is defined to simply return a tuple of
         both tokens.  This is so raw tokens can be used in the operator
@@ -610,9 +600,10 @@ def token_subclass_factory():
                         .format(len(self.matching_sigs), self.matching_sigs))
 
             # We have a unique signature; set the node's type attributes
-            self.expanded_formal_sig = self.matching_sigs[0] # Save sig for semantic actions.
+            self.expanded_formal_sig = self.matching_sigs[0]
             self.original_formal_sig = self.expanded_formal_sig.original_formal_sig
-            # Start setting the actual signature; children will fill arg types when resolved.
+            # Start setting the actual signature; children will fill arg types
+            # when resolved.
             self.actual_sig = TypeSig(self.expanded_formal_sig.val_type, [])
 
             # Set the actual_sig arg_type for the parent (appending in sequence with others).
@@ -627,8 +618,8 @@ def token_subclass_factory():
                 if not hasattr(child, "matching_sigs"):
                     continue # Already resolved.
                 matched_sigs = TypeSig.get_child_sigs_matching_return_arg_type(
-                                          child, self.expanded_formal_sig.arg_types[count],
-                                          child.matching_sigs)
+                                      child, self.expanded_formal_sig.arg_types[count],
+                                      child.matching_sigs)
                 # From the first pass, we know at least one child sig matches.
                 assert len(matched_sigs) != 0 # Debug.
                 if len(matched_sigs) > 1:
@@ -671,9 +662,8 @@ def token_subclass_factory():
             dispatched for the token.  Must be called after parsing because the
             `original_formal_sig` attribute and others must be set on the token
             instance."""
-            orig_sig = self.original_formal_sig
-            construct_table = self.parser_instance.construct_table
-            construct = construct_table.lookup_construct_for_parsed_token(self)
+            orig_sig = self.original_formal_sig # Set during parsing.
+            construct = self.construct # Set during parsing, winning construct.
             return construct.get_eval_fun(orig_sig, token_value_key=self.value)
 
         @property
@@ -682,17 +672,15 @@ def token_subclass_factory():
             for the token.  Must be called after parsing because the
             `original_formal_sig` attribute and others must be set on the token
             instance."""
-            orig_sig = self.original_formal_sig
-            construct_table = self.parser_instance.construct_table
-            construct = construct_table.lookup_construct_for_parsed_token(self)
+            orig_sig = self.original_formal_sig # Set during parsing.
+            construct = self.construct # Set during parsing, winning construct.
             return construct.get_ast_data(orig_sig, token_value_key=self.value)
 
         def eval_subtree(self):
             """Run the saved evaluation function on the token, if one was
             registered with it.  Returns `None` if no evaluation function is found."""
-            #sig = self.expanded_formal_sig
-            orig_sig = self.original_formal_sig
-            eval_fun = self.eval_fun
+            orig_sig = self.original_formal_sig # Set during parsing.
+            eval_fun = self.eval_fun # Property method above.
 
             # TODO: Consider if returning None is better than raising exception...
             if not eval_fun:
@@ -994,6 +982,7 @@ class PrattParser(object):
                        overload_on_arg_types=True,
                        overload_on_ret_types=False,
                        partial_expressions=False,
+                       parser_label=None,
                        raise_on_equal_priority_preconds=False):
         """Initialize the parser.
 
@@ -1039,16 +1028,27 @@ class PrattParser(object):
         calling `parse` when this option is true and checking whether the
         lexer's current token is the end-token.
 
+        The `parser_label` is an optional descriptive string for a parser.
+        These can be useful in debugging when they appear in error messages,
+        especially when working with multiple parser instances.
+
         If `raise_on_equal_priority_preconds` is true then an exception will be
         raised if two precondition functions are registered with the same
         trigger token in the same head or tail position which have the same
-        precondition priority.  The default is false, and the last-defined
+        precondition priority.  The default is false, and the first-defined
         matching precondition function of the same priority will win any
-        competition.  This option can be used to ensure at language define-time
-        that there is no definition-order dependence in dispatching.  If two
-        such preconditions functions are mutually exclusive there is no problem
-        with them having the same priority, but this condition cannot be
-        checked by a program."""
+        competition when several are true.  This option can be used to ensure
+        at language define-time that there is no definition-order dependence in
+        dispatching.  If two such preconditions functions are mutually
+        exclusive there is no problem with them having the same priority, but
+        this condition cannot be checked by a program.  A small difference can
+        be added."""
+
+        if parser_label:
+            self.parser_label = parser_label # Set first, for error messages.
+        else:
+            self.parser_label = DEFAULT_PARSER_LABEL
+
         ## Type-checking options below; these cannot be changed after initialization.
         if overload_on_ret_types:
             overload_on_arg_types = True # Overload on ret implies overload on args.
@@ -1060,10 +1060,12 @@ class PrattParser(object):
             self.overload_on_arg_types = False
             self.overload_on_ret_types = False
 
-        # If exceptions are not raised on ties below, the last-set one has
-        # precedence.  Define this before registering any handlers (done
-        # below in `def_begin_end_tokens`).
-        self.raise_on_equal_priority_preconds = True
+        # If exceptions are not raised on ties then with non-mutually-exclusive
+        # precond functions the first-set one will have precedence when they
+        # are both true.  Need to define this before registering any handlers (
+        # which is done below in `def_begin_end_tokens`).
+        self.raise_on_equal_priority_preconds = raise_on_equal_priority_preconds
+        #self.raise_on_equal_priority_preconds = True # DEBUG
 
         self.construct_table = ConstructTable(parser_instance=self) # Dict of constructs.
         self.default_construct_label_number = 0 # For unique precondition labels.
@@ -1099,25 +1101,8 @@ class PrattParser(object):
         self.null_string_token_subclass = None # The actual null-string token, if any.
 
         self.partial_expressions = partial_expressions # Whether to parse multiple expressions.
-        self.raise_on_equal_priority_preconds = raise_on_equal_priority_preconds
-
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
         self.top_level_production = False # If true, force prod. rule to consume all.
-
-    def _next_unique_construct_label(self, autolabel_prefix=None):
-        """Return the next unique default label for constructs.  It is a tuple so it
-        never matches an actual string label."""
-        self.default_construct_label_number += 1
-        if isinstance(autolabel_prefix, str):
-            string_prefix = autolabel_prefix
-        elif autolabel_prefix is None:
-            string_prefix = DEFAULT_CONSTRUCT_AUTOLABEL_PREFIX
-        else:
-            raise ParserException("Value of autolabel_prefix value must be None or a"
-                                  " string.  Instead got: {0}".format(autolabel_prefix))
-        label = "{0}__uniquelabel__{1}".format(string_prefix,
-                                               self.default_construct_label_number)
-        return label
 
     #
     # Methods defining tokens.
@@ -1303,7 +1288,7 @@ class PrattParser(object):
                       prec=0, construct_label=None, precond_fun=None,
                       precond_priority=0, val_type=None, arg_types=None,
                       eval_fun=None, ast_data=None, token_value_key=None,
-                      autolabel_prefix=None, dummy_handler=False):
+                      dummy_handler=False):
         """Define a construct and register it with the token with label
         `trigger_token_label`.  A token with that label must already be in the
         token table or an exception will be raised.
@@ -1319,102 +1304,23 @@ class PrattParser(object):
         set true).  Similarly, an exception is raised for a non-zero `prec`
         value for a head-handler (the default value).
 
-        If `construct_label` is `None` then a unique string label will be
-        generated.  If the parameter `autolabel_prefix` is passed a string then
-        that value will be made the prefix of any automatically-generated
-        precondition labels (i.e., when `construct_label` is `None`).  This can be
-        used to create more-informative labels, which can help in debugging.
+        The `construct_label` is an optional string value which can result
+        in better error messages.
 
-        When the option `overload_on_matching_construct_def` is set uniqueness
-        of constructs is essentially determined by triples of the form ::
+        The `eval_fun` and the `ast_data` arguments are saved in dicts
+        associated with the type signature.
 
-           (head_or_tail, trigger_token_label, construct_label)
-
-        Note that preconditions functions are *not* part of the tuple.
-        Defining distinct constructs which match in `head_or_tail` and also in
-        their `trigger_token_label` requires distinct precondition labels.
-        Otherwise overloading is assumed and the last-defined properties (such
-        as the preconditions function) are used for all but the overloaded
-        parts (AST data and evaluation functions keyed by type signatures).  A
-        unique, default precondition label is provided if one is not supplied, so
-        labels are really only required in order to specify overloading.
-
-        The `eval_fun` and the `ast_data` arguments are saved in the dicts
-        `eval_fun_dict` and `ast_data_dict` respectively, keyed by the
-        `TypeSig` (defined by `val_type` and `arg_types`), as well as by
-        `arg_types` alone for when overloading on return values is not used.
-        This allows for different overloads to have different evaluation
-        functions and AST-associated data.
-
-        If `token_value_key` is set to a string value then that value will be part of
-        the key tuple for saving AST data and evaluation functions.  This can
-        be used, for example, when overloading a generic identifier with
-        different evaluation functions for when the identifier value is `sin`,
-        `cos`, etc.  In looking up the AST data and evaluation function the
-        parsed token's actual string value (from the program text) is used as
-        the key.  If any overload of a particular construct provides a
-        `token_value_key` string then all the other overloads for that construct must
-        also (for the time being, at least)."""
+        If `token_value_key` is set to a string value then that value will be
+        part of the key tuple for saving AST data and evaluation functions.
+        This can be used, for example, when overloading a generic identifier
+        with different evaluation functions for when the identifier value is
+        `sin`, `cos`, etc.  In looking up the AST data and evaluation function
+        the parsed token's actual string value (from the program text) is used
+        as the key.  If any overload of a particular construct provides a
+        `token_value_key` string then all the other overloads for that
+        construct must also (for the time being, at least)."""
         # Note that the parser_instance attribute of tokens is not necessarily
         # set yet when this method is called.
-
-        """ CONSIDER THIS API CHANGE:
-
-        Formally, equality of constructs is determined by triples of the form::
-
-           (head_or_tail, trigger_token_label, precond_fun)
-
-        In practice, since it is impractical to determine if two functions
-        compute the same thing, equality of constructs is determined by
-        equality of a unique `construct_label` associated with each construct.
-        If no label is supplied then a unique label will be generated.   The
-        labels are only required when redefining a construct, such as to define
-        overloads based on type signatures.
-
-        While a construct exists it is permanently associated with its
-        `head_or_tail` value and its `trigger_token_label`.  Attempts to
-        redefine a construct with different values than those already
-        associated with the construct label will raise an exception.
-
-        The preconditions function should also be considered a fixed part of a
-        construct, associated with its unique label, but for practical reasons
-        it is always overwritten on a redefinition if a new preconditions
-        function is supplied.  In a sense a construct label is effectively a
-        label on the preconditions function, but it is easier to think of it as
-        being a higher-level descriptive label for the full construct.
-
-        NOTE that the construct table then still needs to key on
-        [head_or_tail][trigger_token_label][construct_label] since it needs to
-        do a lookup at parse-time knowing the first two, running the preconds
-        to determine the latter.
-
-        Refactor plan: Just rename all precond_label to construct_label.  Then
-        make sure the code works as described above, with exclusions.  The
-        restriction enforcing code is there commented out.  It causes bugs
-        in overloading, though...
-
-        Problem arises in default precond fun, which uses the default precond
-        label.  In this case you KNOW the function, and can assume it uses
-        the same label.  If you convert precond_label to construct_label you
-        lose this information, since users will create descriptive one often...
-        Could check for this, I suppose, that is one known function that can
-        be compared directly with "is".  Maybe always test "is" but tell users
-        that they cannot count on it?
-
-        What if you take both construct_label and precond_label, and by default
-        generate a precond_label from the construct_label?  An extra argument,
-        though.
-
-        TODO in any case: Document the precond_fun/construct_label set automatically by
-        the builtin methods in their docstrings.  Makes a difference for when
-        users need to pass in their own...
-        """
-        #construct_label=None # TODO: This works!  Now the option to strip out all
-        # the construct_label kwargs in the various functions, and simplify the
-        # documentation.  This only works because now using explicit construct.overload
-        # for overloads in all examples -- need to remove multiple definition stuff
-        # for overloads.
-
         if isinstance(arg_types, str):
             raise ParserException("The arg_types argument to token_subclass must"
                     " be None or an iterable returning type labels (e.g., a list"
@@ -1431,8 +1337,6 @@ class PrattParser(object):
 
         if precond_fun is None:
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
-        elif construct_label is None:
-            construct_label = self._next_unique_construct_label(autolabel_prefix)
 
         if trigger_token_label in self.token_table:
             token_subclass = self.get_token(trigger_token_label)
@@ -1444,7 +1348,8 @@ class PrattParser(object):
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
         # TODO: Precedence is currently saved as a token attribute.  Consider
-        # saving it in the construct instead.
+        # saving it in the construct instead.  See main Sphinx docs, unimplemented
+        # generalizations.
         if head_or_tail == TAIL:
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 

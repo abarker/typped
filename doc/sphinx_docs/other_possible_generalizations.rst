@@ -7,54 +7,34 @@ currently implemented.
 Modifiable token precedence values
 ----------------------------------
 
-   Is it possible to allow tokens to change their prec according to their
-   conditions? What if you just redefined the ``prec`` function to return a value
-   that could change depending on conditions.  You could even have pass a function
-   ``token_subclass`` to evaluate the prec, perhaps.  This would modify the prec
-   calculation for the token subclass, but not for any other token subclass.
-
-   This might be useful for jop, so you could turn an identifier into a binding
-   operator of the right precedence if it were preceeded by another identifier.
-   Would need to be done for vars, functions, and numeric literals.  You could
-   look at type info for the left one...
-
-   Or you could just look for the conditions in ``recursive_parse``.
-
-   NOTE change below indented paras to a "not implemented but could be" type of
-   thing.  All tokens with the same label must now have the same prec, the static
-   one saved with the class (and the last one set).  Include discussion of how
-   things have to look the same from the peek token as they do from current.  The
-   modifiable prec stuff was too much effort, and when more than lookahead is
-   being use it *also* has to take that info into account.
-
-   Gist: - The prec values are associated with tail handlers.  - Can be
-   implemented with a peek and pushback and a few other rules.  - Not currently
-   implemented.
-
 Currently the ``PrattParser`` class has the restriction that every token must
 have a fixed precedence.  Even under different preconditions the precedence
 must be the same.  This is not a huge restriction, but there is the question of
 how it could be removed.  A reasonable generalization is to define precedence
-values to be attributes of tail handler functions (recall that they have no
-effect on head handler parsing).  So assume each tail handler function can have
-a different precedence.  If follows from this that different preconditions would
-then have handlers with different precedences.
+values to be attributes of tail handler functions or, in the Typped case,
+attributes of constructs that hold tail handler functions.  (Recall
+that precedences have no effect on head handler parsing.)
+
+Assume each tail handler function can have an arbitrary precedence.  In this
+case different preconditions can cause handlers functions with different
+precedences to be dispatched.
 
 The implementation problem arises in the ``recursive_parse`` function.  In the
 loop for tail handlers there is always a lookahead to the precedence of the
-next token (which is compared to the subexpression precedence).  When the
-precedence can vary with tail handlers we need to determine which precedence to
-use.  In the main ``recursive_parse`` loop we need to find the precedence of
-the peek(1) token.  But that precedence can vary according to the conditions at
-the time when the peek token itself is processed.
+next token (which is compared to the subexpression precedence).  So we need to
+find the precedence of the `peek(1)` token.  When precedence can vary according
+to the dispatched tail handlers we need to determine which precedence value to
+peek at.  But the "winning" handler that is dispatched can vary according to
+the conditions at the time when that peek token itself is processed.
 
 There are ways to get a reasonable version of this, subject to some
-limitations.  You essentially step ahead the lexer to approximate the time when
-the peek token would be processed, look up the handler, and take the precedence
-from that.  The definitions would need to be made precise, and the limitations
-discussed.  Since that adds a lot of complexity for a feature that would be
-little-used it is not currently implemented.  Interactions with other features,
-such as jops, would also need to be considered.
+limitations.  You essentially step the lexer ahead to approximate the time when
+the peek token would be processed, look up the handler/construct, get its
+precedence value, and then step the lexer back.  This would need to be made
+precise, and the limitations discussed.  Since that adds a lot of complexity
+for a feature that would probably be little-used it is not currently
+implemented.  Interactions with other features, such as jops, would also need
+to be considered.
 
 General position-dependent handling functions
 ---------------------------------------------
@@ -137,4 +117,69 @@ Generally we might want:
  - Types and subtypes, with reasonable notions of type equivalence defined.
  - Parameterized types or templates.
  - Automatic conversions.
+
+Floating point precedence values
+--------------------------------
+
+The builtin functions that set right associativity currently assume that the
+precedence values are ints.  The examples also use ints.  As explained
+below, this is not strictly required.  Limited precision floating point values
+already work in the current framework, provided a different value is subtracted
+to get right associativity.
+
+Notice that in the while loop of `recursive_parse` the comparison is::
+
+   while lex.peek().prec() > subexp_prec:
+
+Assume that precedence values are ints.  Consider a tail handler for, say,
+infix `*` with a precedence of 5 and left associativity.  Say we process
+`2*2*2`.   The head handler for the full expression calls `recursive_parse` to
+process the first `*` (with `2` as the `processed_left` value).
+
+For left associativity the subexpression precedence of 5 is passed to this
+`recursive_parse` call.  When the loop in that call of `recursive_parse` peeks
+at the second `*` token, with a precedence of 5, it breaks and returns because
+5 > 5 is false.
+
+If instead the subexpression precedence had been 4, for right associativity,
+the peek would again see the second `*` token with a precedence 5, but since 5
+> 4 loop would continue.  It continues until it sees a token with precedence
+strictly greater than 4, and then it breaks.
+
+Notice that in the latter case the behavior with respect to peeking a token
+with token precedence of 4 is still the same as in the first case.  The
+subexpression precedence for right associativity just needs to be less than 5
+and greater than or equal to the next lowest precedence value (which in this
+case is 4 because we assumed ints).
+
+Precedences are only used in comparisons, and the only arithmetic on
+precedences is subtracting from a precedence value to get a subexpression
+precedence that is smaller, but not too small.  This means that we could
+equally well have used 5 - 0.1 as the subexpression precedence in the latter
+case of right associativity.
+
+In general any kind of objects can be used for precedences, provided
+comparisons work correctly for them and there is a way to get a slightly
+smaller value that is still greater than or equal to the next smaller
+precedence value.  In particular, precedences can be floating point numbers
+restricted in precision to some number of digits.  If we restrict to three
+digits of precision then precedences like 4.333 and 2.111 are allowed.  To get
+the slightly lower value for right associativity just subtract 0.00001 instead
+of 1.
+
+This kind of thing is easy to implement, and has been tested, but is it a good
+idea?  As of now the Typped builtins that set right associativity assume
+precedences are ints.  In tweaking precedences during development sometimes
+floats would be useful.  There is a slight loss of efficiency in the comparison
+operations when floats are involved, but probably not enough to be a problem.
+If it is implemented later it will still be backward compatible with using ints.
+
+As a possible alternative, just after precedence values are defined and passed
+to ``def_construct`` they could always be multiplied by, say, 1000 and then
+rounded to an int.  Then internally the representation would be as ints but to
+the user they would look like limited-precision floats.  Subtracting one for
+right associativity still works, and all parse-time comparisons are of ints.
+The any error messages would need to convert the values back, however.
+A exception could be raised if the rounding changed the value or if the
+resulting int would overflow.
 

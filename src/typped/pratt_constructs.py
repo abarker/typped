@@ -24,10 +24,6 @@ then does type checking and other options before returning the subtree.
 
 # TODO: Consider allowing empty constructs to be defined from init.  A minor
 # change, though, which can wait (if it is ever implemented).
-#
-# TODO: The final level of ConstructTable trees does not need to be an
-# OrderedDict anymore.  They can just be ordinary lists.  Construct labels are
-# now purely informational attributes of constructs.
 
 from __future__ import print_function, division, absolute_import
 
@@ -50,8 +46,7 @@ class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function
     containing extra context information such as the preconditions function,
-    etc.  Each construct for a head (tail) and particular token label must have
-    a unique label (overloading is assumed if a label is re-used).
+    etc.
 
     A construct is possibly triggered when a hander needs to be dispatched for
     its kind of token.  The preconditions functions for all such constructs are
@@ -88,7 +83,6 @@ class Construct(object):
                        precond_priority=0,
                        original_sig=None,
                        key_on_token_values=False):
-
         """Initialize a `Construct` instance associated with the parser
         `parser_instance`.  Users should usually use the `def_construct`
         method of a `PrattParser` instance instead of instantiating a
@@ -98,14 +92,7 @@ class Construct(object):
 
         The string `construct_label` is a string label that is used to label a
         construct.  It is optional and can provide extra debugging information
-        and string-label access to constructs.  When the
-        `overload_on_matching_construct_def` option is set for the parser it is
-        also used as a label for preconditions functions to determine, equality
-        of preconditions functions.  Note that the `precond_fun` is part of the
-        definition of equality of constructs (along with `trigger_head_or_tail`
-        and `trigger_token_label`).  With that option set equality of
-        constructs determines when a new construct is created versus when
-        overwriting or overloading occurs.
+        and string-label access to constructs.
 
         The `trigger_head_or_tail` argument should be either `HEAD` or `TAIL`
         (which are currently defined as the strings `"head"` and `"tail"`).
@@ -253,7 +240,7 @@ class Construct(object):
             raise TypeErrorInParsedLanguage("Value of overload_on_arg_types"
                    " is False but attempt to redefine and possibly set multiple"
                    " signatures for the {0} function triggered by tokens with the"
-                   " label '{1}' with preconditions label '{2}'."
+                   " label '{1}' from the construct with label '{2}'."
                    .format(head_or_tail, trigger_token_label, construct_label))
 
         if num_args is not None:
@@ -297,6 +284,18 @@ class Construct(object):
         if not self.original_sigs:
             self.is_empty = True
 
+    def __repr__(self):
+        """Print nice output."""
+        return ("Construct(parser_instance={}, construct_label={},"
+                " trigger_head_or_tail={}, trigger_token_label={},"
+                " handler_fun={}, precond_fun={}, precond_priority={},"
+                " key_on_token_values={})"
+                .format(self.parser_instance.parser_label, self.construct_label,
+                        self.trigger_head_or_tail, self.trigger_token_label,
+                        self.handler_fun.__name__, self.precond_fun.__name__,
+                        self.precond_priority, self.key_on_token_values))
+
+
 class ConstructTable(object):
     """A dict holding `Construct` objects, with related methods.  Each
     `PrattParser` instance has a `ConstructTable` instance to hold its
@@ -305,8 +304,7 @@ class ConstructTable(object):
         """Initialize a `ConstructTable` associated with the `PrattParser`
         instance `parser_instance`."""
         self.parser_instance = parser_instance
-        # Dict to look up dicts of constructs by [head_or_tail][trigger_token_label]
-        # with the final dicts keyed by [construct_label].
+        # Dict of sorted lists of constructs by [head_or_tail][trigger_token_label]
         self.construct_lookup_dict = {}
         self.construct_lookup_dict[HEAD] = {}
         self.construct_lookup_dict[TAIL] = {}
@@ -321,13 +319,11 @@ class ConstructTable(object):
 
         The `head_or_tail` argument must be `HEAD` or `TAIL`.
 
-        The `type_sig` argument must be a valid `TypeSig` instance.  Every
-        unique type signature is saved, and non-unique ones have their
-        previously-associated data overwritten.
+        The `type_sig` argument must be a valid `TypeSig` instance.
 
         If `token_value_key` is set then it will be used as part of the key on
-        evaluation functions and AST data.  The `key_on_token_values` attribute of
-        the `Construct` instance is set based on this being set, and must
+        evaluation functions and AST data.  The `key_on_token_values` attribute
+        of the `Construct` instance is set based on this being set, and must
         always be the same for a given construct."""
 
         key_on_token_values = False
@@ -380,10 +376,10 @@ class ConstructTable(object):
         # 1) A list of dicts, one for each extra property to test on.
         # 2) Each dict for a property has items keyed by the property values
         #    (which are inserted into it as it is built up).  Each dict items contains
-        #    as its value a two-tuple containing 0) a priority-sorted lists of
-        #    constructs in the subset with that property value as well as 2) a set
+        #    as its value a two-tuple containing 1) a priority-sorted list of
+        #    constructs in the subset with that property value, as well as 2) a set
         #    of the constructs with that value for the property.
-        # 3) To look up a construct you get the ordereddict for each property,
+        # 3) To look up a construct you get the sorted sublist for each property,
         #    looking up keyed by the property's value in the current precond context.
         # 4) Take the intersection of these ordereddicts.  Algorithm: start with one
         #    (smallest size is best) and sequentially (by ordering priority) compare
@@ -395,8 +391,8 @@ class ConstructTable(object):
         # Set up the construct_lookup_dict structure if necessary.
         head_or_tail_construct_dict = self.construct_lookup_dict[head_or_tail]
         if trigger_token_label not in head_or_tail_construct_dict:
-            head_or_tail_construct_dict[trigger_token_label] = OrderedDict()
-        sorted_construct_dict = head_or_tail_construct_dict[trigger_token_label]
+            head_or_tail_construct_dict[trigger_token_label] = []
+        sorted_construct_list = head_or_tail_construct_dict[trigger_token_label]
 
         construct = Construct(self.parser_instance,
                               construct_label=construct_label,
@@ -407,14 +403,33 @@ class ConstructTable(object):
                               precond_priority=precond_priority,
                               original_sig=type_sig,
                               key_on_token_values=key_on_token_values)
-        sorted_construct_dict[construct_label] = construct
 
-        # Re-sort the OrderedDict, since we added an item.  (Could be a little
+        # Make sure we don't get multiple definitions with the same priority if
+        # that checking is enabled.
+        if self.parser_instance.raise_on_equal_priority_preconds:
+            for prev_construct_instance in sorted_construct_list:
+                if prev_construct_instance.precond_priority != precond_priority:
+                    continue
+                trigger_token = self.parser_instance.get_token(trigger_token_label)
+                raise ParserException("\nTwo preconditions functions for the token"
+                        " subclass named\n   '{0}'\nfor token with label\n   '{1}'\n"
+                        " would have the same priority, {2}.  Their constructs"
+                        " are\n   {3}\nand\n   {4}\nIf the precond funs are not"
+                        " mutually exclusive then the later-defined construct\nwill"
+                        " never be called when both are true.  Set the parser"
+                        " flag\n   raise_on_equal_priority_preconds=False\nif"
+                        " you actually want to allow precondition ties."
+                        .format(trigger_token.__name__, trigger_token.token_label,
+                                precond_priority, construct, prev_construct_instance))
+
+        sorted_construct_list.append(construct)
+
+        # Re-sort the list, since we appended an item.  (Could be a little
         # more efficient as a binary tree insertion, putting it in where it belongs,
         # but the builtin Python sort is in C so it might still win.)
-        sorted_construct_dict = sort_construct_dict(sorted_construct_dict)
+        sorted_construct_list.sort(key=lambda item: item.precond_priority, reverse=True)
         self.construct_lookup_dict[
-                       head_or_tail][trigger_token_label] = sorted_construct_dict
+                       head_or_tail][trigger_token_label] = sorted_construct_list
 
         # Save the eval_fun and ast_data.  Note the construct's `key_on_token_values`
         # setting will be used.  Note this could be saved directly to new_construct
@@ -422,27 +437,10 @@ class ConstructTable(object):
         construct.save_eval_fun(eval_fun, type_sig, token_value_key)
         construct.save_ast_data(ast_data, type_sig, token_value_key)
 
-        # Make sure we don't get multiple definitions with the same priority if
-        # that checking is enabled.
-        if self.parser_instance.raise_on_equal_priority_preconds:
-            for p_label, data_item in sorted_construct_dict.items():
-                if p_label == construct_label:
-                    continue
-                if data_item.precond_priority == precond_priority:
-                    trigger_token = self.parser_instance.get_token(trigger_token_label)
-                    raise ParserException("Two preconditions for the token"
-                            " subclass named '{0}' for token with label '{1}' have"
-                            " the same priority, {2}.  Their precondition labels"
-                            " are '{3}' and '{4}'.  If precondition labels are"
-                            " the same there may be a redefinition. Set the flag"
-                            " raise_on_equal_priority_preconds=False if you"
-                            " actually want to allow precondition ties."
-                            .format(trigger_token.__name__, trigger_token.token_label,
-                                             precond_priority, construct_label, p_label))
         return construct
 
     def unregister_construct(self, head_or_tail, trigger_token_label,
-                             construct_label=None, type_sig=None, token_value_key=None):
+                             type_sig=None, token_value_key=None):
         """Unregister the previously-registered construct.
 
         If `construct_label` is not set then all head or tail handlers matching
@@ -453,6 +451,12 @@ class ConstructTable(object):
         otherwise only the particular signature is unregistered.
 
         No error is raised if a matching construct function is not found."""
+        # TODO: When does a type_sig=None mean use a match-any type, and when
+        # does it mean no arguments being passed?  Consider for consistent API.
+
+        # TODO: This is not enough param info to uniquely specify one to delete.
+        # Need the construct or some unique thing about it.
+
         # TODO Untested method.
 
         token_label_keyed_dict = self.construct_lookup_dict[head_or_tail]
@@ -469,15 +473,19 @@ class ConstructTable(object):
 
         if not construct_label in token_label_keyed_dict:
             return
-        ordered_construct_dict = token_label_keyed_dict.get(construct_label, None)
+        sorted_construct_list = token_label_keyed_dict.get(construct_label, None)
+        # TODO: find i here
+        construct = sorted_construct_list[i]
 
         if type_sig is None:
-            del token_label_keyed_dict[construct_label]
+            # Delete the construct and the list if empty.
+            del construct_list[i]
+            if not token_label_keyed_dict[trigger_token_label]:
+                del token_label_keyed_dict[trigger_token_label]
             return
 
-        construct = token_label_keyed_dict[construct_label]
         construct._unregister_overload(type_sig, token_value_key)
-        if not construct.original_sigs:
+        if not construct.original_sigs: # No sigs left.
             del token_label_keyed_dict[construct_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
@@ -495,12 +503,7 @@ class ConstructTable(object):
         one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`
         if no handler function can be found.
 
-        If the parameter `construct_label` is set then this method returns the
-        construct which *would be* returned, assuming that that were the label
-        of the "winning" construct.  Not currently used, and may be deleted at
-        some point.
-
-        This function also sets the attribute `construct_label` of this token
+        This function also sets the attribute `construct` of this token
         instance to the label of the winning precondition function."""
         trigger_token_label = trigger_token_instance.token_label
 
@@ -512,20 +515,15 @@ class ConstructTable(object):
                     " value is '{2}'."
                     .format(head_or_tail, trigger_token_label,
                             trigger_token_instance.value))
-        sorted_construct_dict = head_or_tail_construct_dict[trigger_token_label]
-
-        if construct_label: # This option is not currently used in the code.
-            for pre_fun_label, construct in sorted_construct_dict.items():
-                if pre_fun_label == construct_label:
-                    return construct.precond_fun
+        sorted_construct_list = head_or_tail_construct_dict[trigger_token_label]
 
         # Sequentially run sorted precondition functions until one is true.
-        for pre_label, construct in sorted_construct_dict.items():
+        for construct in sorted_construct_list:
             if construct.is_empty: # Ignore empty constructs.
                 continue
             if construct.precond_fun(lex, lookbehind):
                 # Note construct_label is saved as a user-accesible attribute here.
-                trigger_token_instance.construct_label = construct.construct_label
+                trigger_token_instance.construct = construct
                 return construct
 
         raise NoHandlerFunctionDefined("No {0} handler function matched the token "
@@ -550,36 +548,5 @@ class ConstructTable(object):
             raise ParserException("Bad first argument to dispatch_handler"
                     " function: must be HEAD or TAIL or the equivalent.")
         return handler
-
-    def lookup_construct(self, head_or_tail, trigger_token_label, construct_label):
-        """Look up and return the construct in the `ConstructTable` instance."""
-        construct = self.construct_lookup_dict[
-                               head_or_tail][trigger_token_label][construct_label]
-        return construct
-
-    def lookup_construct_for_parsed_token(self, trigger_token_instance):
-        """Look up the construct for the parsed token instance `trigger_token_instance`.
-        Must be called after parsing because the `construct_label` and `is_head`
-        attributes are set on the token instance at parse-time."""
-        construct_label = trigger_token_instance.construct_label # Attr set during parsing.
-        if trigger_token_instance.is_head: # Attr set during parsing.
-            construct = self.construct_lookup_dict[
-                             HEAD][trigger_token_instance.token_label][construct_label]
-        else:
-            construct = self.construct_lookup_dict[
-                             TAIL][trigger_token_instance.token_label][construct_label]
-        return construct
-
-#
-# Utility functions.
-#
-
-def sort_construct_dict(d):
-    """Return the sorted `OrderedDict` version of the dict `d` passed in,
-    sorted by the precondition priority in the items.  Used in
-    `PrattParser.register_handler_fun` to keep handlers sorted by priority."""
-    # https://docs.python.org/3/library/collections.html#ordereddict-examples-and-recipes
-    return OrderedDict(sorted(
-           d.items(), key=lambda item: item[1].precond_priority, reverse=True))
 
 

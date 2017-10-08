@@ -218,10 +218,14 @@ def test_stdfun_functions(basic_setup):
         parser.parse("add (30,30)") # Whitespace between.
     assert str(e.value).startswith("No head handler function matched")
 
-def test_stdfun_lpar_tail_functions(basic_setup):
+def test_stdfun_lpar_tail_functions():
     """Tests for the built-in stdfun implementation that uses a tail-handler on the lpar
     token.  So the token which does the real work is the lpar token for both `k_exp` and
     `k_add` functions."""
+    parser = pp.PrattParser()
+    define_default_tokens(parser)
+    define_syntax(parser)
+
     TypeErrorInParsedLanguage = pp.TypeErrorInParsedLanguage
     ParserException = pp.ParserException
 
@@ -232,8 +236,8 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     parser.def_token("k_exp", r"exp")
     parser.def_literal("k_exp")
 
-    parser.def_stdfun_lpar_tail("k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
-            num_args=1)
+    stdfun_lpar_construct = parser.def_stdfun_lpar_tail(
+                    "k_exp", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50, num_args=1)
     assert str(parser.parse("exp(44)")) == "<k_exp,'exp'>(<k_number,'44'>)"
     if not parser.skip_type_checking:
         with raises(TypeErrorInParsedLanguage) as e:
@@ -250,8 +254,11 @@ def test_stdfun_lpar_tail_functions(basic_setup):
     parser.def_token("k_add", r"add")
     parser.def_literal("k_add")
 
+    # Note that def_stdfun_lpar defines a "peek backwards" precond on the function name
+    # token label, which gives mutually exclusive preconditions functions.  So this is
+    # a redefinition and not an overload.
     parser.def_stdfun_lpar_tail("k_add", "k_lpar", "k_rpar", "k_comma", prec_of_lpar=50,
-            num_args=2)
+                                num_args=2)
     assert str(parser.parse(
                "add( 44 , 55 )")) == "<k_add,'add'>(<k_number,'44'>,<k_number,'55'>)"
 

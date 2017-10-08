@@ -219,8 +219,13 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
     operator (i.e., with a tail handler).  This function works in the usual cases
     but the current version without preconditions may have problems distinguishing
     "b (" from "b(" when a multiplication jop is set.  The lookahead version
-    `def_stdfun` is usually preferred.  This method assumes type checking is on
-    if `num_arg` is set."""
+    `def_stdfun` is usually preferred.
+
+    This method assumes type checking is turned on if `num_arg` is set.
+
+    A peek backwards to a token with label `fname_token_label` is included in
+    the preconditions function.  Definitions for different leading tokens will
+    give mutually exclusive preconditions."""
     if num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
