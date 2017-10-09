@@ -174,9 +174,6 @@ class Construct(object):
     def _get_dict_keys(self, type_sig, token_value_key):
         """Return the dict key tuple based on the overload settings of the parser
         instance."""
-        # TODO: Should None be a TypeSig(None) or a real None here?
-        if type_sig is None:
-            type_sig = TypeSig(None)
         # Ignore if keying turned of for construct. Global setting may not be needed...
         if not self.key_on_token_values:
             token_value_key = None
@@ -439,8 +436,7 @@ class ConstructTable(object):
 
         return construct
 
-    def unregister_construct(self, head_or_tail, trigger_token_label,
-                             type_sig=None, token_value_key=None):
+    def unregister_construct(self, construct, type_sig=None, token_value_key=None):
         """Unregister the previously-registered construct.
 
         If `construct_label` is not set then all head or tail handlers matching
@@ -451,42 +447,23 @@ class ConstructTable(object):
         otherwise only the particular signature is unregistered.
 
         No error is raised if a matching construct function is not found."""
-        # TODO: When does a type_sig=None mean use a match-any type, and when
-        # does it mean no arguments being passed?  Consider for consistent API.
-
-        # TODO: This is not enough param info to uniquely specify one to delete.
-        # Need the construct or some unique thing about it.
-
         # TODO Untested method.
-
-        token_label_keyed_dict = self.construct_lookup_dict[head_or_tail]
+        token_label_keyed_dict = self.construct_lookup_dict[construct.head_or_tail]
         if not token_label_keyed_dict:
             return
 
-        if trigger_token_label not in token_label_keyed_dict:
+        if construct.trigger_token_label not in token_label_keyed_dict:
             return
-        construct_label_keyed_dict = token_label_keyed_dict[trigger_token_label]
+        construct_list = token_label_keyed_dict[construct.trigger_token_label]
 
-        if construct_label is None:
-            token_label_keyed_dict[trigger_token_label] = OrderedDict()
-            return
+        if type_sig is not None:
+            construct.unregister_overload(type_sig, token_value_key)
 
-        if not construct_label in token_label_keyed_dict:
-            return
-        sorted_construct_list = token_label_keyed_dict.get(construct_label, None)
-        # TODO: find i here
-        construct = sorted_construct_list[i]
-
-        if type_sig is None:
-            # Delete the construct and the list if empty.
-            del construct_list[i]
-            if not token_label_keyed_dict[trigger_token_label]:
+        # Delete whole thing if no type_sig or no sigs are left in the construct.
+        if type_sig is None or not construct.original_sigs:
+            construct_list[:] = [c for c in construct_list if c is not construct]
+            if not construct_list:
                 del token_label_keyed_dict[trigger_token_label]
-            return
-
-        construct._unregister_overload(type_sig, token_value_key)
-        if not construct.original_sigs: # No sigs left.
-            del token_label_keyed_dict[construct_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
                                  lex=None, lookbehind=None, construct_label=None):

@@ -14,28 +14,22 @@ Terminology:
 - Function **parameters** or **formal arguments** are the identifiers which appear
   in the function definition (and the function signature).  The type
   specifications for parameters will be called **formal types**, since the
-  term parameter is used differently below. |br|
+  term parameter is used differently below.
+
+  The `original_sig` of a construct is the `TypeSig` of formal arguments.
+
+  The `expanded_sig` of a construct is the `original_sig` expanded to the
+  correct number of formal arguments (the first step of type matching). |br|
 
 - Function **arguments** or **actual arguments** are the values which are actually
-  passed to the function on a function call.  Their types will be referred to
-  as **actual types**.
+  passed to the function on a function call.  These are resolved at parse-time.
+  Their types will be referred to as **actual types**.
+
+  The `actual_sig` of a construct is the `TypeSig` of actual types, resolved
+  during parsing.
 
 Note that the formal type of a parameter can possibly match more than one
 actual type.  At least one must match, however.
-
-TODO fix terminology
-
-- **Parameterized types** are type specifications which take arguments, such as
-  something like the type definition `Matrix<T>` in a C++-like language, which
-  can be called with, say, `Matrix<Float>` in the program text.  The variable
-  `T` is a **parameter** of the parameterized type.  In the terminology used
-  here, all types are parameterized types, except that some do not actually
-  take parameters (and so they equal their expanded types).  Formal types can
-  be parameterized, but actual types must be instantiated in all parameters. |br|
-
-- **Expanded types** are parameterized types and types with `None` alone as a
-  wildcard argument which have been expanded to have the correct number of
-  arguments and to fill in values for the template variables.
 
 The each instance of the `PrattParser` class holds all of its defined types in
 a `TypeTable` class, defined in this module.
@@ -70,6 +64,8 @@ class Varargs(object):
     If `exact_repeat` is true (the default) then an exception will be raised if
     no multiple of the repeated arguments matches the actual arguments.
     Otherwise the arguments will be truncated to fit."""
+    # This hasn't been used or tested much, and may or may not be the best way
+    # to implement this feature.
     def __init__(self, *args, **kwargs):
         self.exact_repeat = kwargs.get("exact_repeat", True)
         self.arg_types = args
@@ -114,7 +110,7 @@ class TypeSig(object):
     0 and 1 element of an instance, respectively, or by using the `val_type`
     and `arg_types` attributes."""
 
-    def __init__(self, val_type=None, arg_types=None, test_fun=None):
+    def __init__(self, val_type=None, arg_types=None):
         """Initialize a type signature object.
 
         The argument `val_type` should be either `None`, or a `TypeObject`
@@ -126,17 +122,10 @@ class TypeSig(object):
         The `None` value is treated as a wildcard that matches any
         corresponding type; `None` alone for `arg_types` allows any number of
         arguments of any type."""
-
-        # TODO test_fun is not set or used as of now, but it is supposed to be
-        # an optional user-defined function which tests whether the parsed
-        # subexpression subtree which was found in the parsed program text
-        # actually matches the declared type in the function spec.  Decide if
-        # useful, else delete.
-
-        self.val_type = val_type # Property automatically converts None args.
+        self.val_type = val_type # Property, automatically converts None args.
         self.repeat_index = None
         self.exact_repeat = None
-        self.arg_types = arg_types # Propery automatically converts None args.
+        self.arg_types = arg_types # Propery, automatically converts None args.
 
     #
     # Properties are used for val_type and arg_types to automatically convert
@@ -480,8 +469,7 @@ def actual_matches_formal_default(actual_type, formal_type):
     on the actual type.  Users may set their own versions of this function."""
     return actual_type == formal_type # Later consider fancier matching.
 
-# TODO would be nice to have only one wildcard object, but would need a __new__.
-NONE = (None,) # A different representation for a type label of None.
+NONE = ("wildcard_none",) # A different representation for a type label of None.
 
 class TypeObject(object):
     """Instances of this class represent types."""
@@ -505,29 +493,17 @@ class TypeObject(object):
         return hash(("TypeObject", self.type_label))
 
     def def_conversion(self, to_type, priority=0, tree_data=None):
-        """Define an automatic conversion to be applied to the `TypeObjectBase`
-        instance, to convert it to type `to_type`.  The highest-priority
-        conversion which matches the type spec will always be the one which is
-        chosen.  Exact match has priority zero, so priorities will usually be
-        negative.  Raises `TypeError` if there is still ambiguity (i.e., a
-        tie).  The `tree_data` parameter is an arbitrary object which is
-        associated with the conversion and will be accessible from the
-        `TypeSig` stored in the parse tree.  It might be a Python function to
-        actually do the conversion, for example.  Or it might be a node to add
-        to the AST to represent the conversion.  No actual conversions are
-        performed; those are considered semantic actions for the user to
-        implement."""
-        # TODO may need to redefine priority mechanism, since across a
-        # full signature matching there may be problems with the greedy
-        # approach to choosing... you find all possible signatures, but
-        # then you have to rank the full signatures across all types in
-        # them.
-        self.conversions[to_type] = (priority, tree_data)
+        """Define an automatic conversion to be applied."""
+        # TODO might need to redefine priority mechanism, since matching across
+        # a full signature with possible conversions the greedy approach can
+        # miss some things a non-greedy approach would find.  That may just be
+        # a limitation to document.  Also, do you require uniqueness in
+        # resolution, or use a ranking/priority mechanism?
+        raise NotImplementedError("Conversions not implemented")
 
     def undef_conversion(self, to_type):
-        # TODO: Unused, use or delete.
-        try: del self.conversions[to_type]
-        except KeyError: return
+        """Undefine a conversion."""
+        pass
 
     def matches_formal_type(self, formal_type):
         """Test whether this object as an actual type matches `formal_type` as
@@ -572,7 +548,7 @@ class TypeObject(object):
         return str_label
 
 #
-# A dict-like class for holding type objects
+# TypeTable.
 #
 
 class TypeTable(object):
@@ -626,6 +602,10 @@ class TypeTable(object):
             del self.type_object_dict[type_label]
         except KeyError:
             return # Not saved in dict, ignore.
+
+#
+# Exceptions.
+#
 
 class TypeErrorInParsedLanguage(ParserException):
     """Raised when the there is a type error in the language being parsed,

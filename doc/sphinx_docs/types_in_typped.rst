@@ -33,59 +33,74 @@ initializer.  To allow overloading on return types as well as argument types,
 set ``overload_on_ret_types=True`` in the initializer.  The default is to allow
 overloading on argument types but not on return types.
 
-Overloading is specified by re-defining a construct for a token which already
-has a construct of that name.  If the construct name is the same but
-the type of the arguments are different then an overloaded type specification
-is created.  If overloading on return types is allowed then the types are also
-considered different if the return type is different.
+Operator overloading is used for constructs which parse the same (i.e., via the
+same handler function and with the same triggering conditions) but which can
+have multiple possible type signatures.  Type resolution is then based on the
+actual arguments found at parse-time.  Overloading of a construct with a new
+type signature (and possibly with a corresponding evaluation function and/or an
+AST data item) is done by explicitly calling the ``overload`` method of a
+construct instance.
 
-Operator overloading can be used for constructs which parse the same (i.e., via
-the same handler function) but which can have multiple possible type
-signatures.  Type resolution is then based on the actual arguments found at
-parse-time.
+The nodes in the final parsed expression tree have an attribute ``type_sig``
+giving the actual types, and an attribute ``original_sig`` giving the matching
+original signature.  The evaluation functions and AST data for a construct are
+stored keyed by the original signature which was passed in at the time when
+that overload was defined.
 
-The nodes in the final parsed expression tree will have an attribute
-``type_sig`` giving the actual types, and an attribute ``original_sig`` giving
-the matching original signature.  The evaluation functions and AST data for a
-construct are stored keyed by the original signature which was passed in at the
-time when that (possible) overload was defined.
+Type information for a construct (e.g., a function evaluation subexpression)
+should generally be defined relative to the token which ends up as the subtree
+root in the expression/parse tree for the construct.  Type-resolution and
+checking is done as soon as possible on the nodes of the parse tree as it is
+constructed, bottom-up.  Checking makes sure that the types of the children of
+a node (if any) match the declared argument types, and that the types of the
+nodes themselves match their declared value type.  Note that if overloading on
+return types is allowed then a second downward pass can also be required to
+resolve the signatures.
 
-Type information for a construct (e.g., an function evaluation subexpression)
-should generally be associated with the token which ends up as the the subtree
-root in the expression/parse tree.  Type-resolution and checking is done as
-soon as possible on the nodes of the parse tree as it is constructed bottom-up.
-Checking makes sure that the types of the children of a node (if any) match the
-declared argument types, and that the types of the nodes themselves match their
-declared value type.  If overloading on return types is allowed then a second
-downward pass can also be required to resolve signatures.
+Declaring types
+---------------
+
+Types themselves are instances of the ``TypeObject`` class.  They are declared
+by calling the ``def_type`` method of a ``PrattParser`` instance::
+
+   my_int = parser.def_type("t_int")
+   my_float = parser.def_type("t_float")
+
+As of now these types are essentially just string labels, and type equivalence
+is based on string equivalence.  At some point the code may be extended to
+allow more complex type objects (see the module ``pratt_types``.)
+
+Type objects can be passed to functions which take ``val_type``
+and ``arg_types`` arguments.  These include the builtin parsing methods
+as well as ``def_construct`` calls  for defining custom constructs.  They
+also include ``overload`` calls, which add a new type signature to an
+existing construct. ::
+
+   floor_construct = parser.def_stdfun("k_floor", "k_lpar", "k_rpar", "k_comma"
+                                       val_type=my_int, arg_types=[my_float])
+   floor_construct.overload(val_type=my_int, arg_types=[my_int])
 
 Type signatures
 ---------------
 
-Types are defined using the ``def_type`` method of a ``PrattParser``.  For example,
-if ``parser`` is a ``PrattParser`` instance then a type is declared as follows:
-
-.. code-block:: python
-
-   t_int = parser.def_type("t_int")
-
-After that, the Python variable ``t_int`` can be used as a type.  The
-individual types are instances of the class ``TypeObject``.
-
-The type specification for a node in the parse tree (which is also a token
-instance) is stored in an instance of the ``TypeSig`` class.  This data
-structure stores the value type of the node as an attribute ``val_type``, and
-stores the types of the children nodes (i.e., any function arguments) as a
-tuple ``arg_types``.
+A type signature is an instance of the ``TypeSig`` class.  It is basically a
+container class for a return or value type, called the ``val_type``, and a list
+or tuple of argument types, called the ``arg_types``.
 
 The built-in parsing methods of the ``PrattParser`` class take arguments which
-correspond to the ``val_type`` and ``arg_types`` specifications, so many users
-will not need to explicitly use the ``TypeSig`` class.  That information is
-internally stored as a ``TypeSig`` instance, though, and the basic conventions
-(such as for wildcards with ``None``) also apply to the argument and value type
-parameters.
+correspond to the ``val_type`` and ``arg_types`` specifications, which are then
+used to create a ``TypeSig`` object.  Many users will not need to explicitly
+use the ``TypeSig`` class.  The basic conventions for wildcards, etc., apply to
+the ``val_types`` and ``arg_types`` arguments since they are passed to the
+initializer for a ``TypeSig`` object.
 
-Using the type ``t_int`` defined above, we might have:
+The type specifications for a nodes (token instances) in parsed expression
+trees are stored as instances of the ``TypeSig`` class.  This data structure
+stores the value type of the node as an attribute ``val_type``, and stores the
+types of the children nodes (i.e., any function arguments) as a tuple
+``arg_types``.
+
+Using the type ``t_int`` defined earlier, we might have:
 
 .. code-block:: python
 
@@ -134,6 +149,13 @@ that no type checking will be done (i.e., everything matches):
 
    TypeSig(None, None) == TypeSig(None) == TypeSig()
 
+Generally, if one argument is passed to initialize a ``TypeSig`` it is assumed
+to be the ``val_type``:
+
+.. code-block:: python
+
+   TypeSig("t_int", None) == TypeSig("t_int")
+   
 The ``None`` wildcards can also be used inside the ``arg_types`` list to
 specify arguments which are not type-checked.  This allows the number of
 arguments to be checked, and possibly some but not all arguments.  For example,
@@ -157,6 +179,11 @@ is unchecked:
 .. code-block:: python
 
    TypeSig(None, [t_int, None])
+
+Note that while paramaters like ``val_types`` and ``arg_types`` which are
+passed to a ``TypeSig`` interpret ``None`` as matching anything, passing
+``None`` to a function parameter that expects an explicit ``TypeSig`` instance
+is interpreted as an undefined signature.
 
 Overview of type-checking
 -------------------------

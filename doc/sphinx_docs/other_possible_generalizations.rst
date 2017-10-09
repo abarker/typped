@@ -114,9 +114,10 @@ More complex types
 
 Generally we might want:
 
- - Types and subtypes, with reasonable notions of type equivalence defined.
- - Parameterized types or templates.
+ - Heirarchies of types and subtypes, with reasonable notions of type equivalence defined.
+ - Unions.
  - Automatic conversions.
+ - Parameterized types or templates.
 
 Floating point precedence values
 --------------------------------

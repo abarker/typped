@@ -1371,23 +1371,14 @@ class PrattParser(object):
                                               #parser_instance=self)
         return construct
 
-    def undef_construct(self, head_or_tail, trigger_token_label, construct_label=None,
-                         val_type=None, arg_types=None, all_handlers=False):
-        """Undefine a head or tail function with the given `token_label`,
-        `construct_label` and type signature.
-
-        The `head_or_tail` value should be `HEAD` or `TAIL`.
-
-        If `all_precond` is set then all heads and tails for all preconditions
-        will be undefined.
-
-        If `all_overloads` then all overloaded type signatures will be
-        undefined."""
-        # TODO: all_handlers no longer kwarg of unregister_construct.
-        self.construct_table.unregister_construct(head_or_tail, trigger_token_label,
-                                                  construct_label,
-                                                  type_sig=TypeSig(val_type, arg_types),
-                                                  all_handlers=all_handlers)
+    def undef_construct(self, construct, type_sig=None, token_value_key=None):
+        """Undefine a construct.  If `type_sig` is passed a `TypeSig` instance then
+        only that overload is deleted.  If `token_value_key` is also defined then
+        only that token key is unregistered.  Otherwise the full construct is
+        removed from the parser's construct table."""
+        # Note users themselves could unregister the overloads if they have the
+        # construct instance.
+        self.construct_table.unregister_construct(construct, type_sig, token_value_key)
 
     #
     # Methods dealing with types.
