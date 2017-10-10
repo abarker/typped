@@ -22,9 +22,6 @@ then does type checking and other options before returning the subtree.
 
 """
 
-# TODO: Consider allowing empty constructs to be defined from init.  A minor
-# change, though, which can wait (if it is ever implemented).
-
 from __future__ import print_function, division, absolute_import
 
 # Run tests when invoked as a script.
@@ -81,7 +78,6 @@ class Construct(object):
                        handler_fun=None,
                        precond_fun=None,
                        precond_priority=0,
-                       original_sig=None,
                        key_on_token_values=False):
         """Initialize a `Construct` instance associated with the parser
         `parser_instance`.  Users should usually use the `def_construct`
@@ -89,6 +85,10 @@ class Construct(object):
         `Construct` directly.  That routine calls the `register_construct`
         method of a `ConstructTable` instance, which in turn instantiates a
         `Construct`.
+
+        The initial `Construct` instances have empty `original_sigs` lists of
+        signatures.  Signatures must be explicitly added via the
+        `_add_type_sig` or `overload` methods.
 
         The string `construct_label` is a string label that is used to label a
         construct.  It is optional and can provide extra debugging information
@@ -103,8 +103,12 @@ class Construct(object):
         will be used with preconditions function `precond_fun`, at priority
         `precond_priority`.
 
-        The formal type signature, unexpanded since that is done at parse-time,
-        can be passed as `original_sig`.
+        The `original_sig` argument should be a formal type signature,
+        unexpanded since that is done at parse-time.  If `original_sig` is none
+        then an empty list of signatures is created.  In the case of an empty
+        type list either type-checking in the parser should be disabled (via
+        the `skip_type_checking` flag) or else types should be added later via
+        the `overload` method of this class.
 
         An dictionary of evaluation functions and arbitrary data can be passed
         as `eval_fun_dict` and `ast_data_dict`.  Otherwise new empty instances
@@ -114,7 +118,6 @@ class Construct(object):
         If `key_on_token_values` is set true then the string values of parsed tokens
         are also used as part of the key for saving and looking up AST data and
         evaluation functions."""
-
         self.parser_instance = parser_instance
         self.construct_label = construct_label
 
@@ -125,10 +128,7 @@ class Construct(object):
         self.precond_fun = precond_fun
         self.precond_priority = precond_priority
 
-        if original_sig is None:
-            self.original_sigs = [TypeSig(None)]
-        else:
-            self.original_sigs = [original_sig]
+        self.original_sigs = []
 
         self.ast_data_dict = defaultdict(dict)
         self.eval_fun_dict = defaultdict(dict)
@@ -174,7 +174,10 @@ class Construct(object):
     def _get_dict_keys(self, type_sig, token_value_key):
         """Return the dict key tuple based on the overload settings of the parser
         instance."""
-        # Ignore if keying turned of for construct. Global setting may not be needed...
+        # Ignore token_value_key if keying is turned of for construct.
+        # Global setting may not be needed...
+        if self.parser_instance.skip_type_checking:
+            type_sig = None
         if not self.key_on_token_values:
             token_value_key = None
 
@@ -189,16 +192,39 @@ class Construct(object):
     def save_eval_fun(self, eval_fun, type_sig=None, token_value_key=None):
         """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
         `TypeSig` instance `typesig` and also by the `arg_types` of that
-        typesig.  If `key_on_token_values` is true for the construct then the
-        value `token_value_key` is also used in the hashing."""
+        typesig.
+
+        If type checking is disabled for the parser then `type_sig` is set to
+        `None`.
+
+        If `key_on_token_values` is true for the construct then the value
+        `token_value_key` is also used in the lookup key."""
+        if self.parser_instance.skip_type_checking:
+            type_sig = None
+        if type_sig is not None and type_sig not in self.original_sigs:
+            raise ParserException("Attempt to add an evaluation function for a type"
+                    " signature that is not registered with the construct.  The"
+                    " function name is '{0}' and the construct label is '{1}'."
+                    .format(eval_fun.__name__, self.construct_label))
         dict_keys = self._get_dict_keys(type_sig, token_value_key)
         self.eval_fun_dict[dict_keys[0]][dict_keys[1]] = eval_fun
 
     def save_ast_data(self, ast_data, type_sig=None, token_value_key=None):
         """Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the
         `TypeSig` instance `typesig` and also by the `arg_types` of that
-        typesig.  If `key_on_token_values` is true for the construct then the
-        value `token_value_key` is also used in the hashing."""
+        typesig.
+
+        If type checking is disabled for the parser then `type_sig` is set to
+        `None`.
+
+        If `key_on_token_values` is true for the construct then the value
+        `token_value_key` is also used in the lookup key."""
+        if self.parser_instance.skip_type_checking:
+            type_sig = None
+        if type_sig is not None and type_sig not in self.original_sigs:
+            raise ParserException("Attempt to add an AST data item for a type"
+                    " signature that is not registered with the construct.  The"
+                    " construct label is '{0}'.".format(self.construct_label))
         dict_keys = self._get_dict_keys(type_sig, token_value_key)
         self.ast_data_dict[dict_keys[0]][dict_keys[1]] = ast_data
 
@@ -216,38 +242,48 @@ class Construct(object):
         dict_keys = self._get_dict_keys(orig_sig, token_value_key)
         return self.eval_fun_dict.get(dict_keys[0], {}).get(dict_keys[1], None)
 
-    def overload(self, val_type=None, arg_types=None,
-                 eval_fun=None, ast_data=None, token_value_key=None,
-                 num_args=None):
+    def overload(self, val_type=None, arg_types=None, eval_fun=None, ast_data=None,
+                 token_value_key=None, num_args=None):
         """Overload the construct to allow a different type signature with
-        a different evaluation function and AST data element.
+        a different evaluation function and AST data element.  This is the user-level
+        interface.
 
-        To overload only on the number of argments when any types are allowed
+        To overload only on the number of argments when all types are allowed,
         set `num_args` to the number.  Note that in that case `val_type` and
         `arg_types` are ignored."""
+        if num_args is not None:
+            type_sig = TypeSig(None, [None] * num_args)
+        else:
+            type_sig = TypeSig(val_type, arg_types)
+        self._add_type_sig(type_sig, eval_fun, ast_data, token_value_key)
+        return self
+
+    def _add_type_sig(self, type_sig, eval_fun=None, ast_data=None, token_value_key=None):
+        """A lower-level interface for adding a type signature.  Called by the
+        higher-level `overload` method as well as `Construct.register_construct`.
+
+        Use `type_sig=None` to set the values when type checking is disabled."""
         if self.parser_instance.skip_type_checking:
-            raise ParserException("Overloading on types requires that type checking be "
-                          " enabled.  The parser instance has skip_type_checking=True.")
+            type_sig = None
         if self.key_on_token_values and not token_value_key:
             # NOTE: Keying on values could be per type sig, vs. global for construct.
             raise ParserException("If `key_on_token_values` is set for a `Construct`"
                     " instance then all its overloads must supply a `token_value_key`"
                     " argument.")
-        if not self.parser_instance.overload_on_arg_types:
+        if self.original_sigs and not self.parser_instance.overload_on_arg_types:
             raise TypeErrorInParsedLanguage("Value of overload_on_arg_types"
                    " is False but attempt to redefine and possibly set multiple"
                    " signatures for the {0} function triggered by tokens with the"
                    " label '{1}' from the construct with label '{2}'."
-                   .format(head_or_tail, trigger_token_label, construct_label))
+                   .format(self.head_or_tail, self.trigger_token_label,
+                           self.construct_label))
 
-        if num_args is not None:
-            type_sig = TypeSig(None, [None] * num_args)
-        else:
-            type_sig = TypeSig(val_type, arg_types)
         TypeSig.append_sig_to_list_replacing_if_identical(self.original_sigs,
                                                           type_sig)
-        self.save_eval_fun(eval_fun, type_sig, token_value_key)
-        self.save_ast_data(ast_data, type_sig, token_value_key)
+        if eval_fun is not None:
+            self.save_eval_fun(eval_fun, type_sig, token_value_key)
+        if ast_data is not None:
+            self.save_ast_data(ast_data, type_sig, token_value_key)
         return self
 
     def unregister_overload(self, type_sig, token_value_key=None):
@@ -322,7 +358,6 @@ class ConstructTable(object):
         evaluation functions and AST data.  The `key_on_token_values` attribute
         of the `Construct` instance is set based on this being set, and must
         always be the same for a given construct."""
-
         key_on_token_values = False
         if token_value_key:
             key_on_token_values = True
@@ -330,58 +365,39 @@ class ConstructTable(object):
         # Todo maybe later, if profiling shows it might be worth it: Consider
         # possible optimizations in looking up handler functions, instead of
         # always linear search after splitting on `head_or_tail` and
-        # `trigger_token_label` values.  Some other commonly used precondition
-        # could potentially also be used to reduce the possibilities.  But, by
-        # definition, the `head_or_tail` and `trigger_token_label` values are
-        # mutually exclusive in selecting constructs.  For others you also have
-        # the possibility of a "don't care" value, which increases the
-        # complexity.
+        # `trigger_token_label` values.  Some other commonly-used preconditions
+        # could potentially also to reduce the linear search space.  But, by
+        # definition, the `head_or_tail` and `trigger_token_label`
+        # preconditions are mutually exclusive in selecting constructs.  For
+        # other preconditions you also have the possibility of a "don't care"
+        # value, though, which increases the complexity in just extending the
+        # splitting.
         #
-        # We could increase the tree depth and also hash on, say,
-        # `token_value`, `peek_token_label`, `pstate_stack_top`, etc.  That
-        # complicates the tree, though, and when a property does not matter
-        # then you need to go down all the branches at that split and yet end
-        # with a list that is sorted.
+        # Suppose a decorator is used on preconditions functions (which returns
+        # a wrapper that first runs any of the preset kwarg tests that are set):
         #
-        # A simpler optimization might be to just do the linear search but skip
-        # calling any preconditions function for a construct which does not
-        # match a declared requirement (among some predefined set).  Suppose a
-        # decorator is used on preconditions functions (which returns a wrapper
-        # that contains the extra info):
+        #    @precond_fun(peek_token_label="k_lpar")
+        #    def my_fun(...):
+        #        return True
         #
-        # @precond_fun(peek_token_label="k_lpar")
-        # def my_fun(...):
-        #    return True
+        # Assume the same setup as now for mutually-exclusive properties but
+        # with this kind of thing done for each priority-sorted sublist above
+        # some threshold size (properties are things like "peek token label
+        # value" or "string value on top of pstate stack").
         #
-        # Alternately, a kwarg to the construct initializer could be passed
-        # along with the precond fun:
-        #
-        #    precond_optimize_assert=[(peek_token_label,"k_wff")]
-        #
-        # This could set an attribute of the construct when it is initialized.
-        # The attribute would give the required value or set of values.  Then
-        # in the loop you can look at that attribute of the constructs and skip
-        # with `continue` if the test fails.  But is looking up and comparing
-        # several attributes per construct to avoid calling some precond
-        # functions sufficiently faster than just linearly running the preconds
-        # funs to justify the complexity?  Probably not worth it.
-        #
-        # Alternative, with the same setup as now for mutually-exclusive
-        # properties but with this kind of thing done for each priority-sorted
-        # sublist above some threshold size (properties are things like "peek token
-        # label value" or "string value on top of pstate stack").
         # 1) A list of dicts, one for each extra property to test on.
         # 2) Each dict for a property has items keyed by the property values
-        #    (which are inserted into it as it is built up).  Each dict items contains
-        #    as its value a two-tuple containing 1) a priority-sorted list of
-        #    constructs in the subset with that property value, as well as 2) a set
+        #    (which are inserted into it as it is built up).  Each dict item contains
+        #    as its value a two-tuple containing 1) a priority-sorted sub-sublist of
+        #    constructs in the sublist with that property value, as well as 2) a set
         #    of the constructs with that value for the property.
-        # 3) To look up a construct you get the sorted sublist for each property,
-        #    looking up keyed by the property's value in the current precond context.
-        # 4) Take the intersection of these ordereddicts.  Algorithm: start with one
-        #    (smallest size is best) and sequentially (by ordering priority) compare
-        #    for membership in all the others, using the sets that are also saved.
-        #    Take first one that is contained in all of them.
+        # 3) To look up a construct you get the sorted sub-sublist for each property,
+        #    keyed by the property's value in the current precond context.
+        # 4) Take the intersection of these sub-sublists.
+        #    Algorithm: start with one (smallest size is best) and sequentially (by
+        #    priority ordering) compare for membership in all the others, using the
+        #    sets that are also saved.  Take the first construct that is contained in
+        #    all of them.
         # Premature optimization for now.  What sizes of sets involved would make
         # it worth the overhead is another question.
 
@@ -398,7 +414,6 @@ class ConstructTable(object):
                               handler_fun=handler_fun,
                               precond_fun=precond_fun,
                               precond_priority=precond_priority,
-                              original_sig=type_sig,
                               key_on_token_values=key_on_token_values)
 
         # Make sure we don't get multiple definitions with the same priority if
@@ -428,12 +443,10 @@ class ConstructTable(object):
         self.construct_lookup_dict[
                        head_or_tail][trigger_token_label] = sorted_construct_list
 
-        # Save the eval_fun and ast_data.  Note the construct's `key_on_token_values`
-        # setting will be used.  Note this could be saved directly to new_construct
-        # above instead of going through the ConstructTable method.
-        construct.save_eval_fun(eval_fun, type_sig, token_value_key)
-        construct.save_ast_data(ast_data, type_sig, token_value_key)
-
+        # Save the eval_fun and ast_data.
+        construct._add_type_sig(type_sig,
+                                eval_fun=eval_fun, ast_data=ast_data,
+                                token_value_key=token_value_key)
         return construct
 
     def unregister_construct(self, construct, type_sig=None, token_value_key=None):

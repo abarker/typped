@@ -1008,10 +1008,13 @@ class PrattParser(object):
         default is the opposite of the default behavior for the lower-level
         Lexer class).
 
-        Setting `skip_type_checking=True` is slightly faster if typing is not
-        being used at all.  Overloading depends on type-checking to resolve the
-        actual types, so this flag implies that the overload flags are all
-        false.  The default is false.
+        Setting `skip_type_checking=True` is slightly faster since typing is
+        not being used at all.  Note that overloading depends on type-checking
+        to resolve the actual types, so this flag implies that the overload
+        flags are all false.  The default is false.  It should be possible to
+        define types, use them during testing, and then turn checking off ---
+        provided overloading is not used to get different evaluation functions
+        or AST data elements for different overloads.
 
         The `overload_on_arg_types` flag specifies whether or not to overload
         on argument types.  The default is true.  Cannot be changed after
@@ -1304,8 +1307,8 @@ class PrattParser(object):
         set true).  Similarly, an exception is raised for a non-zero `prec`
         value for a head-handler (the default value).
 
-        The `construct_label` is an optional string value which can result
-        in better error messages.
+        The `construct_label` is an optional string value which can result in
+        better error messages.
 
         The `eval_fun` and the `ast_data` arguments are saved in dicts
         associated with the type signature.
@@ -1354,7 +1357,10 @@ class PrattParser(object):
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Create the type sig object.
-        type_sig = TypeSig(val_type, arg_types)
+        if self.skip_type_checking:
+            type_sig = None
+        else:
+            type_sig = TypeSig(val_type, arg_types)
 
         # Register the handler funs.
         construct = self.construct_table.register_construct(

@@ -140,8 +140,8 @@ def basic_setup(request):
     #    parser = pp.parser_instance_from_saved_state(fname)
 
 def test_pratt_parser(basic_setup):
-    # be sure to test with both 1 and 2 token lookahead... easy to copy whole section
-    # when in separate file....
+    """TODO: These are really old tests that are still useful for testing basic stuff.
+    Update to current repr format and delete the deprecated `old_repr` method."""
     assert parser.parse("1").old_repr() == "[literal 1]"
     tree = parser.parse("+1")
     print(tree, tree.old_repr())
@@ -281,11 +281,7 @@ def test_stdfun_lpar_tail_functions():
     assert str(e.value).startswith("No tail handler function matched the token with value")
 
 def test_jop(basic_setup):
-    # TODO basic setup will not work, maybe individual defs of identifiers and vars
-    # or else better dispatching.  (Later: what does this mean??? Tests below work.
-    # Maybe identifiers need testing???)
-    #skip()
-
+    """Test juxtaposition operators."""
     print("parser token table is", parser.token_table.token_subclass_dict.keys())
     parser.def_jop_token("k_jop", "k_space")
     parser.def_jop(20, "left", ast_data="d_mult")
@@ -308,7 +304,6 @@ def test_jop(basic_setup):
                               "<k_lpar,'('>(<k_plus,'+'>(<k_identifier,'x'>,<k_identifier,'y'>))),"
                           "<k_jop,None>(<k_double_ast,'^'>("
                               "<k_number,'4'>,<k_identifier,'z'>),<k_identifier,'s'>))")
-    #fail()
     parser.def_token("k_sin", r"sin")
     parser.def_stdfun("k_sin", "k_lpar", "k_rpar", "k_comma")
     assert str(parser.parse("4 sin( 0 )")) == (
@@ -364,10 +359,8 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
     parser.def_token("k_false", r"False")
     parser.def_literal("k_true", val_type=t_bool, ast_data="d_true")
     parser.def_literal("k_false", val_type=t_bool, ast_data="d_false")
-    # define some new functions, first giving them unique tokens (required for
-    # types to work correctly????????????? what are requirements?  where is
-    # type info stored exactly, to see what can conflict?)
-    # define a function taking t_bool and t_number args returning t_number
+
+    # define some new functions, first giving them unique tokens
     parser.def_token("f_bn2n", r"f_bn2n")
     parser.def_stdfun("f_bn2n", "k_lpar", "k_rpar", "k_comma",
                                 val_type=t_number, arg_types=[t_bool,t_number],
@@ -382,16 +375,20 @@ def test_types_mixed_numerical_bool_expressions_arg_overload():
             "<k_plus,'+'>(<f_bn2n,'f_bn2n'>(<k_true,'True'>,<k_number,'100'>),<k_number,'100'>)"
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,True)+100")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not"
+                                   " match any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(100,100)+100")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+False")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
     with raises(TypeErrorInParsedLanguage) as e:
         parser.parse("f_bn2n(True,100)+f_nb2b(100,False)")
-    assert str(e.value).startswith("Type mismatch: The actual argument types do not match any type signature")
+    assert str(e.value).startswith("Type mismatch: The actual argument types do not match"
+                                   " any type signature")
 
     # Now some more function defs and some overloads.
 

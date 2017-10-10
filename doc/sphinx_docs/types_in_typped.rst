@@ -41,11 +41,13 @@ type signature (and possibly with a corresponding evaluation function and/or an
 AST data item) is done by explicitly calling the ``overload`` method of a
 construct instance.
 
-The nodes in the final parsed expression tree have an attribute ``type_sig``
-giving the actual types, and an attribute ``original_sig`` giving the matching
-original signature.  The evaluation functions and AST data for a construct are
-stored keyed by the original signature which was passed in at the time when
-that overload was defined.
+The nodes in the final parsed expression tree have an attribute ``actual_sig``
+giving the actual type signature, an attribute ``original_formal_sig`` giving
+the matching original signature, and an attribute ``expanded_formal_sig``
+giving the intermediate, expanded form of the original signature.  The
+evaluation functions and AST data for a construct are stored keyed by the
+original signature which was passed in at the time when that overload was
+defined.
 
 Type information for a construct (e.g., a function evaluation subexpression)
 should generally be defined relative to the token which ends up as the subtree
