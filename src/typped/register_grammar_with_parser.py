@@ -24,6 +24,7 @@ if __name__ == "__main__":
                              ], pytest_args="-v")
 
 from collections import defaultdict
+import functools
 from .shared_settings_and_exceptions import (HEAD, TAIL,
                                      ParserException, CalledEndTokenHandler)
 
@@ -31,6 +32,12 @@ from .shared_settings_and_exceptions import (HEAD, TAIL,
 #                    multi_funcall)
 #from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 
+# TODO: Plan is to have this module essentially use its own recursive_parse which
+# ignores the null-string tokens for rules and does the usual Pratt parsing on
+# the other tokens as they are read in.  So the loops end right based on precedences.
+# Whether the usual recursive_parse can be tweaked to work in this case or if a
+# modified copy is needed remains to be determined.  The functions defined in this
+# module should call the modified recursive_parse.
 
 #
 # Production rule methods.
@@ -146,7 +153,7 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
 
     head_handler = generic_head_handler_function_factory(nonterm_label, caselist)
 
-    tail_handler = generic_tail_handler_function_factory()
+    tail_handler = generic_tail_handler_function_factory(nonterm_label, caselist)
 
     # Register the handler for the first item of the first case.
     precond_priority = 10000
@@ -164,104 +171,106 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
 def generic_head_handler_function_factory(nonterm_label, caselist):
     """Return a generic head handler with `nonterm_label` and `caselist` bound
     in the closure."""
+    # Note partial replaces positional arguments from the left.
+    return functools.partial(generic_handler, nonterm_label, caselist)
 
-    def head_handler(tok, lex):
-        """The head handler assigned to the first token of the first case for
-        a caselist.  It tries all the other cases if it fails."""
-        # The "called as head vs. tail" thing won't matter, because
-        # productions are always called as the whole case, by the
-        # production label.  So, all cases will have the *same* method of
-        # calling....  If first case was called as head then call all later
-        # cases as heads; same with tails.
-        pstate_stack = tok.parser_instance.pstate_stack
-        first_call_of_start_state = False
+def generic_handler(nonterm_label, caselist, tok, lex):
+    """The head handler assigned to the first token of the first case for
+    a caselist.  It tries all the other cases if it fails."""
+    # The "called as head vs. tail" thing won't matter, because
+    # productions are always called as the whole case, by the
+    # production label.  So, all cases will have the *same* method of
+    # calling....  If first case was called as head then call all later
+    # cases as heads; same with tails.
+    pstate_stack = tok.parser_instance.pstate_stack
+    first_call_of_start_state = False
 
-        # TODO Save the label of the nonterminal that parsed the token.
-        # Document that value of null-string token (was None) is set to
-        # nonterm_label.  Pass value up in modifications where full tree
-        # not shown.
-        tok.value = nonterm_label
+    # TODO Save the label of the nonterminal that parsed the token.
+    # Document that value of null-string token (was None) is set to
+    # nonterm_label.  Pass value up in modifications where full tree
+    # not shown.
+    tok.value = nonterm_label
 
-        #def indent(): # DEBUG fun
-        #    return " " * ((len(pstate_stack)-1) * 3)
+    #def indent(): # DEBUG fun
+    #    return " " * ((len(pstate_stack)-1) * 3)
 
-        num_cases = len(caselist)
-        last_case = False
+    num_cases = len(caselist)
+    last_case = False
 
-        lex_token_count = lex.all_token_count
-        lex_saved_begin_state = lex.get_current_state() # Return here on failure.
-        lex_peek_label = lex.peek().token_label # ONLY saved for backtrack check
+    lex_token_count = lex.all_token_count
+    lex_saved_begin_state = lex.get_current_state() # Return here on failure.
+    lex_peek_label = lex.peek().token_label # ONLY saved for backtrack check
 
-        # Loop through the cases until one succeeds or all fail.
-        for case_count, case in enumerate(caselist):
-            assert lex.peek().token_label == lex_peek_label
-            tok.children = [] # Reset the children of this null-state token.
-            if case_count == num_cases - 1:
-                last_case = True
+    # Loop through the cases until one succeeds or all fail.
+    for case_count, case in enumerate(caselist):
+        assert lex.peek().token_label == lex_peek_label
+        tok.children = [] # Reset the children of this null-state token.
+        if case_count == num_cases - 1:
+            last_case = True
 
-            # Loop through the items testing for match; backtrack on exception.
-            try:
-                for item in case:
-                    # Item is a Token.
-                    if item.kind_of_item == "token":
-                        item_token = item.value
-                        item_token_label = item_token.token_label
-                        if not lex.match_next(item_token_label, consume=False):
-                            raise BranchFail("Expected '{0}' token not found.".
-                                             format(item_token_label))
+        # Loop through the items testing for match; backtrack on exception.
+        try:
+            for item in case:
+                # Item is a Token.
+                if item.kind_of_item == "token":
+                    item_token = item.value
+                    item_token_label = item_token.token_label
+                    if not lex.match_next(item_token_label, consume=False):
+                        raise BranchFail("Expected '{0}' token not found.".
+                                         format(item_token_label))
 
-                        # Actual tree nodes must be processed by literal handler.
-                        # Todo: document/improve this stuff, nice to push known label
-                        pstate_stack.append(None) # Avoid recursion to this handler.
-                        next_tok = tok.recursive_parse(0) # Get the token.
+                    # Actual tree nodes must be processed by literal handler.
+                    # Todo: document/improve this stuff, nice to push known label
+                    pstate_stack.append(None) # Avoid recursion to this handler.
+                    next_tok = tok.recursive_parse(0) # Get the token.
+                    pstate_stack.pop()
+
+                    if next_tok.children:
+                        raise ParserException("In parsing the nonterminal {0}"
+                                " a call to recursive_parse returned a"
+                                " subexpression tree rather than the expected"
+                                " single token with label {1}.  Subexpression"
+                                " was {2}"
+                                .format(nonterm_label, item_token_label,
+                                                                  next_tok))
+                    tok.append_children(next_tok) # Make the token a child.
+
+                # Case item is a nonterminal (i.e., recursive call).
+                elif item.kind_of_item == "nonterminal":
+                    item_nonterm_label = item.value
+                    pstate_stack.append(item_nonterm_label)
+                    try:
+                        next_subexp = tok.recursive_parse(0)
+                    except (BranchFail, CalledEndTokenHandler):
+                        raise
+                    finally:
                         pstate_stack.pop()
+                    tok.append_children(next_subexp)
 
-                        if next_tok.children:
-                            raise ParserException("In parsing the nonterminal {0}"
-                                    " a call to recursive_parse returned a"
-                                    " subexpression tree rather than the expected"
-                                    " single token with label {1}.  Subexpression"
-                                    " was {2}"
-                                    .format(nonterm_label, item_token_label,
-                                                                      next_tok))
-                        tok.append_children(next_tok) # Make the token a child.
+                # Unknown case item.
+                else:
+                    raise ParserException("No item recognized.")
 
-                    # Case item is a nonterminal (i.e., recursive call).
-                    elif item.kind_of_item == "nonterminal":
-                        item_nonterm_label = item.value
-                        pstate_stack.append(item_nonterm_label)
-                        try:
-                            next_subexp = tok.recursive_parse(0)
-                        except (BranchFail, CalledEndTokenHandler):
-                            raise
-                        finally:
-                            pstate_stack.pop()
-                        tok.append_children(next_subexp)
+            assert tok.token_label == "k_null-string" # DEBUG
 
-                    # Unknown case item.
-                    else:
-                        raise ParserException("No item recognized.")
+            # If parser.top_level_production is set, check that all
+            # the tokens were consumed from the lexer.
+            if (tok.parser_instance.top_level_production
+                    and len(tok.parser_instance.pstate_stack) == 1
+                    and not lex.peek().is_end_token()):
+                raise BranchFail("Parsing did not reach end of expression.")
+            return tok
 
-                assert tok.token_label == "k_null-string" # DEBUG
+        except (BranchFail, CalledEndTokenHandler) as e:
+            # Backtrack; need to restore to previous saved state.
+            lex.go_back_to_state(lex_saved_begin_state)
+            if last_case: # Give up, all cases failed.
+                raise BranchFail("All production rule cases failed.")
+#return head_handler
+             #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
+             #ast_label=ast_label)
 
-                # If parser.top_level_production is set, check that all
-                # the tokens were consumed from the lexer.
-                if (tok.parser_instance.top_level_production
-                        and len(tok.parser_instance.pstate_stack) == 1
-                        and not lex.peek().is_end_token()):
-                    raise BranchFail("Parsing did not reach end of expression.")
-                return tok
-
-            except (BranchFail, CalledEndTokenHandler) as e:
-                # Backtrack; need to restore to previous saved state.
-                lex.go_back_to_state(lex_saved_begin_state)
-                if last_case: # Give up, all cases failed.
-                    raise BranchFail("All production rule cases failed.")
-    return head_handler
-                 #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-                 #ast_label=ast_label)
-
-def generic_tail_handler_function_factory():
+def generic_tail_handler_function_factory(nonterm_label, caselist):
     """Return a generic tail handler function."""
 
     def tail_handler(tok, lex, left):

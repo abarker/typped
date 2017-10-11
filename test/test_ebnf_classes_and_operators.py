@@ -5,6 +5,9 @@ Test the code in the `ebnf_classes_and_overloads.py` file as well as the
 functions in `register_grammar_with_parser.py` and the `PrattParser` code for
 handling null-string tokens, etc.
 
+Classic expression grammar below is from:
+    https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#classic
+
 """
 
 from __future__ import print_function, division, absolute_import
@@ -23,6 +26,7 @@ def def_expression_tokens_and_literals(parser):
     #
     # Define the tokens.
     #
+    parser.def_default_whitespace()
     tok = parser.def_token
 
     # Operators.
@@ -30,6 +34,7 @@ def def_expression_tokens_and_literals(parser):
     k_minus = tok("k_minus", r"\-")
     k_fslash = tok("k_fslash", r"/")
     k_ast = tok("k_ast", r"\*")
+    k_caret = tok("k_caret", r"^")
 
     # Grouping.
     k_lpar = tok("k_lpar", r"\(")
@@ -47,6 +52,7 @@ def def_expression_tokens_and_literals(parser):
     literal("k_minus")
     literal("k_fslash")
     literal("k_ast")
+    literal("k_caret")
     literal("k_lpar")
     literal("k_rpar")
     literal("k_number")
@@ -56,7 +62,6 @@ def def_expression_tokens_and_literals(parser):
 def test_EBNF_like_expressions():
     """Test the Python grammar for representing EBNF grammars."""
     parser = PrattParser()
-    parser.def_default_whitespace()
     def_expression_tokens_and_literals(parser)
     g = Grammar()
 
@@ -104,42 +109,10 @@ def test_wrappers_for_multiple_items():
     print(str(multiple))
     assert str(multiple) == 'ItemList(Repeat(0, 4, Rule("test"), Tok("dot")))'
 
-def test_parsing_from_basic_expression_grammar():
+def test_parsing_from_simplified_expression_grammar():
     """Test the actual parser creation and execution from a grammar."""
     parser = PrattParser()
-
-    #
-    # Define the tokens.
-    #
-
-    tok = parser.def_token
-    parser.def_default_whitespace()
-
-    # Operators.
-    k_plus = tok("k_plus", r"\+")
-    k_minus = tok("k_minus", r"\-")
-    k_fslash = tok("k_fslash", r"/")
-    k_ast = tok("k_ast", r"\*")
-
-    # Grouping.
-    k_lpar = tok("k_lpar", r"\(")
-    k_rpar = tok("k_rpar", r"\)")
-
-    # Numbers.
-    k_number = tok("k_number", r"[1-9][0-9]*")
-
-    #
-    # Define constructs for the literals tokens (terminals).
-    #
-
-    literal = parser.def_literal
-    literal("k_plus")
-    literal("k_minus")
-    literal("k_fslash")
-    literal("k_ast")
-    literal("k_lpar")
-    literal("k_rpar")
-    literal("k_number")
+    def_expression_tokens_and_literals(parser)
 
     #
     # Define the grammar.
@@ -147,6 +120,8 @@ def test_parsing_from_basic_expression_grammar():
 
     g = Grammar()
 
+    # Note only one top-level add or subtract per expression is allowed by this
+    # very simple grammar!
     expression = ( Rule("term") + Tok("k_plus") + Rule("term")
                  | Rule("term") + k_minus + Rule("term")
                  | Rule("term")
@@ -170,6 +145,7 @@ def test_parsing_from_basic_expression_grammar():
     #parser.pstate_stack = ["expression"]
     #parser.top_level_production
 
+
     simple_example1_parse = parser.parse(
                                 "4*4", pstate="expression").string_tree_repr()
 
@@ -183,10 +159,9 @@ def test_parsing_from_basic_expression_grammar():
 
     simple_example2 = "5 * (444 + 32)"
     simple_example2_parse = parser.parse(
-                         simple_example2, pstate="expression").tree_repr(indent=7)
+                         simple_example2, pstate="expression").tree_repr()
 
-    assert simple_example2_parse == (
-    """\
+    assert simple_example2_parse == unindent(7, """
        <k_null-string,'expression'>
            <k_null-string,'term'>
                <k_null-string,'factor'>
@@ -202,14 +177,15 @@ def test_parsing_from_basic_expression_grammar():
                        <k_null-string,'term'>
                            <k_null-string,'factor'>
                                <k_number,'32'>
-                   <k_rpar,')'>\n""")
+                   <k_rpar,')'>
+
+       """)
 
     simple_example3 = "(5 + 99) * 388"
     simple_example3_parse = parser.parse(
-                         simple_example3, pstate="expression").tree_repr(indent=7)
+                         simple_example3, pstate="expression").tree_repr()
 
-    assert simple_example3_parse == (
-    """\
+    assert simple_example3_parse == unindent(7, """
        <k_null-string,'expression'>
            <k_null-string,'term'>
                <k_null-string,'factor'>
@@ -225,14 +201,15 @@ def test_parsing_from_basic_expression_grammar():
                    <k_rpar,')'>
                <k_ast,'*'>
                <k_null-string,'factor'>
-                   <k_number,'388'>\n""")
+                   <k_number,'388'>
+
+       """)
 
     simple_example4 = "5 + 99 * 388"
     simple_example4_parse = parser.parse(
-                         simple_example4, pstate="expression").tree_repr(indent=7)
+                         simple_example4, pstate="expression").tree_repr()
 
-    assert simple_example4_parse == (
-    """\
+    assert simple_example4_parse == unindent(7, """
        <k_null-string,'expression'>
            <k_null-string,'term'>
                <k_null-string,'factor'>
@@ -243,14 +220,15 @@ def test_parsing_from_basic_expression_grammar():
                    <k_number,'99'>
                <k_ast,'*'>
                <k_null-string,'factor'>
-                   <k_number,'388'>\n""")
+                   <k_number,'388'>
+
+       """)
 
     simple_example5 = "5 * 7 - 388"
     simple_example5_parse = parser.parse(
-                         simple_example5, pstate="expression").tree_repr(indent=7)
+                         simple_example5, pstate="expression").tree_repr()
 
-    assert simple_example5_parse == (
-    """\
+    assert simple_example5_parse == unindent(7, """
        <k_null-string,'expression'>
            <k_null-string,'term'>
                <k_null-string,'factor'>
@@ -261,12 +239,67 @@ def test_parsing_from_basic_expression_grammar():
            <k_minus,'-'>
            <k_null-string,'term'>
                <k_null-string,'factor'>
-                   <k_number,'388'>\n""")
+                   <k_number,'388'>
+
+       """)
+
+    # Fails!
+    #simple_example6 = "5 - 7 - 388"
+    #simple_example6_parse = parser.parse(
+    #                     simple_example6, pstate="expression").tree_repr()
+
+
+def test_parsing_from_classic_expression_grammar():
+    """Test the actual parser classic recursive descent expression grammar."""
+    parser = PrattParser()
+    def_expression_tokens_and_literals(parser)
+
+    #
+    # Define the grammar.
+    #
+
+    g = Grammar()
+
+    expression = Rule("term") + ZeroOrMore(
+                                 Opt(Tok("k_plus"), Tok("k_minus")) + Rule("term"))
+    print("Expression is", expression)
+
+    term = Rule("factor") + ZeroOrMore(
+                                 Opt(Tok("k_ast"), Tok("k_fslash")) + Rule("factor"))
+    print("Term is", term)
+
+    factor = Rule("base") + Opt(Tok("k_caret") + Rule("factor"))
+    print("Factor is", factor)
+
+    base = ( k_number
+           | k_lpar + Rule("expression") + k_rpar
+           )
+    print("Base is", base)
+
+    fail()
+    #
+    # Register the grammar with the parser and parse some expressions.
+    #
+
+    g.compile("expression", parser, locals())
+
+    #parser.pstate_stack = ["expression"]
+    #parser.top_level_production
+
+    simple_example1_parse = parser.parse(
+                                "4*4", pstate="expression").string_tree_repr()
+
+    assert simple_example1_parse == ("<k_null-string,'expression'>("
+                                        "<k_null-string,'term'>("
+                                             "<k_null-string,'factor'>("
+                                                 "<k_number,'4'>),"
+                                             "<k_ast,'*'>,"
+                                             "<k_null-string,'factor'>("
+                                                 "<k_number,'4'>)))")
+
 
 def test_shortcut_operator_overloads_in_expression_grammar():
     parser = PrattParser()
-    parser.def_default_whitespace()
-
     def_expression_tokens_and_literals(parser)
 
     #
@@ -311,3 +344,4 @@ def test_shortcut_operator_overloads_in_expression_grammar():
     assert str(nExactly(3, Tok(k_number))) == str(3 * Tok(k_number))
     assert str(nOrMore(3, Tok(k_number))) == str((3,) * Tok(k_number))
     assert str(Between(3, 4, Tok(k_number))) == str((3,4) * Tok(k_number))
+

@@ -22,19 +22,19 @@ precedences to be dispatched.
 The implementation problem arises in the ``recursive_parse`` function.  In the
 loop for tail handlers there is always a lookahead to the precedence of the
 next token (which is compared to the subexpression precedence).  So we need to
-find the precedence of the `peek(1)` token.  When precedence can vary according
-to the dispatched tail handlers we need to determine which precedence value to
-peek at.  But the "winning" handler that is dispatched can vary according to
-the conditions at the time when that peek token itself is processed.
+find the precedence of the `peek(1)` token.  Precedence can vary according to
+which tail handler (construct) *would be* dispatched, so we need to determine
+that.  But which constuct "wins" the dispatching can vary according to the
+conditions at the time when that peek token itself is processed.
 
 There are ways to get a reasonable version of this, subject to some
 limitations.  You essentially step the lexer ahead to approximate the time when
 the peek token would be processed, look up the handler/construct, get its
-precedence value, and then step the lexer back.  This would need to be made
-precise, and the limitations discussed.  Since that adds a lot of complexity
-for a feature that would probably be little-used it is not currently
-implemented.  Interactions with other features, such as jops, would also need
-to be considered.
+precedence value, and then step the lexer back.  This adds complexity and an
+extra `go_back` operation per subexpression for a feature that would probably
+be little-used.  It is not currently implemented (but there is currently
+commented-out code that could be adapted to do it).  Interactions with other
+features, such as jops, would also need to be considered.
 
 General position-dependent handling functions
 ---------------------------------------------
@@ -114,7 +114,8 @@ More complex types
 
 Generally we might want:
 
- - Heirarchies of types and subtypes, with reasonable notions of type equivalence defined.
+ - Heirarchies of types and subtypes, with reasonable notions of type equivalence
+   defined.
  - Unions.
  - Automatic conversions.
  - Parameterized types or templates.
@@ -171,9 +172,10 @@ of 1.
 This kind of thing is easy to implement, and has been tested, but is it a good
 idea?  As of now the Typped builtins that set right associativity assume
 precedences are ints.  In tweaking precedences during development sometimes
-floats would be useful.  There is a slight loss of efficiency in the comparison
+floats might be useful.  There is a slight loss of efficiency in the comparison
 operations when floats are involved, but probably not enough to be a problem.
-If it is implemented later it will still be backward compatible with using ints.
+If it is implemented later it would still be backward compatible with using
+ints.
 
 As a possible alternative, just after precedence values are defined and passed
 to ``def_construct`` they could always be multiplied by, say, 1000 and then

@@ -118,7 +118,7 @@ Not yet implemented:
    * `Opt`
    * Repeated items (`OneOrMore`, `ZeroOrMore`, `Between`, etc.)
    * `Not`
-   * `AnyOf`
+   * `OneOf`
    * `Hide`
    * LL(1) optimization
    * Epsilon production handling.
@@ -135,25 +135,28 @@ strings at the beginning of the expression.
 
 Wrapper functions:
 
-============   =========================== =============
-Function       Arguments                   Shortcut
-============   =========================== =============
+============   =========================== ============= ===============
+Function       Arguments                   Shortcut      Python3 only
+============   =========================== ============= ===============
 `Rule`         rule-label (a string)
 `Tok`          token                       token
 `Root`         item
 `Prec`         item, prec                  item[prec]
 `Sig`          item, type sig              item(sig)
 `Pratt`        (optional) pstate, type sig
-`Opt`          item
+`Opt`          item (any number of args)
 `nExactly`     int, item                   n * item
-`nOrMore`      int, item                   (n,) * item
-`OneOrMore`    item                        (1,) * item
-`ZeroOrMore`   item                        (0,) * item
+`nOrMore`      int, item                   (n,) * item   (n,...) * item
+`OneOrMore`    item                        (1,) * item   (1,...) * item
+`ZeroOrMore`   item                        (0,) * item   (0,...) * item
 `Between`      int, int, item              (m,n) * item
 `Hide`         item
 `Not`          item
 `AnyOf`        itemlist
-============   =========================== =============
+============   =========================== ============= ===============
+
+Note that `(n,m)` and its variations are equivalent to `[n,m]` if that
+syntax looks clearer.
 
 Overloaded operator API
 =======================
@@ -962,8 +965,24 @@ def Pratt(pstate=None, type_sig=None):
     item.pstate = pstate
     return item
 
-def Opt(arg):
-    itemlist = ItemList(arg)
+def Opt(*args):
+    """List of optional arguments, can match any one or none."""
+    # TODO: Figure out how to handle this.  Really like a caselist passed in.
+    # Could be implemented as a temporary sub-rule which allows epsilon....
+    # Could convert its arguments to CaseList, which would allow | in the
+    # expressions, too.
+    print("args are", args)
+    # test using caselist...
+    caselist = CaseList()
+    for arg in args:
+        caselist.append(arg)
+    print("caselist is", caselist)
+
+    itemlist = ItemList()
+    for count, arg in enumerate(args):
+        itemlist += ItemList(arg)
+        if count != len(args)-1:
+            itemlist[-1].modifiers.append(",")
     itemlist[0].modifiers.insert(0, "Opt(")
     itemlist[-1].modifiers.append(")")
     return itemlist
@@ -971,10 +990,14 @@ def Opt(arg):
 def Repeat(range_spec, arg):
     """Used to process overload of multiplication for repetition."""
     if isinstance(range_spec, tuple) or isinstance(range_spec, list):
-        if len(range_spec) == 1:
+        if len(range_spec) == 2 and range_spec[1] is Ellipsis:
+            range_spec = [range_spec[0], None]
+        elif len(range_spec) == 1:
             #return nOrMore(range_spec[0], arg)
             range_spec = [range_spec[0], None]
-        if len(range_spec) == 2:
+        elif len(range_spec) == 2:
+            if range_spec[1] is Ellipsis:
+                range_spec = (range_spec[0],)
             #return Between(range_spec[0], range_spec[1], arg)
             range_spec = [range_spec[0], range_spec[1]]
         else:
@@ -1020,9 +1043,8 @@ def Not(token):
     itemlist[-1].modifiers.append(")")
     return itemlist
 
-def AnyOf(*args):
-    # Maybe, give you a choice of possibilities from several.  Same as "Or" but
-    # maybe a little more descriptive.
+def OneOf(*args):
+    # Give you a choice of possibilities from several, but must be one.
     pass
 
 #

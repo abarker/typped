@@ -210,11 +210,7 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
 from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
-#from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
-
-# TODO: Jop tokens and null-string tokens should have constructs associated, to
-# better fit with the newer paradigm.
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -278,7 +274,8 @@ class TokenSubclassMeta(type):
         # Below is ugly, but avoids mutual import problems.  Used as an easy
         # way to define token addition so that it works in the grammars defined
         # by the ebnf_classes_and_operators module.
-        from .ebnf_classes_and_operators import (Tok, Not, Prec, nExactly, nOrMore, Repeat)
+        from .ebnf_classes_and_operators import (
+                                     Tok, Not, Prec, nExactly, nOrMore, Repeat)
         # These are saved in a dict below because if they are made attributes
         # then Python 2 complains about "TypeError: unbound method Tok() must
         # be called with TokenClass_k_lpar instance as first argument (got
@@ -372,7 +369,7 @@ def token_subclass_factory():
         subclass of the `TokenNode` class, defined in the lexer module."""
         static_prec = 0 # The prec value for this kind of token, with default zero.
         token_label = None # Set to the actual value later, by create_token_subclass.
-        #parser_instance = None # Set during parsing by recursive_parse. AVOID if not needed.
+        #parser_instance = None # Set by recursive_parse. AVOID if not needed.
 
         def __init__(self, value):
             """Initialize an instance of the subclass for a token of the kind
@@ -771,7 +768,11 @@ def token_subclass_factory():
         def get_null_string_token_and_handler(self, head_or_tail, lex, subexp_prec,
                                          processed_left=None, lookbehind=None):
             """Check for any possible matching null-string token handlers;
-            return the token and the matching handler if one is found."""
+            return the token and the matching handler if one is found.
+
+            Note that the precedence for a null-string token is set to
+            `subexpr_prec`, so it would always have activated the while loop if
+            it were a real token."""
             parser_instance = self.parser_instance
             curr_token = None
             handler_fun = None
@@ -863,21 +864,27 @@ def token_subclass_factory():
                 # Outer loop is ONLY for the special case when a jop is defined.
                 #
 
-                # TODO: Consider modification to allow precedences in constucts
-                # and also make "prec - 1" no longer necessary for right assoc
-                # (when the dispatching also returns a construct, easy to
-                # change).
+                # TODO: Consider modification like this to allow precedences in
+                # constucts and also make "prec - 1" no longer necessary for
+                # right assoc (when the dispatching also returns a construct,
+                # easy to change).  See what performance hit it has, one go_back
+                # per subexpression.
                 #
-                # The ugly comment-string code below works.  Obviously could
-                # then use some refactoring, too.  Consider possible
-                # interactions with jop and null-string tokens, but they do not
-                # do a `next` call anyway.
+                # The ugly comment-string code below works.  It just pulls the
+                # token-dispatching out to before the precedence test.
+                # Obviously could then use some refactoring, too.  Consider
+                # possible interactions with jop and null-string tokens, but
+                # they do not do a `next` call anyway.  (Is it better to pull
+                # out the ns_token dispatch, at least?  In regular code, how to
+                # get null-string to appear at end of a subexpression?)
                 """
                 while True:
+                    err = None
                     ns_token, tail_handler = self.get_null_string_token_and_handler(
                                     TAIL, lex, subexp_prec, processed_left, lookbehind)
                     if ns_token:
                         peek_prec = lex.token.prec()
+                        #peek_prec = 10000000000 # Always run if triggered, head or tail.
                     else:
                         curr_token = lex.next()
                         try:
@@ -885,8 +892,6 @@ def token_subclass_factory():
                                              TAIL, lex, processed_left, lookbehind)
                         except NoHandlerFunctionDefined as e:
                             err = e
-                        else:
-                            err = None
                         peek_prec = lex.token.prec()
 
                     if peek_prec > subexp_prec:
