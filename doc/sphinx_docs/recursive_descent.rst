@@ -26,8 +26,8 @@ recursive descent functions to parse sub-grammars.
 
 .. note::
 
-   Some of these features are still experimental, as is the current partial
-   implementation.
+   Some of these features are still experimental.  The some features are only
+   partially implemented.
 
 Similarities and differences between the parsing methods
 --------------------------------------------------------
@@ -101,12 +101,12 @@ later versions if necessary.
 Example
 -------
 
-Consider this example of a very simple expression grammar in EBNF (even though
-the expression parts of a grammar might be better evaluated with Pratt-style
-parsing).  The ``identifier`` and ``number`` productions are assumed to be
-implemented as tokens from the lexer, defined by regular expressions.  Here the
-square brackets are optional parts, and curly braces mean "zero or more." The
-``(x|y)`` construct means either ``x`` or ``y``.
+Consider a very simple expression grammar in EBNF (even though the expression
+parts of a grammar might be better evaluated with Pratt-style parsing).  The
+``identifier`` and ``number`` productions are assumed to be implemented as
+tokens from the lexer, defined by regular expressions.  Here the square
+brackets are optional parts, and curly braces mean "zero or more." The
+``(x|y)`` construct here means either ``x`` or ``y``.
 
 ..
    TODO: consider this, especially w.r.t. associativity:
@@ -136,12 +136,9 @@ The ``factor`` production could be implemented either as a handler for the
 null-string token or by separate constructs for the identifier, number, and
 left-paren token types.
 
-..
-   TODO: consider also this version of the simple expression grammar.
-   https://en.wikipedia.org/wiki/Syntax_diagram
-   X
-   .. productionlist::
-   X
+The expression grammar without using the EBNF constructs is as follows:
+
+.. productionlist::
       expression : term | expression "+"  term;
       term       : factor | term "*"  factor;
       factor     : constant | variable | "("  expression  ")";
