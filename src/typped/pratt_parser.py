@@ -213,7 +213,8 @@ from .pratt_constructs import ConstructTable
 #from .matcher import Matcher
 from . import builtin_parse_methods, predefined_token_sets
 
-# TODO: remove unique label generator...........................
+# TODO: Jop tokens and null-string tokens should have constructs associated, to
+# better fit with the newer paradigm.
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -221,7 +222,7 @@ from . import builtin_parse_methods, predefined_token_sets
 # as an attribute.  Seems OK, including for parsers calling parsers, but consider
 # and update docs and comments where not yet changed.
 
-# NOTE that the eval_fun stuff could also be used to also do a conversion to
+# Note that the eval_fun stuff could also be used to also do a conversion to
 # AST.  Also at some point add "eval on the fly" capability (not too hard, but
 # extra complexity).
 
@@ -771,25 +772,10 @@ def token_subclass_factory():
                                          processed_left=None, lookbehind=None):
             """Check for any possible matching null-string token handlers;
             return the token and the matching handler if one is found."""
-
-            # TODO: Need a way to pass the subexp_prec argument to null-string
-            # handlers, so they can relay it -- a way that works with recursive
-            # calls, too.
-            #
-            # The idea is that we want to have the recursive descent stuff use
-            # the Pratt-style priority mechanisms if possible...
-            #
-            # Does each production need to declare whether it is a head or tail?
-            # Implicit?
-            #
-            # Jumping into recursive_parse in middle may be better solution...
-            # as originally done.  To the handlers it is all the same loop,
-            # since they get the same info.  I.e., to handle tails in recursive
-            # descent like way...
-
             parser_instance = self.parser_instance
             curr_token = None
             handler_fun = None
+
             # See if a null-string token is set and a handler matches preconds.
             if parser_instance.null_string_token_label:
                 null_string_token = parser_instance.null_string_token_subclass(None)
@@ -840,7 +826,7 @@ def token_subclass_factory():
 
             # Note on below code: It is tempting for efficiency to define a jop
             # and null-string token instance, save it, and only use it when
-            # necessary (and replace it only when used).  But some things need
+            # necessary (replacing it only when used).  But some things need
             # to be considered.  What if new head handlers are dynamically
             # registered for the token?  Is there any special attribute or
             # other thing that is assigned on creation which might change?
@@ -877,10 +863,47 @@ def token_subclass_factory():
                 # Outer loop is ONLY for the special case when a jop is defined.
                 #
 
-                while lex.peek().prec() > subexp_prec:
-                    curr_token, tail_handler = self.get_null_string_token_and_handler(
+                # TODO: Consider modification to allow precedences in constucts
+                # and also make "prec - 1" no longer necessary for right assoc
+                # (when the dispatching also returns a construct, easy to
+                # change).
+                #
+                # The ugly comment-string code below works.  Obviously could
+                # then use some refactoring, too.  Consider possible
+                # interactions with jop and null-string tokens, but they do not
+                # do a `next` call anyway.
+                """
+                while True:
+                    ns_token, tail_handler = self.get_null_string_token_and_handler(
                                     TAIL, lex, subexp_prec, processed_left, lookbehind)
-                    if not curr_token:
+                    if ns_token:
+                        peek_prec = lex.token.prec()
+                    else:
+                        curr_token = lex.next()
+                        try:
+                            tail_handler = curr_token.dispatch_handler(
+                                             TAIL, lex, processed_left, lookbehind)
+                        except NoHandlerFunctionDefined as e:
+                            err = e
+                        else:
+                            err = None
+                        peek_prec = lex.token.prec()
+
+                    if peek_prec > subexp_prec:
+                        if err:
+                            raise err # Avoid error msg changing (makes test fail).
+                        processed_left = tail_handler()
+                        lookbehind.append(processed_left)
+                    else:
+                        if not ns_token:
+                            lex.go_back(1)
+                        break
+                """
+
+                while lex.peek().prec() > subexp_prec:
+                    ns_token, tail_handler = self.get_null_string_token_and_handler(
+                                    TAIL, lex, subexp_prec, processed_left, lookbehind)
+                    if not ns_token:
                         curr_token = lex.next()
                         tail_handler = curr_token.dispatch_handler(
                                              TAIL, lex, processed_left, lookbehind)
@@ -895,9 +918,9 @@ def token_subclass_factory():
                 jop_instance = self.get_jop_token_instance(
                                          lex, processed_left, lookbehind, subexp_prec)
                 if jop_instance:
-                    tail_handler = jop_instance.dispatch_handler(
+                    jop_tail_handler = jop_instance.dispatch_handler(
                                            TAIL, lex, processed_left, lookbehind)
-                    processed_left = tail_handler()
+                    processed_left = jop_tail_handler()
                     lookbehind.append(processed_left)
                 else:
                     break

@@ -39,6 +39,13 @@ from .pratt_types import TypeSig, TypeErrorInParsedLanguage
 from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
                                              ParserException)
 
+# TODO: A construct should probably save the `assoc` attribute.  Currently it
+# is done inside the tail handlers, implemented in the builtins using the
+# standard "prec - 1" method.  If parsers ever hold `prec` attributes that are
+# actually used (need lookahead, see other docs) then the subtraction on assoc
+# can effectively be done in `recursive_parse` (but without using subtraction
+# so precedences could be anything that orders).
+
 class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function

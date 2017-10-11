@@ -263,13 +263,13 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
         return left
 
     return parser.def_construct(TAIL, tail_handler, lpar_token_label,
-                              prec=prec_of_lpar,
-                              precond_fun=precond_fun,
-                              precond_priority=precond_priority,
-                              construct_label=construct_label,
-                              val_type=val_type, arg_types=arg_types,
-                              eval_fun=eval_fun, ast_data=ast_data,
-                              token_value_key=token_value_key)
+                                prec=prec_of_lpar,
+                                precond_fun=precond_fun,
+                                precond_priority=precond_priority,
+                                construct_label=construct_label,
+                                val_type=val_type, arg_types=arg_types,
+                                eval_fun=eval_fun, ast_data=ast_data,
+                                token_value_key=token_value_key)
 
 #
 # Infix operators.
