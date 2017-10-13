@@ -2,7 +2,8 @@
 """
 
 Define a wff parser that uses a sub-parser (called from its handler functions)
-to parse term subexpressions.
+to parse term subexpressions.  See also the test file that runs code from this
+module.
 
 An EBNF grammar for a wff in a simple logic (with predicates left off) is:
 ::
@@ -47,11 +48,7 @@ is that they check for head handlers before deciding to infer a jop.
 
 TODO: Types are not yet worked as to how they should interact in the
 type-checking.  Currently types not used in this example.  It should be
-possible to share types between parsers --- tokens cannot be shared only
-because pratt parsers also package them with handler methods.  (And that
-restriction could be lifted by associating handlers with tokens and parser
-instances and possibly keeping several groups of handlers with tokens, maybe
-keyed in a dict).
+possible to share types between parsers.
 
 """
 from __future__ import print_function, division, absolute_import
@@ -81,13 +78,13 @@ def run_basic_example():
 def define_term_parser():
     """Define a Pratt parser to parse terms.  Note that each parser is independent,
     with its own tokens, literals, etc."""
-    term_parser = pp.PrattParser()
+    term_parser = pp.PrattParser(parser_label="term parser")
     term_parser.def_default_whitespace()
 
     token_list = [
-            ("k_varname", r"x[\d]*"),
-            ("k_constname", r"c[\d]*"),
-            ("k_funname", r"f[\d]*"),
+            ("k_varname", r"x[\d]*"),   # var names are like x234, x
+            ("k_constname", r"c[\d]*"), # const names are like c2299, c0
+            ("k_funname", r"f[\d]*"),   # fun names are like f993, f9
             ("k_plus", r"\+"),
             ("k_minus", r"\-"),
             ("k_fslash", r"/"),
@@ -106,6 +103,8 @@ def define_term_parser():
             ]
     term_parser.def_multi_literals(literals)
 
+    # Use the builtins of PrattParser class to parse brackets and standard
+    # functions.
     term_parser.def_bracket_pair("k_lpar", "k_rpar")
     term_parser.def_stdfun("k_funname", "k_lpar", "k_rpar", "k_comma")
 
@@ -163,7 +162,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
 def define_wff_parser(term_parser):
     """Define a parser for wffs that uses `term_parser` to parse terms."""
 
-    wff_parser = pp.PrattParser()
+    wff_parser = pp.PrattParser(parser_label="wff_parser")
     wff_parser.def_default_whitespace()
 
     token_list = [
@@ -181,20 +180,17 @@ def define_wff_parser(term_parser):
 
 
     # Note that k_funname, k_constname, and k_varname are defined above as
-    # tokens, but they are not made literals.  Also, no handlers will be
+    # tokens, but they are NOT made into literals.  Also, no handlers will be
     # defined for them.  The term parser will do that.
-    literals = [
-            ("k_rpar",),
-            ("k_comma",),
-            ]
-    wff_parser.def_multi_literals(literals)
+    wff_parser.def_literal("k_rpar")
+    wff_parser.def_literal("k_comma")
 
     wff_parser.def_bracket_pair("k_lpar", "k_rpar")
 
     #t_wff = wff_parser.def_type("t_wff") # TODO: consider how types interact here...
 
     # The not symbol, must be followed by a space.
-    wff_parser.def_prefix_op("k_not", 100, val_type=None, arg_types=None,
+    wff_parser.def_prefix_op("k_not", 200, val_type=None, arg_types=None,
             precond_fun=lambda lex, lb: True if lex.peek().ignored_before else False)
 
     # Note no space around "and" for now... def_infix_op doesn't take precond

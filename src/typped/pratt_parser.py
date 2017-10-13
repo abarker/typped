@@ -234,8 +234,6 @@ from . import builtin_parse_methods, predefined_token_sets
 # parse-time (perhaps waiting for some obscure combination).  Shouldn't be too
 # hard to write.
 
-DEFAULT_PARSER_LABEL = "default_parser_label"
-
 def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, lookbehind):
     """The default precondition function; always returns true."""
     return True
@@ -1070,7 +1068,7 @@ class PrattParser(object):
         if parser_label:
             self.parser_label = parser_label # Set first, for error messages.
         else:
-            self.parser_label = DEFAULT_PARSER_LABEL
+            self.parser_label = None
 
         ## Type-checking options below; these cannot be changed after initialization.
         if overload_on_ret_types:

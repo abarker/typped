@@ -506,12 +506,17 @@ class ConstructTable(object):
 
         head_or_tail_construct_dict = self.construct_lookup_dict[head_or_tail]
         if not trigger_token_label in head_or_tail_construct_dict:
+            if not self.parser_instance.parser_label:
+                parser_msg = ""
+            else:
+                parser_msg = "  Parser has label '{0}'.".format(
+                                          self.parser_instance.parser_label)
             raise NoHandlerFunctionDefined(
                     "No {0} handler functions at all are defined"
                     " for tokens with token label '{1}'.  The token's"
-                    " value is '{2}'."
+                    " value is '{2}'.{3}"
                     .format(head_or_tail, trigger_token_label,
-                            trigger_token_instance.value))
+                            trigger_token_instance.value, parser_msg))
         sorted_construct_list = head_or_tail_construct_dict[trigger_token_label]
 
         # Sequentially run sorted precondition functions until one is true.

@@ -52,7 +52,7 @@ type-checking.  Currently types not used in this example.
 from __future__ import print_function, division, absolute_import
 import pytest_helper
 
-pytest_helper.script_run(self_test=True, pytest_args="-v")
+pytest_helper.script_run(self_test=True, pytest_args="-vv")
 pytest_helper.auto_import()
 #pytest_helper.sys_path("../src")
 pytest_helper.sys_path("../examples")
@@ -61,41 +61,84 @@ import typped as pp
 from example_parser_called_from_parser import *
 
 def test_basic_example():
-    term_parser = define_term_parser() # Define a parser for terms.
+    # Define a parser for terms.
+    term_parser = define_term_parser()
     test_term = "f(x,x33)"
-    parse_tree = "\n" + term_parser.parse(test_term).tree_repr(indent=4)
-    assert parse_tree == ("""
-    <k_funname,'f'>
-        <k_varname,'x'>
-        <k_varname,'x33'>\n""")
-
-    wff_parser = define_wff_parser(term_parser) # Define a parser for wffs.
-    test_wff = "not A(f(x,x33))"
-    parse_tree = "\n" + wff_parser.parse(test_wff).tree_repr(indent=4)
-    assert parse_tree == ("""
-    <k_not,'not'>
-        <k_predname,'A'>
+    parse_tree = term_parser.parse(test_term).tree_repr()
+    assert parse_tree == unindent(12, """
             <k_funname,'f'>
                 <k_varname,'x'>
-                <k_varname,'x33'>\n""")
+                <k_varname,'x33'>
 
-    test_wff = "not A(f(x,x33)) and A44() and A9(x1, c2, f(c1))"
-    print("parsing wff:", test_wff, "\n")
-    print(wff_parser.parse(test_wff).tree_repr(indent=3))
-    parse_tree = "\n" + wff_parser.parse(test_wff).tree_repr(indent=4)
-    assert parse_tree == ("""
-    <k_and,'and'>
-        <k_and,'and'>
+            """)
+
+    # Define a parser for wffs which calls the term parser to parse terms.
+    wff_parser = define_wff_parser(term_parser)
+
+    test_wff = "not A(f(x,x33))"
+    parse_tree = wff_parser.parse(test_wff).tree_repr()
+    assert parse_tree == unindent(12, """
             <k_not,'not'>
                 <k_predname,'A'>
                     <k_funname,'f'>
                         <k_varname,'x'>
                         <k_varname,'x33'>
-            <k_predname,'A44'>
-        <k_predname,'A9'>
-            <k_varname,'x1'>
-            <k_constname,'c2'>
-            <k_funname,'f'>
-                <k_constname,'c1'>\n""")
 
+            """)
+
+    test_wff = "not A(f(x,x33)) and A44() and A9(x1, c2, f(c1))"
+    print("parsing wff:", test_wff, "\n")
+    print(wff_parser.parse(test_wff).tree_repr(indent=3))
+    parse_tree = wff_parser.parse(test_wff).tree_repr()
+    assert parse_tree == unindent(12, """
+            <k_and,'and'>
+                <k_and,'and'>
+                    <k_not,'not'>
+                        <k_predname,'A'>
+                            <k_funname,'f'>
+                                <k_varname,'x'>
+                                <k_varname,'x33'>
+                    <k_predname,'A44'>
+                <k_predname,'A9'>
+                    <k_varname,'x1'>
+                    <k_constname,'c2'>
+                    <k_funname,'f'>
+                        <k_constname,'c1'>
+
+            """)
+
+def test_other_examples():
+    """Other examples."""
+    term_parser = define_term_parser()
+    wff_parser = define_wff_parser(term_parser)
+
+    test_wff = "not A(x1) and A(c1) and (not A(f44(x900)))"
+    print("parsing wff:", test_wff, "\n")
+    print(wff_parser.parse(test_wff).tree_repr(indent=3))
+    parse_tree = wff_parser.parse(test_wff).tree_repr()
+    assert parse_tree == unindent(12, """
+            <k_and,'and'>
+                <k_and,'and'>
+                    <k_not,'not'>
+                        <k_predname,'A'>
+                            <k_varname,'x1'>
+                    <k_predname,'A'>
+                        <k_constname,'c1'>
+                <k_lpar,'('>
+                    <k_not,'not'>
+                        <k_predname,'A'>
+                            <k_funname,'f44'>
+                                <k_varname,'x900'>
+
+            """)
+
+def test_error_conditions():
+    """Test some error conditions."""
+
+    term_parser = define_term_parser()
+    wff_parser = define_wff_parser(term_parser)
+    test_wff = "not x1"
+    print("parsing error wff:", test_wff, "\n")
+    with raises(pp.NoHandlerFunctionDefined):
+        parse_tree = wff_parser.parse(test_wff).tree_repr()
 
