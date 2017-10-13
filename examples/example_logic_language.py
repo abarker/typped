@@ -235,7 +235,7 @@ def define_logic_parser():
                            comma_token_label, lpar_token_label, rpar_token_label,
                            var_type, wff_type):
             """Define a prefix operator for a quantifier."""
-            def quantifier_following_lpar(lex, lookbehind):
+            def quantifier_following_lpar(lex, extra_data):
                 if lex.peek().token_label == quant_token_label: return True
                 return False
             # Note precondition label unique to quantifier; distinct handler funs.
@@ -402,7 +402,7 @@ def define_logic_language(parser):
     # Here we slightly abuse preconditions to generate better error messages when
     # someone forgets to put parens around a quantifier expression.  If the
     # precondition ever matches at all it raises an exception.
-    def preceeded_by_lpar(lex, lookbehind):
+    def preceeded_by_lpar(lex, extra_data):
         if lex.peek(-1).token_label != "k_lpar":
             raise pp.ParserException("Quantifier expressions must be inside parens.")
         return False

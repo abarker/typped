@@ -31,7 +31,7 @@ def define_parser_subclass():
             """Define a standard function with a fixed number of arguments."""
 
             # Define the preconditions function.
-            def preconditions(lex, lookbehind):
+            def preconditions(lex, extra_data):
                 peek_tok = lex.peek()
                 if peek_tok.ignored_before: # No space allowed between name and lpar.
                     return False

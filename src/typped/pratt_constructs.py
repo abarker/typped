@@ -144,7 +144,7 @@ class Construct(object):
         self.is_empty = False
 
     @staticmethod
-    def run(construct, tok, lex, processed_left=None, lookbehind=None):
+    def run(construct, tok, lex, processed_left=None, extra_data=None):
         """Run the handler associated with the construct.  Check the returned parse
         subtree with `process_and_check_node`.  Return the subtree if it passes type
         checking.
@@ -487,13 +487,13 @@ class ConstructTable(object):
                 del token_label_keyed_dict[trigger_token_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
-                                 lex=None, lookbehind=None, construct_label=None):
+                                 lex=None, extra_data=None, construct_label=None):
         """Look up and return the "winning" construct for the given head or tail
         position, based on the current state.
 
         Either the `lex` parameter or the `construct_label` parameter must be
         set.  If `lex` is set it will be passed to the precondition
-        functions as an argument, and similarly for `lookbehind`.
+        functions as an argument, and similarly for `extra_data`.
 
         This method evaluates each preconditions function in the sorted
         dict for this kind of token and the specified kind of construct
@@ -524,7 +524,7 @@ class ConstructTable(object):
         for construct in sorted_construct_list:
             if construct.is_empty: # Ignore empty constructs.
                 continue
-            if construct.precond_fun(lex, lookbehind):
+            if construct.precond_fun(lex, extra_data):
                 # Note construct_label is saved as a user-accesible attribute here.
                 trigger_token_instance.construct = construct
                 return construct
@@ -535,7 +535,7 @@ class ConstructTable(object):
                         trigger_token_label))
 
     def dispatch_handler(self, head_or_tail, trigger_token_instance,
-                         lex, left=None, lookbehind=None):
+                         lex, left=None, extra_data=None):
         """Look up and return a wrapper for the "winning" handler function for the
         token, with its arguments bound."""
         if head_or_tail == HEAD:
@@ -544,12 +544,12 @@ class ConstructTable(object):
                             construct.run, construct, trigger_token_instance, lex)
         elif head_or_tail == TAIL:
             construct = self.lookup_winning_construct(TAIL, trigger_token_instance,
-                                              lex, lookbehind=lookbehind)
+                                              lex, extra_data=extra_data)
             handler = functools.partial(
                             construct.run, construct, trigger_token_instance, lex, left)
         else:
             raise ParserException("Bad first argument to dispatch_handler"
                     " function: must be HEAD or TAIL or the equivalent.")
-        return handler
+        return handler, construct
 
 

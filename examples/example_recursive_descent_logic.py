@@ -349,7 +349,7 @@ def define_logic_language(parser):
     # In the "wff" state, handle the logical not token.
     #
 
-    def logical_not_token_precond_wff_state(lex, lookbehind):
+    def logical_not_token_precond_wff_state(lex, extra_data):
         pstack_state = lex.token.parser_instance.pstack[-1]
         return pstack_state == "wff"
     construct_label = "logical_not_token_precond_wff_state"
@@ -373,7 +373,7 @@ def define_logic_language(parser):
     # In the "wff_prime" state, handle the k_implies token.
     #
 
-    def implies_token_in_wff_prime_state_precond(lex, lookbehind):
+    def implies_token_in_wff_prime_state_precond(lex, extra_data):
         pstack_state = lex.token.parser_instance.pstack[-1]
         return pstack_state == "wff_prime"
     construct_label = "implies_token_in_wff_prime_state_precond"

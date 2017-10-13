@@ -1,6 +1,6 @@
 
-Lookbehind
-----------
+Lookbehind and other extra data
+-------------------------------
 
 Another minor generalization to Pratt parsing is the use of "lookbehind"
 information.  A Pratt parser can use lookahead information from the lexer in
@@ -11,10 +11,9 @@ useful.
 This is a simple modification, and is currently implemented.  In the
 ``recursive_parse`` function, whenever the ``processed_left`` variable is
 assigned a new value, that value is also appended to a list called
-``lookbehind``.  This ``lookbehind`` list is passed as an argument to all tail
-handler functions in addition to the ``processed_left`` value, so they
-can make use of it if desired.  That is why tail handlers include the extra
-parameter.
+``lookbehind``.  This ``lookbehind`` list is passed as the attribute
+``lookbehind`` of the ``extra_data`` namedtuple that is always passed to
+handler functions, so they can make use of it if desired.
 
 Since the lookbehind tokens have already been processed they allow the
 preconditions to make use of information such as resolved type information (not
@@ -25,7 +24,7 @@ say, the type of the left operand of an operator.
 Note that the ``lookbehind`` list contains references, not copies, and so the
 previous values will generally be modified versions of what they were when they
 were first appended to the list.  The main thing that the lookbehind list tells
-you is how many subexpressions preceed the current one at its same level in the
+you is how many subexpressions precede the current one at its same level in the
 recursion.  In theory, the whole head versus tail distinction could be
 eliminated and replaced with preconditions on whether or not the lookbehind
 list is empty.  The distinction between head and tail handlers is useful in
@@ -33,4 +32,10 @@ practice, however, and so has been kept.
 
 Lookbehind information is not a feature which will be commonly used, but it may
 have some use cases.
+
+In addition to lookbehind information, the ``extra_data`` namedtuple passed to
+handlers and precond functions contains the current subexpression precedence as
+``subexp_prec`` and a list ``constructs`` of constructs for all the previous
+sub-subexpressions of the subexpression.  This latter list is similar to
+``lookbehind``.
 

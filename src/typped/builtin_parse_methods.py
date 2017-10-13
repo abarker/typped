@@ -170,7 +170,7 @@ def def_stdfun(parser, fname_token_label, lpar_token_label,
     if not parser.skip_type_checking and num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
-    def precond_followed_by_lpar(lex, lookbehind):
+    def precond_followed_by_lpar(lex, extra_data):
         """Must be followed by a token with label 'lpar_token_label', with no
         whitespace in-between."""
         peek_tok = lex.peek()
@@ -229,7 +229,7 @@ def def_stdfun_lpar_tail(parser, fname_token_label, lpar_token_label,
     if num_args is not None and arg_types is None:
         arg_types = [None]*num_args
 
-    def precond_fun_peekback(lex, lookbehind):
+    def precond_fun_peekback(lex, extra_data):
         """Check that the peek backward token label for the function name
         is `fname_token_label`.  This is necessary to get the type sig info
         to work when different functions take different numbers (and
@@ -403,14 +403,15 @@ def def_postfix_op(parser, operator_token_label, prec, allow_ignored_before=True
 def def_jop(parser, prec, assoc,
             precond_fun=None, precond_priority=None, construct_label=None,
             val_type=None, arg_types=None, eval_fun=None, ast_data=None):
+
     """The function `precond_fun` is called to determine whether or not to
-    infer a juxtaposition operator between the previously-parsed
-    subexpression result and the next token.  This function will be passed
-    the lexer as well as the lookbehind list as arguments.  Note that the
-    `jop_precond` function has access to the type information for the
-    potential left operand but not for the potential right operand.  If
-    this function returns `True` then a jop is inferred and the parse
-    proceeds assuming there is a jop token in the token stream.
+    accept a potentially-inferred a juxtaposition operator between the
+    previously-parsed subexpression result and the next token.  Note that this
+    function will be passed the lexer as well as `extra_data`  as arguments,
+    and `extra_data` contains the `lookbehind` attribute.  Through the
+    lookbehind list the `jop_precond` function has access to the type
+    information for the potential left operand but not for the potential right
+    operand.
 
     Note that if the juxtaposition operator always resolves to a single
     type signature based on its argument types then, even if overloading on
@@ -505,7 +506,7 @@ def def_assignment_op_untyped(parser, assignment_op_token_label, prec, assoc,
                                                               symbol_value_dict=None,
                                                               typing=False)
 
-    def precond_lhs_is_identifier(lex, lookbehind):
+    def precond_lhs_is_identifier(lex, extra_data):
         return lex.peek(-1).token_label == identifier_token_label
 
     precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
@@ -552,7 +553,7 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
     return types because currently `val_type_override` is used to set it."""
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
-    def precond_lhs_is_identifier(lex, lookbehind):
+    def precond_lhs_is_identifier(lex, extra_data):
         return lex.peek(-1).token_label == identifier_token_label
 
     precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
@@ -667,7 +668,7 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
     if allowed_types is not None:
         parser.allowed_dynamic_assignment_types = allowed_types
 
-    def precond_lhs_is_identifier(lex, lookbehind):
+    def precond_lhs_is_identifier(lex, extra_data):
         return lex.peek(-1).token_label == identifier_token_label
 
     precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
@@ -749,7 +750,7 @@ def def_literal_typed_from_dict(parser, token_label, symbol_value_dict=None,
     # is not defined as a key in symbol_type_dict.  May be better to do this in an
     # explicit head-handler rather than calling def_literal.
     if raise_if_undefined:
-        def precond_raise_if_undefined(lex, lookbehind):
+        def precond_raise_if_undefined(lex, extra_data):
             if not lex.token.value in parser.symbol_type_dict:
                 raise ErrorInParsedLanguage("Undefined identifier: '{0}'"
                                             .format(lex.token.value))

@@ -327,7 +327,7 @@ def setup_string_language_parser_static_typing():
     parser.typped_type_dict = {"int": t_int,
                                "str": t_str}
 
-    def typedecl_precond_fun(lex, lookbehind):
+    def typedecl_precond_fun(lex, extra_data):
         """This construct will only be triggered for identifiers stored as keys in
         the dict `parser.typped_type_dict`."""
         return (lex.token.token_label == "k_identifier" and

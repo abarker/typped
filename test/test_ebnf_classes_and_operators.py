@@ -333,11 +333,25 @@ def test_parsing_from_BNF_expression_grammar():
                                 "4+2*2", pstate="expression").tree_repr()
 
     print(simple_example_parse)
-    fail()
-    assert simple_example_parse == unindent(7, """
-       todo
+    assert simple_example_parse == unindent(12, """
+            <k_null-string,'expression'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_null-string,'number'>
+                            <k_number,'4'>
+                <k_plus,'+'>
+                <k_null-string,'expression'>
+                    <k_null-string,'term'>
+                        <k_null-string,'factor'>
+                            <k_null-string,'number'>
+                                <k_number,'2'>
+                        <k_ast,'*'>
+                        <k_null-string,'term'>
+                            <k_null-string,'factor'>
+                                <k_null-string,'number'>
+                                    <k_number,'2'>
 
-       """)
+            """)
 
 def test_shortcut_operator_overloads_in_expression_grammar():
     parser = PrattParser()

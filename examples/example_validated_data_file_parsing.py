@@ -34,7 +34,7 @@ def setup_parser():
     t_int = parser.def_type("t_int")
     parser.def_literal("k_int", val_type=t_int)
 
-    def precond_fun(lex, lookbehind):
+    def precond_fun(lex, extra_data):
         return lex.token.is_first_on_line
 
     def handler_fun(tok, lex):

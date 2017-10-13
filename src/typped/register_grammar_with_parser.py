@@ -127,9 +127,10 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     # allowing a null-string token handler to be called recursively
     # unless something has been consumed from the lexer (curtailment,
     # but no memoization, see e.g. Frost et. al 2007).
-    from .pratt_parser import ExtraDataForHandler
+    global ExtraDataTuple # Import here to avoid circular; move to shared if kept.
+    from .pratt_parser import ExtraDataTuple
 
-    def preconditions(lex, lookbehind, peek_token_label=peek_token_label):
+    def preconditions(lex, extra_data, peek_token_label=peek_token_label):
         """This function is only registered and used if `peek_token_label`
         is not `None`."""
         pstate_stack = lex.token_table.parser_instance.pstate_stack
@@ -157,9 +158,10 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
                  construct_label=construct_label,
                  precond_fun=preconditions, precond_priority=precond_priority)
 
+"""
 def recursive_parse_for_nonterm_handlers(tok, subexp_prec): #, itemlist, index):
-    """The equivalent of `recursive_parse` which is called from handlers for
-    nonterminals (triggered by null-string tokens)."""
+    "The equivalent of `recursive_parse` which is called from handlers for
+    nonterminals (triggered by null-string tokens)."
     parser_instance = tok.parser_instance
     dispatch_handler = parser_instance.construct_table.dispatch_handler
     lex = tok.token_table.lex
@@ -171,20 +173,22 @@ def recursive_parse_for_nonterm_handlers(tok, subexp_prec): #, itemlist, index):
     curr_token.is_head = True # To look up eval_fun and ast_data later.
 
     processed_left = head_handler()
-    lookbehind = [processed_left]
+    extra_data = ExtraDataTuple(lookbehind=[processed_left],
+                                subexp_prec=subexp_prec)
 
     while lex.peek().prec() > subexp_prec:
         ns_token, tail_handler = tok.get_null_string_token_and_handler(
-                        TAIL, lex, subexp_prec, processed_left, lookbehind)
+                        TAIL, lex, subexp_prec, processed_left, extra_data)
         if not ns_token:
             curr_token = lex.next()
             tail_handler = dispatch_handler(
-                                 TAIL, curr_token, lex, processed_left, lookbehind)
+                                 TAIL, curr_token, lex, processed_left, extra_data)
 
         processed_left = tail_handler()
-        lookbehind.append(processed_left)
+        extra_data.lookbehind.append(processed_left)
 
     return processed_left
+"""
 
 def generic_head_handler_function_factory(nonterm_label, caselist):
     """Return a generic head handler with `nonterm_label` and `caselist` bound
@@ -240,7 +244,8 @@ def generic_handler(nonterm_label, caselist, tok, lex):
                     # Actual tree nodes must be processed by literal handler.
                     # Todo: document/improve this stuff, nice to push known label
                     pstate_stack.append(None) # Avoid recursion to this handler.
-                    next_tok = recursive_parse_for_nonterm_handlers(tok, 0) # Get the token.
+                    # TODO: get the subexp_prec from extra_data and pass through
+                    next_tok = tok.recursive_parse(0) # Get the token.
                     pstate_stack.pop()
 
                     if next_tok.children:
@@ -258,7 +263,8 @@ def generic_handler(nonterm_label, caselist, tok, lex):
                     item_nonterm_label = item.value
                     pstate_stack.append(item_nonterm_label)
                     try:
-                        next_subexp = recursive_parse_for_nonterm_handlers(tok, 0)
+                        # TODO: get the subexp_prec from extra_data and pass through
+                        next_subexp = tok.recursive_parse(0)
                     except (BranchFail, CalledEndTokenHandler):
                         raise
                     finally:
@@ -284,9 +290,6 @@ def generic_handler(nonterm_label, caselist, tok, lex):
             lex.go_back_to_state(lex_saved_begin_state)
             if last_case: # Give up, all cases failed.
                 raise BranchFail("All production rule cases failed.")
-#return head_handler
-             #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
-             #ast_label=ast_label)
 
 def generic_tail_handler_function_factory(nonterm_label, caselist):
     """Return a generic tail handler function."""
@@ -313,8 +316,8 @@ def generic_tail_handler_function_factory(nonterm_label, caselist):
 
         pstate_stack = tok.parser_instance.pstate_stack
         pstate_stack.append("pstate_label")
-        processed = recursive_parse_for_nonterm_handlers(tok, tok.subexp_prec,
-                            processed_left=left, lookbehind=tok.lookbehind)
+        processed = tok.recursive_parse(tok.subexp_prec, # NO LONGER TOK ATTRS!!
+                            processed_left=left, extra_data=tok.extra_data)
         pstate_stack.pop()
         return processed
     return tail_handler

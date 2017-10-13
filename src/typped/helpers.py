@@ -57,11 +57,11 @@ def combine_precond_funs(*funs, **kwargs):
         return funs[0]
 
     if all_true:
-        def combined_fun(lex, lookbehind):
-            return all(fun(lex, lookbehind) for fun in funs)
+        def combined_fun(lex, extra_data):
+            return all(fun(lex, extra_data) for fun in funs)
     else: # any_true
-        def combined_fun(lex, lookbehind):
-            return any(fun(lex, lookbehind) for fun in funs)
+        def combined_fun(lex, extra_data):
+            return any(fun(lex, extra_data) for fun in funs)
 
     return combined_fun
 

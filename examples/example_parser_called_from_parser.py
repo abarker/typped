@@ -129,7 +129,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
     This code could also just be in-line, since it is only called once, but it
     is nice to separate it out."""
 
-    def preconditions(lex, lookbehind):
+    def preconditions(lex, extra_data):
         """Must be followed by a token with label 'lpar_token_label', with no
         whitespace in-between."""
         peek_tok = lex.peek()
