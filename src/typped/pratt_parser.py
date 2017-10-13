@@ -404,12 +404,6 @@ def token_subclass_factory():
             given context."""
             return cls.static_prec
 
-        def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
-            """Dispatch a callable function what will work as a handler.  The
-            function also does type-checking after running the defined handler."""
-            return self.parser_instance.construct_table.dispatch_handler(
-                                        head_or_tail, self, lex, left, lookbehind)
-
         def process_not_in_tree(self):
             """Removes any immediate children which have `not_in_tree` set."""
             modified_children = []
@@ -701,6 +695,12 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
+        def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
+            """Dispatch a callable function what will work as a handler.  The
+            function also does type-checking after running the defined handler."""
+            return self.parser_instance.construct_table.dispatch_handler(
+                                        head_or_tail, self, lex, left, lookbehind)
+
         def get_jop_token_instance(self, lex, processed_left, lookbehind, subexp_prec):
             """Returns an instance of the jop token iff one should be inferred in the
             current context; otherwise returns `None`."""
@@ -774,27 +774,24 @@ def token_subclass_factory():
             `subexpr_prec`, so it would always have activated the while loop if
             it were a real token."""
             parser_instance = self.parser_instance
+            # See if a null-string token is set and a handler matches preconds.
+            if not parser_instance.null_string_token_label:
+                return None, None
+            else:
+                # TODO: Don't re-create each time, save one.
+                null_string_token = parser_instance.null_string_token_subclass(None)
+
             curr_token = None
             handler_fun = None
-
-            # See if a null-string token is set and a handler matches preconds.
-            if parser_instance.null_string_token_label:
-                null_string_token = parser_instance.null_string_token_subclass(None)
-                try:
-                    handler_fun = null_string_token.dispatch_handler(
-                                      head_or_tail, lex, processed_left, lookbehind)
-                    curr_token = null_string_token
-                    # Save subexp_prec and lookbehind as attributes so null-string
-                    # token's handler funs can access them when relaying calls.
-                    curr_token.saved_subexp_prec = subexp_prec
-                    curr_token.lookbehind = lookbehind
-                except NoHandlerFunctionDefined:
-                    pass
+            try:
+                handler_fun = null_string_token.dispatch_handler(
+                                  head_or_tail, lex, processed_left, lookbehind)
+                curr_token = null_string_token
+            except NoHandlerFunctionDefined:
+                pass
             return curr_token, handler_fun
 
-        def recursive_parse(self, subexp_prec,
-                            # Below parameters ONLY used in null-string handler funs.
-                            processed_left=None, lookbehind=None):
+        def recursive_parse(self, subexp_prec):
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
@@ -815,47 +812,41 @@ def token_subclass_factory():
             This function is made a method of `TokenSubclass` so that handler
             functions can easily call it by using `tok.recursive_parse`, and
             also so that it can access the lexer without it needing to be
-            passed as an argument.  It is basically a static function, though.
-
-            If `processed_left` is set (evaluates to true) then the first part
-            of `recursive_parse` is skipped and it jumps right to the
-            tail-handling loop part using the passed-in values of
-            `processed_left` and `lookbehind`.  These parameters should
-            generally not be set.  They are only used by certain null-string
-            tokens' tail-handlers so they can relay their call as a tail-handler
-            to the actual token (which does the real work)."""
+            passed as an argument.  It is basically a static function,
+            though."""
 
             # Note on below code: It is tempting for efficiency to define a jop
             # and null-string token instance, save it, and only use it when
-            # necessary (replacing it only when used).  But some things need
-            # to be considered.  What if new head handlers are dynamically
-            # registered for the token?  Is there any special attribute or
-            # other thing that is assigned on creation which might change?
-            # Either way, you should probably add extra things like line numbers
-            # to mimic ordinary tokens. Note that currently you only really pay
-            # the creation cost if you actually use the jop or null-string
-            # feature, but a lot of dummy instances are created if you do.
+            # necessary (replacing it only when used).  But some things need to
+            # be considered.
+            #
+            # Now that handlers are not with tokens, that is no longer a
+            # concern... TODO go ahead and do this.
+            #
+            # Is there any special attribute or other thing that is assigned on
+            # creation which might change?  Either way, you should probably add
+            # extra things like line numbers to mimic ordinary tokens. Note
+            # that currently you only really pay the creation cost if you
+            # actually use the jop or null-string feature, but a lot of dummy
+            # instances are created if you do.
 
             # Set some convenience variables (the lexer and parser instances).
-            lex = self.token_table.lex
             if not hasattr(self, "parser_instance"):
                 # This catches some cases of tokens defined via Lexer, not all.
                 raise ParserException("All tokens used in the parser must be"
                         " defined in via parser's methods, not the lexer's.")
-            #parser_instance = self.parser_instance # If needed, avoid otherwise.
+            parser_instance = self.parser_instance
+            lex = self.token_table.lex
 
-            # Skip head-handling if `processed_left` passed in.  ONLY skipped
-            # when called from relaying null-string tail handlers.
-            if not processed_left:
-                curr_token, head_handler = self.get_null_string_token_and_handler(
-                                                           HEAD, lex, subexp_prec)
-                if not curr_token:
-                    curr_token = lex.next()
-                    head_handler = curr_token.dispatch_handler(HEAD, lex)
-                curr_token.is_head = True # To look up eval_fun and ast_data later.
-                # Call the head-handler looked up above.
-                processed_left = head_handler()
-                lookbehind = [processed_left]
+            curr_token, head_handler = self.get_null_string_token_and_handler(
+                                                       HEAD, lex, subexp_prec)
+            if not curr_token:
+                curr_token = lex.next()
+                head_handler = curr_token.dispatch_handler(HEAD, lex)
+            curr_token.is_head = True # To look up eval_fun and ast_data later.
+
+            processed_left = head_handler()
+            lookbehind = [processed_left]
 
             while True:
 
@@ -868,7 +859,8 @@ def token_subclass_factory():
                 # constucts and also make "prec - 1" no longer necessary for
                 # right assoc (when the dispatching also returns a construct,
                 # easy to change).  See what performance hit it has, one go_back
-                # per subexpression.
+                # per subexpression.  Note that jops use a single go_back already
+                # when they are defined...
                 #
                 # The ugly comment-string code below works.  It just pulls the
                 # token-dispatching out to before the precedence test.

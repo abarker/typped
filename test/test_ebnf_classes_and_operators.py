@@ -5,8 +5,14 @@ Test the code in the `ebnf_classes_and_overloads.py` file as well as the
 functions in `register_grammar_with_parser.py` and the `PrattParser` code for
 handling null-string tokens, etc.
 
-Classic expression grammar below is from:
+Classic EBNF expression grammar below is from:
     https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm#classic
+
+The pure BNF expression grammar is similar to one from Wikipedia.
+   https://en.wikipedia.org/wiki/Syntax_diagram
+
+Consider also using postal address example from
+   https://en.wikipedia.org/wiki/Backus%E2%80%93Naur_form
 
 """
 
@@ -251,6 +257,7 @@ def test_parsing_from_simplified_expression_grammar():
 
 def test_parsing_from_classic_expression_grammar():
     """Test the actual parser classic recursive descent expression grammar."""
+    skip()
     parser = PrattParser()
     def_expression_tokens_and_literals(parser)
 
@@ -289,14 +296,48 @@ def test_parsing_from_classic_expression_grammar():
     simple_example1_parse = parser.parse(
                                 "4*4", pstate="expression").string_tree_repr()
 
-    assert simple_example1_parse == ("<k_null-string,'expression'>("
-                                        "<k_null-string,'term'>("
-                                             "<k_null-string,'factor'>("
-                                                 "<k_number,'4'>),"
-                                             "<k_ast,'*'>,"
-                                             "<k_null-string,'factor'>("
-                                                 "<k_number,'4'>)))")
+    assert simple_example1_parse == unindent(7, """
+       "todo"
 
+       """)
+
+def test_parsing_from_BNF_expression_grammar():
+    """Test the actual parser classic recursive descent expression grammar."""
+    parser = PrattParser()
+    def_expression_tokens_and_literals(parser)
+
+    #
+    # Define the grammar.
+    #
+
+    k_letter = parser.def_token("k_letter", r"[a-z]")
+    parser.def_literal("k_letter")
+
+    expression = Rule("term") + k_plus + Rule("expression") | Rule("term")
+    term       = Rule("factor") + k_ast + Rule("term") | Rule("factor")
+    factor     = Rule("number") | Rule("variable") | k_lpar + Rule("expression") + k_rpar
+    variable   = k_letter
+    number     = k_number
+
+    print("Expression is", expression)
+    print("Term is", term)
+    print("Factor is", factor)
+
+    #
+    # Register the grammar with the parser and parse some expressions.
+    #
+
+    Grammar("expression", parser, locals()) # Compile grammar and register with parser.
+
+    simple_example_parse = parser.parse(
+                                "4+2*2", pstate="expression").tree_repr()
+
+    print(simple_example_parse)
+    fail()
+    assert simple_example_parse == unindent(7, """
+       todo
+
+       """)
 
 def test_shortcut_operator_overloads_in_expression_grammar():
     parser = PrattParser()

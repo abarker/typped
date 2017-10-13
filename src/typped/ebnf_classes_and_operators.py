@@ -383,16 +383,28 @@ from .pratt_types import TypeSig, TypeObject, NONE
 from .lexer import TokenNode
 from .register_grammar_with_parser import register_rule_handlers_with_parser
 
+DEFAULT_COMPILE_DEPTH_LIMIT = 200 # Limit depth of full grammar tree, just in case.
+
 class Grammar(object):
     """An object representing a context-free grammar.  It is basically a
     dict of caselists indexed by nonterminal labels.  Provides various
     methods for processing the caselists."""
 
-    def __init__(self):
-        self.delimiter = Item(None) # Could be static but Item would need moving.
+    def __init__(self, *args, **kwargs):
+        """Initialize the grammar object.  Positional arguments are optional.
+        If present they will be passed to the `compile` method, and are the
+        same as the parameters for that method.
+
+        Another keyword argument is `compile_depth_limit` which can be used
+        to set the failsafe recursion limit on recursing the grammar tree to
+        compile it."""
+        self.compile_depth_limit = kwargs.pop("compile_depth_limit",
+                                              DEFAULT_COMPILE_DEPTH_LIMIT)
         self.parser = None
-        self.production_caselists = {}
-        self.processing_in_progress = set() # To avoid infinite recurse in compile.
+        self.nonterm_to_caselist_dict = {}
+        self.processed_or_being_processed = set() # Avoid infinite recurse in compile.
+        if args:
+            self.compile(*args, **kwargs)
 
     def compile(self, start_nonterm_label, parser, locals_dict, register=True):
         """Create the Pratt parser handlers in `parser` to parse the current
@@ -412,39 +424,46 @@ class Grammar(object):
         instance `parser` to enable it to parse the grammar."""
         # TODO: Make sure we don't accidentally re-register something.
 
-        self.production_caselists = {} # Reset all the caselists.
-        self.processing_in_progress = set()
+        self.nonterm_to_caselist_dict = {} # Reset all the caselists.
+        self.processed_or_being_processed = set()
         self.parser = parser
         self.start_nonterm_label = start_nonterm_label
         self.locals_dict = locals_dict
-        self._process_nonterm_caselist(start_nonterm_label)
-        self.processing_in_progress = set()
+
+        self._process_nonterm_caselist(start_nonterm_label, 1)
+        self.processed_or_being_processed = set() # Empty out the set, no longer needed.
         print("\nThe final dict is\n")
-        for name, caselist in self.production_caselists.items():
-            print("   {0} = {1}".format(name, caselist))
-        print()
+        #for name, caselist in self.nonterm_to_caselist_dict.items():
+        #    print("   {0} = {1}".format(name, caselist))
+        #print()
 
         if register:
-            for label, caselist in self.production_caselists.items():
+            for label, caselist in self.nonterm_to_caselist_dict.items():
                 register_rule_handlers_with_parser(self.parser, label, self)
 
-    def _process_nonterm_caselist(self, nonterm_label):
+    def _process_nonterm_caselist(self, nonterm_label, depth):
         """Recursively process rules, converting string labels into their
         definitions from the locals dict, and looking up the tokens that go
         with token labels."""
-        self.processing_in_progress.add(nonterm_label)
+        if depth > self.compile_depth_limit:
+            raise ParserGrammarRuleException(
+                    "Recursion depth exceeded in compiling grammar") # Need better msg.
+        self.processed_or_being_processed.add(nonterm_label)
         try:
-            locals_caselist = self.locals_dict[nonterm_label]
-        except AttributeError:
-            raise ParserGrammarRuleException("The rule \"{0}\" was not found"
-                    " in the locals dict that was passed to the compile method"
-                    " of the `Grammar` class.  Remember that the string passed"
+            locals_var_value = self.locals_dict[nonterm_label]
+        except KeyError:
+            raise ParserGrammarRuleException("The rule '{0}' was not found"
+                    " as a variable in the locals dict that was passed to the compile"
+                    " method of the `Grammar` class.  Remember that the string passed"
                     " to the Rule function must correspond exactly to the name of a"
                     " Python varible on the l.h.s. of a definition."
                     .format(nonterm_label))
-        locals_caselist = CaseList(*locals_caselist)
-        print("label of caselist being processed is", nonterm_label)
-        print("processing this caselist from locals():\n   ", locals_caselist)
+        try:
+            locals_caselist = CaseList(locals_var_value)
+        except ParserGrammarRuleException:
+            raise ParserGrammarRuleException("Could not convert local variable"
+                  " '{0}' into a CaseList.  The variable had value:\n   {1}"
+                  .format(nonterm_label, locals_var_value))
 
         processed_caselist = CaseList()
         for itemlist in locals_caselist:
@@ -455,19 +474,19 @@ class Grammar(object):
                         item.value = self.parser.get_token(item.value)
                 elif item.kind_of_item == "nonterminal":
                     recursion_nonterm_label = item.value
-                    if recursion_nonterm_label in self.processing_in_progress:
+                    if recursion_nonterm_label in self.processed_or_being_processed:
                         pass # Nonterminal is currently being processed.
-                    elif recursion_nonterm_label in self.production_caselists:
-                        pass
+                    elif recursion_nonterm_label in self.nonterm_to_caselist_dict:
+                        pass # Should be redundant with processing_in_progress....
                     else:
-                        self._process_nonterm_caselist(recursion_nonterm_label)
+                        self._process_nonterm_caselist(recursion_nonterm_label, depth+1)
                 new_itemlist.append(item)
             processed_caselist.append(new_itemlist)
 
         processed_caselist.grammar_object = self
         processed_caselist.parser = self.parser
         processed_caselist.nonterm_label = nonterm_label
-        self.production_caselists[nonterm_label] = processed_caselist
+        self.nonterm_to_caselist_dict[nonterm_label] = processed_caselist
 
         return processed_caselist
 
@@ -484,11 +503,11 @@ class Grammar(object):
 
     def __getitem__(self, production_label):
         """Access like a dict to get production rules from their labels."""
-        return self.production_caselists[production_label]
+        return self.nonterm_to_caselist_dict[production_label]
 
     def __contains__(self, nonterm_label):
         """For use with the 'in' keyword, like testing keys in a dict."""
-        return nonterm_label in self.production_caselists
+        return nonterm_label in self.nonterm_to_caselist_dict
 
     def _optimize_grammar_tree(self):
         """Do a search of the grammar tree and find lookahead tokens to
@@ -503,7 +522,7 @@ class Grammar(object):
 
     def _set_first_and_follow_sets(self):
         """Set the first and follow sets for every case of every nonterminal."""
-        for nonterm_label, caselist in self.production_caselists.items():
+        for nonterm_label, caselist in self.nonterm_to_caselist_dict.items():
             for rule in caselist:
                 self._recursive_set_first_sets(nonterm_label, rule)
         # TODO do follow sets separately, if done at all.
@@ -971,12 +990,12 @@ def Opt(*args):
     # Could be implemented as a temporary sub-rule which allows epsilon....
     # Could convert its arguments to CaseList, which would allow | in the
     # expressions, too.
-    print("args are", args)
+    #print("args are", args)
     # test using caselist...
     caselist = CaseList()
     for arg in args:
         caselist.append(arg)
-    print("caselist is", caselist)
+    #print("caselist is", caselist)
 
     itemlist = ItemList()
     for count, arg in enumerate(args):
