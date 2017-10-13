@@ -127,6 +127,7 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     # allowing a null-string token handler to be called recursively
     # unless something has been consumed from the lexer (curtailment,
     # but no memoization, see e.g. Frost et. al 2007).
+    from .pratt_parser import ExtraDataForHandler
 
     def preconditions(lex, lookbehind, peek_token_label=peek_token_label):
         """This function is only registered and used if `peek_token_label`
@@ -144,19 +145,19 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
 
     # Register the handler for the first item of the first case.
     construct_label = "construct_for_nonterminal_symbol_{0}".format(nonterm_label)
-    precond_priority = 10000
+    precond_priority = 100000 # TODO: Temporary, decide on actual.
     parser.def_construct(HEAD, head_handler, null_token.token_label, prec=0,
                  construct_label=construct_label,
                  precond_fun=preconditions, precond_priority=precond_priority)
                  #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                  #ast_label=ast_label)
 
-    prec = 10 # TODO: Temporary hardcode, will need to vary.
+    prec = 100000 # TODO: Temporary, decide on actual.
     parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
                  construct_label=construct_label,
                  precond_fun=preconditions, precond_priority=precond_priority)
 
-def recursive_parse_nonterm_handler(tok, subexp_prec): #, itemlist, index):
+def recursive_parse_for_nonterm_handlers(tok, subexp_prec): #, itemlist, index):
     """The equivalent of `recursive_parse` which is called from handlers for
     nonterminals (triggered by null-string tokens)."""
     parser_instance = tok.parser_instance
@@ -239,12 +240,12 @@ def generic_handler(nonterm_label, caselist, tok, lex):
                     # Actual tree nodes must be processed by literal handler.
                     # Todo: document/improve this stuff, nice to push known label
                     pstate_stack.append(None) # Avoid recursion to this handler.
-                    next_tok = recursive_parse_nonterm_handler(tok, 0) # Get the token.
+                    next_tok = recursive_parse_for_nonterm_handlers(tok, 0) # Get the token.
                     pstate_stack.pop()
 
                     if next_tok.children:
                         raise ParserException("In parsing the nonterminal {0}"
-                                " a call to recursive_parse_nonterm_handler returned a"
+                                " a call to recursive_parse_nonterm_handlers returned a"
                                 " subexpression tree rather than the expected"
                                 " single token with label {1}.  Subexpression"
                                 " was {2}"
@@ -257,7 +258,7 @@ def generic_handler(nonterm_label, caselist, tok, lex):
                     item_nonterm_label = item.value
                     pstate_stack.append(item_nonterm_label)
                     try:
-                        next_subexp = recursive_parse_nonterm_handler(tok, 0)
+                        next_subexp = recursive_parse_for_nonterm_handlers(tok, 0)
                     except (BranchFail, CalledEndTokenHandler):
                         raise
                     finally:
@@ -312,7 +313,7 @@ def generic_tail_handler_function_factory(nonterm_label, caselist):
 
         pstate_stack = tok.parser_instance.pstate_stack
         pstate_stack.append("pstate_label")
-        processed = recursive_parse_nonterm_handler(tok, tok.subexp_prec,
+        processed = recursive_parse_for_nonterm_handlers(tok, tok.subexp_prec,
                             processed_left=left, lookbehind=tok.lookbehind)
         pstate_stack.pop()
         return processed

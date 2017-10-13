@@ -196,6 +196,7 @@ if __name__ == "__main__":
 
 import sys
 import copy
+from collections import namedtuple
 
 from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
         NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
@@ -971,6 +972,8 @@ def lexer_add_parser_instance_attribute(lexer, token):
     token.parser_instance = lexer.token_table.parser_instance # From token table.
     return token
 
+ExtraDataForHandler = namedtuple("ExtraHandlerData", ["lookbehind", "subexp_prec"])
+
 class PrattParser(object):
     """A parser object.  Each parser object contains its own token table for tokens
     and its own lexer."""
@@ -1500,7 +1503,6 @@ class PrattParser(object):
         if pstate:
             self.pstate_stack = []
         return parse_tree
-
 
 #
 # Copy the convenience functions from builtin_parse_methods to the PrattParser class.
