@@ -142,31 +142,23 @@ initialized each time, and saving information like line numbers and columns in
 the text would need to move to the text stream object.
 
 The `parse` routine of a `PrattParser` takes an optional lexer argument, which
-will be used instead of the default lexer.  But, it first temporarily sets the
-`TokenTable` instance of the lexer to be the same as the token table instance
-of the *current* parser (using the lexer's `set_token_table` method).  So you
-can call the `parse` method of a *different* parser instance from within a
-handler function, passing that other parser's `parse` function the *current*
-parser's lexer as an argument.  (Recall that handler functions are associated
-with tokens, but defined in the context of a parser/token-table.) So the lexer
-will use the token table of the new parser but still read from the same text
-stream as the current parser.  Note that a sublanguage must always be parsed
-from the beginning, so `parse` must be called.  When this parser fails (with
-certain exceptions? needed with multi-expression?) the subexpression is assumed
-to be parsed, and the symbol table of the lexer is restored to the symbol table
-of the current parser (again using the lexer's `set_token_table` method).
+is used by sub-parsers instead of the default lexer.  When parsing a
+sublanguage with a different parser the the `TokenTable` instance of the lexer
+is set to be the same as the token table instance of the *current* parser
+(using the lexer's `set_token_table` method).  So you can call the `parse`
+method of a *different* parser instance from within a handler function, passing
+that other parser's `parse` function the *current* parser's lexer as an
+argument.  The lexer will use the token table of the new parser but still read
+from the same text stream as the current parser.
 
-Consider: Is the condition that prec=0, or only a head handler, sufficient to
-assume the end???  Does normal multi-expression work?  WHAT CONDITIONS DOES
-THIS IMPOSE ON THE SUBLANGUAGES?
+Note that a sublanguage program (or expression or wff) must always be parsed
+from the beginning, so the `parse` method is called.  When this parser reaches
+the end, where it would normally stop, the symbol table of the lexer is
+restored to the symbol table of the current parser (again using the lexer's
+`set_token_table` method).
 
-Note that the parser or the lexer can determine when a sublanguage expression
-ends: either the lexer doesn't recognize a token or else the parser cannot find
-a handler, or a handler fails to find what it expects and raises an exception.
-
-What if the lexer keeps a stack of symbol tables, and pops one off whenever it
-fails?  Still, you could have lookahead which is correctly lexed in the top
-language but then fails to match a handler function.
+A sublanguage expression can end when the lexer doesn't recognize a token, or
+when it would normally return a parsed expression.
 
 Code
 ====
@@ -215,7 +207,7 @@ from . import builtin_parse_methods, predefined_token_sets
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
 # parser instance associated with the lexer's current token table to every token
-# as an attribute.  Seems OK, including for parsers calling parsers, but consider
+# as, an attribute.  Seems OK, including for parsers calling parsers, but consider
 # and update docs and comments where not yet changed.
 
 # Note that the eval_fun stuff could also be used to also do a conversion to
@@ -693,16 +685,11 @@ def token_subclass_factory():
         # The main recursive_parse function.
         #
 
-        def dispatch_handler(self, head_or_tail, lex, left=None, lookbehind=None):
-            """Dispatch a callable function what will work as a handler.  The
-            function also does type-checking after running the defined handler."""
-            return self.parser_instance.construct_table.dispatch_handler(
-                                        head_or_tail, self, lex, left, lookbehind)
-
         def get_jop_token_instance(self, lex, processed_left, lookbehind, subexp_prec):
             """Returns an instance of the jop token iff one should be inferred in the
             current context; otherwise returns `None`."""
             parser_instance = self.parser_instance
+            dispatch_handler = parser_instance.construct_table.dispatch_handler
 
             # Not if jop token is undefined for the parser.
             if not parser_instance.jop_token_subclass:
@@ -747,10 +734,10 @@ def token_subclass_factory():
                     # another token; also, deeper-level recursions could cause false
                     # results to come up the recursion chain.  We are just testing
                     # what handlers are defined for the token.
-                    _peek_head_handler = curr_token.dispatch_handler(HEAD, lex)
+                    _peek_head_handler = dispatch_handler(HEAD, curr_token, lex)
                     try: # Found head handler, now make sure it has no tail handler.
-                        _peek_tail_handler = curr_token.dispatch_handler(
-                                           TAIL, lex, processed_left, lookbehind)
+                        _peek_tail_handler = dispatch_handler(TAIL, curr_token,
+                                                     lex, processed_left, lookbehind)
                     except NoHandlerFunctionDefined:
                         # This is the only case where an actual token is returned.
                         return jop_instance
@@ -772,6 +759,7 @@ def token_subclass_factory():
             `subexpr_prec`, so it would always have activated the while loop if
             it were a real token."""
             parser_instance = self.parser_instance
+            dispatch_handler = parser_instance.construct_table.dispatch_handler
             # See if a null-string token is set and a handler matches preconds.
             if not parser_instance.null_string_token_label:
                 return None, None
@@ -782,8 +770,8 @@ def token_subclass_factory():
             curr_token = None
             handler_fun = None
             try:
-                handler_fun = null_string_token.dispatch_handler(
-                                  head_or_tail, lex, processed_left, lookbehind)
+                handler_fun = dispatch_handler(head_or_tail, null_string_token,
+                                               lex, processed_left, lookbehind)
                 curr_token = null_string_token
             except NoHandlerFunctionDefined:
                 pass
@@ -793,19 +781,14 @@ def token_subclass_factory():
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
-            full expression to the left of the current token.  This is a static
-            method so that it can be called from head and tail functions.  Note
-            that the function `dispatch_and_call_handler` which is called in
-            the code often recursively call `recursive_parse` again.  Each
-            recursive call inside the function processes a subexpression,
-            sub-subexpression, etc.  (as implicitly defined by the token
-            precedences).  The list `lookbehind` saves all the previously
-            evaluated subexpressions at this level of recursion (i.e., at the
-            top level in the same subexpression) and passes it to the
-            `tail_dispatcher` method of the tokens, in case that routine wants
-            to make use of it.  For example, the ordinal position of the token
-            in the top level of the subexpression can be calculated from the
-            length of `lookbehind`.
+            full expression to the left of the current token.
+
+            The list `lookbehind` saves all the previously evaluated
+            subexpressions at this level of recursion (i.e., at the top level
+            in the same subexpression) and passes it to the dispatched tail
+            handlers, in case that routine wants to make use of it.  For
+            example, the ordinal position of the token in the top level of the
+            subexpression can be calculated from the length of `lookbehind`.
 
             This function is made a method of `TokenSubclass` so that handler
             functions can easily call it by using `tok.recursive_parse`, and
@@ -828,19 +811,19 @@ def token_subclass_factory():
             # actually use the jop or null-string feature, but a lot of dummy
             # instances are created if you do.
 
-            # Set some convenience variables (the lexer and parser instances).
-            if not hasattr(self, "parser_instance"):
+            if not hasattr(self, "token_kind"):
                 # This catches some cases of tokens defined via Lexer, not all.
                 raise ParserException("All tokens used in the parser must be"
                         " defined in via parser's methods, not the lexer's.")
             parser_instance = self.parser_instance
+            dispatch_handler = parser_instance.construct_table.dispatch_handler
             lex = self.token_table.lex
 
             curr_token, head_handler = self.get_null_string_token_and_handler(
                                                        HEAD, lex, subexp_prec)
             if not curr_token:
                 curr_token = lex.next()
-                head_handler = curr_token.dispatch_handler(HEAD, lex)
+                head_handler = dispatch_handler(HEAD, curr_token, lex)
             curr_token.is_head = True # To look up eval_fun and ast_data later.
 
             processed_left = head_handler()
@@ -878,8 +861,8 @@ def token_subclass_factory():
                     else:
                         curr_token = lex.next()
                         try:
-                            tail_handler = curr_token.dispatch_handler(
-                                             TAIL, lex, processed_left, lookbehind)
+                            tail_handler = dispatch_handler(TAIL, curr_token,
+                                                            lex, processed_left, lookbehind)
                         except NoHandlerFunctionDefined as e:
                             err = e
                         peek_prec = lex.token.prec()
@@ -900,8 +883,8 @@ def token_subclass_factory():
                                     TAIL, lex, subexp_prec, processed_left, lookbehind)
                     if not ns_token:
                         curr_token = lex.next()
-                        tail_handler = curr_token.dispatch_handler(
-                                             TAIL, lex, processed_left, lookbehind)
+                        tail_handler = dispatch_handler(TAIL, curr_token,
+                                                        lex, processed_left, lookbehind)
 
                     processed_left = tail_handler()
                     lookbehind.append(processed_left)
@@ -913,8 +896,8 @@ def token_subclass_factory():
                 jop_instance = self.get_jop_token_instance(
                                          lex, processed_left, lookbehind, subexp_prec)
                 if jop_instance:
-                    jop_tail_handler = jop_instance.dispatch_handler(
-                                           TAIL, lex, processed_left, lookbehind)
+                    jop_tail_handler = dispatch_handler(TAIL, jop_instance,
+                                                        lex, processed_left, lookbehind)
                     processed_left = jop_tail_handler()
                     lookbehind.append(processed_left)
                 else:
@@ -985,7 +968,7 @@ def lexer_add_parser_instance_attribute(lexer, token):
     current token table, because of the case where parsers call other parsers.
     (It is not added to general token subclasses in `def_token_master` because
     parsers could potentially share token subclasses.)"""
-    token.parser_instance = lexer.token_table.parser_instance
+    token.parser_instance = lexer.token_table.parser_instance # From token table.
     return token
 
 class PrattParser(object):

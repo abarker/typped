@@ -160,12 +160,13 @@ def recursive_parse_nonterm_handler(tok, subexp_prec): #, itemlist, index):
     """The equivalent of `recursive_parse` which is called from handlers for
     nonterminals (triggered by null-string tokens)."""
     parser_instance = tok.parser_instance
+    dispatch_handler = parser_instance.construct_table.dispatch_handler
     lex = tok.token_table.lex
     curr_token, head_handler = tok.get_null_string_token_and_handler(
                                                      HEAD, lex, subexp_prec)
     if not curr_token:
         curr_token = lex.next()
-        head_handler = curr_token.dispatch_handler(HEAD, lex)
+        head_handler = dispatch_handler(HEAD, curr_token, lex)
     curr_token.is_head = True # To look up eval_fun and ast_data later.
 
     processed_left = head_handler()
@@ -176,8 +177,8 @@ def recursive_parse_nonterm_handler(tok, subexp_prec): #, itemlist, index):
                         TAIL, lex, subexp_prec, processed_left, lookbehind)
         if not ns_token:
             curr_token = lex.next()
-            tail_handler = curr_token.dispatch_handler(
-                                 TAIL, lex, processed_left, lookbehind)
+            tail_handler = dispatch_handler(
+                                 TAIL, curr_token, lex, processed_left, lookbehind)
 
         processed_left = tail_handler()
         lookbehind.append(processed_left)
