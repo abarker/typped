@@ -39,9 +39,6 @@ from .pratt_types import TypeSig, TypeErrorInParsedLanguage
 from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
                                              ParserException)
 
-# TODO: Convert all precond funs take (tok, lex) arguments, since tok is not
-# lex.token for virtual tokens like jops and null-space tokens.
-
 # TODO: A construct should probably save the `assoc` attribute.  Currently it
 # is done inside the tail handlers, implemented in the builtins using the
 # standard "prec - 1" method.  Should also hold `prec` attributes.
@@ -88,7 +85,7 @@ class Construct(object):
     __slots__ = ["parser_instance", "construct_label", "trigger_head_or_tail",
                  "trigger_token_label", "handler_fun", "precond_fun",
                  "precond_priority", "original_sigs", "ast_data_dict",
-                 "eval_fun_dict", "key_on_token_values", "is_empty"]
+                 "eval_fun_dict", "assoc", "prec", "key_on_token_values", "is_empty"]
     # At some point precedence (lbp) values might be incorporated into a
     # constructs, but for now all constructs for the same token would need the
     # same precedence.  The info seems to go here, though, at least for future
@@ -101,6 +98,8 @@ class Construct(object):
                        handler_fun=None,
                        precond_fun=None,
                        precond_priority=0,
+                       prec=0, # Experimental, see recursive_parse, remember slot.
+                       assoc=None, #Experimental, see recursive_parse.
                        key_on_token_values=False):
         """Initialize a `Construct` instance associated with the parser
         `parser_instance`.  Users should usually use the `def_construct`
@@ -150,6 +149,8 @@ class Construct(object):
         self.handler_fun = handler_fun
         self.precond_fun = precond_fun
         self.precond_priority = precond_priority
+        self.assoc = assoc
+        self.prec = prec
 
         self.original_sigs = []
 

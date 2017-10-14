@@ -279,6 +279,7 @@ def test_stdfun_lpar_tail_functions():
     with raises(ParserException) as e:
         parser.parse("add (30,30)") # Whitespace between.
     assert str(e.value).startswith("No tail handler function matched the token with value")
+    #assert str(e.value).startswith("Parsing never reached the end of the text.")
 
 def test_jop(basic_setup):
     """Test juxtaposition operators."""

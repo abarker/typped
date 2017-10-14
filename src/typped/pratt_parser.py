@@ -205,15 +205,9 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
 from . import builtin_parse_methods, predefined_token_sets
 
-# TODO: Pass extra_data to all handlers, too.  Lots of little changes...
-# Search for calls to def_construct.  Big API change....
-#
-# Consistent interface, pass extra to all preconds and all handlers.
-# When used as a parameter just call it "extra".
-#
-# --> Also, consider passing tok to precond in addition to lex, for consistency
-#     with the args of a head-handler.  Maybe easier to remember.  NOTE that
-#     tok is not always lex.token, if virtual tokens are used like null-string!!!
+# TODO: Add a warning raise to prec for tokens if it is redefined from a
+# nonzero value.  They can explicitly zero it to silence warning.  Avoid
+# problems with limitation of fixed per-token prec (while that is the case).
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -221,20 +215,9 @@ from . import builtin_parse_methods, predefined_token_sets
 # token as, an attribute.  Seems OK, including for parsers calling parsers, but
 # consider and update docs and comments where not yet changed.
 #
-# --> As of now parser_instance could potentially be an extra_data field,
-# accessed there instead of from the token, at least in handlers and precond
-# funs.  But you still might want to know the parser instance for a token,
-# especially with multiple-parser combinations.  Setting token attributes
-# inside recursive_parse would only set for the triggering tokens, not any
-# which are read directly in handlers.  Don't want to clutter up tokens with
-# everything since tokens stick around as the expression tree.  If user REALLY
-# wanted it, though, and it was in extra_data then they could have their
-# handlers add it there.
-#
-# Instead of adding an extra data field, why not just add extra_data to the
-# trigger tokens as attributes.  You could delete it later in recursive_parse
-# to clean up, after any dispatching (but not necessarily after 2nd pass checking)
-# Then no need to even pass extra_data to the preconds funs...
+# The extra_data attribute is now temporarily added to trigger tokens.  Is
+# that enough access to parser_instance?  Probably not, since we need to
+# get parser options.
 
 # Note that the eval_fun stuff could also be used to also do a conversion to
 # AST.  Also at some point add "eval on the fly" capability (not too hard, but
@@ -901,41 +884,62 @@ def token_subclass_factory():
                 # Outer loop is ONLY for the special case when a jop is defined.
                 #
 
-                # TODO: Consider modification like this to allow precedences in
-                # constucts and also make "prec - 1" no longer necessary for
-                # right assoc (when the dispatching also returns a construct,
-                # easy to change).  See what performance hit it has, one go_back
-                # per subexpression.  Note that jops use a single go_back already
-                # when they are defined...
+                # TODO: Consider modification like code below to allow
+                # precedences per constuct, which also makes "prec - 1" no
+                # longer necessary for right assoc when property is set for the
+                # construct itself.  See what performance hit it has, one
+                # go_back per subexpression.  Note that jops use a single
+                # go_back already when they are defined...
                 #
                 # The ugly comment-string code below works.  It just pulls the
                 # token-dispatching out to before the precedence test.
-                # Obviously could then use some refactoring, too.  Consider
-                # possible interactions with jop and null-string tokens, but
-                # they do not do a `next` call anyway.  (Is it better to pull
-                # out the ns_token dispatch, at least?  In regular code, how to
-                # get null-string to appear at end of a subexpression?)
+                # Obviously could then use some cleanup and refactoring, too.
+                # Consider possible interactions with jop and null-string
+                # tokens, but they don't do a `next` call anyway.  (Is it
+                # better to pull out the ns_token dispatch, at least?  In
+                # regular code, how to get null-string to appear at end of a
+                # subexpression?)
+                #
+                # Argument it works: This code is doing exactly the same
+                # dispatching as it would inside the loop test, but it is doing
+                # it before the loop test.  The loop test never modifies
+                # anything.  If the test fails the effects of the dispatches
+                # are undone.
                 """
                 while True:
-                    err = None
+                    #err = None
                     ns_token, tail_handler, construct = self.dispatch_null_string_handler(
                                     TAIL, lex, subexp_prec, extra_data, processed_left)
                     if ns_token:
                         curr_token = ns_token
                         peek_prec = lex.token.prec()
-                        #peek_prec = 10000000000 # Always run if triggered, head or tail.
+                        #peek_prec = construct.prec() # Switch to this...
                     else:
                         curr_token = lex.next()
                         try:
                             tail_handler, construct = dispatch_handler(TAIL, curr_token,
                                                             lex, extra_data, processed_left)
+                            peek_prec = lex.token.prec()
+                            #peek_prec = construct.prec() # Switch to this...
                         except NoHandlerFunctionDefined as e:
-                            err = e
-                        peek_prec = lex.token.prec()
+                            # If no construct at all then can't have tail handler so
+                            # prec should be 0.  But if it fails due to a precond,
+                            # token itself could still have a prec > 0.  In that case
+                            # it will get inside the loop and fail, but it really
+                            # shouldn't have gotten inside.
+                            #
+                            # Only one test changes, and new one is commented out in
+                            # the test file under the old one.
+                            #err = e
+                            peek_prec = -1 # Always fail test and break.
+                            #peek_prec = lex.token.prec()
 
-                    if peek_prec > subexp_prec:
-                        if err:
-                            raise err # Avoid error msg changing (makes test fail).
+                    #test_assoc = False if err else (peek_prec == subexp_prec and
+                    #                                construct.assoc == "right")
+                    test_assoc = peek_prec == subexp_prec and construct.assoc == "right"
+                    if peek_prec > subexp_prec or test_assoc:
+                        #if err: # Error would have been found inside loop, now above.
+                        #    raise err # Avoid error msg changing (makes test fail).
                         processed_left = tail_handler()
                         delattr(curr_token, "extra_data")
                         extra_data.lookbehind.append(processed_left)
