@@ -130,7 +130,7 @@ def def_handlers_for_first_case_of_nonterminal(parser, nonterm_label, null_token
     global ExtraDataTuple # Import here to avoid circular; move to shared if kept.
     from .pratt_parser import ExtraDataTuple
 
-    def preconditions(lex, extra, peek_token_label=peek_token_label):
+    def preconditions(tok, lex, peek_token_label=peek_token_label):
         """This function is only registered and used if `peek_token_label`
         is not `None`."""
         pstate_stack = lex.token_table.parser_instance.pstate_stack

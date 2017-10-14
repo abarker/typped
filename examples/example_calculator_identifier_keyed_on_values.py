@@ -181,7 +181,7 @@ def define_assignment_operator(parser):
         return rhs
 
     parser.def_infix_op("k_equals", 5, "right",
-                precond_fun=lambda lex, lb: lex.peek(-1).token_label == "k_identifier",
+                precond_fun=lambda tok, lex: lex.peek(-1).token_label == "k_identifier",
                 eval_fun=eval_assign)
 
 def define_comments(parser):

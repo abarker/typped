@@ -762,10 +762,11 @@ def token_subclass_factory():
                     # another token; also, deeper-level recursions could cause false
                     # results to come up the recursion chain.  We are just testing
                     # what handlers are defined for the token.
-                    _peek_head_handler, head_construct = dispatch_handler(HEAD, curr_token, lex, extra_data)
+                    _peek_head_handler, head_construct = dispatch_handler(
+                                                   HEAD, curr_token, lex, extra_data)
                     try: # Found head handler, now make sure it has no tail handler.
-                        _peek_tail_handler, tail_construct = dispatch_handler(TAIL, curr_token,
-                                                     lex, extra_data, processed_left)
+                        _peek_tail_handler, tail_construct = dispatch_handler(
+                                   TAIL, curr_token, lex, extra_data, processed_left)
                     except NoHandlerFunctionDefined:
                         # This is the only case where an actual token is returned.
                         return jop_instance
@@ -872,10 +873,11 @@ def token_subclass_factory():
             #
 
             curr_token, head_handler, construct = self.dispatch_null_string_handler(
-                                                       HEAD, lex, subexp_prec, extra_data)
+                                                     HEAD, lex, subexp_prec, extra_data)
             if not curr_token: # No null-string token fired, so use normal next() call.
                 curr_token = lex.next()
-                head_handler, construct = dispatch_handler(HEAD, curr_token, lex, extra_data)
+                head_handler, construct = dispatch_handler(
+                                                     HEAD, curr_token, lex, extra_data)
 
             extra_data.constructs.append(construct)
 

@@ -92,9 +92,20 @@ Using dispatching
 -----------------
 
 The ``PrattParser`` method which registers a construct with the parser is
-called ``def_construct``.  It is used inside the predefined methods after
+called ``def_construct``.  It is used inside the builtin methods after
 defining the handler functions and any preconditions functions.  To define
 custom constructs it needs to be explicitly called.
+
+One of the optional arguments to ``def_construct`` is ``precond_fun``, which
+can be passed a function taking two parameters, ``tok`` and ``lex``.  It should
+return ``True`` or ``False`` (or the equivalent).  When a token is read in
+``recursive_parse`` all the preconditions functions for all the constructs
+triggered by that kind of token are run in priority ordering until one is true.
+The associated construct is the "winner" and is dispatched to be called.  When
+the preconditions function is called, ``tok`` is the triggering token and
+``lex`` is the lexer.  (Usually ``tok == lex.token``, except in the case of
+some "virtual" tokens like null-space tokens and jop-tokens which are both
+discussed in later sections.)
 
 In generalizing to preconditioned dispatching the ``recursive_parse`` routine
 is slightly modified from the one in the previous section.  A simplified
@@ -158,37 +169,10 @@ above tuple but have different ``precond_priority`` values then one will always
 shadow the other.  The shadowed construct will never run.
 
 Unfortunately it is impractical to determine in general when two preconditions
-functions are identical in the sense that they compute the same thing.  As
-a workaround, the construct label can be used instead::
+functions are identical in the sense that they compute the same thing.
 
-   (head_or_tail, trigger_token_label, construct_label)
-
-What should happen when a construct that triggers the same is redefined,
-perhaps with different type information?  Should overloading be done that way?
-The discussion below assumes that the option
-``overload_on_matching_construct_def`` is set true.
-
-Based on this definition of equality of constructs, redefining a head (tail)
-construct results in a new head (tail) construct if either the triggering token
-label or the preconditions label is different.  If no preconditions function is
-passed to ``def_construct`` (or to the builtin parsing methods) then a default
-always-true function is used with a default label.  If a function is provided
-without a preconditions label then a new, unique label is generated.  So if a
-preconditions function is specified it is assumed to be unique unless a label
-is also provided which matches the label of a pre-existing function.  Explicit
-precondition labels are only required in order to modify or overload
-already-existing constructs which use a non-default preconditions function.
-
-To modify a construct or overload a construct (such as a construct for an
-overloaded infix operator) you simply call ``def_construct`` with the same
-triggering token label and preconditions label as a previous construct for that
-trigger token in that same head or tail position.
-
-When an existing construct is redefined and ``def_construct`` is passed the
-same type signature as the previous definition the new construct simply
-replaces the old one.  When the type signatures of the two calls to
-``def_construct`` differ, however, overloading on types is assumed for the
-construct.
+Overloading
+~~~~~~~~~~~
 
 Recall that function overloading based on argument types is used for
 syntactical constructs which parse the same (i.e., with the same preconditions
@@ -197,11 +181,11 @@ semantic objects based on the actual types of the arguments which are processed
 at parse-time.  Overloading can also involve the type of the function's return
 value.
 
-When overloading is determined on a ``def_construct`` call any previous type
-signatures and any data associated with those signatures (such as AST data and
-evaluation functions) is saved with the construct along with the new ones.  The
-handler function, precedence, preconditions function, and preconditions
-priority are overwritten with the most-recently-defined versions.
+Overloading must be explicitly specified, via a call to the ``overload`` method
+of a previously-defined construct instance.  Because of the difficulty of
+determining equivalence of preconditions functions, described above,
+overloading cannot be done by simply calling ``def_construct`` again with the
+same arguments and a different type.  
 
 .. topic:: Two ways to parse identifiers
 
@@ -336,7 +320,7 @@ space.
                """Define a standard function with a fixed number of arguments."""
 
                # Define the preconditions function.
-               def preconditions(lex, extra_data):
+               def preconditions(tok, lex):
                    peek_tok = lex.peek()
                    if peek_tok.ignored_before: # No space allowed between name and lpar.
                        return False

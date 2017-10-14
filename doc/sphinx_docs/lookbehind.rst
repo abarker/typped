@@ -11,9 +11,9 @@ useful.
 This is a simple modification, and is currently implemented.  In the
 ``recursive_parse`` function, whenever the ``processed_left`` variable is
 assigned a new value, that value is also appended to a list called
-``lookbehind``.  This ``lookbehind`` list is passed as the attribute
-``lookbehind`` of the ``extra_data`` namedtuple that is always passed to
-handler functions, so they can make use of it if desired.
+``lookbehind``.  This list is temporarily set as an attribute of the triggering
+token, and so can be accessed as ``tok.extra_data.lookbehind`` in both the
+handler functions and in the preconditions functions.
 
 Since the lookbehind tokens have already been processed they allow the
 preconditions to make use of information such as resolved type information (not
@@ -33,9 +33,11 @@ practice, however, and so has been kept.
 Lookbehind information is not a feature which will be commonly used, but it may
 have some use cases.
 
-In addition to lookbehind information, the ``extra_data`` namedtuple passed to
-handlers and precond functions contains the current subexpression precedence as
-``subexp_prec`` and a list ``constructs`` of constructs for all the previous
-sub-subexpressions of the subexpression.  This latter list is similar to
-``lookbehind``.
+In addition to lookbehind information, the temporary ``extra_data`` attribute
+of a triggering token (which is a namedtuple) contains some other information
+which users might want to access.  The current subexpression precedence is
+available as ``subexp_prec``.  Also available is a list ``constructs`` which
+contains all the constructs for all the previous sub-subexpressions of the
+subexpression.  They are appended just after they are dispatched, and so the
+current construct is available in head or tail handler functions.
 

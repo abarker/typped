@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 
+NOT WORKING.
+
 This example defines a parser to read and validate a simple data file format.
 The data file is assumed to have lines in this simple format::
 
@@ -34,7 +36,7 @@ def setup_parser():
     t_int = parser.def_type("t_int")
     parser.def_literal("k_int", val_type=t_int)
 
-    def precond_fun(lex, extra_data):
+    def precond_fun(tok, lex):
         return lex.token.is_first_on_line
 
     def handler_fun(tok, lex):

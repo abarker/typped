@@ -129,7 +129,7 @@ def def_atomic_formula(parser, term_parser, formula_name_token_label,
     This code could also just be in-line, since it is only called once, but it
     is nice to separate it out."""
 
-    def preconditions(lex, extra_data):
+    def preconditions(tok, lex):
         """Must be followed by a token with label 'lpar_token_label', with no
         whitespace in-between."""
         peek_tok = lex.peek()
@@ -191,7 +191,7 @@ def define_wff_parser(term_parser):
 
     # The not symbol, must be followed by a space.
     wff_parser.def_prefix_op("k_not", 200, val_type=None, arg_types=None,
-            precond_fun=lambda lex, lb: True if lex.peek().ignored_before else False)
+            precond_fun=lambda tok, lex: True if lex.peek().ignored_before else False)
 
     # Note no space around "and" for now... def_infix_op doesn't take precond
     # parameters as of now.

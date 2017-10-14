@@ -54,6 +54,13 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefine
 # module, during dispatching?  It is currently used to access the eval_fun
 # after the parsing.  Maybe `eval_fun` attributes should be set during parsing?
 # Simple to then call them, also, for eval on the fly.
+#
+# If no type checking is done then the eval_fun and ast_data attrs can be set
+# on tokens just after their handler runs, in the wrapper (check the construct
+# first to see if it even has any).  The extra_data attr is still there
+# at that point.  If overload_on_return_types then values
+# would need to be copied over to a temp thing, and the lookup done when the
+# types are resolved, then delete the extra_data attr.
 
 class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
@@ -528,7 +535,7 @@ class ConstructTable(object):
         for construct in sorted_construct_list:
             if construct.is_empty: # Ignore empty constructs.
                 continue
-            if construct.precond_fun(lex, extra_data):
+            if construct.precond_fun(trigger_token_instance, lex):
                 # Note construct is saved as a user-accesible token attribute here.
                 trigger_token_instance.construct = construct
                 return construct
