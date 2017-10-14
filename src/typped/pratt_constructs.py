@@ -39,6 +39,9 @@ from .pratt_types import TypeSig, TypeErrorInParsedLanguage
 from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
                                              ParserException)
 
+# TODO: Convert all precond funs take (tok, lex) arguments, since tok is not
+# lex.token for virtual tokens like jops and null-space tokens.
+
 # TODO: A construct should probably save the `assoc` attribute.  Currently it
 # is done inside the tail handlers, implemented in the builtins using the
 # standard "prec - 1" method.  Should also hold `prec` attributes.
@@ -48,7 +51,9 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefine
 # < to <= and then test < separately with break if assoc is set for construct.
 
 # TODO: Do we really want construct to be set as a token attribute in this
-# module, during dispatching?
+# module, during dispatching?  It is currently used to access the eval_fun
+# after the parsing.  Maybe `eval_fun` attributes should be set during parsing?
+# Simple to then call them, also, for eval on the fly.
 
 class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
@@ -490,13 +495,9 @@ class ConstructTable(object):
                 del token_label_keyed_dict[trigger_token_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
-                                 lex=None, extra_data=None, construct_label=None):
+                                 lex=None, extra_data=None):
         """Look up and return the "winning" construct for the given head or tail
         position, based on the current state.
-
-        Either the `lex` parameter or the `construct_label` parameter must be
-        set.  If `lex` is set it will be passed to the precondition
-        functions as an argument, and similarly for `extra_data`.
 
         This method evaluates each preconditions function in the sorted
         dict for this kind of token and the specified kind of construct
@@ -528,7 +529,7 @@ class ConstructTable(object):
             if construct.is_empty: # Ignore empty constructs.
                 continue
             if construct.precond_fun(lex, extra_data):
-                # Note construct_label is saved as a user-accesible attribute here.
+                # Note construct is saved as a user-accesible token attribute here.
                 trigger_token_instance.construct = construct
                 return construct
 
@@ -542,10 +543,10 @@ class ConstructTable(object):
         """Look up and return a wrapper for the "winning" handler function for the
         token, with its arguments bound.  Sets `extra_data` attribute on
         `trigger_token_instance`."""
-        print("setting attr for", trigger_token_instance)
         trigger_token_instance.extra_data = extra_data
         if head_or_tail == HEAD:
-            construct = self.lookup_winning_construct(HEAD, trigger_token_instance, lex)
+            construct = self.lookup_winning_construct(HEAD, trigger_token_instance,
+                                                      lex, extra_data)
             handler = functools.partial(
                             construct.run, construct, trigger_token_instance, lex)
         elif head_or_tail == TAIL:
