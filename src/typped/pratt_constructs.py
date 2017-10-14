@@ -47,6 +47,9 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefine
 # so precedences could be anything that orders).  Just modify test from
 # < to <= and then test < separately with break if assoc is set for construct.
 
+# TODO: Do we really want construct to be set as a token attribute in this
+# module, during dispatching?
+
 class Construct(object):
     """A syntax construct in the language.  Usually corresponds to a subtree of
     the final parse tree.  Essentially a data frame for a handler function
@@ -535,16 +538,19 @@ class ConstructTable(object):
                         trigger_token_label))
 
     def dispatch_handler(self, head_or_tail, trigger_token_instance,
-                         lex, left=None, extra_data=None):
+                         lex, extra_data, left=None):
         """Look up and return a wrapper for the "winning" handler function for the
-        token, with its arguments bound."""
+        token, with its arguments bound.  Sets `extra_data` attribute on
+        `trigger_token_instance`."""
+        print("setting attr for", trigger_token_instance)
+        trigger_token_instance.extra_data = extra_data
         if head_or_tail == HEAD:
             construct = self.lookup_winning_construct(HEAD, trigger_token_instance, lex)
             handler = functools.partial(
                             construct.run, construct, trigger_token_instance, lex)
         elif head_or_tail == TAIL:
             construct = self.lookup_winning_construct(TAIL, trigger_token_instance,
-                                              lex, extra_data=extra_data)
+                                                      lex, extra_data)
             handler = functools.partial(
                             construct.run, construct, trigger_token_instance, lex, left)
         else:

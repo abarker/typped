@@ -205,8 +205,15 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
 from . import builtin_parse_methods, predefined_token_sets
 
-# TODO: Pass extra_data to all head handlers, too.  Lots of little changes...
+# TODO: Pass extra_data to all handlers, too.  Lots of little changes...
 # Search for calls to def_construct.  Big API change....
+#
+# Consistent interface, pass extra to all preconds and all handlers.
+# When used as a parameter just call it "extra".
+#
+# --> Also, consider passing tok to precond in addition to lex, for consistency
+#     with the args of a head-handler.  Maybe easier to remember.  NOTE that
+#     tok is not always lex.token, if virtual tokens are used like null-string!!!
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -223,6 +230,11 @@ from . import builtin_parse_methods, predefined_token_sets
 # everything since tokens stick around as the expression tree.  If user REALLY
 # wanted it, though, and it was in extra_data then they could have their
 # handlers add it there.
+#
+# Instead of adding an extra data field, why not just add extra_data to the
+# trigger tokens as attributes.  You could delete it later in recursive_parse
+# to clean up, after any dispatching (but not necessarily after 2nd pass checking)
+# Then no need to even pass extra_data to the preconds funs...
 
 # Note that the eval_fun stuff could also be used to also do a conversion to
 # AST.  Also at some point add "eval on the fly" capability (not too hard, but
@@ -733,6 +745,7 @@ def token_subclass_factory():
                 # lexer to dress it up more like a "real" token, with ignored_before
                 # and line numbers, etc. (without putting it in the buffer, of course).
                 jop_instance = parser_instance.jop_token_subclass(None)
+                jop_instance.extra_data = extra_data
 
                 # This is a little inefficient (since it uses a `go_back` call)
                 # but we need to be sure that when the tail handler of the jop
@@ -749,10 +762,10 @@ def token_subclass_factory():
                     # another token; also, deeper-level recursions could cause false
                     # results to come up the recursion chain.  We are just testing
                     # what handlers are defined for the token.
-                    _peek_head_handler, head_construct = dispatch_handler(HEAD, curr_token, lex)
+                    _peek_head_handler, head_construct = dispatch_handler(HEAD, curr_token, lex, extra_data)
                     try: # Found head handler, now make sure it has no tail handler.
                         _peek_tail_handler, tail_construct = dispatch_handler(TAIL, curr_token,
-                                                     lex, processed_left, extra_data)
+                                                     lex, extra_data, processed_left)
                     except NoHandlerFunctionDefined:
                         # This is the only case where an actual token is returned.
                         return jop_instance
@@ -761,12 +774,13 @@ def token_subclass_factory():
                 except NoHandlerFunctionDefined:
                     return None # No precondition matches, assume no jop.
                 finally:
+                    #delattr(curr_token, "extra_data") # Only needed if pushback below, not go_back.
                     lex.go_back(1)
             else:
                 return None
 
-        def get_null_string_token_and_handler(self, head_or_tail, lex, subexp_prec,
-                                         processed_left=None, extra_data=None):
+        def dispatch_null_string_handler(self, head_or_tail, lex, subexp_prec,
+                                         extra_data, processed_left=None):
             """Check for any possible matching null-string token handlers;
             return the token and the matching handler if one is found.
 
@@ -781,13 +795,15 @@ def token_subclass_factory():
             else:
                 # TODO: Don't re-create each time, save one.
                 null_string_token = parser_instance.null_string_token_subclass(None)
+            null_string_token.extra_data = extra_data
 
             curr_token = None
             handler_fun = None
             construct = None
             try:
-                handler_fun, construct = dispatch_handler(head_or_tail, null_string_token,
-                                               lex, processed_left, extra_data)
+                handler_fun, construct = dispatch_handler(head_or_tail,
+                                                          null_string_token,
+                                                          lex, extra_data, processed_left)
                 curr_token = null_string_token
             except NoHandlerFunctionDefined:
                 pass
@@ -810,7 +826,16 @@ def token_subclass_factory():
             functions can easily call it by using `tok.recursive_parse`, and
             also so that it can access the lexer without it needing to be
             passed as an argument.  It is basically a static function,
-            though."""
+            though.
+
+            The `extra_data` attribute is set for all triggering tokens, and is
+            guaranteed to be available for precondition functions and for
+            handler functions.  It is set before any dispatches or recursive calls,
+            and is deleted from the token after the recursive call.  It is an
+            advanced feature which most users will not need."""
+            # Note that all the dispatching functions set the `extra_data`
+            # attribute of their token before the dispatching is done, but they
+            # do not update `extra_data` itself in any way.
 
             # Note on below code: It is tempting for efficiency to define a jop
             # and null-string token instance, save it, and only use it when
@@ -832,26 +857,38 @@ def token_subclass_factory():
                 raise ParserException("All tokens used in the parser must be"
                         " defined in via parser's methods, not the lexer's.")
 
+            #
             # Initialize, and set some shorter aliases.
+            #
+
             parser_instance = self.parser_instance
             dispatch_handler = parser_instance.construct_table.dispatch_handler
             lex = self.token_table.lex
             extra_data = ExtraDataTuple(lookbehind=[], constructs=[],
                                         subexp_prec=subexp_prec)
 
+            #
             # Start the actual Pratt parsing recursion.
-            curr_token, head_handler, construct = self.get_null_string_token_and_handler(
-                                                                  HEAD, lex, subexp_prec)
-            extra_data.constructs.append(construct)
+            #
+
+            curr_token, head_handler, construct = self.dispatch_null_string_handler(
+                                                       HEAD, lex, subexp_prec, extra_data)
             if not curr_token: # No null-string token fired, so use normal next() call.
                 curr_token = lex.next()
-                # TODO: Might as well pass extra_data to head handlers, also.
-                head_handler, construct = dispatch_handler(HEAD, curr_token, lex)
+                head_handler, construct = dispatch_handler(HEAD, curr_token, lex, extra_data)
+
+            extra_data.constructs.append(construct)
+
             # TODO: Should the root of processed_left be set for is_head instead, for
             # general case?  Or set "head_trigger_token" to label instead of None?
+            # Consider how lookup will work in usual and general cases of arbitrary
+            # token as subtree root.
             curr_token.is_head = True # Used to look up eval_fun and ast_data later.
 
             processed_left = head_handler()
+
+            # Could 3 lines below be put at the end of handler functions, automatic call?
+            delattr(curr_token, "extra_data") # Delete after recurse, allow mem cleanup.
             extra_data.lookbehind.append(processed_left)
             extra_data.constructs.append(construct)
 
@@ -879,16 +916,17 @@ def token_subclass_factory():
                 """
                 while True:
                     err = None
-                    ns_token, tail_handler, construct = self.get_null_string_token_and_handler(
-                                    TAIL, lex, subexp_prec, processed_left, extra_data)
+                    ns_token, tail_handler, construct = self.dispatch_null_string_handler(
+                                    TAIL, lex, subexp_prec, extra_data, processed_left)
                     if ns_token:
+                        curr_token = ns_token
                         peek_prec = lex.token.prec()
                         #peek_prec = 10000000000 # Always run if triggered, head or tail.
                     else:
                         curr_token = lex.next()
                         try:
                             tail_handler, construct = dispatch_handler(TAIL, curr_token,
-                                                            lex, processed_left, extra_data)
+                                                            lex, extra_data, processed_left)
                         except NoHandlerFunctionDefined as e:
                             err = e
                         peek_prec = lex.token.prec()
@@ -897,6 +935,7 @@ def token_subclass_factory():
                         if err:
                             raise err # Avoid error msg changing (makes test fail).
                         processed_left = tail_handler()
+                        delattr(curr_token, "extra_data")
                         extra_data.lookbehind.append(processed_left)
                         extra_data.constructs.append(construct)
                     else:
@@ -906,14 +945,16 @@ def token_subclass_factory():
                 """
 
                 while lex.peek().prec() > subexp_prec:
-                    ns_token, tail_handler, construct = self.get_null_string_token_and_handler(
-                                    TAIL, lex, subexp_prec, processed_left, extra_data)
-                    if not ns_token:
+
+                    curr_token, tail_handler, construct = self.dispatch_null_string_handler(
+                                    TAIL, lex, subexp_prec, extra_data, processed_left)
+                    if not curr_token: # No null handler fired off, get regular way.
                         curr_token = lex.next()
                         tail_handler, construct = dispatch_handler(TAIL, curr_token,
-                                                        lex, processed_left, extra_data)
+                                                        lex, extra_data, processed_left)
 
                     processed_left = tail_handler()
+                    delattr(curr_token, "extra_data")
                     extra_data.lookbehind.append(processed_left)
                     extra_data.constructs.append(construct)
 
@@ -925,8 +966,9 @@ def token_subclass_factory():
                                          lex, processed_left, extra_data, subexp_prec)
                 if jop_instance:
                     jop_tail_handler, construct = dispatch_handler(TAIL, jop_instance,
-                                                        lex, processed_left, extra_data)
+                                                        lex, extra_data, processed_left)
                     processed_left = jop_tail_handler()
+                    delattr(jop_instance, "extra_data")
                     extra_data.lookbehind.append(processed_left)
                     extra_data.constructs.append(construct)
                 else:
