@@ -6,7 +6,7 @@ parsing and the Typped package.  Recursive descent is implemented in the Typped
 parser via the use of preconditioned dispatching and the introduction of a new
 kind of token.
 
-The section begins with a comparision of the recursive descent parsing
+The section begins with a comparison of the recursive descent parsing
 algorithm with the Pratt parser algorithm using preconditioned dispatching.  A
 new kind of token is introduced (the null-string token) which bridges over one
 important gap between the two methods.  This leads to a discussion of how
@@ -27,7 +27,9 @@ recursive descent functions to parse sub-grammars.
 .. note::
 
    Some of these features are still experimental.  The some features are only
-   partially implemented.
+   partially implemented.  Only basic BNF currently works in the grammar
+   parser.  Type-checking and Pratt-style precedences in the grammars are not
+   yet implemented.
 
 Similarities and differences between the parsing methods
 --------------------------------------------------------
@@ -79,7 +81,7 @@ before any upcoming text.  Other than that it is a regular token, with
 handlers, preconditions, etc.
 
 This is implemented in the ``recursive_parse`` function.  Before each call to
-``next`` to get the next token from the the lexer it first checks to see if the
+``next`` to get the next token from the lexer it first checks to see if the
 null-string token is defined for the parser instance.  If so, it checks whether
 the preconditions of any registered null-string-triggered constructs match.  If
 they do then the special null-string token is returned as the current token,
@@ -92,11 +94,6 @@ the framework of a Pratt parser with preconditioned dispatching.  The method is
 essentially the same as described earlier for right-regular grammars.  You just
 use the null-string token to recognize the production rules that start with
 nonterminals (using the top of the ``pstate`` stack in preconditions).
-
-The current implementation of null-string tokens is not especially efficient,
-but there no penalty if you do not use them.  For many applications it should
-be fast enough.  There are various ways the performance can be improved in
-later versions if necessary.
 
 Example
 -------
@@ -117,7 +114,7 @@ brackets are optional parts, and curly braces mean "zero or more." The
    term       : factor {("*"|"/") factor}
    factor     : `identifier` | `number` | "(" expression ")"
 
-Initialy the ``pstate`` stack would only hold the string ``"expression"``.  A
+Initially the ``pstate`` stack would only hold the string ``"expression"``.  A
 head construct would be registered for the null-string token with the
 precondition that the ``expression`` state be at the top of the ``pstate``
 stack.  The head handler for the construct would first check whether the peek
@@ -136,11 +133,11 @@ The ``factor`` production could be implemented either as a handler for the
 null-string token or by separate constructs for the identifier, number, and
 left-paren token types.
 
-The expression grammar without using the EBNF constructs is as follows:
+An expression grammar without using the EBNF constructs is as follows:
 
 .. productionlist::
-      expression : term | expression "+"  term;
-      term       : factor | term "*"  factor;
+      expression : term "+" expression | term "-" expression | term;
+      term       : factor "*" term | factor "/" term | factor;
       factor     : constant | variable | "("  expression  ")";
       variable   : "x" | "y" | "z"; 
       constant   : digit  {digit};
@@ -151,35 +148,97 @@ The expression grammar without using the EBNF constructs is as follows:
 Recursive descent with Typped's EBNF-like grammar
 -------------------------------------------------
 
-The Typped package comes with a EBNF grammar defined via Python overloads.
-This essentially automates the procecure described above.
+The Typped package comes with an EBNF grammar definable via Python overloads.
+It essentially automates the procedure described above to map recursive descent
+to a generalized Pratt parser.  A grammar in Python, while not as concise as a
+parsed EBNF string, is easy to work with and has syntax highlighting.  It is
+easy to define aliases for complicated components.
 
-This is a simple example of using the EBNF grammar.
+When the grammar is "compiled" with respect to a ``PrattParser`` instance it
+produces a recursive descent parser for the grammar within the Pratt parser
+framework.  The generated parsers currently use full backtracking search
+(finding stop-sets is not yet implemented).
 
-.. note::
+This feature is still in development and experimental.  The code is not
+optimized and parts are currently inefficient.
 
-   For now, see the test ``test_parsing_from_basic_expression_grammar`` in the
-   test file ``test_ebnf_classes_and_operators.py``.  The current implementation is
-   basically a proof-of-concept.
+The EBNF language is currently bare-bones as far as what can be compiled into a
+parser instance.  It does basic BNF.  (The EBNF language itself, defined via
+Python overloading, is mostly implemented but is not yet compilable into a
+parser instance.  For details of the current state of the Python EBNF language
+see the docs for the module ``ebnf_classes_and_operators.py``.)
+
+Below is a simple example running example which parses the BNF expression
+grammar above.  (It also allows signed integers, but not signed variables, and
+full identifiers as variables.)  See the file ``example_expression_grammar.py``
+in the examples directory for the code.
 
 ..
    TODO: Keep this example synced with the test file.
 
 .. code-block:: python
 
+    import typped as pp
+    parser = pp.PrattParser()
+    parser.def_default_whitespace()
+    parser.def_default_single_char_tokens()
+    k_int = parser.def_default_int_token()
+    k_identifier = parser.def_default_identifier_token()
+    literals = ["k_int", "k_identifier", "k_plus", "k_minus",
+                "k_ast", "k_slash", "k_lpar", "k_rpar"]
+    parser.def_multi_literals([lit,] for lit in literals)
 
-When the grammar is "compiled" with respect to a ``PrattParser`` instance it
-produces a recursive descent parser for the grammar within the Pratt parser
-framework.  The generated parsers currently use full backtracking search, and
-stop-sets are not yet implemented.
+    expression = ( Rule("term") + Tok("k_plus") + Rule("expression")
+                 | Rule("term") + Tok("k_minus") + Rule("expression")
+                 | Rule("term"))
+    term       = ( Rule("factor") + Tok("k_ast") + Rule("term")
+                 | Rule("factor") + Tok("k_slash") + Rule("term")
+                 | Rule("factor"))
+    factor     = ( Rule("constant")
+                 | Rule("variable")
+                 | Tok("k_lpar") + Rule("expression") + Tok("k_rpar"))
+    variable   = Tok(k_identifier)
+    constant   = k_int
 
-The EBNF language is currently bare-bones as far as what can be compile into a
-parser instance.  (The EBNF language itself, defined with Python overloading,
-is mostly implemented.)
+    g = pp.Grammar("expression", parser, locals())
+    tree = parser.parse("4 + my_var * (3 - 1)", pstate="expression")
+    print(tree.tree_repr())
 
-For details of the current state of the Python EBNF language see the docs for
-the module ``ebnf_classes_and_operators.py``.
+This example uses several of the helper methods functions to quickly define
+tokens and literals.  Notice that token instances can appear directly in the
+grammar as token literals.  The token named by its token label appears as, for
+example, ``Tok("k_plus")``.
 
-.. TODO: add link to the ebnf_classes_and_operators.py file or wherever that
-   documentation of the Python overloads ends up.
+The output from the above code is as follows::
+
+   <k_null-string,'expression'>
+       <k_null-string,'term'>
+           <k_null-string,'factor'>
+               <k_null-string,'constant'>
+                   <k_int,'4'>
+       <k_plus,'+'>
+       <k_null-string,'expression'>
+           <k_null-string,'term'>
+               <k_null-string,'factor'>
+                   <k_null-string,'variable'>
+                       <k_identifier,'my_var'>
+               <k_ast,'*'>
+               <k_null-string,'term'>
+                   <k_null-string,'factor'>
+                       <k_lpar,'('>
+                       <k_null-string,'expression'>
+                           <k_null-string,'term'>
+                               <k_null-string,'factor'>
+                                   <k_null-string,'constant'>
+                                       <k_int,'3'>
+                           <k_minus,'-'>
+                           <k_null-string,'expression'>
+                               <k_null-string,'term'>
+                                   <k_null-string,'factor'>
+                                       <k_null-string,'constant'>
+                                           <k_int,'1'>
+                       <k_rpar,')'>
+
+At some point the ability to suppress null-string tokens representing
+nonterminals from appearing in the tree will be added.
 

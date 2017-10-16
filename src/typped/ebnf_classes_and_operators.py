@@ -347,25 +347,17 @@ See some of those articles and maybe do a simple thing.
 
 """
 
-# TODO: some simple example grammars for use in tests:
+# Some simple example grammars for use in tests:
 #    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
 #    https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
 
-# TODO: Make the call to external parser a user-settable thing (just as a
-# module var, since developers not users would do it) and this becomes a
-# general EBNF-like-Python-expression definition and parsing module.
-# Most does not depend on the final parser.  Also some TokenNode dependencies.
-
-# TODO really need a TokenList that works like an Item and can go on an
-# itemlist.  They are the terminals, after all.  Also: 2 * (k_lpar + k_lpar)
-# Does the modifier list stuff handle that OK?  What about an `Item` that holds
-# a list of tokens, with addition of tokens producing an `Item`?  But how
-# do `ItemList` and `CaseList` handle this?  What about just a postprocessing
-# to gather them up or mark them somehow?  Could mark them as a TokenGroup(...)
-# or similar.
+# Todo maybe: Make the call to the external parser a user-settable thing via an
+# init parameter.  Then this module becomes a general
+# EBNF-like-Python-expression definition and parsing module.  Most of the code
+# does not depend on the final parser.  (Also some TokenNode dependencies, though.)
 
 # Interesting discussion of precedence in recursive descent.  Does this essentially
-# use one of those methods (assume precedence is implemented)?
+# use one of those methods (assume precedence is implemented to mimic Pratt way)?
 # http://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
 
 from __future__ import print_function, division, absolute_import
@@ -432,7 +424,6 @@ class Grammar(object):
 
         self._process_nonterm_caselist(start_nonterm_label, 1)
         self.processed_or_being_processed = set() # Empty out the set, no longer needed.
-        print("\nThe final dict is\n")
         #for name, caselist in self.nonterm_to_caselist_dict.items():
         #    print("   {0} = {1}".format(name, caselist))
         #print()
@@ -598,6 +589,12 @@ class Grammar(object):
             rule.first_set |= rule.first_item_not_epsilon_expanding
 
         return rule
+
+    def print_grammar(self):
+        for nonterm_label, caselist in self.nonterm_to_caselist_dict.items():
+            print(nonterm_label, "=", caselist)
+            print()
+
 
 class Item(object):
     """Class representing the basic elements that make up the cases of the
@@ -950,6 +947,16 @@ def Tok(token):
     item = Item(token)
     item.kind_of_item = "token"
     return item
+
+#def T(token_regex):
+#    """Define a regex which will be automatically made into a token and registered
+#    with the grammar but only for use in the rules it appears in."""
+#    if not (isinstance(token, str):
+#        raise ParserGrammarRuleException("Bad argument {0} passed to the"
+#                " T function.".format(token))
+#    item = Item(token_regex)
+#    item.kind_of_item = "undefined_token"
+#    return item
 
 def Root(item_init_arg, prec=None):
     """A function to designate that the token for the item should made into the

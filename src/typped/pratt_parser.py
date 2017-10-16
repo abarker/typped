@@ -186,6 +186,7 @@ from __future__ import print_function, division, absolute_import
 if __name__ == "__main__":
     import pytest_helper
     pytest_helper.script_run(["../../test/test_ebnf_classes_and_operators.py",
+                              "../../test/test_example_expression_grammar.py",
                               "../../test/test_example_calculator.py",
                               "../../test/test_example_calculator_identifier_keyed_on_values.py",
                               "../../test/test_parser_called_from_parser.py",
@@ -205,9 +206,11 @@ from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
 from . import builtin_parse_methods, predefined_token_sets
 
-# TODO: Add a warning raise to prec for tokens if it is redefined from a
-# nonzero value.  They can explicitly zero it to silence warning.  Avoid
-# problems with limitation of fixed per-token prec (while that is the case).
+# TODO: Add an symbol=None option to def_token (maybe also to lexer and
+# just pass to that).  It should be used like symbol="(" to define an
+# alternative name that can be used in some contexts to refer to the
+# token.  If token label not found, could then auto-search symbols... or
+# make it explicit.  Essentially just an alias useful in grammar specs.
 
 # TODO: clarify when tokens are assigned the parser_instance attribute, if they
 # are at all.  Currently the lexer is passed a function hook that adds the
@@ -400,7 +403,8 @@ def token_subclass_factory():
             """Return the precedence for the token.  This is currently a static
             value for each type of token.  Later it may be dynamic value
             associated with the particular tail function which is selected in a
-            given context."""
+            given context. Update: may become an attribute of a construct and
+            no longer of a token."""
             return cls.static_prec
 
         def process_not_in_tree(self):
@@ -793,7 +797,7 @@ def token_subclass_factory():
                 pass
             return curr_token, handler_fun, construct
 
-        def recursive_parse(self, subexp_prec):
+        def recursive_parse(self, subexp_prec, only_head=False):
             """Parse a subexpression as defined by token precedences. Return
             the result of the evaluation.  Recursively builds up the final
             result in `processed_left`, which is the tree for the part of the
@@ -855,6 +859,7 @@ def token_subclass_factory():
             # Start the actual Pratt parsing recursion.
             #
 
+
             curr_token, head_handler, construct = self.dispatch_null_string_handler(
                                                      HEAD, lex, subexp_prec, extra_data)
             if not curr_token: # No null-string token fired, so use normal next() call.
@@ -876,6 +881,9 @@ def token_subclass_factory():
             delattr(curr_token, "extra_data") # Delete after recurse, allow mem cleanup.
             extra_data.lookbehind.append(processed_left)
             extra_data.constructs.append(construct)
+
+            if only_head:
+                return processed_left
 
             while True:
 
@@ -1439,6 +1447,16 @@ class PrattParser(object):
         # saving it in the construct instead.  See main Sphinx docs, unimplemented
         # generalizations.
         if head_or_tail == TAIL:
+            if token_subclass.static_prec != 0 and prec != token_subclass.static_prec:
+                raise ParserException("Redefining the precedence of the triggering"
+                        " token subclass '{0}' to a new value {1} not equal"
+                        " to the previous nonzero value of {2}."
+                        " The original precedence will never be used.  To actually"
+                        " reset the value, set trigger_token_label.static_prec=0"
+                        " explicitly before this call to def_construct.  Currently"
+                        " all operators with the same triggering token must have"
+                        " the same precedence value, regardless of preconditions."
+                        .format(trigger_token_label, prec, token_subclass.static_prec))
             token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
 
         # Create the type sig object.

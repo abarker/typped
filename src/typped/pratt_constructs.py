@@ -98,8 +98,8 @@ class Construct(object):
                        handler_fun=None,
                        precond_fun=None,
                        precond_priority=0,
-                       prec=0, # Experimental, see recursive_parse, remember slot.
-                       assoc=None, #Experimental, see recursive_parse.
+                       prec=0, # Experimental, see recursive_parse; remember slot.
+                       assoc=None, # Experimental, see recursive_parse.
                        key_on_token_values=False):
         """Initialize a `Construct` instance associated with the parser
         `parser_instance`.  Users should usually use the `def_construct`

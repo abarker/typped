@@ -115,7 +115,7 @@ def test_wrappers_for_multiple_items():
     print(str(multiple))
     assert str(multiple) == 'ItemList(Repeat(0, 4, Rule("test"), Tok("dot")))'
 
-def test_parsing_from_simplified_expression_grammar():
+def test_parsing_from_expression_grammar():
     """Test the actual parser creation and execution from a grammar."""
     parser = PrattParser()
     def_expression_tokens_and_literals(parser)
@@ -127,14 +127,14 @@ def test_parsing_from_simplified_expression_grammar():
     g = Grammar()
 
     # Note only one top-level add or subtract per expression is allowed by this
-    # very simple grammar!
-    expression = ( Rule("term") + Tok("k_plus") + Rule("term")
-                 | Rule("term") + k_minus + Rule("term")
+    # very simple grammar!!
+    expression = ( Rule("term") + Tok("k_plus") + Rule("expression")
+                 | Rule("term") + k_minus + Rule("expression")
                  | Rule("term")
                  )
 
-    term = ( Rule("factor") + k_ast + Rule("factor")
-           | Rule("factor") + k_fslash + Rule("factor")
+    term = ( Rule("factor") + k_ast + Rule("term")
+           | Rule("factor") + k_fslash + Rule("term")
            | Rule("factor")
            )
 
@@ -153,109 +153,145 @@ def test_parsing_from_simplified_expression_grammar():
 
 
     simple_example1_parse = parser.parse(
-                                "4*4", pstate="expression").string_tree_repr()
+                                "4*4", pstate="expression").tree_repr()
 
-    assert simple_example1_parse == ("<k_null-string,'expression'>("
-                                        "<k_null-string,'term'>("
-                                             "<k_null-string,'factor'>("
-                                                 "<k_number,'4'>),"
-                                             "<k_ast,'*'>,"
-                                             "<k_null-string,'factor'>("
-                                                 "<k_number,'4'>)))")
+    print(simple_example1_parse)
+    assert simple_example1_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_number,'4'>
+                <k_ast,'*'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'4'>
+
+        """)
 
     simple_example2 = "5 * (444 + 32)"
     simple_example2_parse = parser.parse(
                          simple_example2, pstate="expression").tree_repr()
+    print(simple_example2_parse)
 
-    assert simple_example2_parse == unindent(7, """
-       <k_null-string,'expression'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_number,'5'>
-               <k_ast,'*'>
-               <k_null-string,'factor'>
-                   <k_lpar,'('>
-                   <k_null-string,'expression'>
-                       <k_null-string,'term'>
-                           <k_null-string,'factor'>
-                               <k_number,'444'>
-                       <k_plus,'+'>
-                       <k_null-string,'term'>
-                           <k_null-string,'factor'>
-                               <k_number,'32'>
-                   <k_rpar,')'>
+    assert simple_example2_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_number,'5'>
+                <k_ast,'*'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_lpar,'('>
+                        <k_null-string,'expression'>
+                            <k_null-string,'term'>
+                                <k_null-string,'factor'>
+                                    <k_number,'444'>
+                            <k_plus,'+'>
+                            <k_null-string,'expression'>
+                                <k_null-string,'term'>
+                                    <k_null-string,'factor'>
+                                        <k_number,'32'>
+                        <k_rpar,')'>
 
-       """)
+        """)
 
     simple_example3 = "(5 + 99) * 388"
     simple_example3_parse = parser.parse(
                          simple_example3, pstate="expression").tree_repr()
+    print(simple_example3_parse)
 
-    assert simple_example3_parse == unindent(7, """
-       <k_null-string,'expression'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_lpar,'('>
-                   <k_null-string,'expression'>
-                       <k_null-string,'term'>
-                           <k_null-string,'factor'>
-                               <k_number,'5'>
-                       <k_plus,'+'>
-                       <k_null-string,'term'>
-                           <k_null-string,'factor'>
-                               <k_number,'99'>
-                   <k_rpar,')'>
-               <k_ast,'*'>
-               <k_null-string,'factor'>
-                   <k_number,'388'>
+    assert simple_example3_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_lpar,'('>
+                    <k_null-string,'expression'>
+                        <k_null-string,'term'>
+                            <k_null-string,'factor'>
+                                <k_number,'5'>
+                        <k_plus,'+'>
+                        <k_null-string,'expression'>
+                            <k_null-string,'term'>
+                                <k_null-string,'factor'>
+                                    <k_number,'99'>
+                    <k_rpar,')'>
+                <k_ast,'*'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'388'>
 
-       """)
+        """)
 
     simple_example4 = "5 + 99 * 388"
     simple_example4_parse = parser.parse(
                          simple_example4, pstate="expression").tree_repr()
+    print(simple_example4_parse)
 
-    assert simple_example4_parse == unindent(7, """
-       <k_null-string,'expression'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_number,'5'>
-           <k_plus,'+'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_number,'99'>
-               <k_ast,'*'>
-               <k_null-string,'factor'>
-                   <k_number,'388'>
+    assert simple_example4_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_number,'5'>
+            <k_plus,'+'>
+            <k_null-string,'expression'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'99'>
+                    <k_ast,'*'>
+                    <k_null-string,'term'>
+                        <k_null-string,'factor'>
+                            <k_number,'388'>
 
        """)
 
     simple_example5 = "5 * 7 - 388"
     simple_example5_parse = parser.parse(
                          simple_example5, pstate="expression").tree_repr()
+    print(simple_example5_parse)
 
-    assert simple_example5_parse == unindent(7, """
-       <k_null-string,'expression'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_number,'5'>
-               <k_ast,'*'>
-               <k_null-string,'factor'>
-                   <k_number,'7'>
-           <k_minus,'-'>
-           <k_null-string,'term'>
-               <k_null-string,'factor'>
-                   <k_number,'388'>
+    assert simple_example5_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_number,'5'>
+                <k_ast,'*'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'7'>
+            <k_minus,'-'>
+            <k_null-string,'expression'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'388'>
 
        """)
 
     # Fails!
-    #simple_example6 = "5 - 7 - 388"
-    #simple_example6_parse = parser.parse(
-    #                     simple_example6, pstate="expression").tree_repr()
+    simple_example6 = "5 - 7 - 388"
+    simple_example6_parse = parser.parse(
+                         simple_example6, pstate="expression").tree_repr()
+    print(simple_example6_parse)
+
+    assert simple_example6_parse == unindent(8, """
+        <k_null-string,'expression'>
+            <k_null-string,'term'>
+                <k_null-string,'factor'>
+                    <k_number,'5'>
+            <k_minus,'-'>
+            <k_null-string,'expression'>
+                <k_null-string,'term'>
+                    <k_null-string,'factor'>
+                        <k_number,'7'>
+                <k_minus,'-'>
+                <k_null-string,'expression'>
+                    <k_null-string,'term'>
+                        <k_null-string,'factor'>
+                            <k_number,'388'>
+
+       """)
 
 
-def test_parsing_from_classic_expression_grammar():
+def test_parsing_from_EBNF_expression_grammar():
     """Test the actual parser classic recursive descent expression grammar."""
     skip()
     parser = PrattParser()
@@ -267,12 +303,14 @@ def test_parsing_from_classic_expression_grammar():
 
     g = Grammar()
 
-    expression = Rule("term") + ZeroOrMore(
-                                 Opt(Tok("k_plus"), Tok("k_minus")) + Rule("term"))
+    expression = (Rule("term") +
+                  ZeroOrMore(Opt(Tok("k_plus"), Tok("k_minus")) + Rule("term")))
+
     print("Expression is", expression)
 
-    term = Rule("factor") + ZeroOrMore(
-                                 Opt(Tok("k_ast"), Tok("k_fslash")) + Rule("factor"))
+    term = (Rule("factor") +
+            ZeroOrMore(Opt(Tok("k_ast"), Tok("k_fslash")) + Rule("factor")))
+
     print("Term is", term)
 
     factor = Rule("base") + Opt(Tok("k_caret") + Rule("factor"))
@@ -302,7 +340,8 @@ def test_parsing_from_classic_expression_grammar():
        """)
 
 def test_parsing_from_BNF_expression_grammar():
-    """Test the actual parser classic recursive descent expression grammar."""
+    """Test the actual parser classic recursive descent expression grammar.
+    This is almost the same as the grammar in `test_parsing_from_expression_grammar`."""
     parser = PrattParser()
     def_expression_tokens_and_literals(parser)
 

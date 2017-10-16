@@ -29,21 +29,21 @@ default_token_label_dict = {
         "~": "k_tilde",
         "`": "k_backtick",
         "!": "k_bang",
-        "@": "k_at_sign",
+        "@": "k_atsign",
         "#": "k_pound",
         "$": "k_dollar",
         "%": "k_percent",
         "^": "k_caret",
         "&": "k_ampersand",
-        "*": "k_asterisk",
+        "*": "k_ast",
         "(": "k_lpar",
         ")": "k_rpar",
         "_": "k_underscore",
         "-": "k_minus",
         "+": "k_plus",
         "=": "k_equals",
-        "{": "k_lcurlybrac",
-        "}": "k_rcurlybrac",
+        "{": "k_lcurly",
+        "}": "k_rcurly",
         "[": "k_lbrac",
         "]": "k_rbrac",
         "|": "k_vert",
@@ -112,6 +112,13 @@ def def_default_int_token(parser, token_label="k_int", signed=True, on_ties=0):
     tok = parser.def_token(token_label, regex, on_ties=on_ties)
     return tok
 
+def def_default_identifier_token(parser, token_label="k_identifier", signed=True, on_ties=0):
+    """Define a identifier.  It is like Python identifiers: a letter or underscore followed
+    by any number of letters, underscores, and digits."""
+    regex = r"[a-zA-Z_][a-zA-Z0-9_]*"
+    tok = parser.def_token(token_label, regex, on_ties=on_ties)
+    return tok
+
 #
 # Multi-token definitions.
 #
@@ -136,9 +143,10 @@ def def_multi_ignored_tokens(parser, tuple_list, **kwargs):
 token_defining_methods = [
                          def_default_whitespace,
                          def_default_single_char_tokens,
-                         def_multi_tokens,
-                         def_multi_ignored_tokens,
                          def_default_float_token,
                          def_default_int_token,
+                         def_default_identifier_token,
+                         def_multi_tokens,
+                         def_multi_ignored_tokens,
                          ]
 

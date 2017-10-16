@@ -597,3 +597,12 @@ Bob Nystrom, "`Pratt Parsers: Expression Parsing Made Easy
 <http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/>`_,"
 Mar. 19, 2011.  Uses Java.
 
+For discussions of the relationship of Pratt parsing precedences to precedence
+climbing, see Andy Chu's "`Pratt Parsing and Precedence Climbing Are the Same
+Algorithm <http://www.oilshell.org/blog/2016/11/01.html>`_," 2016 and Theodore
+Norvell's "`From Precedence Climbing to Pratt Parsing
+<https://www.engr.mun.ca/~theo/Misc/pratt_parsing.htm>`_, 2016.  Chu also
+discusses implementations of Pratt parsers at "`Pratt Parsing Without
+Prototypal Inheritance, Global Variables, Virtual Dispatch, or Java
+<http://www.oilshell.org/blog/2016/11/03.html>`_," 2016. 
+
