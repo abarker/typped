@@ -200,7 +200,8 @@ import copy
 from collections import namedtuple
 
 from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
-        NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler)
+        NoHandlerFunctionDefined, CalledBeginTokenHandler, CalledEndTokenHandler,
+        DEFAULT_ALWAYS_TRUE_PRECOND_FUN)
 from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
@@ -237,10 +238,6 @@ from . import builtin_parse_methods, predefined_token_sets
 # the priorities.  Gives a define-time check, not having to wait until
 # parse-time (perhaps waiting for some obscure combination).  Shouldn't be too
 # hard to write.
-
-def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, extra_data):
-    """The default precondition function; always returns true."""
-    return True
 
 #
 # TokenNode
@@ -781,7 +778,7 @@ def token_subclass_factory():
             if not parser_instance.null_string_token_label:
                 return None, None, None
             else:
-                # TODO: Don't re-create each time, save one.
+                # TODO: Later don't re-create each time, save one.
                 null_string_token = parser_instance.null_string_token_subclass(None)
             null_string_token.extra_data = extra_data
 
@@ -1241,6 +1238,7 @@ class PrattParser(object):
             def begin_tail(self, lex, left):
                 """Dummy tail-handler for begin-tokens."""
                 raise CalledBeginTokenHandler("Called tail-handler for begin token.")
+            tok.token_kind = token_kind # Needed before calls to def_construct.
             self.def_construct(HEAD, begin_head, token_label)
             self.def_construct(TAIL, begin_tail, token_label, dummy_handler=True)
             self.begin_token_subclass = tok
@@ -1255,6 +1253,7 @@ class PrattParser(object):
             def end_tail(self, lex, left):
                 """Dummy tail-handler for end-tokens."""
                 raise CalledEndTokenHandler("Called tail-handler for end token.")
+            tok.token_kind = token_kind # Needed before calls to def_construct.
             self.def_construct(HEAD, end_head, token_label)
             self.def_construct(TAIL, end_tail, token_label, dummy_handler=True)
             self.end_token_subclass = tok
@@ -1336,8 +1335,7 @@ class PrattParser(object):
     def def_null_string_token(self, null_string_token_label="k_null-string"):
         """Define the null-string token.  This token has no regex pattern.  An
         instance is inserted in `recursive_parse` when it is inferred to be
-        present based.  It can only ever have head handlers, and is not even
-        tested for tail handlers.  This method must be called before a
+        present based.  This method must be called before a
         null-string can be used.  The parameter `null_string_token_label` is
         the label for the newly-created tok representing it."""
         return self.def_token_master(null_string_token_label,
@@ -1433,7 +1431,7 @@ class PrattParser(object):
             precond_fun = DEFAULT_ALWAYS_TRUE_PRECOND_FUN
 
         if trigger_token_label in self.token_table:
-            token_subclass = self.get_token(trigger_token_label)
+            trigger_token_subclass = self.get_token(trigger_token_label)
         else:
             raise ParserException("In call to def_construct: subclass for"
                     " token labeled '{0}' has not been defined.  Maybe try"
@@ -1441,11 +1439,17 @@ class PrattParser(object):
             # Below line formerly just created a subclass, but that can mask errors!
             #TokenSubclass = self.token_table.create_token_subclass(token_label)
 
+        if not hasattr(trigger_token_subclass, "token_kind"):
+            raise ParserException("Token with label '{0}'  must be defined by the"
+                                  " parser's def_token method, not the lexer's method."
+                                  .format(trigger_token_label))
+
         # TODO: Precedence is currently saved as a token attribute.  Consider
         # saving it in the construct instead.  See main Sphinx docs, unimplemented
         # generalizations.
         if head_or_tail == TAIL:
-            if token_subclass.static_prec != 0 and prec != token_subclass.static_prec:
+            if (trigger_token_subclass.static_prec != 0 and
+                    prec != trigger_token_subclass.static_prec):
                 raise ParserException("Redefining the precedence of the triggering"
                         " token subclass '{0}' to a new value {1} not equal"
                         " to the previous nonzero value of {2}."
@@ -1454,8 +1458,9 @@ class PrattParser(object):
                         " explicitly before this call to def_construct.  Currently"
                         " all operators with the same triggering token must have"
                         " the same precedence value, regardless of preconditions."
-                        .format(trigger_token_label, prec, token_subclass.static_prec))
-            token_subclass.static_prec = prec # Ignore prec for heads; it will stay 0.
+                        .format(trigger_token_label, prec,
+                                trigger_token_subclass.static_prec))
+            trigger_token_subclass.static_prec = prec # Ignore prec for heads; will stay 0.
 
         # Create the type sig object.
         if self.skip_type_checking:
@@ -1465,17 +1470,16 @@ class PrattParser(object):
 
         # Register the handler funs.
         construct = self.construct_table.register_construct(
-                                              head_or_tail=head_or_tail,
-                                              trigger_token_label=trigger_token_label,
-                                              handler_fun=handler_fun,
-                                              precond_fun=precond_fun,
-                                              precond_priority=precond_priority,
-                                              construct_label=construct_label,
-                                              type_sig=type_sig,
-                                              eval_fun=eval_fun,
-                                              ast_data=ast_data,
-                                              token_value_key=token_value_key)
-                                              #parser_instance=self)
+                                          head_or_tail=head_or_tail,
+                                          trigger_token_subclass=trigger_token_subclass,
+                                          handler_fun=handler_fun,
+                                          precond_fun=precond_fun,
+                                          precond_priority=precond_priority,
+                                          construct_label=construct_label,
+                                          type_sig=type_sig,
+                                          eval_fun=eval_fun,
+                                          ast_data=ast_data,
+                                          token_value_key=token_value_key)
         return construct
 
     def undef_construct(self, construct, type_sig=None, token_value_key=None):

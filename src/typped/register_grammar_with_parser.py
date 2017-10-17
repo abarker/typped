@@ -130,11 +130,13 @@ HUGE_PRIORITY = 1000000000000 # Currently preconds for grammar-based stuff run f
 #    like token-literal starting ones are currently done.  Modify partitioning fun.
 # 2) Consider memoization on the recursive calls, which repeat a lot of
 #    work re-doing parts of cases which have already been done.
-# 3) Optimize the selection of handlers for null-string tokens.  There is
-#    one such token, and it triggers *all* of the rules, sequentially running
-#    preconds.  Could a) add split to tree in TokenTable, b) do general optimization
-#    described in TokenTable, c) Make a shortcut dict from nonterm
-#    labels and peeks directly to the corresponding sorted list of precond funs.
+# 3) Optimize the selection of handlers for null-string tokens in ConstructTable.  There
+#    is one such token, and it triggers *all* of the rules, sequentially running
+#    preconds.  Could a) add split to tree in ConstructTable, b) do general optimization
+#    described in ConstructTable, c) make a shortcut dict from nonterm
+#    labels and peeks directly to the corresponding sorted list of precond funs,
+#    or d) have a different kind of null-string tokens for each nonterminal (with
+#    different labels, or somehow split on the values of tokens, too).
 
 def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     """Register production rules for all the cases of the nonterminal
@@ -234,7 +236,7 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
 
     # TODO either set var below in PrattParser when settled or set pstate_stack
     # here, too.  Or maybe from grammar-processing routine that calls this one.
-    parser.pstate_processing_in_progress = False
+    parser.pstate_processing_in_progress = False # Preconds look at this, don't fire when true.
 
 
     first_case_first_item_precond = get_precond_funs(nonterm_label, peek_token_label)

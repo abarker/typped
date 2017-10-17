@@ -12,6 +12,15 @@ HEAD = "head"
 TAIL = "tail"
 
 #
+# Preconditions.
+#
+
+def DEFAULT_ALWAYS_TRUE_PRECOND_FUN(lex, extra_data):
+    """The default precondition function; always returns true.  It is
+    never actually called, just tested for with "is" and assumed true."""
+    return True
+
+#
 # Exceptions.
 #
 

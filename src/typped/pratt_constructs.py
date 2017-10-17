@@ -37,7 +37,8 @@ import functools
 from collections import OrderedDict, defaultdict
 from .pratt_types import TypeSig, TypeErrorInParsedLanguage
 from .shared_settings_and_exceptions import (HEAD, TAIL, NoHandlerFunctionDefined,
-                                             ParserException)
+                                             ParserException,
+                                             DEFAULT_ALWAYS_TRUE_PRECOND_FUN)
 
 # TODO: A construct should probably save the `assoc` attribute.  Currently it
 # is done inside the tail handlers, implemented in the builtins using the
@@ -85,7 +86,8 @@ class Construct(object):
     __slots__ = ["parser_instance", "construct_label", "trigger_head_or_tail",
                  "trigger_token_label", "handler_fun", "precond_fun",
                  "precond_priority", "original_sigs", "ast_data_dict",
-                 "eval_fun_dict", "assoc", "prec", "key_on_token_values", "is_empty"]
+                 "eval_fun_dict", "assoc", "prec",
+                 "key_eval_and_data_on_token_value", "is_empty"]
     # At some point precedence (lbp) values might be incorporated into a
     # constructs, but for now all constructs for the same token would need the
     # same precedence.  The info seems to go here, though, at least for future
@@ -100,7 +102,8 @@ class Construct(object):
                        precond_priority=0,
                        prec=0, # Experimental, see recursive_parse; remember slot.
                        assoc=None, # Experimental, see recursive_parse.
-                       key_on_token_values=False):
+                       key_eval_and_data_on_token_value=False,
+                       lookup_depends_on_pstate=False):
         """Initialize a `Construct` instance associated with the parser
         `parser_instance`.  Users should usually use the `def_construct`
         method of a `PrattParser` instance instead of instantiating a
@@ -137,9 +140,19 @@ class Construct(object):
         are created.  Dicts are passed when redefining a construct (i.e.,
         overloading) in order to save the previous data.
 
-        If `key_on_token_values` is set true then the string values of parsed tokens
-        are also used as part of the key for saving and looking up AST data and
-        evaluation functions."""
+        If `key_eval_and_data_on_token_value` is set true then the string
+        values of parsed tokens are also used as part of the key for saving and
+        looking up AST data and evaluation functions.
+
+        The `predefined_precond_conditions` argument is not currently used.  At
+        some point it might be used for optimized lookup, doing more-efficient
+        preconditions checks on a predefined set of conditions without having
+        to actually call a preconditions function.  Takes a dict argument which
+        maps predefined string preconditions specifications to the required
+        values.  For example, `dict(top_of_pstate_stack="expression",
+        peek_token_label="k_lpar")`.
+
+        """
         self.parser_instance = parser_instance
         self.construct_label = construct_label
 
@@ -156,7 +169,7 @@ class Construct(object):
 
         self.ast_data_dict = defaultdict(dict)
         self.eval_fun_dict = defaultdict(dict)
-        self.key_on_token_values = key_on_token_values
+        self.key_eval_and_data_on_token_value = key_eval_and_data_on_token_value
         self.is_empty = False
 
     @staticmethod
@@ -203,7 +216,7 @@ class Construct(object):
         # Global setting may not be needed...
         if self.parser_instance.skip_type_checking:
             type_sig = None
-        if not self.key_on_token_values:
+        if not self.key_eval_and_data_on_token_value:
             token_value_key = None
 
         if self.parser_instance.overload_on_ret_types:
@@ -222,7 +235,7 @@ class Construct(object):
         If type checking is disabled for the parser then `type_sig` is set to
         `None`.
 
-        If `key_on_token_values` is true for the construct then the value
+        If `key_eval_and_data_on_token_value` is true for the construct then the value
         `token_value_key` is also used in the lookup key."""
         if self.parser_instance.skip_type_checking:
             type_sig = None
@@ -242,7 +255,7 @@ class Construct(object):
         If type checking is disabled for the parser then `type_sig` is set to
         `None`.
 
-        If `key_on_token_values` is true for the construct then the value
+        If `key_eval_and_data_on_token_value` is true for the construct then the value
         `token_value_key` is also used in the lookup key."""
         if self.parser_instance.skip_type_checking:
             type_sig = None
@@ -290,11 +303,11 @@ class Construct(object):
         Use `type_sig=None` to set the values when type checking is disabled."""
         if self.parser_instance.skip_type_checking:
             type_sig = None
-        if self.key_on_token_values and not token_value_key:
+        if self.key_eval_and_data_on_token_value and not token_value_key:
             # NOTE: Keying on values could be per type sig, vs. global for construct.
-            raise ParserException("If `key_on_token_values` is set for a `Construct`"
-                    " instance then all its overloads must supply a `token_value_key`"
-                    " argument.")
+            raise ParserException("If `key_eval_and_data_on_token_value` is set for"
+                    " a `Construct` instance then all its overloads must supply a"
+                    " `token_value_key` argument.")
         if self.original_sigs and not self.parser_instance.overload_on_arg_types:
             raise TypeErrorInParsedLanguage("Value of overload_on_arg_types"
                    " is False but attempt to redefine and possibly set multiple"
@@ -347,11 +360,11 @@ class Construct(object):
         return ("Construct(parser_instance={}, construct_label={},"
                 " trigger_head_or_tail={}, trigger_token_label={},"
                 " handler_fun={}, precond_fun={}, precond_priority={},"
-                " key_on_token_values={})"
+                " key_eval_and_data_on_token_value={})"
                 .format(self.parser_instance.parser_label, self.construct_label,
                         self.trigger_head_or_tail, self.trigger_token_label,
                         self.handler_fun.__name__, self.precond_fun.__name__,
-                        self.precond_priority, self.key_on_token_values))
+                        self.precond_priority, self.key_eval_and_data_on_token_value))
 
 
 class ConstructTable(object):
@@ -367,8 +380,8 @@ class ConstructTable(object):
         self.construct_lookup_dict[HEAD] = {}
         self.construct_lookup_dict[TAIL] = {}
 
-    def register_construct(self, head_or_tail, trigger_token_label, handler_fun,
-                           precond_fun, precond_priority, construct_label,
+    def register_construct(self, head_or_tail, trigger_token_subclass,
+                           handler_fun, precond_fun, precond_priority, construct_label,
                            type_sig, eval_fun, ast_data, token_value_key):
         """Register a construct (either head or tail) with the subclass for
         this kind of token, setting the given properties.  This method is only
@@ -380,23 +393,24 @@ class ConstructTable(object):
         The `type_sig` argument must be a valid `TypeSig` instance.
 
         If `token_value_key` is set then it will be used as part of the key on
-        evaluation functions and AST data.  The `key_on_token_values` attribute
-        of the `Construct` instance is set based on this being set, and must
-        always be the same for a given construct."""
-        key_on_token_values = False
+        evaluation functions and AST data.  The
+        `key_eval_and_data_on_token_value` attribute of the `Construct`
+        instance is set based on this being set, and must always be the same
+        for a given construct."""
+        key_eval_and_data_on_token_value = False
         if token_value_key:
-            key_on_token_values = True
+            key_eval_and_data_on_token_value = True
 
         # Todo maybe later, if profiling shows it might be worth it: Consider
         # possible optimizations in looking up handler functions, instead of
         # always linear search after splitting on `head_or_tail` and
         # `trigger_token_label` values.  Some other commonly-used preconditions
-        # could potentially also to reduce the linear search space.  But, by
-        # definition, the `head_or_tail` and `trigger_token_label`
+        # could potentially also to reduce the linear search space.  Note that
+        # by definition, the `head_or_tail` and `trigger_token_label`
         # preconditions are mutually exclusive in selecting constructs.  For
-        # other preconditions you also have the possibility of a "don't care"
-        # value, though, which increases the complexity in just extending the
-        # splitting.
+        # other preconditions, though, you also have the possibility of a
+        # "don't care" value, which increases the complexity in just extending
+        # the splitting.
         #
         # Suppose a decorator is used on preconditions functions (which returns
         # a wrapper that first runs any of the preset kwarg tests that are set):
@@ -404,6 +418,9 @@ class ConstructTable(object):
         #    @precond_fun(peek_token_label="k_lpar")
         #    def my_fun(...):
         #        return True
+        #
+        # Alternately, just set as a Construct attribute since you might not need
+        # any preconditions function.  See the unused __init__ option there now...
         #
         # Assume the same setup as now for mutually-exclusive properties but
         # with this kind of thing done for each priority-sorted sublist above
@@ -425,6 +442,38 @@ class ConstructTable(object):
         #    all of them.
         # Premature optimization for now.  What sizes of sets involved would make
         # it worth the overhead is another question.
+        #
+        # Good properties to use: token_value, peek_token_label, peek_token_value,
+        # top_of_pstate_stack.
+
+        # More limited, less general alternative for grammar-processing only:
+        # When defining and storing a construct have an option like this passed
+        # down to save in Constructs: `only_during_pstate="expression"`.  When
+        # registering with ConstructTable use `(token_label,
+        # only_during_pstate)` as the key instead of token_label alone.  Then,
+        # assume a boolean parser attribute flag
+        # `pstate_processing_in_progress`.  In `lookup_winning_construct` look
+        # at the parser flag first.  If it is true then use the tuple
+        # `(token_label, parser_instance.pstate_stack[-1])` to look up the
+        # sorted construct list.  Otherwise do the usual.
+        #
+        # Say that all of the grammar processing constructs are defined with
+        # the `only_during_pstate` set to the corresponding nonterminal label.
+        # All the handlers for grammar processing should set the parser
+        # property `pstate_processing_in_progress` at the top and then turn it
+        # off at the end.  This gives two disjoint modes of operation.  But the
+        # "entry point" nonterminal rules also need to be defined normally
+        # (keyed both ways) so they can be triggered at all (another option to
+        # `def_construct`, etc.)
+        #
+        # Note that for `Pratt` grammar directives the flag would be
+        # temporarily turned off and then back on.
+
+        trigger_token_label = trigger_token_subclass.token_label
+
+        # TODO: finish this stuff or delete it, optimize for grammar stuff.
+        #if pstate_stack and trigger_token_subclass.token_kind == "null-string":
+        #    trigger_token_label = (trigger_token_label, pstate_stack[-1])
 
         # Set up the construct_lookup_dict structure if necessary.
         head_or_tail_construct_dict = self.construct_lookup_dict[head_or_tail]
@@ -433,13 +482,13 @@ class ConstructTable(object):
         sorted_construct_list = head_or_tail_construct_dict[trigger_token_label]
 
         construct = Construct(self.parser_instance,
-                              construct_label=construct_label,
-                              trigger_head_or_tail=head_or_tail,
-                              trigger_token_label=trigger_token_label,
-                              handler_fun=handler_fun,
-                              precond_fun=precond_fun,
-                              precond_priority=precond_priority,
-                              key_on_token_values=key_on_token_values)
+                      construct_label=construct_label,
+                      trigger_head_or_tail=head_or_tail,
+                      trigger_token_label=trigger_token_label,
+                      handler_fun=handler_fun,
+                      precond_fun=precond_fun,
+                      precond_priority=precond_priority,
+                      key_eval_and_data_on_token_value=key_eval_and_data_on_token_value)
 
         # Make sure we don't get multiple definitions with the same priority if
         # that checking is enabled.
@@ -518,6 +567,13 @@ class ConstructTable(object):
         instance to the label of the winning precondition function."""
         trigger_token_label = trigger_token_instance.token_label
 
+        # Special processing for null-string tokens when pstate stack nonempty.
+        # TODO: finish this stuff or delete, optimize grammar stuff.
+        #if (trigger_token_instance.token_kind == "null-string" and
+        #        self.parser_instance.pstate_stack):
+        #    pstate_top = self.parser_instance.pstate_stack[-1]
+        #    trigger_token_label = (trigger_token_instance, pstate_top)
+
         head_or_tail_construct_dict = self.construct_lookup_dict[head_or_tail]
         if not trigger_token_label in head_or_tail_construct_dict:
             if not self.parser_instance.parser_label:
@@ -537,7 +593,9 @@ class ConstructTable(object):
         for construct in sorted_construct_list:
             if construct.is_empty: # Ignore empty constructs.
                 continue
-            if construct.precond_fun(trigger_token_instance, lex):
+            # Call the precond fun.  Note the default true fun is assumed true.
+            if (construct.precond_fun is DEFAULT_ALWAYS_TRUE_PRECOND_FUN
+                            or construct.precond_fun(trigger_token_instance, lex)):
                 # Note construct is saved as a user-accesible token attribute here.
                 trigger_token_instance.construct = construct
                 return construct
