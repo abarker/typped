@@ -1,0 +1,730 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.7. typped.ebnf_classes_and_operators &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.8. typped.register_grammar_with_parser" href="typped.register_grammar_with_parser.html" />
+    <link rel="prev" title="10.6. typped.pratt_types" href="typped.pratt_types.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.register_grammar_with_parser.html" title="10.8. typped.register_grammar_with_parser"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_types.html" title="10.6. typped.pratt_types"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.ebnf_classes_and_operators">
+<span id="typped-ebnf-classes-and-operators"></span><h1>10.7. typped.ebnf_classes_and_operators<a class="headerlink" href="#module-typped.ebnf_classes_and_operators" title="Permalink to this headline">¶</a></h1>
+<p>This module implements a nice frontend for parsing grammars using <a class="reference external" href="https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form">EBNF</a>-like Python
+expressions.  The backend is the recursive-descent parsing capabilities of the
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> class, implemented using precondition functions and null-string
+token handlers.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Here are a few (but not all) similar Python parsing packages which parse
+from BNF- or EBNF-like grammars (though without the underlying Pratt
+parsing framework).  Some use string representations of the grammar, while
+others use overloaded Python operators.  Most do not automatically produce
+a parse tree.</p>
+<ul class="simple">
+<li><strong>pyparsing</strong> – Uses Python overloading to define the grammar, similar
+to this module.  <a class="reference external" href="http://pyparsing.wikispaces.com/home">http://pyparsing.wikispaces.com/home</a></li>
+<li><strong>Parsimonius</strong> – Passed a string containing the EBNF of the grammar and
+returns a parse tree.  <a class="reference external" href="https://github.com/erikrose/parsimonious">https://github.com/erikrose/parsimonious</a></li>
+<li><strong>Parsley</strong> – Passed a string containing the EBNF of the grammar.
+<a class="reference external" href="https://github.com/python-parsley/parsley/">https://github.com/python-parsley/parsley/</a></li>
+<li><strong>yeanpypa</strong> – Uses Python overloading, similar to this module.
+<a class="reference external" href="https://github.com/DerNamenlose/yeanpypa">https://github.com/DerNamenlose/yeanpypa</a></li>
+<li><strong>Lark</strong> – Passed a string. Implements Earley &amp; LALR(1) and returns a
+parse tree.  <a class="reference external" href="https://github.com/erezsh/Lark">https://github.com/erezsh/Lark</a></li>
+</ul>
+<p class="last">For more information on other Python parsers, see
+<a class="reference external" href="https://wiki.python.org/moin/LanguageParsing">https://wiki.python.org/moin/LanguageParsing</a>,
+<a class="reference external" href="https://github.com/webmaven/python-parsing-tools">https://github.com/webmaven/python-parsing-tools</a>, and
+<a class="reference external" href="https://tomassetti.me/parsing-in-python/">https://tomassetti.me/parsing-in-python/</a>.</p>
+</div>
+<div class="section" id="terminology-and-notation">
+<h2>10.7.1. Terminology and notation<a class="headerlink" href="#terminology-and-notation" title="Permalink to this headline">¶</a></h2>
+<p>These terms are used in the description:</p>
+<ul class="simple">
+<li>The individual rewrite rules such as <code class="code docutils literal"><span class="pre">&lt;expression&gt;</span> <span class="pre">::=</span> <span class="pre">&lt;term&gt;</span></code> in a BNF
+grammar are called <strong>production rules</strong>.  They are also called
+<strong>productions</strong> or just <strong>rules</strong>.  The symbols on the l.h.s. of productions
+(which can also appear in the r.h.s.) are called <strong>nonterminal symbols</strong>.
+The r.h.s of a production is called the <strong>parsing expression</strong>.  The r.h.s.
+of productions can contain terminal symbols, <strong>nonterminal symbols</strong> and
+perhaps other symbols such as the special <strong>epsilon symbol</strong> which matches an
+empty string. <p></li>
+<li>Production rules with the the same l.h.s. nonterminal symbol will be referred to
+as different <strong>cases</strong> of the nonterminal symbol.  A common notation is
+to define multiple cases in one production rule expression by using the “or”
+symbol <code class="code docutils literal"><span class="pre">|</span></code>.  This form of definition is currently <em>required</em> by this
+module.  That is, all the cases for any nonterminal must occur
+in a single expression, using <code class="code docutils literal"><span class="pre">|</span></code> if there are multiple cases.  The ordered list
+of all the rule cases for a nonterminal will be called the <strong>caselist</strong> for
+the nonterminal.  Order matters for resolving ambiguity. <p></li>
+<li>The separate symbol elements within a case will be collectively called the
+<strong>items</strong> of that case.  They include terminal symbols, nonterminal symbols,
+and possibly the epsilon symbol.  In this module there are no explicit
+terminal symbols.  Instead, terminals are either tokens (defined for the
+lexer and returned by it) or else consecutive sequences of tokens.</li>
+</ul>
+<p>This is an example of a definition of a caselist with two cases in the Typped
+EBNF-like code:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">arglist</span> <span class="o">=</span> <span class="p">(</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_comma&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arglist&quot;</span><span class="p">)</span>
+          <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span>
+          <span class="p">)</span>
+</pre></div>
+</div>
+<p>The tokens involved must already be defined (and the token itself can be used
+in the rule instead of the label inside a call to <code class="docutils literal"><span class="pre">Tok</span></code>).  The caselist for
+<code class="docutils literal"><span class="pre">arg</span></code> is not shown, but it could be defined before or after the <code class="docutils literal"><span class="pre">arglist</span></code>
+caselist.  The order in which the caselists of production rules are written
+does not matter, so they can be written top-down, beginning with the
+start-state nonterminal, or in any other convenient way.</p>
+<p>Nonterminals are written as strings passed to <code class="docutils literal"><span class="pre">Rule</span></code> precisely so they can be
+used in the r.h.s. of caselist definitions even when they have not yet been
+defined.  They are resolved later when the <code class="code docutils literal"><span class="pre">compile</span></code> method of the grammar is
+called (passed the start nonterminal and the locals dict).  These r.h.s.
+strings for nonterminals <strong>must be identical</strong> to the l.h.s. Python variable
+names for the nonterminals (since they are looked up in the locals dict).</p>
+<p>The order in which the cases of a nonterminal are defined within a caselist
+<em>does</em> matter, at least for ambiguous grammars and to avoid or minimize
+backtracking.  The order of the cases is the order in which the algorithm will
+test the cases.  The first successful parse is returned.  In this sense the
+grammar is similar to a <strong>parsing expression grammar (PEG)</strong> rather than a
+<strong>context-free grammar (CFG)</strong>, which can be ambiguous.  See, e.g.,
+<a class="reference external" href="https://en.wikipedia.org/wiki/Parsing_expression_grammar">https://en.wikipedia.org/wiki/Parsing_expression_grammar</a></p>
+</div>
+<div class="section" id="implementation">
+<h2>10.7.2. Implementation<a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h2>
+<p>This module is a work-in-progress.  As of now the syntactic Python interface
+mostly all works, but not all of the features have been coded into the backend
+“compiling” algorithm.  Currently it does basic BNF types production rules, but
+not many EBNF extensions.  See the test file cases for examples.  Here is a
+summary of what is implemented and what is not yet implemented.</p>
+<p>Implemented:</p>
+<blockquote>
+<div><ul class="simple">
+<li>Backtracking recursive descent search.</li>
+<li><code class="code docutils literal"><span class="pre">Rule</span></code></li>
+<li><code class="code docutils literal"><span class="pre">Tok</span></code></li>
+</ul>
+</div></blockquote>
+<p>Not yet implemented:</p>
+<blockquote>
+<div><ul class="simple">
+<li><code class="code docutils literal"><span class="pre">Prec</span></code> and precedences in productions</li>
+<li><code class="code docutils literal"><span class="pre">Sig</span></code> type handling</li>
+<li><code class="code docutils literal"><span class="pre">Pratt</span></code> calls to the Pratt parser</li>
+<li><code class="code docutils literal"><span class="pre">Opt</span></code></li>
+<li>Repeated items (<code class="code docutils literal"><span class="pre">OneOrMore</span></code>, <code class="code docutils literal"><span class="pre">ZeroOrMore</span></code>, <code class="code docutils literal"><span class="pre">Between</span></code>, etc.)</li>
+<li><code class="code docutils literal"><span class="pre">Not</span></code></li>
+<li><code class="code docutils literal"><span class="pre">OneOf</span></code></li>
+<li><code class="code docutils literal"><span class="pre">Hide</span></code></li>
+<li>LL(1) optimization</li>
+<li>Epsilon production handling.</li>
+<li>Undo compile in the <code class="code docutils literal"><span class="pre">Grammar</span></code> class.</li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="wrapper-functions">
+<h2>10.7.3. Wrapper functions<a class="headerlink" href="#wrapper-functions" title="Permalink to this headline">¶</a></h2>
+<p>Strings in the rule-defining expressions must be wrapped by some function call,
+even though allowing the plain strings would be convenient for rules or for
+using token labels instead of the token objects.  That would work in most
+cases, but since addition is defined for strings it would not work for two
+strings at the beginning of the expression.</p>
+<p>Wrapper functions:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="18%" />
+<col width="40%" />
+<col width="19%" />
+<col width="22%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">Function</th>
+<th class="head">Arguments</th>
+<th class="head">Shortcut</th>
+<th class="head">Python3 only</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">Rule</span></code></td>
+<td>rule-label (a string)</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">Tok</span></code></td>
+<td>token</td>
+<td>token</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">Root</span></code></td>
+<td>item</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">Prec</span></code></td>
+<td>item, prec</td>
+<td>item[prec]</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">Sig</span></code></td>
+<td>item, type sig</td>
+<td>item(sig)</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">Pratt</span></code></td>
+<td>(optional) pstate, type sig</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">Opt</span></code></td>
+<td>item (any number of args)</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">nExactly</span></code></td>
+<td>int, item</td>
+<td>n * item</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">nOrMore</span></code></td>
+<td>int, item</td>
+<td>(n,) * item</td>
+<td>(n,…) * item</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">OneOrMore</span></code></td>
+<td>item</td>
+<td>(1,) * item</td>
+<td>(1,…) * item</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">ZeroOrMore</span></code></td>
+<td>item</td>
+<td>(0,) * item</td>
+<td>(0,…) * item</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">Between</span></code></td>
+<td>int, int, item</td>
+<td>(m,n) * item</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">Hide</span></code></td>
+<td>item</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-odd"><td><code class="code docutils literal"><span class="pre">Not</span></code></td>
+<td>item</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+<tr class="row-even"><td><code class="code docutils literal"><span class="pre">AnyOf</span></code></td>
+<td>itemlist</td>
+<td>&#160;</td>
+<td>&#160;</td>
+</tr>
+</tbody>
+</table>
+<p>Note that <code class="code docutils literal"><span class="pre">(n,m)</span></code> and its variations are equivalent to <code class="code docutils literal"><span class="pre">[n,m]</span></code> if that
+syntax looks clearer.</p>
+</div>
+<div class="section" id="overloaded-operator-api">
+<h2>10.7.4. Overloaded operator API<a class="headerlink" href="#overloaded-operator-api" title="Permalink to this headline">¶</a></h2>
+<p>The basic objects that make up rule definitions are <code class="code docutils literal"><span class="pre">Item</span></code> objects, <code class="code docutils literal"><span class="pre">ItemList</span></code>
+objects, and <code class="code docutils literal"><span class="pre">CaseList</span></code> objects.  The latter two are just list-like objects
+with most of the list operations overloaded.  An <code class="code docutils literal"><span class="pre">ItemList</span></code> only holds <code class="code docutils literal"><span class="pre">Item</span></code>
+instances, and a <code class="code docutils literal"><span class="pre">CaseList</span></code> only holds <code class="code docutils literal"><span class="pre">ItemList</span></code> instances.  These objects do
+not nest, and so they have some important differences from ordinary Python
+lists.</p>
+<p>The <code class="code docutils literal"><span class="pre">ItemList</span></code> and <code class="code docutils literal"><span class="pre">CaseList</span></code> classes are basically designed for concatenation
+operations, since that is what is used to build up production rule expressions.
+In their constructors they they both take an arbitrary number of arguments.
+All the arguments are converted to elements of the single type that they hold.
+The new instance then initially contains all those converted arguments as
+elements.  When an <code class="code docutils literal"><span class="pre">ItemList</span></code> is passed another <code class="code docutils literal"><span class="pre">ItemList</span></code> in its initializer
+argument list it just takes the elements within that list and puts them on its
+list.  The <code class="code docutils literal"><span class="pre">CaseList</span></code> class works similarly.</p>
+<p>So the initializers basically form the concatenation of all the passed-in
+arguments, after converting each one to the type of object that the list-like
+object holds (each holds only one type of object).  The addition and “or”
+operations are essentially shorthand for putting both operands on an
+initializer list of the appropriate return type.  Appending to a list works the
+same except it gives the in-place result of appending that item after
+converting it.</p>
+<p>Summary of the operations:</p>
+<ul class="simple">
+<li><strong>Addition</strong>: Two <code class="code docutils literal"><span class="pre">Item</span></code> and/or <code class="code docutils literal"><span class="pre">ItemList</span></code> instances can be combined
+with <code class="code docutils literal"><span class="pre">+</span></code>, which always returns an <code class="code docutils literal"><span class="pre">ItemList</span></code>.  The operation is the same as
+if the operands had both been on the initializer list for <code class="code docutils literal"><span class="pre">ItemList</span></code>.  The
+<code class="code docutils literal"><span class="pre">+=</span></code> operator is also defined.  The addition operator is not defined for
+<code class="code docutils literal"><span class="pre">CaseList</span></code> objects in order to possibly catch some syntax errors in
+expressions (although there are ordinary <code class="code docutils literal"><span class="pre">add</span></code> and <code class="code docutils literal"><span class="pre">iadd</span></code> methods). <p></li>
+<li><strong>Case joining</strong>: The “or” operation <code class="code docutils literal"><span class="pre">|</span></code> is defined for <code class="code docutils literal"><span class="pre">Item</span></code>,
+<code class="code docutils literal"><span class="pre">ItemList</span></code>, or <code class="code docutils literal"><span class="pre">CaseList</span></code> instances.  It always returns a <code class="code docutils literal"><span class="pre">CaseList</span></code>.  The
+operands are joined together as if they had been arguments to the initializer
+of a <code class="code docutils literal"><span class="pre">CaseList</span></code>. <p></li>
+<li><strong>Tokens in expressions</strong>: The <code class="code docutils literal"><span class="pre">+</span></code> and <code class="code docutils literal"><span class="pre">|</span></code> operators are defined for tokens
+(in the <code class="code docutils literal"><span class="pre">PrattParser</span></code> module) to behave in the same way as for <code class="code docutils literal"><span class="pre">Item</span></code>
+instances.  This allows the use of the tokens directly, without having to
+convert them into <code class="code docutils literal"><span class="pre">Item</span></code> instances by wrapping them in the <code class="code docutils literal"><span class="pre">Tok</span></code> function. <p></li>
+<li><strong>Other list-like operations</strong>: The methods <code class="code docutils literal"><span class="pre">append</span></code> and
+<code class="code docutils literal"><span class="pre">insert</span></code> are defined for these list-like classes.  They convert their
+argument to the correct type for the container and then append it to the list
+in-place.  Indexing of these list-like objects is also supported, including
+negative indices and slices.  This allows them to be iterated over.  They
+also have a <code class="code docutils literal"><span class="pre">len</span></code>, so they can be tested for emptiness.</li>
+</ul>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Since the <code class="code docutils literal"><span class="pre">+</span></code> operator has a higher precedence than the <code class="code docutils literal"><span class="pre">|</span></code> operator, all
+the additions within a case will always be carried-out before any “or”
+operations.  So each argument to <code class="code docutils literal"><span class="pre">|</span></code> will be either a single token, a single
+<code class="code docutils literal"><span class="pre">Item</span></code> or a single <code class="code docutils literal"><span class="pre">ItemList</span></code>.</p>
+<p class="last">Note that after a full expression containing these objects and operators is
+evaluated the resulting r.h.s. object (which is set to the l.h.s. variable
+name for a production rule) can be 1) a single token, 2) a single <code class="code docutils literal"><span class="pre">Item</span></code>, 3)
+a single <code class="code docutils literal"><span class="pre">ItemList</span></code>, or 4) a <code class="code docutils literal"><span class="pre">CaseList</span></code>.  The <code class="code docutils literal"><span class="pre">compile</span></code> method of a
+<code class="code docutils literal"><span class="pre">Grammar</span></code> instance will always convert the value into a <code class="code docutils literal"><span class="pre">CaseList</span></code> instance.
+(It would be possible to overload the <code class="code docutils literal"><span class="pre">&lt;&lt;=</span></code> operator and use it instead of
+<code class="code docutils literal"><span class="pre">=</span></code> to automatically do the conversion, but that does not seem worth the
+extra notation and boilerplate.)</p>
+</div>
+</div>
+<div class="section" id="modifiers-for-items">
+<h2>10.7.5. Modifiers for items<a class="headerlink" href="#modifiers-for-items" title="Permalink to this headline">¶</a></h2>
+<p>Items can have several begin/end modifiers to indicate when special processing
+starts or ends.  These are stored in a list attribute called
+<code class="code docutils literal"><span class="pre">begin_end_modifiers</span></code>.  End modifiers are always the string “)”.  Begin
+modifiers can be any of these (set by the corresponding function applied to the
+Item or ItemList):</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">&quot;Opt(&quot;</span></code></li>
+<li><code class="code docutils literal"><span class="pre">&quot;OneOrMore(&quot;</span></code></li>
+<li><code class="code docutils literal"><span class="pre">&quot;ZeroOrMore(&quot;</span></code></li>
+</ul>
+</div>
+<div class="section" id="operator-precedences-expressed-in-grammar">
+<h2>10.7.6. Operator precedences expressed in grammar<a class="headerlink" href="#operator-precedences-expressed-in-grammar" title="Permalink to this headline">¶</a></h2>
+<p>In order to use Pratt-parser style operator precedences in a grammar two things
+must be done.</p>
+<p>1. The relevant items in a case of a production must be set to some nonzero
+value.</p>
+<p>2. The item before the expression (before the first argument) must be wrapped
+in a special function.</p>
+<p>To see how this works, consider these productions below, parsing the expressions
+<code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">y</span> <span class="pre">*</span> <span class="pre">z</span></code> (compared with <code class="code docutils literal"><span class="pre">x</span> <span class="pre">*</span> <span class="pre">y</span> <span class="pre">+</span> <span class="pre">z</span></code>).</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">term</span> <span class="o">=</span> <span class="n">Regex</span><span class="p">()</span>
+
+<span class="n">add</span> <span class="o">=</span> <span class="n">Head</span><span class="p">(</span><span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;operator&quot;</span><span class="p">)</span>
+
+<span class="n">operator</span> <span class="o">=</span> <span class="n">Tail</span><span class="p">(</span> <span class="n">k_add</span><span class="p">[</span><span class="mi">20</span><span class="p">]</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
+               <span class="o">|</span> <span class="n">k_ast</span><span class="p">[</span><span class="mi">40</span><span class="p">]</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
+               <span class="p">)</span>
+</pre></div>
+</div>
+<p>1. The <code class="code docutils literal"><span class="pre">add</span></code> production is somehow on the top of the <code class="code docutils literal"><span class="pre">pstack</span></code> and
+<code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code> is called.  This invokes the head-handler for the <code class="code docutils literal"><span class="pre">add</span></code>
+production (which is a handler for the null-string token with the precondition
+that “add” is on top of the stack).</p>
+<p>2. The head-handler for the <code class="code docutils literal"><span class="pre">add</span></code> production then pushes <code class="code docutils literal"><span class="pre">&quot;term&quot;</span></code> onto the
+<code class="code docutils literal"><span class="pre">pstack</span></code> and calls <code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code> to get the first argument.</p>
+<p>3. The head-handler for the <code class="code docutils literal"><span class="pre">term</span></code> rule is then invoked.  It fetches the
+first term, which is <code class="code docutils literal"><span class="pre">x</span></code> and returns it as a subtree leaf.</p>
+<p>4. We are now back to the <code class="code docutils literal"><span class="pre">add</span></code> handler, having gotten <code class="code docutils literal"><span class="pre">x</span></code> as <code class="code docutils literal"><span class="pre">processed_left</span></code>.
+It now pops the <code class="code docutils literal"><span class="pre">term</span></code> state and pushes the <code class="code docutils literal"><span class="pre">operator</span></code> state onto the <code class="code docutils literal"><span class="pre">pstack</span></code>.
+It then calls <code class="code docutils literal"><span class="pre">recursive_parse(0,</span> <span class="pre">processed_left)</span></code>, which runs as a
+tail-handler.  Notice how the recursive descent handler for the <code class="code docutils literal"><span class="pre">add</span></code>
+production is essentially mimicking the <code class="code docutils literal"><span class="pre">recursive_parse</span></code> routine but pushing
+and popping states.</p>
+<dl class="docutils">
+<dt>—-&gt; Should the whole loop of recursive_parse run, or just one iteration</dt>
+<dd>when passed the explicit argument?????  As it is here, just one iteration?
+Could split up the head and tail parts as two functions… each loop
+iteration could be a function (but would be less efficient).</dd>
+</dl>
+<p>—-&gt; Do we need any special wrappers like <code class="code docutils literal"><span class="pre">Tail</span></code>?</p>
+<p>5. The tail-handler for <code class="code docutils literal"><span class="pre">k_add</span></code> is now called, since the <code class="code docutils literal"><span class="pre">+</span></code> token was returned
+by the lexer.  It pushes the state <code class="code docutils literal"><span class="pre">term</span></code> and calls <code class="code docutils literal"><span class="pre">recursive_parse(20,</span>
+<span class="pre">processed_left</span></code>.</p>
+<p>6. The head-handler for <code class="code docutils literal"><span class="pre">term</span></code> calls <code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code>, which fetches the
+token <code class="code docutils literal"><span class="pre">y</span></code>.</p>
+<p>7. HERE IS INTERESTING PART, iron out above and figure out how to make it
+work…</p>
+<p>So the expression <code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">y</span> <span class="pre">*</span> <span class="pre">z</span></code> will be evalated as <code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">(y*z)</span></code>.</p>
+</div>
+<div class="section" id="optimizing-the-grammar">
+<h2>10.7.7. Optimizing the grammar<a class="headerlink" href="#optimizing-the-grammar" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="predictive-parsing">
+<h3>10.7.7.1. predictive parsing<a class="headerlink" href="#predictive-parsing" title="Permalink to this headline">¶</a></h3>
+<p>In order to optimize the parsing of a recursive descent grammar, many
+grammars allow the use of <strong>predictive parsing</strong>, which requires no
+backtracking.  Even when predictive parsing is not possible, often
+partial predictive parsing can make the algorithm more efficient
+(falling back to backtracking search only when necessary).</p>
+<p>To use a predicive parse you need to generate a <strong>first set</strong> for
+each non-terminal (i.e., recursive rule call) in the grammar.  Call
+this <code class="code docutils literal"><span class="pre">first_set(nonterminal)</span></code>.</p>
+<p>When epsilon productions are allowed a <strong>follow set</strong> acts similarly to
+a first set.</p>
+<p>See:</p>
+<p><a class="reference external" href="http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html">http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html</a>
+<a class="reference external" href="http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html">http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html</a></p>
+<p>Maybe also consider packrat parsing:
+<a class="reference external" href="https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars">https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars</a></p>
+</div>
+<div class="section" id="grammar-transformations">
+<h3>10.7.7.2. grammar transformations<a class="headerlink" href="#grammar-transformations" title="Permalink to this headline">¶</a></h3>
+<p>Not implemented.  Just an idea for now, but you could do any number of
+grammar transformations on the rules of a <code class="code docutils literal"><span class="pre">Grammar</span></code> object.</p>
+<p>One possibility is to remove at least trivial left recursion.  Just change the
+ordering of any obvious left recursive cases.</p>
+<p>In a more complicated transformation you could do <strong>left factoring</strong> on the
+grammar to remove the left recursion.</p>
+<p>Consider curtailment of left recursion, too.  If it is going to repeat will it
+repeat in n levels, where that is the number of rules?  What is the limit, etc.
+See some of those articles and maybe do a simple thing.</p>
+<dl class="class">
+<dt id="typped.ebnf_classes_and_operators.Grammar">
+<em class="property">class </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Grammar</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Grammar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Grammar" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>An object representing a context-free grammar.  It is basically a
+dict of caselists indexed by nonterminal labels.  Provides various
+methods for processing the caselists.</p>
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.Grammar.compile">
+<code class="descname">compile</code><span class="sig-paren">(</span><em>start_nonterm_label</em>, <em>parser</em>, <em>locals_dict</em>, <em>register=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Grammar.compile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Grammar.compile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create the Pratt parser handlers in <code class="code docutils literal"><span class="pre">parser</span></code> to parse the current
+grammar.</p>
+<p>The <code class="code docutils literal"><span class="pre">start_nonterm_label</span></code> is the starting nonterminal.  Only rules
+which are reachable from the rule cases for this starting nonterminal
+will be processed.</p>
+<p>The <code class="code docutils literal"><span class="pre">parser</span></code> is a <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance.</p>
+<p>The <code class="code docutils literal"><span class="pre">locals_dict</span></code> should be passed <code class="code docutils literal"><span class="pre">locals=locals()</span></code>.  If you also need
+globals then you have to merge the <code class="code docutils literal"><span class="pre">locals()</span></code> and <code class="code docutils literal"><span class="pre">globals()</span></code> dicts
+(with locals overwriting) and pass that dict instead.</p>
+<p>If <code class="code docutils literal"><span class="pre">register</span></code> is true the rules are registered with the <code class="code docutils literal"><span class="pre">PrattParser</span></code>
+instance <code class="code docutils literal"><span class="pre">parser</span></code> to enable it to parse the grammar.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.Grammar.uncompile">
+<code class="descname">uncompile</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Grammar.uncompile"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Grammar.uncompile" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undo the effect of the <code class="code docutils literal"><span class="pre">compile</span></code> command.  Can be used for dynamic
+grammars, but NOT IMPLEMENTED YET.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.Grammar.print_grammar">
+<code class="descname">print_grammar</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Grammar.print_grammar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Grammar.print_grammar" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.ebnf_classes_and_operators.Item">
+<em class="property">class </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Item</code><span class="sig-paren">(</span><em>value=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Item"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Item" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Class representing the basic elements that make up the cases of the
+production rules.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.ebnf_classes_and_operators.ItemList">
+<em class="property">class </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">ItemList</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#ItemList"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.ItemList" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A list of <code class="code docutils literal"><span class="pre">Item</span></code> instances.</p>
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.ItemList.append">
+<code class="descname">append</code><span class="sig-paren">(</span><em>item</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#ItemList.append"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.ItemList.append" title="Permalink to this definition">¶</a></dt>
+<dd><p>Append an item to the list.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.ItemList.insert">
+<code class="descname">insert</code><span class="sig-paren">(</span><em>index</em>, <em>item</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#ItemList.insert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.ItemList.insert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Insert an item.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.ebnf_classes_and_operators.CaseList">
+<em class="property">class </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">CaseList</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#CaseList"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.CaseList" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A list of <code class="code docutils literal"><span class="pre">Case</span></code> objects.  Note, though, that a single Item or ItemList can
+also be a case (when there are no “or” operations to form the case).</p>
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.CaseList.append">
+<code class="descname">append</code><span class="sig-paren">(</span><em>item</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#CaseList.append"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.CaseList.append" title="Permalink to this definition">¶</a></dt>
+<dd><p>Append an item to the list.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.CaseList.insert">
+<code class="descname">insert</code><span class="sig-paren">(</span><em>index</em>, <em>item</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#CaseList.insert"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.CaseList.insert" title="Permalink to this definition">¶</a></dt>
+<dd><p>Insert an item.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.CaseList.add">
+<code class="descname">add</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#CaseList.add"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.CaseList.add" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a <code class="code docutils literal"><span class="pre">CaseList</span></code> to some other object, which must be convertable to
+a <code class="code docutils literal"><span class="pre">CaseList</span></code>.  This method is purposely not overloaded with the operator
+<code class="code docutils literal"><span class="pre">+</span></code> because that operator is used in the production rule strings for
+<code class="code docutils literal"><span class="pre">ItemList</span></code> objects, but in that context is an error if applied to
+<code class="code docutils literal"><span class="pre">CaseList</span></code> objects.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.ebnf_classes_and_operators.CaseList.iadd">
+<code class="descname">iadd</code><span class="sig-paren">(</span><em>other</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#CaseList.iadd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.CaseList.iadd" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add a <code class="code docutils literal"><span class="pre">CaseList</span></code> to some other object, in place.  Like <code class="code docutils literal"><span class="pre">add</span></code> but in-place.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Rule">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Rule</code><span class="sig-paren">(</span><em>nonterm_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Rule"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Rule" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an <code class="code docutils literal"><span class="pre">Item</span></code> to represent the nonterminal with the string label
+<code class="code docutils literal"><span class="pre">nonterm_label</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Tok">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Tok</code><span class="sig-paren">(</span><em>token</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Tok"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Tok" title="Permalink to this definition">¶</a></dt>
+<dd><p>Turn a token into an item.  Used before overloading defined on tokens.
+Can be passed a token object or a string token label.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Root">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Root</code><span class="sig-paren">(</span><em>item_init_arg</em>, <em>prec=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Root"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Root" title="Permalink to this definition">¶</a></dt>
+<dd><p>A function to designate that the token for the item should made into the
+root of the resulting parse subtree, if possible.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Prec">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Prec</code><span class="sig-paren">(</span><em>item_init_arg</em>, <em>prec</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Prec"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Prec" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the operator precedence when called from a tail handler.  Can only
+wrap an item.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Sig">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Sig</code><span class="sig-paren">(</span><em>item_init_arg</em>, <em>type_sig</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Sig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Sig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set the type signature for an item.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Pratt">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Pratt</code><span class="sig-paren">(</span><em>pstate=None</em>, <em>type_sig=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Pratt"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Pratt" title="Permalink to this definition">¶</a></dt>
+<dd><p>Use an ordinary Pratt parser <code class="code docutils literal"><span class="pre">recursive_parse</span></code> to get a subexpression.
+The paramter <code class="code docutils literal"><span class="pre">pstate</span></code> is a state that will be temporarily pushed on the
+<code class="code docutils literal"><span class="pre">pstate_stack</span></code> during the parsing (which can be used as a precondition).
+The optional type signature can also be set to be checked.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Opt">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Opt</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Opt"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Opt" title="Permalink to this definition">¶</a></dt>
+<dd><p>List of optional arguments, can match any one or none.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Repeat">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Repeat</code><span class="sig-paren">(</span><em>range_spec</em>, <em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Repeat"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Repeat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Used to process overload of multiplication for repetition.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.nExactly">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">nExactly</code><span class="sig-paren">(</span><em>n</em>, <em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#nExactly"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.nExactly" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.nOrMore">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">nOrMore</code><span class="sig-paren">(</span><em>n</em>, <em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#nOrMore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.nOrMore" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Between">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Between</code><span class="sig-paren">(</span><em>m</em>, <em>n</em>, <em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Between"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Between" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.OneOrMore">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">OneOrMore</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#OneOrMore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.OneOrMore" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.ZeroOrMore">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">ZeroOrMore</code><span class="sig-paren">(</span><em>arg</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#ZeroOrMore"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.ZeroOrMore" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Hide">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Hide</code><span class="sig-paren">(</span><em>itemlist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Hide"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Hide" title="Permalink to this definition">¶</a></dt>
+<dd><p>Do not show the items in the final tree.  For example, parentheses can
+be ignored in function argument lists.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.Not">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Not</code><span class="sig-paren">(</span><em>token</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Not"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Not" title="Permalink to this definition">¶</a></dt>
+<dd><p>The token cannot appear or the case fails.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.OneOf">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">OneOf</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#OneOf"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.OneOf" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.raise_if_not">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">raise_if_not</code><span class="sig-paren">(</span><em>instanceof_list</em>, <em>issubclass_list</em>, <em>operand_or_arg</em>, <em>calling_instance</em>, <em>operator_or_method_string</em>, <em>kind='op'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#raise_if_not"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.raise_if_not" title="Permalink to this definition">¶</a></dt>
+<dd><p>Error-checking routine called from overloaded operators.  If <code class="code docutils literal"><span class="pre">operand_or_arg</span></code>
+is not an instance a class in <code class="code docutils literal"><span class="pre">instanceof_list</span></code> or a subclass of a class in
+<code class="code docutils literal"><span class="pre">issubclass_list</span></code> then raise a <code class="code docutils literal"><span class="pre">ParserGrammarRuleException</span></code> with a helpful
+error message.</p>
+<p>If <code class="code docutils literal"><span class="pre">kind</span></code> is <code class="code docutils literal"><span class="pre">&quot;op&quot;</span></code> the message is for an operator.  If it is <code class="code docutils literal"><span class="pre">&quot;method&quot;</span></code>
+then the message is for a method.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.ebnf_classes_and_operators.print_indented_caselist">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">print_indented_caselist</code><span class="sig-paren">(</span><em>string_before</em>, <em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#print_indented_caselist"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.print_indented_caselist" title="Permalink to this definition">¶</a></dt>
+<dd><p>Print routine for debugging.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.ebnf_classes_and_operators.ParserGrammarRuleException">
+<em class="property">exception </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">ParserGrammarRuleException</code><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#ParserGrammarRuleException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.ParserGrammarRuleException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Exception raised by grammar classes.</p>
+</dd></dl>
+
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">10.7. typped.ebnf_classes_and_operators</a><ul>
+<li><a class="reference internal" href="#terminology-and-notation">10.7.1. Terminology and notation</a></li>
+<li><a class="reference internal" href="#implementation">10.7.2. Implementation</a></li>
+<li><a class="reference internal" href="#wrapper-functions">10.7.3. Wrapper functions</a></li>
+<li><a class="reference internal" href="#overloaded-operator-api">10.7.4. Overloaded operator API</a></li>
+<li><a class="reference internal" href="#modifiers-for-items">10.7.5. Modifiers for items</a></li>
+<li><a class="reference internal" href="#operator-precedences-expressed-in-grammar">10.7.6. Operator precedences expressed in grammar</a></li>
+<li><a class="reference internal" href="#optimizing-the-grammar">10.7.7. Optimizing the grammar</a><ul>
+<li><a class="reference internal" href="#predictive-parsing">10.7.7.1. predictive parsing</a></li>
+<li><a class="reference internal" href="#grammar-transformations">10.7.7.2. grammar transformations</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.pratt_types.html"
+                        title="previous chapter">10.6. typped.pratt_types</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.register_grammar_with_parser.html"
+                        title="next chapter">10.8. typped.register_grammar_with_parser</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.ebnf_classes_and_operators.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.register_grammar_with_parser.html" title="10.8. typped.register_grammar_with_parser"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_types.html" title="10.6. typped.pratt_types"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

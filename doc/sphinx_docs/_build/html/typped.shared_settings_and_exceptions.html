@@ -1,0 +1,184 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.4. typped.shared_settings_and_exceptions &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.5. typped.pratt_constructs" href="typped.pratt_constructs.html" />
+    <link rel="prev" title="10.3. typped.predefined_token_sets" href="typped.predefined_token_sets.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_constructs.html" title="10.5. typped.pratt_constructs"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.predefined_token_sets.html" title="10.3. typped.predefined_token_sets"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.shared_settings_and_exceptions">
+<span id="typped-shared-settings-and-exceptions"></span><h1>10.4. typped.shared_settings_and_exceptions<a class="headerlink" href="#module-typped.shared_settings_and_exceptions" title="Permalink to this headline">¶</a></h1>
+<p>Some settings and exceptions that are shared between several modules.</p>
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.TyppedBaseException">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">TyppedBaseException</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#TyppedBaseException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.TyppedBaseException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">Exception</span></code></p>
+<p>The base exception for all package-defined exceptions.  All
+potentially-recoverable exceptions should be subclasses of this
+class (i.e., not a builtin Python exception).</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.ParserException">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">ParserException</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#ParserException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.ParserException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.TyppedBaseException" title="typped.shared_settings_and_exceptions.TyppedBaseException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.TyppedBaseException</span></code></a></p>
+<p>Base exception for exceptions in the parser modules.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.LexerException">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">LexerException</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#LexerException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.LexerException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.TyppedBaseException" title="typped.shared_settings_and_exceptions.TyppedBaseException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.TyppedBaseException</span></code></a></p>
+<p>Base exception for exceptions in the lexer modules.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.CalledBeginTokenHandler">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">CalledBeginTokenHandler</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#CalledBeginTokenHandler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.CalledBeginTokenHandler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Called a handler for the begin token.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.CalledEndTokenHandler">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">CalledEndTokenHandler</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#CalledEndTokenHandler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.CalledEndTokenHandler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Called a handler for the end token.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.NoHandlerFunctionDefined">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">NoHandlerFunctionDefined</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#NoHandlerFunctionDefined"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.NoHandlerFunctionDefined" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Only raised by dispatcher function, and only when it fails to find a
+handler function (head or tail, whichever it was looking for).</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.shared_settings_and_exceptions.ErrorInParsedLanguage">
+<em class="property">exception </em><code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">ErrorInParsedLanguage</code><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#ErrorInParsedLanguage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.ErrorInParsedLanguage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Raised for syntax errors and other errors in the language that is being
+parsed.  For type errors the exception <code class="code docutils literal"><span class="pre">TypeErrorInParsedLanguage</span></code> is raised.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.shared_settings_and_exceptions.is_class">
+<code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">is_class</code><span class="sig-paren">(</span><em>obj</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#is_class"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.is_class" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if object <code class="code docutils literal"><span class="pre">obj</span></code> is a class.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.shared_settings_and_exceptions.is_subclass_of">
+<code class="descclassname">typped.shared_settings_and_exceptions.</code><code class="descname">is_subclass_of</code><span class="sig-paren">(</span><em>subclass_name</em>, <em>class_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/shared_settings_and_exceptions.html#is_subclass_of"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.shared_settings_and_exceptions.is_subclass_of" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is just a call to <code class="code docutils literal"><span class="pre">issubclass</span></code> except that it first checks that
+the first argument is a class, returning false if it is not.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.predefined_token_sets.html"
+                        title="previous chapter">10.3. typped.predefined_token_sets</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.pratt_constructs.html"
+                        title="next chapter">10.5. typped.pratt_constructs</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.shared_settings_and_exceptions.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_constructs.html" title="10.5. typped.pratt_constructs"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.predefined_token_sets.html" title="10.3. typped.predefined_token_sets"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

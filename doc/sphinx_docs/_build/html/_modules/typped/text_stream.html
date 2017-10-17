@@ -1,0 +1,252 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.text_stream &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.text_stream</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">The TextStream class</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">collections</span> <span class="c1"># for deque</span>
+<span class="kn">import</span> <span class="nn">readline</span>
+
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="mi">3</span><span class="p">:</span>
+    <span class="n">get_input</span> <span class="o">=</span> <span class="nb">input</span>
+    <span class="kn">import</span> <span class="nn">io</span> <span class="k">as</span> <span class="nn">io_module</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="n">get_input</span> <span class="o">=</span> <span class="n">raw_input</span>
+    <span class="c1"># Python 2.7 has two StringIO versions, io and StringIO.  The one in io</span>
+    <span class="c1"># only takes unicode (it is Python 3 ready), but StringIO one takes str</span>
+    <span class="c1"># inits too.</span>
+    <span class="kn">import</span> <span class="nn">StringIO</span> <span class="k">as</span> <span class="nn">io_module</span>
+
+
+<div class="viewcode-block" id="TextStream"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream">[docs]</a><span class="k">class</span> <span class="nc">TextStream</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is just a unified wrapper for a stream of text characters which may</span>
+<span class="sd">    come from various sources.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize the basic object.  Some set method must also be called to</span>
+<span class="sd">        determine the type of input before next() can be called.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+<div class="viewcode-block" id="TextStream.clear"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.clear">[docs]</a>    <span class="k">def</span> <span class="nf">clear</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Clear and reset the text stream.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># the text stream object, set by the set methods</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># false while a stream is open and not at end</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_line_num</span> <span class="o">=</span> <span class="mi">1</span> <span class="c1"># count lines for error reporting, starts at 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_char_num</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># count chars on line for error reporting, first is 1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">increment_line_on_next_char</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># used in counting lines</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_in</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="TextStream.set_string_in"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.set_string_in">[docs]</a>    <span class="k">def</span> <span class="nf">set_string_in</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">str_val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set a string to be the text source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="n">io_module</span><span class="o">.</span><span class="n">StringIO</span><span class="p">(</span><span class="n">str_val</span><span class="p">)</span> <span class="c1"># in-memory text stream</span>
+        <span class="c1">#self.ts = StringIO.StringIO(str_val) # in-memory text stream</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_in</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="TextStream.set_file_in"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.set_file_in">[docs]</a>    <span class="k">def</span> <span class="nf">set_file_in</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f_name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set a file to be the text source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ts</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">f_name</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_in</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+<div class="viewcode-block" id="TextStream.set_raw_in"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.set_raw_in">[docs]</a>    <span class="k">def</span> <span class="nf">set_raw_in</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read input interactively for text source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Type ^D to leave raw input mode.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">raw_in</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;So statements like: for char in textStr: etc., and comprehensions,</span>
+<span class="sd">        can be used.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span> <span class="c1"># implies that the next() method will be used for iterations</span>
+
+<div class="viewcode-block" id="TextStream.next"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.next">[docs]</a>    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the next character in the text stream. Can be used as::</span>
+
+<span class="sd">               while not ts.end_of_text_stream():</span>
+<span class="sd">                  char = ts.next()</span>
+<span class="sd">                  ...</span>
+
+<span class="sd">        or else as::</span>
+
+<span class="sd">               for char in ts:</span>
+<span class="sd">                  ...</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refill_char_buffer_if_empty</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">StopIteration</span><span class="p">(</span><span class="s2">&quot;no more chars in TextStream for next()&quot;</span><span class="p">)</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="o">.</span><span class="n">popleft</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__increment_counters</span><span class="p">(</span><span class="n">retval</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span></div>
+    <span class="fm">__next__</span> <span class="o">=</span> <span class="nb">next</span>
+
+<div class="viewcode-block" id="TextStream.refill_char_buffer_if_empty"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.refill_char_buffer_if_empty">[docs]</a>    <span class="k">def</span> <span class="nf">refill_char_buffer_if_empty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read a line to refill the char buffer.  Return `False` if end of stream</span>
+<span class="sd">        is encountered, `True` otherwise.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span> <span class="c1"># buffer not empty, return</span>
+            <span class="k">return</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">raw_in</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">line</span> <span class="o">=</span> <span class="n">get_input</span><span class="p">(</span><span class="s2">&quot;|- &quot;</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span> <span class="c1"># got an EOFError or some other unspecified exception</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">line</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span> <span class="c1"># restore the newline input stripped</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ts</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span> <span class="c1"># includes the &quot;\n&quot; at EOL</span>
+            <span class="k">if</span> <span class="n">line</span> <span class="o">==</span> <span class="s2">&quot;&quot;</span><span class="p">:</span> <span class="c1"># file reads return &quot;&quot; at EOF</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># got an EOF</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">deque</span><span class="p">([</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">line</span><span class="p">])</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="TextStream.peek"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.peek">[docs]</a>    <span class="k">def</span> <span class="nf">peek</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Peeks one character ahead in the text stream.  Returns empty string if</span>
+<span class="sd">        peek is attempted after `end_of_text_stream()` is `True`.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refill_char_buffer_if_empty</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">char_buffer</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">__increment_counters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">char</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A utility routine for counting the current lines and characters.  Called</span>
+<span class="sd">        each time a character is read.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">curr_char_num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">increment_line_on_next_char</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">curr_char_num</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">curr_line_num</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">increment_line_on_next_char</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">increment_line_on_next_char</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="TextStream.get_pos_of_last_next"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.get_pos_of_last_next">[docs]</a>    <span class="k">def</span> <span class="nf">get_pos_of_last_next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a tuple containing the line number of the last character</span>
+<span class="sd">        returned, numbered from 1, followed by the position of the character on</span>
+<span class="sd">        that line, also numbered from 1.  Useful for error messages.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">curr_line_num</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">curr_char_num</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TextStream.end_of_text_stream"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.end_of_text_stream">[docs]</a>    <span class="k">def</span> <span class="nf">end_of_text_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;True if the last character in the text stream has been returned.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">refill_char_buffer_if_empty</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">EOF</span></div>
+
+<div class="viewcode-block" id="TextStream.beginning_of_text_stream"><a class="viewcode-back" href="../../typped.text_stream.html#typped.text_stream.TextStream.beginning_of_text_stream">[docs]</a>    <span class="k">def</span> <span class="nf">beginning_of_text_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">curr_line_num</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">curr_char_num</span> <span class="o">==</span> <span class="mi">0</span></div></div>
+
+
+<span class="c1">#</span>
+<span class="c1">#  Run test cases.</span>
+<span class="c1">#</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+
+    <span class="c1">#import py.test</span>
+    <span class="c1">#py.test.main([&quot;-v&quot;, &quot;test/test_text_stream.py&quot;]) # this needs pytest 2.0</span>
+
+    <span class="c1"># exit(0) # comment this out to test interactive</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Test interactive...</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">readline</span><span class="o">.</span><span class="n">parse_and_bind</span><span class="p">(</span><span class="s1">&#39;set editing-mode vi&#39;</span><span class="p">)</span>
+
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">TextStream</span><span class="p">()</span>
+    <span class="n">ts</span><span class="o">.</span><span class="n">set_raw_in</span><span class="p">()</span>  <span class="c1"># reads data from raw_input</span>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

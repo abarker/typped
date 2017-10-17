@@ -1,0 +1,706 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.pratt_types &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.pratt_types</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">This module contains classes defining types and methods which can be called by</span>
+<span class="sd">the `PrattParser` class when checking types.  It defines the class `TypeSig`</span>
+<span class="sd">and the class `TypeObject`, as well as a dict class for storing</span>
+<span class="sd">parameterized types.</span>
+
+<span class="sd">All checking of type equivalence has been abstracted into this module, via</span>
+<span class="sd">utility routines (often static methods of classes).</span>
+
+<span class="sd">Terminology:</span>
+
+<span class="sd">- Function **parameters** or **formal arguments** are the identifiers which appear</span>
+<span class="sd">  in the function definition (and the function signature).  The type</span>
+<span class="sd">  specifications for parameters will be called **formal types**, since the</span>
+<span class="sd">  term parameter is used differently below.</span>
+
+<span class="sd">  The `original_sig` of a construct is the `TypeSig` of formal arguments.</span>
+
+<span class="sd">  The `expanded_sig` of a construct is the `original_sig` expanded to the</span>
+<span class="sd">  correct number of formal arguments (the first step of type matching). |br|</span>
+
+<span class="sd">- Function **arguments** or **actual arguments** are the values which are actually</span>
+<span class="sd">  passed to the function on a function call.  These are resolved at parse-time.</span>
+<span class="sd">  Their types will be referred to as **actual types**.</span>
+
+<span class="sd">  The `actual_sig` of a construct is the `TypeSig` of actual types, resolved</span>
+<span class="sd">  during parsing.</span>
+
+<span class="sd">Note that the formal type of a parameter can possibly match more than one</span>
+<span class="sd">actual type.  At least one must match, however.</span>
+
+<span class="sd">The each instance of the `PrattParser` class holds all of its defined types in</span>
+<span class="sd">a `TypeTable` class, defined in this module.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># For ideas on how to define composite types, etc., look at PEP-483:</span>
+<span class="c1"># https://www.python.org/dev/peps/pep-0483/</span>
+<span class="c1"># https://docs.python.org/3/library/typing.html</span>
+<span class="c1"># Similarity to Python 3&#39;s type hinting would be good.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_pratt_types.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_pratt_parser.py&quot;</span><span class="p">,</span>
+                              <span class="p">],</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="n">ParserException</span>
+
+<span class="c1">#</span>
+<span class="c1"># Formal and actual type specs for functions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="Varargs"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.Varargs">[docs]</a><span class="k">class</span> <span class="nc">Varargs</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This class is used to define type signatures which can check a variable</span>
+<span class="sd">    number of arguments.  When used at the end of an argument list for a</span>
+<span class="sd">    `TypeSig` instance it will repeat any arguments inside it as many times as</span>
+<span class="sd">    necessary.</span>
+
+<span class="sd">    If `exact_repeat` is true (the default) then an exception will be raised if</span>
+<span class="sd">    no multiple of the repeated arguments matches the actual arguments.</span>
+<span class="sd">    Otherwise the arguments will be truncated to fit.&quot;&quot;&quot;</span>
+    <span class="c1"># This hasn&#39;t been used or tested much, and may or may not be the best way</span>
+    <span class="c1"># to implement this feature.</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exact_repeat</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;exact_repeat&quot;</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span> <span class="o">=</span> <span class="n">args</span></div>
+
+<div class="viewcode-block" id="TypeSig"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig">[docs]</a><span class="k">class</span> <span class="nc">TypeSig</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The type specification for a function.  Generally set at function</span>
+<span class="sd">    definition.  Can also be used for actual types, since it is just a</span>
+<span class="sd">    container.  The &quot;functions&quot; themselves can be any syntactic construct that</span>
+<span class="sd">    produces a node in the final parse tree, with of the node representing the</span>
+<span class="sd">    arguments.</span>
+
+<span class="sd">    A `TypeSig` instance is essentially just a tuple `(val_type, arg_types)`,</span>
+<span class="sd">    where `val_type` is a `TypeObjectSubclass` and the `arg_types` is a tuple</span>
+<span class="sd">    of them.  Using a separate class instead of a tuple allows for additional</span>
+<span class="sd">    information to be stored with the data and produces better error messages.</span>
+<span class="sd">    The class also provides a convenient place to localize some routines which</span>
+<span class="sd">    operate on type signatures and lists of type signatures.Properties are</span>
+<span class="sd">    used automatically convert wildcard `None` arguments to the corresponding</span>
+<span class="sd">    `TypeObject` instances in the attributes `val_type` and `arg_types`.</span>
+
+<span class="sd">    For the purposes of equality comparison these objects are equivalent to the</span>
+<span class="sd">    tuple form.  Equality is exact equality and **does not** hold for formal</span>
+<span class="sd">    signatures and their corresponding actual signatures.  For that, use</span>
+<span class="sd">    `matches_formal_sig`.  Equality also ignores any attributes (other than</span>
+<span class="sd">    `val_type` and `arg_types`) which might be added to or modified in a</span>
+<span class="sd">    `TypeSig` instance.</span>
+
+<span class="sd">    Note that `None` is a wildcard which matches any type argument, and `None`</span>
+<span class="sd">    for the `arg_types` list or tuple matches any arguments and any number of</span>
+<span class="sd">    arguments (it is expanded during parsing to as many `None` arguments as are</span>
+<span class="sd">    required).  Note that `TypeSig() == TypeSig(None) == TypeSig(None, None)`.</span>
+<span class="sd">    To specify an object like a literal which takes no arguments an empty list</span>
+<span class="sd">    or tuple should be used for `arg_types`, as in `TypeSig(None, [])`; the</span>
+<span class="sd">    `val_type` argument can be set to the desired type if it is typed.</span>
+
+<span class="sd">    A single `TypeObject` as an `arg_types` argument (i.e., not an iterable) is</span>
+<span class="sd">    expanded to be a tuple of that type of objects, of any required length.</span>
+<span class="sd">    For example, a function might take an arbitrary number of arguments but</span>
+<span class="sd">    they must all have `Int` type.</span>
+
+<span class="sd">    The values type and the argument types can be accessed by indexing the</span>
+<span class="sd">    0 and 1 element of an instance, respectively, or by using the `val_type`</span>
+<span class="sd">    and `arg_types` attributes.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a type signature object.</span>
+
+<span class="sd">        The argument `val_type` should be either `None`, or a `TypeObject`</span>
+<span class="sd">        instance.</span>
+
+<span class="sd">        The argument `arg_types` should be a list, tuple, or other iterable of</span>
+<span class="sd">        `None` values and/or `TypeObject` instances.</span>
+
+<span class="sd">        The `None` value is treated as a wildcard that matches any</span>
+<span class="sd">        corresponding type; `None` alone for `arg_types` allows any number of</span>
+<span class="sd">        arguments of any type.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">val_type</span> <span class="o">=</span> <span class="n">val_type</span> <span class="c1"># Property, automatically converts None args.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">repeat_index</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exact_repeat</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span> <span class="o">=</span> <span class="n">arg_types</span> <span class="c1"># Propery, automatically converts None args.</span>
+
+    <span class="c1">#</span>
+    <span class="c1"># Properties are used for val_type and arg_types to automatically convert</span>
+    <span class="c1"># None args to TypeObject instances.</span>
+    <span class="c1">#</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">val_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the `val_type` property saved in `_val_type`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_val_type</span>
+    <span class="nd">@val_type</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">val_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert all `val_type` assignment values to `TypeObject` instance and</span>
+<span class="sd">        save the result in the attribute `_val_type`.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_val_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_val_type_wildcards</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">arg_types</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the `arg_types` property saved in `_arg_types`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_arg_types</span>
+    <span class="nd">@arg_types</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">arg_types</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert all `arg_types` assignment values to typles of `TypeObject`</span>
+<span class="sd">        instances and save the result in the `_arg_types` attribute.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_arg_types</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_arg_types_wildcards</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TypeSig.convert_val_type_wildcards"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.convert_val_type_wildcards">[docs]</a>    <span class="k">def</span> <span class="nf">convert_val_type_wildcards</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert `val_type` argument to a `TypeObject` instance and set attribute.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val_type</span><span class="p">,</span> <span class="n">TypeObject</span><span class="p">):</span>
+            <span class="k">pass</span> <span class="c1"># May need to do something at some point, not as of now.</span>
+        <span class="k">elif</span> <span class="n">val_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">val_type</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TypeModuleException</span><span class="p">(</span><span class="s2">&quot;`TypeSig` initialized with invalid `val_type`&quot;</span>
+                     <span class="s2">&quot; of &#39;</span><span class="si">{0}</span><span class="s2">&#39;, of Python type </span><span class="si">{1}</span><span class="s2">.  Must be a `TypeObject` instance.&quot;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val_type</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">val_type</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">val_type</span></div>
+
+<div class="viewcode-block" id="TypeSig.convert_arg_types_wildcards"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.convert_arg_types_wildcards">[docs]</a>    <span class="k">def</span> <span class="nf">convert_arg_types_wildcards</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">arg_types</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert all `arg_types` arguments to `TypeObject` instances and return it.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">arg_types</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="c1"># None here represents accepting any number of any type.</span>
+            <span class="n">arg_types</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg_types</span><span class="p">,</span> <span class="n">TypeObject</span><span class="p">):</span> <span class="c1"># Single TypeObject, expands as needed.</span>
+            <span class="k">pass</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">arg_types</span><span class="p">:</span> <span class="c1"># Matches (), [], and anything else that bools to False</span>
+            <span class="n">arg_types</span> <span class="o">=</span> <span class="p">()</span> <span class="c1"># Below case catches this, but this is clearer.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># First handle any Varargs specifications.</span>
+            <span class="n">arg_types</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">arg_types</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">arg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">arg_types</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">Varargs</span><span class="p">):</span>
+                    <span class="n">varargs</span> <span class="o">=</span> <span class="n">arg</span>
+                    <span class="k">if</span> <span class="n">count</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg_types</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">TypeModuleException</span><span class="p">(</span><span class="s2">&quot;The Varargs specification can only&quot;</span>
+                                <span class="s2">&quot;occur as the last component of an arg_types list.&quot;</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">repeat_index</span> <span class="o">=</span> <span class="n">count</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">exact_repeat</span> <span class="o">=</span> <span class="n">arg</span><span class="o">.</span><span class="n">exact_repeat</span>
+                    <span class="n">arg_types</span> <span class="o">=</span> <span class="n">arg_types</span><span class="p">[:</span><span class="n">count</span><span class="p">]</span> <span class="o">+</span> <span class="nb">list</span><span class="p">(</span><span class="n">varargs</span><span class="o">.</span><span class="n">arg_types</span><span class="p">)</span>
+            <span class="c1"># Now covert any None arguments to TypeObject(None).</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">arg_types</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg_types</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">TypeObject</span><span class="p">):</span> <span class="c1"># Ignores None values.</span>
+                    <span class="k">pass</span> <span class="c1"># May take some action at some point, not now...</span>
+                <span class="k">elif</span> <span class="n">arg_types</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">arg_types</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">TypeModuleException</span><span class="p">(</span><span class="s2">&quot;`TypeSig` initialized with invalid&quot;</span>
+                                <span class="s2">&quot; `arg_types` of &#39;</span><span class="si">{0}</span><span class="s2">&#39;, of Python types </span><span class="si">{1}</span><span class="s2">.  Must be&quot;</span>
+                                <span class="s2">&quot; `TypeObject` instances.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">arg_types</span><span class="p">),</span>
+                                              <span class="p">[</span><span class="nb">type</span><span class="p">(</span><span class="n">at</span><span class="p">)</span> <span class="k">for</span> <span class="n">at</span> <span class="ow">in</span> <span class="n">arg_types</span><span class="p">]))</span>
+            <span class="n">arg_types</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">arg_types</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">arg_types</span></div>
+
+    <span class="c1">#</span>
+    <span class="c1"># Static methods to do tasks related to TypeSig instances.</span>
+    <span class="c1">#</span>
+
+<div class="viewcode-block" id="TypeSig.get_all_matching_expanded_sigs"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.get_all_matching_expanded_sigs">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_all_matching_expanded_sigs</span><span class="p">(</span><span class="n">sig_list</span><span class="p">,</span> <span class="n">list_of_child_sig_lists</span><span class="p">,</span> <span class="n">tnode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">raise_err_on_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the list of all the signatures on `sig_list` whose arguments</span>
+<span class="sd">        match some choice of child/argument signatures from</span>
+<span class="sd">        `list_of_child_sig_lists`  Note that this does not look at the return</span>
+<span class="sd">        types, and returns all signatures with matching arguments.</span>
+
+<span class="sd">        This is the main method of this class which is actually called from the</span>
+<span class="sd">        `PrattParser` to find all the argument-matching signatures.  (If</span>
+<span class="sd">        overloading on return types is used then `PrattParser` also calls</span>
+<span class="sd">        `get_child_sigs_matching_return_arg_type` on the second pass, to check</span>
+<span class="sd">        return matches.)</span>
+
+<span class="sd">        The `sig_list` argument should be a list of `TypeSig` instances</span>
+<span class="sd">        representing formal types.</span>
+
+<span class="sd">        The `list_of_child_sig_lists` argument should be a list of lists, where</span>
+<span class="sd">        each sublist is a list of all the possible signatures for a child node.</span>
+<span class="sd">        The sublists should be in the same order as the children/arguments.</span>
+
+<span class="sd">        The returned list is a list of expanded formal type signatures (i.e.,</span>
+<span class="sd">        with `None` arguments expanded and with a fixed number of arguments).</span>
+<span class="sd">        The original, unexpanded formal signature which matched is saved as an</span>
+<span class="sd">        attribute `original_formal_sig` of each matching expanded formal</span>
+<span class="sd">        signature which is returned.&quot;&quot;&quot;</span>
+        <span class="n">num_args</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_of_child_sig_lists</span><span class="p">)</span>
+
+        <span class="c1"># Expand the signatures with wildcards to match the number of args.</span>
+        <span class="n">sig_list</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="o">.</span><span class="n">get_sigs_expanded_for_num_actual_args</span><span class="p">(</span><span class="n">num_args</span><span class="p">,</span> <span class="n">sig_list</span><span class="p">)</span>
+
+        <span class="c1"># Filter the signatures by the number of arguments.</span>
+        <span class="n">sig_list</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="o">.</span><span class="n">get_sigs_matching_num_args</span><span class="p">(</span><span class="n">num_args</span><span class="p">,</span> <span class="n">sig_list</span><span class="p">,</span>
+                                         <span class="n">tnode</span><span class="p">,</span> <span class="n">raise_err_on_empty</span><span class="p">)</span>
+
+        <span class="c1"># Now filter by sigs for which the actual value of the child type matches</span>
+        <span class="c1"># (as a type, not equality) the required formal type return type.</span>
+        <span class="n">sig_list</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="o">.</span><span class="n">filter_sigs_matching_child_types</span><span class="p">(</span><span class="n">sig_list</span><span class="p">,</span>
+                             <span class="n">list_of_child_sig_lists</span><span class="p">,</span> <span class="n">tnode</span><span class="p">,</span> <span class="n">raise_err_on_empty</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sig_list</span></div>
+
+<div class="viewcode-block" id="TypeSig.get_sigs_expanded_for_num_actual_args"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.get_sigs_expanded_for_num_actual_args">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_sigs_expanded_for_num_actual_args</span><span class="p">(</span><span class="n">num_args</span><span class="p">,</span> <span class="n">sig_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Expand the signatures on list `sig_list` so that any `None` argument</span>
+<span class="sd">        not inside a tuple or list is converted to a tuple of `None` having</span>
+<span class="sd">        `num_args` of argument.</span>
+
+<span class="sd">        This routine also expands argument signatures consisting of a single</span>
+<span class="sd">        `TypeObject` to take any number of arguments of that type.</span>
+
+<span class="sd">        Each expanded version has the original, unexpanded signature saved with</span>
+<span class="sd">        it as an attribute called `original_formal_sig`.&quot;&quot;&quot;</span>
+        <span class="n">all_sigs_expanded</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="n">sig_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">,</span> <span class="n">TypeObject</span><span class="p">):</span> <span class="c1"># TypeObject(None) here also.</span>
+                <span class="n">new_sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">val_type</span><span class="p">,</span> <span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">,)</span><span class="o">*</span><span class="n">num_args</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">sig</span><span class="o">.</span><span class="n">repeat_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">repeat_index</span> <span class="o">=</span> <span class="n">sig</span><span class="o">.</span><span class="n">repeat_index</span>
+                <span class="n">new_args</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">[:</span><span class="n">repeat_index</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_args</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">num_args</span><span class="p">:</span>
+                    <span class="n">new_args</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">[</span><span class="n">repeat_index</span><span class="p">:])</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">new_args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">num_args</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">sig</span><span class="o">.</span><span class="n">exact_repeat</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="n">TypeModuleException</span><span class="p">(</span><span class="s2">&quot;Repeating Varargs arguments does&quot;</span>
+                                <span class="s2">&quot; not match the required number of arguments in&quot;</span>
+                                <span class="s2">&quot; signature </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">sig</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">new_args</span> <span class="o">=</span> <span class="n">new_args</span><span class="p">[:</span><span class="n">num_args</span><span class="p">]</span>
+                <span class="n">new_sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">val_type</span><span class="p">,</span> <span class="n">new_args</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_sig</span> <span class="o">=</span> <span class="n">sig</span>
+            <span class="n">new_sig</span><span class="o">.</span><span class="n">original_formal_sig</span> <span class="o">=</span> <span class="n">sig</span> <span class="c1"># Save formal sig as an attribute of expanded.</span>
+            <span class="n">all_sigs_expanded</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_sig</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">all_sigs_expanded</span></div>
+
+<div class="viewcode-block" id="TypeSig.get_sigs_matching_num_args"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.get_sigs_matching_num_args">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_sigs_matching_num_args</span><span class="p">(</span><span class="n">num_args</span><span class="p">,</span> <span class="n">sig_list</span><span class="p">,</span>
+                                        <span class="n">tnode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">raise_err_on_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of signatures from `sig_list` which match `num_args`</span>
+<span class="sd">        as the number of arguments.  The optional token-tree node `tnode` is</span>
+<span class="sd">        only used for improved error reporting.</span>
+
+<span class="sd">        This routine assumes that a `formal_sig` attribute has been set for all</span>
+<span class="sd">        passed-in signatures (for example, as set by the method</span>
+<span class="sd">        `expand_sigs_with_None_args`.&quot;&quot;&quot;</span>
+        <span class="n">sigs_matching_numargs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="n">sig_list</span><span class="p">:</span>
+            <span class="n">sig_args_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sig_args_len</span> <span class="o">==</span> <span class="n">num_args</span><span class="p">:</span>
+                <span class="n">new_sig</span> <span class="o">=</span> <span class="n">sig</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">new_sig</span><span class="o">.</span><span class="n">original_formal_sig</span> <span class="o">=</span> <span class="n">sig</span><span class="o">.</span><span class="n">original_formal_sig</span> <span class="c1"># Copy over the formal sig.</span>
+            <span class="n">sigs_matching_numargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_sig</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">raise_err_on_empty</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">sigs_matching_numargs</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;The number of arguments (</span><span class="si">{0}</span><span class="s2">) does not match any signature.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">num_args</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">tnode</span><span class="p">:</span>
+                <span class="n">tnode</span><span class="o">.</span><span class="n">_raise_type_mismatch_error</span><span class="p">([],</span> <span class="n">msg</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sigs_matching_numargs</span></div>
+
+<div class="viewcode-block" id="TypeSig.filter_sigs_matching_child_types"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.filter_sigs_matching_child_types">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">filter_sigs_matching_child_types</span><span class="p">(</span><span class="n">sig_list</span><span class="p">,</span> <span class="n">list_of_child_sig_lists</span><span class="p">,</span>
+                                          <span class="n">tnode</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">raise_err_on_empty</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="sd">&quot;&quot;&quot;Return a list of all signatures in `sig_list` which have arguments</span>
+<span class="sd">        that match (in order) the return type of some child signature in the</span>
+<span class="sd">        corresponding sublist of `list_of_child_sig_lists`.  The latter should</span>
+<span class="sd">        be a list containing lists of all the expanded signatures for each</span>
+<span class="sd">        child, in corresponding order.</span>
+
+<span class="sd">        The number of arguments is assumed to already match (see</span>
+<span class="sd">        `get_sigs_matching_num_args`).  This just filters the list, removing the</span>
+<span class="sd">        non-matches.</span>
+
+<span class="sd">        The optional token-tree node `tnode` is only used for improved error</span>
+<span class="sd">        reporting.&quot;&quot;&quot;</span>
+
+        <span class="n">matching_sigs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Loop over each possible sig, testing for matches.</span>
+        <span class="k">for</span> <span class="n">sig</span> <span class="ow">in</span> <span class="n">sig_list</span><span class="p">:</span>
+            <span class="c1"># Handle the case of literals, with no children/arguments.</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">matching_sigs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="c1"># Handle the case with one or more children/arguments.</span>
+            <span class="n">mismatch_with_sig</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">for</span> <span class="n">child_sig_list</span><span class="p">,</span> <span class="n">arg_type</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                                    <span class="n">list_of_child_sig_lists</span><span class="p">,</span> <span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">):</span>
+                <span class="n">some_child_retval_matches</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">for</span> <span class="n">child_sig</span> <span class="ow">in</span> <span class="n">child_sig_list</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">arg_type</span> <span class="o">==</span> <span class="n">TypeObject</span><span class="p">(</span><span class="kc">None</span><span class="p">):</span>
+                        <span class="n">some_child_retval_matches</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                    <span class="k">if</span> <span class="n">child_sig</span><span class="o">.</span><span class="n">val_type</span><span class="o">.</span><span class="n">matches_formal_type</span><span class="p">(</span><span class="n">arg_type</span><span class="p">):</span>
+                        <span class="n">some_child_retval_matches</span> <span class="o">=</span> <span class="kc">True</span>
+                        <span class="k">break</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">some_child_retval_matches</span><span class="p">:</span>
+                    <span class="n">mismatch_with_sig</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">break</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">mismatch_with_sig</span><span class="p">:</span>
+                <span class="n">matching_sigs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">raise_err_on_empty</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">matching_sigs</span><span class="p">:</span>
+            <span class="c1"># TODO: Better msg, since now the construct abstraction is used.</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;Type mismatch: The actual argument types do not match any type &quot;</span>
+                   <span class="s2">&quot;signature registered with the token.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">tnode</span><span class="p">:</span>
+                <span class="n">tnode</span><span class="o">.</span><span class="n">_raise_type_mismatch_error</span><span class="p">([],</span> <span class="n">msg</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">matching_sigs</span></div>
+
+<div class="viewcode-block" id="TypeSig.get_child_sigs_matching_return_arg_type"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.get_child_sigs_matching_return_arg_type">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">get_child_sigs_matching_return_arg_type</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">return_type</span><span class="p">,</span> <span class="n">matching_sigs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Called with a child node, the expected return type for that</span>
+<span class="sd">        child, and a list of matching sigs for the child.  Returns all the</span>
+<span class="sd">        `child.matching_sigs` which also match in return type.</span>
+
+<span class="sd">        This is used in pass two of the type-checking.  When called, the</span>
+<span class="sd">        `matching_sigs` parameter is passed the `child.matching_sigs` attribute</span>
+<span class="sd">        which was already set on pass one of the checking.  If the result</span>
+<span class="sd">        is unique the return type of the child is known, and so the full</span>
+<span class="sd">        signature can be resolved and assigned.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO TODO: This needs to use actual_matches_formal routine instead!</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">matching_sigs</span>
+                <span class="k">if</span> <span class="n">s</span><span class="o">.</span><span class="n">val_type</span> <span class="o">==</span> <span class="n">return_type</span> <span class="ow">or</span> <span class="n">return_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="TypeSig.append_sig_to_list_replacing_if_identical"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.append_sig_to_list_replacing_if_identical">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">append_sig_to_list_replacing_if_identical</span><span class="p">(</span><span class="n">sig_list</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return `sig_list` either with `sig` appended or with any identical</span>
+<span class="sd">        signature (according only to type equality, not attributes) replaced</span>
+<span class="sd">        if one is there.  This is called in `register_handler_funs`.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">sig_list</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">sig_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sig</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">sig_list</span></div>
+
+    <span class="c1">#</span>
+    <span class="c1"># General indexing and equality testing methods.</span>
+    <span class="c1">#</span>
+
+<div class="viewcode-block" id="TypeSig.matches_formal_sig"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeSig.matches_formal_sig">[docs]</a>    <span class="k">def</span> <span class="nf">matches_formal_sig</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">formal_sig</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Test if this signature as an actual signature matches `formal_sig`</span>
+<span class="sd">        as a formal signature.  Note the difference between this and equality!</span>
+<span class="sd">        This is the one which should be called to determine signature</span>
+<span class="sd">        equivalence based on type equivalences and possible conversions.</span>
+
+<span class="sd">        NOT CURRENTLY USED, low-level `matches_formal_type` is used instead.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal_sig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Comparing </span><span class="si">{0}</span><span class="s2"> with some other kind of object.&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_type</span><span class="o">.</span><span class="n">matches_formal_type</span><span class="p">(</span><span class="n">formal_sig</span><span class="o">.</span><span class="n">val_type</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">formal_sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">for</span> <span class="n">actual</span><span class="p">,</span> <span class="n">formal</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">,</span> <span class="n">formal_sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">actual</span><span class="o">.</span><span class="n">matches_formal_type</span><span class="p">(</span><span class="n">formal</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Indexing works like a tuple.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_type</span>
+        <span class="k">elif</span> <span class="n">index</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Note that equality is *only* based on `val_type` and `arg_type`</span>
+<span class="sd">        being *identical*.  It ignores all other attributes, and does not</span>
+<span class="sd">        consider more sophisticated notions of equality.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">sig</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Comparing </span><span class="si">{0}</span><span class="s2"> with some other kind of object.&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="vm">__class__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_type</span> <span class="o">==</span> <span class="n">sig</span><span class="o">.</span><span class="n">val_type</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span> <span class="o">==</span> <span class="n">sig</span><span class="o">.</span><span class="n">arg_types</span>
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sig</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">sig</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">,</span> <span class="n">TypeObject</span><span class="p">):</span>
+            <span class="n">arg_string</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="o">.</span><span class="n">short_repr</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">arg_string</span> <span class="o">=</span> <span class="s2">&quot;[&quot;</span>
+            <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">t</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">count</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">arg_string</span> <span class="o">+=</span> <span class="s2">&quot;, &quot;</span>
+                <span class="k">if</span> <span class="n">count</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">repeat_index</span><span class="p">:</span>
+                    <span class="n">varargs</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">short_repr</span><span class="p">()</span> <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">[</span><span class="n">count</span><span class="p">:])</span>
+                    <span class="n">arg_string</span> <span class="o">+=</span> <span class="s2">&quot;Varargs(&quot;</span> <span class="o">+</span> <span class="n">varargs</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span>
+                    <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">arg_string</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">short_repr</span><span class="p">()</span>
+            <span class="n">arg_string</span> <span class="o">+=</span> <span class="s2">&quot;]&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TypeSig(</span><span class="si">{0}</span><span class="s2">, </span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">val_type</span><span class="o">.</span><span class="n">short_repr</span><span class="p">(),</span> <span class="n">arg_string</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Needed to index dicts and for use in Python sets.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="s2">&quot;TypeSig&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">val_type</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">arg_types</span><span class="p">))</span></div>
+
+
+<span class="c1">#</span>
+<span class="c1"># Type objects, representing individual types.</span>
+<span class="c1">#</span>
+
+<span class="c1"># NOTE: Consider if there is any advantage to having types themselves take</span>
+<span class="c1"># parameters other than the string labels.</span>
+
+<div class="viewcode-block" id="actual_matches_formal_default"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.actual_matches_formal_default">[docs]</a><span class="k">def</span> <span class="nf">actual_matches_formal_default</span><span class="p">(</span><span class="n">actual_type</span><span class="p">,</span> <span class="n">formal_type</span><span class="p">):</span>
+    <span class="c1"># TODO: this could be a method of a full class, which handles all the</span>
+    <span class="c1"># type equivalence, alias, and conversion stuff.....</span>
+    <span class="c1"># Alternately, it would fit in as part of the existing TypeTable class.</span>
+    <span class="sd">&quot;&quot;&quot;The default function to check whether actual types match formal types.</span>
+<span class="sd">    Currently uses straight equality, nothing else.  Users should not call</span>
+<span class="sd">    this directly, but instead call the `TypeObject` method `matches_formal_type`</span>
+<span class="sd">    on the actual type.  Users may set their own versions of this function.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">actual_type</span> <span class="o">==</span> <span class="n">formal_type</span> <span class="c1"># Later consider fancier matching.</span></div>
+
+<span class="n">NONE</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;wildcard_none&quot;</span><span class="p">,)</span> <span class="c1"># A different representation for a type label of None.</span>
+
+<div class="viewcode-block" id="TypeObject"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeObject">[docs]</a><span class="k">class</span> <span class="nc">TypeObject</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Instances of this class represent types.&quot;&quot;&quot;</span>
+    <span class="c1"># Be sure to update __hash__ if more type-defining components are added.</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_label</span><span class="p">,</span>
+                       <span class="n">actual_matches_formal_fun</span><span class="o">=</span><span class="n">actual_matches_formal_default</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Instantiate a type object or a wildcare object with `None` argument.&quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">TypeObject</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span> <span class="c1"># Call base class __init__.</span>
+        <span class="k">if</span> <span class="n">type_label</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">=</span> <span class="n">NONE</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_wildcard</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">=</span> <span class="n">type_label</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_wildcard</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conversions</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># Dict keyed by to_type values.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">actual_matches_formal_fun</span> <span class="o">=</span> <span class="n">actual_matches_formal_fun</span>
+
+    <span class="k">def</span> <span class="nf">__hash__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define hashing for instances.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">hash</span><span class="p">((</span><span class="s2">&quot;TypeObject&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span><span class="p">))</span>
+
+<div class="viewcode-block" id="TypeObject.def_conversion"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeObject.def_conversion">[docs]</a>    <span class="k">def</span> <span class="nf">def_conversion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">to_type</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">tree_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Define an automatic conversion to be applied.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO might need to redefine priority mechanism, since matching across</span>
+        <span class="c1"># a full signature with possible conversions the greedy approach can</span>
+        <span class="c1"># miss some things a non-greedy approach would find.  That may just be</span>
+        <span class="c1"># a limitation to document.  Also, do you require uniqueness in</span>
+        <span class="c1"># resolution, or use a ranking/priority mechanism?</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Conversions not implemented&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TypeObject.undef_conversion"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeObject.undef_conversion">[docs]</a>    <span class="k">def</span> <span class="nf">undef_conversion</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">to_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Undefine a conversion.&quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="TypeObject.matches_formal_type"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeObject.matches_formal_type">[docs]</a>    <span class="k">def</span> <span class="nf">matches_formal_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">formal_type</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Test whether this object as an actual type matches `formal_type` as</span>
+<span class="sd">        a formal type.  All checks for type matches use this method.</span>
+
+<span class="sd">        A hook is provided to pass in a different function to do the</span>
+<span class="sd">        comparison.  Set the `TypeObject` initializer keyword</span>
+<span class="sd">        `actual_matches_formal_fun` to the function on the creation of each</span>
+<span class="sd">        type.  It should take two `TypeObject` arguments: the actual one</span>
+<span class="sd">        followed by the formal one.  Different functions can be passed to</span>
+<span class="sd">        different type objects, or a generic one can be passed to all of them.</span>
+
+<span class="sd">        See also the related method `matches_formal_sig` of `TypeSig` which</span>
+<span class="sd">        checks both the value and the arguments in a signature&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">actual_matches_formal_fun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">formal_type</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__eq__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Note that this defines equality between types.  The `==` symbol</span>
+<span class="sd">        is defined as exact match only.  Use `matches_formal_type` for</span>
+<span class="sd">        comparing actual to formal.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">type_obj</span><span class="p">,</span> <span class="n">TypeObject</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">==</span> <span class="n">type_obj</span><span class="o">.</span><span class="n">type_label</span>
+
+    <span class="k">def</span> <span class="nf">__ne__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_object</span><span class="p">):</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="bp">self</span> <span class="o">==</span> <span class="n">type_object</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">==</span> <span class="n">NONE</span><span class="p">:</span>
+            <span class="n">str_label</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">str_label</span> <span class="o">=</span> <span class="s2">&quot;&#39;&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">+</span> <span class="s2">&quot;&#39;&quot;</span>
+        <span class="k">return</span> <span class="s2">&quot;TypeObject(</span><span class="si">{0}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">str_label</span><span class="p">)</span>
+
+<div class="viewcode-block" id="TypeObject.short_repr"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeObject.short_repr">[docs]</a>    <span class="k">def</span> <span class="nf">short_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This repr prints `None` types as simply &quot;None&quot; rather than</span>
+<span class="sd">        &quot;TypeObject(None)&quot;.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">==</span> <span class="n">NONE</span><span class="p">:</span>
+            <span class="n">str_label</span> <span class="o">=</span> <span class="s2">&quot;None&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">str_label</span> <span class="o">=</span> <span class="s2">&quot;&#39;&quot;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_label</span> <span class="o">+</span> <span class="s2">&quot;&#39;&quot;</span>
+        <span class="k">return</span> <span class="n">str_label</span></div></div>
+
+<span class="c1">#</span>
+<span class="c1"># TypeTable.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="TypeTable"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeTable">[docs]</a><span class="k">class</span> <span class="nc">TypeTable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A type table holding instances of the `TypeObject` class, one for each</span>
+<span class="sd">    defined type in the language.  Each `PrattParser` instance has such a table,</span>
+<span class="sd">    which holds the objects which represent each type defined in the language</span>
+<span class="sd">    that the particular parser parses.&quot;&quot;&quot;</span>
+    <span class="n">aliases</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># A static dict mapping defined aliases. TODO</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize the type table.  The `parser_instance` parameter should be the</span>
+<span class="sd">        `PrattParser` instance which owns this type table.  All type tables must</span>
+<span class="sd">        be associated with a parser instance (the types are part of the language</span>
+<span class="sd">        it parses).&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span> <span class="o">=</span> <span class="n">parser_instance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span> <span class="nf">__contains__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Test whether a `TypeObject` instance for `type_label` has been stored.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">type_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Look up the `TypeObject` instance corresponding</span>
+<span class="sd">        to `type_label` in the type table and return it.  Raises a</span>
+<span class="sd">        `TypeException` if no instance is found for the token label.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">type_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span><span class="p">:</span>
+            <span class="n">type_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span><span class="p">[</span><span class="n">type_label</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">type_object</span>
+
+<div class="viewcode-block" id="TypeTable.create_typeobject"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeTable.create_typeobject">[docs]</a>    <span class="k">def</span> <span class="nf">create_typeobject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a `TypeObject` instance for a type with string label `type_label`</span>
+<span class="sd">        and store it in the type table.  Return the new instance.  Raises a</span>
+<span class="sd">        `TypeException` if an instance for `type_label` has already been</span>
+<span class="sd">        created.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">type_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TypeModuleException</span><span class="p">(</span><span class="s2">&quot;Already created a type with type_label &#39;</span><span class="si">{0}</span><span class="s2">&#39;.&quot;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">type_label</span><span class="p">))</span>
+
+        <span class="c1"># Create a new TypeObject instance for the formal type label.</span>
+        <span class="c1">#type_object = TypeObject(type_label, self.parser_instance.type_table) # TODO</span>
+        <span class="n">type_object</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="n">type_label</span><span class="p">)</span>
+
+        <span class="c1"># Store the newly-created instance in the token_dict and then return it.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span><span class="p">[</span><span class="n">type_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">type_object</span>
+        <span class="k">return</span> <span class="n">type_object</span></div>
+
+<div class="viewcode-block" id="TypeTable.undef_typeobject"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeTable.undef_typeobject">[docs]</a>    <span class="k">def</span> <span class="nf">undef_typeobject</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Un-define the token with label type_label.  The `TypeObject` instance</span>
+<span class="sd">        previously associated with that label is removed from the dictionary.&quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">type_object_dict</span><span class="p">[</span><span class="n">type_label</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="c1"># Not saved in dict, ignore.</span></div></div>
+
+<span class="c1">#</span>
+<span class="c1"># Exceptions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="TypeErrorInParsedLanguage"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeErrorInParsedLanguage">[docs]</a><span class="k">class</span> <span class="nc">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Raised when the there is a type error in the language being parsed,</span>
+<span class="sd">    as opposed to a `TypeError` in the Python code.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="TypeModuleException"><a class="viewcode-back" href="../../typped.pratt_types.html#typped.pratt_types.TypeModuleException">[docs]</a><span class="k">class</span> <span class="nc">TypeModuleException</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An exception in the code of the `pratt_types` module.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

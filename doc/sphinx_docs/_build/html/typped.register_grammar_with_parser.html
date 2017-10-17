@@ -1,0 +1,329 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.8. typped.register_grammar_with_parser &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.9. typped.lexer" href="typped.lexer.html" />
+    <link rel="prev" title="10.7. typped.ebnf_classes_and_operators" href="typped.ebnf_classes_and_operators.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.lexer.html" title="10.9. typped.lexer"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.ebnf_classes_and_operators.html" title="10.7. typped.ebnf_classes_and_operators"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.register_grammar_with_parser">
+<span id="typped-register-grammar-with-parser"></span><h1>10.8. typped.register_grammar_with_parser<a class="headerlink" href="#module-typped.register_grammar_with_parser" title="Permalink to this headline">¶</a></h1>
+<p>This module contains the functions which handle the recursive descent parsing
+of the rules of a <code class="code docutils literal"><span class="pre">Grammar</span></code> object instance. Grammar objects are defined in
+<code class="code docutils literal"><span class="pre">ebnf_classes_and_operators</span></code> module.</p>
+<p>In ths module only the function <code class="code docutils literal"><span class="pre">register_rule_handlers_with_parser</span></code> is
+formally exposed to be called externally (and it is only called from the
+<code class="code docutils literal"><span class="pre">ebnf_classes_and_operators</span></code> module).</p>
+<p>The first argument to <code class="code docutils literal"><span class="pre">register_rule_handlers_with_parser</span></code> is a parser
+instance.  The function modifies the parser to parse the grammar rule which is
+also passed in.</p>
+<p>Note that because the processing uses the parser instance variables <code class="code docutils literal"><span class="pre">pstate_stack</span></code>
+and <code class="code docutils literal"><span class="pre">pstate_processing_in_progress</span></code> this parsing is not thread-safe for
+multiple parses on the same parser (but the parser in general probably is not,
+either).</p>
+<div class="section" id="rules-and-guidelines">
+<h2>10.8.1. Rules and guidelines<a class="headerlink" href="#rules-and-guidelines" title="Permalink to this headline">¶</a></h2>
+<ul>
+<li><p class="first">No left recursion.  Some token must be consumed before any recursive call.
+This is not OK.  The left recursion will never stop:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">arglist</span> <span class="o">=</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arglist&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_comma&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span> <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This is OK:</p>
+<blockquote>
+<div><p>arglist = Rule(“arg”) + Tok(“k_comma”) + Rule(“arglist”) | Rule(“arg”)</p>
+</div></blockquote>
+</li>
+<li><p class="first">Cases are evaluated in sequential order, so if cases have the same prefix
+put the longer cases first.  This modified version of the OK rule above will
+never select the second case.  It will always parse a single “arg” rule and be
+satisfied:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">arglist</span> <span class="o">=</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span> <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arg&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_comma&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;arglist&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+</ul>
+</div>
+<div class="section" id="precedences">
+<h2>10.8.2. Precedences<a class="headerlink" href="#precedences" title="Permalink to this headline">¶</a></h2>
+<p>Precedences not handled right for now…</p>
+<p>Currently head or tail handlers are registered only for the first item of first
+case, but really ALL literal tokens and nonterminals should have a handler
+defined – conditioned on the pstate value to avoid conflicts.  They can check
+types if the types are defined correctly.  For literal tokens we could just
+call def_literal (or just read the thing with <code class="code docutils literal"><span class="pre">next</span></code> in if it must be there).</p>
+<p>Assume for now that precedences only apply to token literals.  Two possible
+ways to consider:</p>
+<blockquote>
+<div><p>num_expr      = k_number + Rule(“operator”) + num_expr | k_number
+operator      = Tok(“k_ast”)[10] | Tok(“k_plus”)[20]</p>
+<p>num_expr         = k_number + Rule(“op_and_right_arg”) | k_number
+op_and_right_arg = Tok(“k_ast”)[10] + num_expr | Tok(“k_plus”)[20] + num_expr</p>
+</div></blockquote>
+<p>parse(“5 + 3 * 2”)</p>
+<p>When the handler for a nonterminal calls <code class="code docutils literal"><span class="pre">recursive_parse</span></code> it always does it as
+<code class="code docutils literal"><span class="pre">recursive_parse(tok.extra_data.subexp_prec)</span></code> to simply forward the current
+subexpression precedence to the next call.</p>
+<p>When a nonterminal handler processes a case the it goes through the items,
+calling recursive_parse to get each one.  If they have <code class="code docutils literal"><span class="pre">prec=0</span></code> then they are
+parsed via their head handlers, which just return the subtree (for either the
+token literal or the rule).  All those values are just appended to the children
+list.</p>
+<p>When a token with a precedence &gt;0 is called it is parsed with the tail handler.
+The tail handler does exactly the same thing as the head handler <em>except</em> that
+it 1) takes the <code class="code docutils literal"><span class="pre">left</span></code> argument and makes it it own left child/operand, and 2)
+calls <code class="code docutils literal"><span class="pre">recursive_parse</span></code> to get the right child/operand.</p>
+<p>But when the parser encounters a nonterminal it is not sure if it will be a
+head or tail token…</p>
+<hr class="docutils" />
+<p>The handler for a nonterminal does this:</p>
+<ol class="arabic simple">
+<li>Sequentially call recursive-parse for each item.  Check that the returned
+thing matches what it is supposed to match.</li>
+</ol>
+<dl class="docutils">
+<dt>for item in item_list:</dt>
+<dd><p class="first">next_from_text = recursive_parse(0)
+if not compare_item_with_tree(item, next_from_text):</p>
+<blockquote class="last">
+<div>raise Fail</div></blockquote>
+</dd>
+</dl>
+<p>Consider peekahead prec for nonterminals:  The precedence is the same
+as the peek token, i.e., the next non-virtual token that is actually in
+the lexer.  Easy to do, since prec() is a function (or can be a property).</p>
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.register_rule_handlers_with_parser">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">register_rule_handlers_with_parser</code><span class="sig-paren">(</span><em>parser</em>, <em>nonterm_label</em>, <em>grammar</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#register_rule_handlers_with_parser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.register_rule_handlers_with_parser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register production rules for all the cases of the nonterminal
+<code class="code docutils literal"><span class="pre">nonterm_label</span></code>, as defined in the <code class="code docutils literal"><span class="pre">Grammar</span></code> object <code class="code docutils literal"><span class="pre">grammar</span></code>.</p>
+<p>This is run to initially process a caselist.  It partitions the caselist
+for the <code class="code docutils literal"><span class="pre">nonterm_label</span></code> nonterminal/pstate into separate caselists for
+cases which start with the same thing and may require backtracking.  It
+does the following:</p>
+<ol class="arabic simple">
+<li>Look up the caselist for <code class="code docutils literal"><span class="pre">nonterm_label</span></code> in the grammar object.</li>
+</ol>
+<p>2. Loop over that caselist, making a sub-caselists for cases which start
+with the same thing (i.e., which have the same first set).  Start with the
+first case, and proceed until the initial caselist is fully processed and
+converted to a collection of sub-caselists.  (All production rule starts
+are currently considered the same, but when the first-set is computed then
+they will be grouped with others having the same first-set.)</p>
+<p>These sub-caselists which start with a token are stored in a dict
+<code class="code docutils literal"><span class="pre">token_literal_start_cases</span></code>, keyed by the token label of the beginning token.
+Those which start with a nonterminal are saved in a list
+<code class="code docutils literal"><span class="pre">nonterm_start_cases</span></code>.</p>
+<p>3. For each sub-caselist created above, call
+<code class="code docutils literal"><span class="pre">def_handlers_for_first_case_of_nonterminal</span></code> with that caselist.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.def_null_string_handler_for_first_item_of_caselist">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">def_null_string_handler_for_first_item_of_caselist</code><span class="sig-paren">(</span><em>parser</em>, <em>nonterm_label</em>, <em>null_token</em>, <em>caselist</em>, <em>peek_token_label=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#def_null_string_handler_for_first_item_of_caselist"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.def_null_string_handler_for_first_item_of_caselist" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the head and tail handlers for the null-string token that is
+called to parse a production rule (i.e., it is called when the precondition
+that the state label <code class="code docutils literal"><span class="pre">nonterm_label</span></code> is on the top of the <code class="code docutils literal"><span class="pre">pstate_stack</span></code> is
+satisfied).</p>
+<p>These handlers handle all the production rule cases of the caselist for the
+nonterminal <code class="code docutils literal"><span class="pre">nonterminal</span></code>, backtracking on failure and trying the next
+case, etc.  They act very much like the usual recursive descent function
+for parsing a production rule, except that to make a recursive call to
+handle a sub-production they push that production label onto the
+<code class="code docutils literal"><span class="pre">pstate_stack</span></code> and then call <code class="code docutils literal"><span class="pre">recursive_parse</span></code>.  Then the handler for that
+production will be called, doing a search over its cases, etc., returning
+the value to the calling level.</p>
+<p>The <code class="code docutils literal"><span class="pre">peek_token_label</span></code> is used to set a precondition on cases which start
+with a particular kind of token.  This can also be used to implement
+first-sets.</p>
+<p>The label of the starting nonterminal is assumed to have initially been
+pushed on the <code class="code docutils literal"><span class="pre">pstate_stack</span></code> in order to do grammar-based processing.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.nonterminal_handler_factory">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">nonterminal_handler_factory</code><span class="sig-paren">(</span><em>nonterm_label</em>, <em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#nonterminal_handler_factory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.nonterminal_handler_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a generic head handler with <code class="code docutils literal"><span class="pre">nonterm_label</span></code> and <code class="code docutils literal"><span class="pre">caselist</span></code> bound
+in the closure.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.generic_nonterminal_handler">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">generic_nonterminal_handler</code><span class="sig-paren">(</span><em>nonterm_label</em>, <em>caselist</em>, <em>tok</em>, <em>lex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#generic_nonterminal_handler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.generic_nonterminal_handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>The head handler assigned to the first token of the first case for
+a caselist.  It tries all the other cases if it fails.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.parse_case">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">parse_case</code><span class="sig-paren">(</span><em>case</em>, <em>lex</em>, <em>pstate_stack</em>, <em>tok</em>, <em>nonterm_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#parse_case"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.parse_case" title="Permalink to this definition">¶</a></dt>
+<dd><p>Try to parse the particular case represented by the <code class="code docutils literal"><span class="pre">ItemList</span></code> passed as
+the <code class="code docutils literal"><span class="pre">case</span></code> parameter.  Raise an exception on failure.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.generic_tail_handler_function_factory">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">generic_tail_handler_function_factory</code><span class="sig-paren">(</span><em>nonterm_label</em>, <em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#generic_tail_handler_function_factory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.generic_tail_handler_function_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a generic tail handler function.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.partition_caselist">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">partition_caselist</code><span class="sig-paren">(</span><em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#partition_caselist"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.partition_caselist" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility routine to partition a caselist into sub-caselists.  Case
+lists here are ordinary Python lists of <code class="code docutils literal"><span class="pre">Case</span></code> instances, not full
+<code class="code docutils literal"><span class="pre">CaseList</span></code> objects (which are really only needed for the
+overloaded-operator grammar processing).</p>
+<p>Return a defaultdict of caselists holding the ones which start with token
+literal, keyed by the token labels.  Also return a list of caselists for
+those that start with a nonterminal.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.always_raise_branch_fail_head_handler">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">always_raise_branch_fail_head_handler</code><span class="sig-paren">(</span><em>tok</em>, <em>lex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#always_raise_branch_fail_head_handler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.always_raise_branch_fail_head_handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is a lower-priority head handler that is triggered by null-string
+tokens when all their actual precondition functions fail.  It signals
+branch failure in the search tree.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">lower_priority_fail_if_stack_nonempty_precond</code><span class="sig-paren">(</span><em>tok</em>, <em>lex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#lower_priority_fail_if_stack_nonempty_precond"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond" title="Permalink to this definition">¶</a></dt>
+<dd><p>A precondition to fail if no other stack-based precondition function
+matches when <code class="code docutils literal"><span class="pre">nonterm_label</span></code> is at the top of the <code class="code docutils literal"><span class="pre">pstate_stack</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.register_grammar_with_parser.get_precond_funs">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">get_precond_funs</code><span class="sig-paren">(</span><em>nonterm_label</em>, <em>peek_token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#get_precond_funs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.get_precond_funs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the precondition functions for registering null-space tokens.  The
+<code class="code docutils literal"><span class="pre">nonterm_label</span></code> and <code class="code docutils literal"><span class="pre">peek_token_label</span></code> values are saved in the function
+closure.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.register_grammar_with_parser.BranchFail">
+<em class="property">exception </em><code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">BranchFail</code><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#BranchFail"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.BranchFail" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Used in backtracking when parsing production rules.  Raised when a case of
+a rule fails.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">10.8. typped.register_grammar_with_parser</a><ul>
+<li><a class="reference internal" href="#rules-and-guidelines">10.8.1. Rules and guidelines</a></li>
+<li><a class="reference internal" href="#precedences">10.8.2. Precedences</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.ebnf_classes_and_operators.html"
+                        title="previous chapter">10.7. typped.ebnf_classes_and_operators</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.lexer.html"
+                        title="next chapter">10.9. typped.lexer</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.register_grammar_with_parser.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.lexer.html" title="10.9. typped.lexer"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.ebnf_classes_and_operators.html" title="10.7. typped.ebnf_classes_and_operators"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

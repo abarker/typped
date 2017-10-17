@@ -1,0 +1,409 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.6. typped.pratt_types &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.7. typped.ebnf_classes_and_operators" href="typped.ebnf_classes_and_operators.html" />
+    <link rel="prev" title="10.5. typped.pratt_constructs" href="typped.pratt_constructs.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.ebnf_classes_and_operators.html" title="10.7. typped.ebnf_classes_and_operators"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_constructs.html" title="10.5. typped.pratt_constructs"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.pratt_types">
+<span id="typped-pratt-types"></span><h1>10.6. typped.pratt_types<a class="headerlink" href="#module-typped.pratt_types" title="Permalink to this headline">¶</a></h1>
+<p>This module contains classes defining types and methods which can be called by
+the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class when checking types.  It defines the class <code class="code docutils literal"><span class="pre">TypeSig</span></code>
+and the class <code class="code docutils literal"><span class="pre">TypeObject</span></code>, as well as a dict class for storing
+parameterized types.</p>
+<p>All checking of type equivalence has been abstracted into this module, via
+utility routines (often static methods of classes).</p>
+<p>Terminology:</p>
+<ul>
+<li><p class="first">Function <strong>parameters</strong> or <strong>formal arguments</strong> are the identifiers which appear
+in the function definition (and the function signature).  The type
+specifications for parameters will be called <strong>formal types</strong>, since the
+term parameter is used differently below.</p>
+<p>The <code class="code docutils literal"><span class="pre">original_sig</span></code> of a construct is the <code class="code docutils literal"><span class="pre">TypeSig</span></code> of formal arguments.</p>
+<p>The <code class="code docutils literal"><span class="pre">expanded_sig</span></code> of a construct is the <code class="code docutils literal"><span class="pre">original_sig</span></code> expanded to the
+correct number of formal arguments (the first step of type matching). <p></p>
+</li>
+<li><p class="first">Function <strong>arguments</strong> or <strong>actual arguments</strong> are the values which are actually
+passed to the function on a function call.  These are resolved at parse-time.
+Their types will be referred to as <strong>actual types</strong>.</p>
+<p>The <code class="code docutils literal"><span class="pre">actual_sig</span></code> of a construct is the <code class="code docutils literal"><span class="pre">TypeSig</span></code> of actual types, resolved
+during parsing.</p>
+</li>
+</ul>
+<p>Note that the formal type of a parameter can possibly match more than one
+actual type.  At least one must match, however.</p>
+<p>The each instance of the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class holds all of its defined types in
+a <code class="code docutils literal"><span class="pre">TypeTable</span></code> class, defined in this module.</p>
+<dl class="class">
+<dt id="typped.pratt_types.Varargs">
+<em class="property">class </em><code class="descclassname">typped.pratt_types.</code><code class="descname">Varargs</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#Varargs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.Varargs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>This class is used to define type signatures which can check a variable
+number of arguments.  When used at the end of an argument list for a
+<code class="code docutils literal"><span class="pre">TypeSig</span></code> instance it will repeat any arguments inside it as many times as
+necessary.</p>
+<p>If <code class="code docutils literal"><span class="pre">exact_repeat</span></code> is true (the default) then an exception will be raised if
+no multiple of the repeated arguments matches the actual arguments.
+Otherwise the arguments will be truncated to fit.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_types.TypeSig">
+<em class="property">class </em><code class="descclassname">typped.pratt_types.</code><code class="descname">TypeSig</code><span class="sig-paren">(</span><em>val_type=None</em>, <em>arg_types=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>The type specification for a function.  Generally set at function
+definition.  Can also be used for actual types, since it is just a
+container.  The “functions” themselves can be any syntactic construct that
+produces a node in the final parse tree, with of the node representing the
+arguments.</p>
+<p>A <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance is essentially just a tuple <code class="code docutils literal"><span class="pre">(val_type,</span> <span class="pre">arg_types)</span></code>,
+where <code class="code docutils literal"><span class="pre">val_type</span></code> is a <code class="code docutils literal"><span class="pre">TypeObjectSubclass</span></code> and the <code class="code docutils literal"><span class="pre">arg_types</span></code> is a tuple
+of them.  Using a separate class instead of a tuple allows for additional
+information to be stored with the data and produces better error messages.
+The class also provides a convenient place to localize some routines which
+operate on type signatures and lists of type signatures.Properties are
+used automatically convert wildcard <code class="code docutils literal"><span class="pre">None</span></code> arguments to the corresponding
+<code class="code docutils literal"><span class="pre">TypeObject</span></code> instances in the attributes <code class="code docutils literal"><span class="pre">val_type</span></code> and <code class="code docutils literal"><span class="pre">arg_types</span></code>.</p>
+<p>For the purposes of equality comparison these objects are equivalent to the
+tuple form.  Equality is exact equality and <strong>does not</strong> hold for formal
+signatures and their corresponding actual signatures.  For that, use
+<code class="code docutils literal"><span class="pre">matches_formal_sig</span></code>.  Equality also ignores any attributes (other than
+<code class="code docutils literal"><span class="pre">val_type</span></code> and <code class="code docutils literal"><span class="pre">arg_types</span></code>) which might be added to or modified in a
+<code class="code docutils literal"><span class="pre">TypeSig</span></code> instance.</p>
+<p>Note that <code class="code docutils literal"><span class="pre">None</span></code> is a wildcard which matches any type argument, and <code class="code docutils literal"><span class="pre">None</span></code>
+for the <code class="code docutils literal"><span class="pre">arg_types</span></code> list or tuple matches any arguments and any number of
+arguments (it is expanded during parsing to as many <code class="code docutils literal"><span class="pre">None</span></code> arguments as are
+required).  Note that <code class="code docutils literal"><span class="pre">TypeSig()</span> <span class="pre">==</span> <span class="pre">TypeSig(None)</span> <span class="pre">==</span> <span class="pre">TypeSig(None,</span> <span class="pre">None)</span></code>.
+To specify an object like a literal which takes no arguments an empty list
+or tuple should be used for <code class="code docutils literal"><span class="pre">arg_types</span></code>, as in <code class="code docutils literal"><span class="pre">TypeSig(None,</span> <span class="pre">[])</span></code>; the
+<code class="code docutils literal"><span class="pre">val_type</span></code> argument can be set to the desired type if it is typed.</p>
+<p>A single <code class="code docutils literal"><span class="pre">TypeObject</span></code> as an <code class="code docutils literal"><span class="pre">arg_types</span></code> argument (i.e., not an iterable) is
+expanded to be a tuple of that type of objects, of any required length.
+For example, a function might take an arbitrary number of arguments but
+they must all have <code class="code docutils literal"><span class="pre">Int</span></code> type.</p>
+<p>The values type and the argument types can be accessed by indexing the
+0 and 1 element of an instance, respectively, or by using the <code class="code docutils literal"><span class="pre">val_type</span></code>
+and <code class="code docutils literal"><span class="pre">arg_types</span></code> attributes.</p>
+<dl class="attribute">
+<dt id="typped.pratt_types.TypeSig.val_type">
+<code class="descname">val_type</code><a class="headerlink" href="#typped.pratt_types.TypeSig.val_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the <code class="code docutils literal"><span class="pre">val_type</span></code> property saved in <code class="code docutils literal"><span class="pre">_val_type</span></code>.</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_types.TypeSig.arg_types">
+<code class="descname">arg_types</code><a class="headerlink" href="#typped.pratt_types.TypeSig.arg_types" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the <code class="code docutils literal"><span class="pre">arg_types</span></code> property saved in <code class="code docutils literal"><span class="pre">_arg_types</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeSig.convert_val_type_wildcards">
+<code class="descname">convert_val_type_wildcards</code><span class="sig-paren">(</span><em>val_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.convert_val_type_wildcards"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.convert_val_type_wildcards" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert <code class="code docutils literal"><span class="pre">val_type</span></code> argument to a <code class="code docutils literal"><span class="pre">TypeObject</span></code> instance and set attribute.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeSig.convert_arg_types_wildcards">
+<code class="descname">convert_arg_types_wildcards</code><span class="sig-paren">(</span><em>arg_types</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.convert_arg_types_wildcards"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.convert_arg_types_wildcards" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert all <code class="code docutils literal"><span class="pre">arg_types</span></code> arguments to <code class="code docutils literal"><span class="pre">TypeObject</span></code> instances and return it.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.get_all_matching_expanded_sigs">
+<em class="property">static </em><code class="descname">get_all_matching_expanded_sigs</code><span class="sig-paren">(</span><em>sig_list</em>, <em>list_of_child_sig_lists</em>, <em>tnode=None</em>, <em>raise_err_on_empty=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.get_all_matching_expanded_sigs"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.get_all_matching_expanded_sigs" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the list of all the signatures on <code class="code docutils literal"><span class="pre">sig_list</span></code> whose arguments
+match some choice of child/argument signatures from
+<code class="code docutils literal"><span class="pre">list_of_child_sig_lists</span></code>  Note that this does not look at the return
+types, and returns all signatures with matching arguments.</p>
+<p>This is the main method of this class which is actually called from the
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> to find all the argument-matching signatures.  (If
+overloading on return types is used then <code class="code docutils literal"><span class="pre">PrattParser</span></code> also calls
+<code class="code docutils literal"><span class="pre">get_child_sigs_matching_return_arg_type</span></code> on the second pass, to check
+return matches.)</p>
+<p>The <code class="code docutils literal"><span class="pre">sig_list</span></code> argument should be a list of <code class="code docutils literal"><span class="pre">TypeSig</span></code> instances
+representing formal types.</p>
+<p>The <code class="code docutils literal"><span class="pre">list_of_child_sig_lists</span></code> argument should be a list of lists, where
+each sublist is a list of all the possible signatures for a child node.
+The sublists should be in the same order as the children/arguments.</p>
+<p>The returned list is a list of expanded formal type signatures (i.e.,
+with <code class="code docutils literal"><span class="pre">None</span></code> arguments expanded and with a fixed number of arguments).
+The original, unexpanded formal signature which matched is saved as an
+attribute <code class="code docutils literal"><span class="pre">original_formal_sig</span></code> of each matching expanded formal
+signature which is returned.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.get_sigs_expanded_for_num_actual_args">
+<em class="property">static </em><code class="descname">get_sigs_expanded_for_num_actual_args</code><span class="sig-paren">(</span><em>num_args</em>, <em>sig_list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.get_sigs_expanded_for_num_actual_args"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.get_sigs_expanded_for_num_actual_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Expand the signatures on list <code class="code docutils literal"><span class="pre">sig_list</span></code> so that any <code class="code docutils literal"><span class="pre">None</span></code> argument
+not inside a tuple or list is converted to a tuple of <code class="code docutils literal"><span class="pre">None</span></code> having
+<code class="code docutils literal"><span class="pre">num_args</span></code> of argument.</p>
+<p>This routine also expands argument signatures consisting of a single
+<code class="code docutils literal"><span class="pre">TypeObject</span></code> to take any number of arguments of that type.</p>
+<p>Each expanded version has the original, unexpanded signature saved with
+it as an attribute called <code class="code docutils literal"><span class="pre">original_formal_sig</span></code>.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.get_sigs_matching_num_args">
+<em class="property">static </em><code class="descname">get_sigs_matching_num_args</code><span class="sig-paren">(</span><em>num_args</em>, <em>sig_list</em>, <em>tnode=None</em>, <em>raise_err_on_empty=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.get_sigs_matching_num_args"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.get_sigs_matching_num_args" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of signatures from <code class="code docutils literal"><span class="pre">sig_list</span></code> which match <code class="code docutils literal"><span class="pre">num_args</span></code>
+as the number of arguments.  The optional token-tree node <code class="code docutils literal"><span class="pre">tnode</span></code> is
+only used for improved error reporting.</p>
+<p>This routine assumes that a <code class="code docutils literal"><span class="pre">formal_sig</span></code> attribute has been set for all
+passed-in signatures (for example, as set by the method
+<code class="code docutils literal"><span class="pre">expand_sigs_with_None_args</span></code>.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.filter_sigs_matching_child_types">
+<em class="property">static </em><code class="descname">filter_sigs_matching_child_types</code><span class="sig-paren">(</span><em>sig_list</em>, <em>list_of_child_sig_lists</em>, <em>tnode=None</em>, <em>raise_err_on_empty=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.filter_sigs_matching_child_types"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.filter_sigs_matching_child_types" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a list of all signatures in <code class="code docutils literal"><span class="pre">sig_list</span></code> which have arguments
+that match (in order) the return type of some child signature in the
+corresponding sublist of <code class="code docutils literal"><span class="pre">list_of_child_sig_lists</span></code>.  The latter should
+be a list containing lists of all the expanded signatures for each
+child, in corresponding order.</p>
+<p>The number of arguments is assumed to already match (see
+<code class="code docutils literal"><span class="pre">get_sigs_matching_num_args</span></code>).  This just filters the list, removing the
+non-matches.</p>
+<p>The optional token-tree node <code class="code docutils literal"><span class="pre">tnode</span></code> is only used for improved error
+reporting.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.get_child_sigs_matching_return_arg_type">
+<em class="property">static </em><code class="descname">get_child_sigs_matching_return_arg_type</code><span class="sig-paren">(</span><em>child</em>, <em>return_type</em>, <em>matching_sigs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.get_child_sigs_matching_return_arg_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.get_child_sigs_matching_return_arg_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Called with a child node, the expected return type for that
+child, and a list of matching sigs for the child.  Returns all the
+<code class="code docutils literal"><span class="pre">child.matching_sigs</span></code> which also match in return type.</p>
+<p>This is used in pass two of the type-checking.  When called, the
+<code class="code docutils literal"><span class="pre">matching_sigs</span></code> parameter is passed the <code class="code docutils literal"><span class="pre">child.matching_sigs</span></code> attribute
+which was already set on pass one of the checking.  If the result
+is unique the return type of the child is known, and so the full
+signature can be resolved and assigned.</p>
+</dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_types.TypeSig.append_sig_to_list_replacing_if_identical">
+<em class="property">static </em><code class="descname">append_sig_to_list_replacing_if_identical</code><span class="sig-paren">(</span><em>sig_list</em>, <em>sig</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.append_sig_to_list_replacing_if_identical"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.append_sig_to_list_replacing_if_identical" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return <code class="code docutils literal"><span class="pre">sig_list</span></code> either with <code class="code docutils literal"><span class="pre">sig</span></code> appended or with any identical
+signature (according only to type equality, not attributes) replaced
+if one is there.  This is called in <code class="code docutils literal"><span class="pre">register_handler_funs</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeSig.matches_formal_sig">
+<code class="descname">matches_formal_sig</code><span class="sig-paren">(</span><em>formal_sig</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeSig.matches_formal_sig"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeSig.matches_formal_sig" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test if this signature as an actual signature matches <code class="code docutils literal"><span class="pre">formal_sig</span></code>
+as a formal signature.  Note the difference between this and equality!
+This is the one which should be called to determine signature
+equivalence based on type equivalences and possible conversions.</p>
+<p>NOT CURRENTLY USED, low-level <code class="code docutils literal"><span class="pre">matches_formal_type</span></code> is used instead.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.pratt_types.actual_matches_formal_default">
+<code class="descclassname">typped.pratt_types.</code><code class="descname">actual_matches_formal_default</code><span class="sig-paren">(</span><em>actual_type</em>, <em>formal_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#actual_matches_formal_default"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.actual_matches_formal_default" title="Permalink to this definition">¶</a></dt>
+<dd><p>The default function to check whether actual types match formal types.
+Currently uses straight equality, nothing else.  Users should not call
+this directly, but instead call the <code class="code docutils literal"><span class="pre">TypeObject</span></code> method <code class="code docutils literal"><span class="pre">matches_formal_type</span></code>
+on the actual type.  Users may set their own versions of this function.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_types.TypeObject">
+<em class="property">class </em><code class="descclassname">typped.pratt_types.</code><code class="descname">TypeObject</code><span class="sig-paren">(</span><em>type_label</em>, <em>actual_matches_formal_fun=&lt;function actual_matches_formal_default&gt;</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeObject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeObject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Instances of this class represent types.</p>
+<dl class="method">
+<dt id="typped.pratt_types.TypeObject.def_conversion">
+<code class="descname">def_conversion</code><span class="sig-paren">(</span><em>to_type</em>, <em>priority=0</em>, <em>tree_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeObject.def_conversion"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeObject.def_conversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an automatic conversion to be applied.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeObject.undef_conversion">
+<code class="descname">undef_conversion</code><span class="sig-paren">(</span><em>to_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeObject.undef_conversion"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeObject.undef_conversion" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undefine a conversion.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeObject.matches_formal_type">
+<code class="descname">matches_formal_type</code><span class="sig-paren">(</span><em>formal_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeObject.matches_formal_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeObject.matches_formal_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test whether this object as an actual type matches <code class="code docutils literal"><span class="pre">formal_type</span></code> as
+a formal type.  All checks for type matches use this method.</p>
+<p>A hook is provided to pass in a different function to do the
+comparison.  Set the <code class="code docutils literal"><span class="pre">TypeObject</span></code> initializer keyword
+<code class="code docutils literal"><span class="pre">actual_matches_formal_fun</span></code> to the function on the creation of each
+type.  It should take two <code class="code docutils literal"><span class="pre">TypeObject</span></code> arguments: the actual one
+followed by the formal one.  Different functions can be passed to
+different type objects, or a generic one can be passed to all of them.</p>
+<p>See also the related method <code class="code docutils literal"><span class="pre">matches_formal_sig</span></code> of <code class="code docutils literal"><span class="pre">TypeSig</span></code> which
+checks both the value and the arguments in a signature</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeObject.short_repr">
+<code class="descname">short_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeObject.short_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeObject.short_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>This repr prints <code class="code docutils literal"><span class="pre">None</span></code> types as simply “None” rather than
+“TypeObject(None)”.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_types.TypeTable">
+<em class="property">class </em><code class="descclassname">typped.pratt_types.</code><code class="descname">TypeTable</code><span class="sig-paren">(</span><em>parser_instance</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A type table holding instances of the <code class="code docutils literal"><span class="pre">TypeObject</span></code> class, one for each
+defined type in the language.  Each <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance has such a table,
+which holds the objects which represent each type defined in the language
+that the particular parser parses.</p>
+<dl class="attribute">
+<dt id="typped.pratt_types.TypeTable.aliases">
+<code class="descname">aliases</code><em class="property"> = {}</em><a class="headerlink" href="#typped.pratt_types.TypeTable.aliases" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeTable.create_typeobject">
+<code class="descname">create_typeobject</code><span class="sig-paren">(</span><em>type_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeTable.create_typeobject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeTable.create_typeobject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create a <code class="code docutils literal"><span class="pre">TypeObject</span></code> instance for a type with string label <code class="code docutils literal"><span class="pre">type_label</span></code>
+and store it in the type table.  Return the new instance.  Raises a
+<code class="code docutils literal"><span class="pre">TypeException</span></code> if an instance for <code class="code docutils literal"><span class="pre">type_label</span></code> has already been
+created.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_types.TypeTable.undef_typeobject">
+<code class="descname">undef_typeobject</code><span class="sig-paren">(</span><em>type_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_types.html#TypeTable.undef_typeobject"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeTable.undef_typeobject" title="Permalink to this definition">¶</a></dt>
+<dd><p>Un-define the token with label type_label.  The <code class="code docutils literal"><span class="pre">TypeObject</span></code> instance
+previously associated with that label is removed from the dictionary.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.pratt_types.TypeErrorInParsedLanguage">
+<em class="property">exception </em><code class="descclassname">typped.pratt_types.</code><code class="descname">TypeErrorInParsedLanguage</code><a class="reference internal" href="_modules/typped/pratt_types.html#TypeErrorInParsedLanguage"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeErrorInParsedLanguage" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Raised when the there is a type error in the language being parsed,
+as opposed to a <code class="code docutils literal"><span class="pre">TypeError</span></code> in the Python code.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.pratt_types.TypeModuleException">
+<em class="property">exception </em><code class="descclassname">typped.pratt_types.</code><code class="descname">TypeModuleException</code><a class="reference internal" href="_modules/typped/pratt_types.html#TypeModuleException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_types.TypeModuleException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>An exception in the code of the <code class="code docutils literal"><span class="pre">pratt_types</span></code> module.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.pratt_constructs.html"
+                        title="previous chapter">10.5. typped.pratt_constructs</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.ebnf_classes_and_operators.html"
+                        title="next chapter">10.7. typped.ebnf_classes_and_operators</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.pratt_types.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.ebnf_classes_and_operators.html" title="10.7. typped.ebnf_classes_and_operators"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_constructs.html" title="10.5. typped.pratt_constructs"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

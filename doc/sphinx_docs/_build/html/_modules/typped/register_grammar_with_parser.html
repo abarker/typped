@@ -1,0 +1,702 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.register_grammar_with_parser &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.register_grammar_with_parser</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">This module contains the functions which handle the recursive descent parsing</span>
+<span class="sd">of the rules of a `Grammar` object instance. Grammar objects are defined in</span>
+<span class="sd">`ebnf_classes_and_operators` module.</span>
+
+<span class="sd">In ths module only the function `register_rule_handlers_with_parser` is</span>
+<span class="sd">formally exposed to be called externally (and it is only called from the</span>
+<span class="sd">`ebnf_classes_and_operators` module).</span>
+
+<span class="sd">The first argument to `register_rule_handlers_with_parser` is a parser</span>
+<span class="sd">instance.  The function modifies the parser to parse the grammar rule which is</span>
+<span class="sd">also passed in.</span>
+
+<span class="sd">Note that because the processing uses the parser instance variables `pstate_stack`</span>
+<span class="sd">and `pstate_processing_in_progress` this parsing is not thread-safe for</span>
+<span class="sd">multiple parses on the same parser (but the parser in general probably is not,</span>
+<span class="sd">either).</span>
+
+<span class="sd">Rules and guidelines</span>
+<span class="sd">--------------------</span>
+
+<span class="sd">* No left recursion.  Some token must be consumed before any recursive call.</span>
+<span class="sd">  This is not OK.  The left recursion will never stop::</span>
+
+<span class="sd">      arglist = Rule(&quot;arglist&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;)</span>
+
+<span class="sd">  This is OK:</span>
+
+<span class="sd">      arglist = Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;) | Rule(&quot;arg&quot;)</span>
+
+<span class="sd">* Cases are evaluated in sequential order, so if cases have the same prefix</span>
+<span class="sd">  put the longer cases first.  This modified version of the OK rule above will</span>
+<span class="sd">  never select the second case.  It will always parse a single &quot;arg&quot; rule and be</span>
+<span class="sd">  satisfied::</span>
+
+<span class="sd">      arglist = Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;)</span>
+
+<span class="sd">Precedences</span>
+<span class="sd">-----------</span>
+
+<span class="sd">Precedences not handled right for now...</span>
+
+<span class="sd">Currently head or tail handlers are registered only for the first item of first</span>
+<span class="sd">case, but really ALL literal tokens and nonterminals should have a handler</span>
+<span class="sd">defined -- conditioned on the pstate value to avoid conflicts.  They can check</span>
+<span class="sd">types if the types are defined correctly.  For literal tokens we could just</span>
+<span class="sd">call def_literal (or just read the thing with `next` in if it must be there).</span>
+
+<span class="sd">Assume for now that precedences only apply to token literals.  Two possible</span>
+<span class="sd">ways to consider:</span>
+
+<span class="sd">   num_expr      = k_number + Rule(&quot;operator&quot;) + num_expr | k_number</span>
+<span class="sd">   operator      = Tok(&quot;k_ast&quot;)[10] | Tok(&quot;k_plus&quot;)[20]</span>
+
+<span class="sd">   num_expr         = k_number + Rule(&quot;op_and_right_arg&quot;) | k_number</span>
+<span class="sd">   op_and_right_arg = Tok(&quot;k_ast&quot;)[10] + num_expr | Tok(&quot;k_plus&quot;)[20] + num_expr</span>
+
+<span class="sd">parse(&quot;5 + 3 * 2&quot;)</span>
+
+<span class="sd">When the handler for a nonterminal calls `recursive_parse` it always does it as</span>
+<span class="sd">`recursive_parse(tok.extra_data.subexp_prec)` to simply forward the current</span>
+<span class="sd">subexpression precedence to the next call.</span>
+
+<span class="sd">When a nonterminal handler processes a case the it goes through the items,</span>
+<span class="sd">calling recursive_parse to get each one.  If they have `prec=0` then they are</span>
+<span class="sd">parsed via their head handlers, which just return the subtree (for either the</span>
+<span class="sd">token literal or the rule).  All those values are just appended to the children</span>
+<span class="sd">list.</span>
+
+<span class="sd">When a token with a precedence &gt;0 is called it is parsed with the tail handler.</span>
+<span class="sd">The tail handler does exactly the same thing as the head handler *except* that</span>
+<span class="sd">it 1) takes the `left` argument and makes it it own left child/operand, and 2)</span>
+<span class="sd">calls `recursive_parse` to get the right child/operand.</span>
+
+<span class="sd">But when the parser encounters a nonterminal it is not sure if it will be a</span>
+<span class="sd">head or tail token...</span>
+
+<span class="sd">------------------</span>
+
+<span class="sd">The handler for a nonterminal does this:</span>
+
+<span class="sd">1. Sequentially call recursive-parse for each item.  Check that the returned</span>
+<span class="sd">   thing matches what it is supposed to match.</span>
+
+
+<span class="sd">for item in item_list:</span>
+<span class="sd">    next_from_text = recursive_parse(0)</span>
+<span class="sd">    if not compare_item_with_tree(item, next_from_text):</span>
+<span class="sd">       raise Fail</span>
+
+<span class="sd">Consider peekahead prec for nonterminals:  The precedence is the same</span>
+<span class="sd">as the peek token, i.e., the next non-virtual token that is actually in</span>
+<span class="sd">the lexer.  Easy to do, since prec() is a function (or can be a property).</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="c1"># Run tests when invoked as a script.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_ebnf_classes_and_operators.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_example_expression_grammar.py&quot;</span><span class="p">,</span>
+                             <span class="p">],</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span>
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">TAIL</span><span class="p">,</span>
+                                     <span class="n">ParserException</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">)</span>
+
+<span class="c1">#from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,</span>
+<span class="c1">#                    multi_funcall)</span>
+<span class="c1">#from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage</span>
+
+<span class="c1">#</span>
+<span class="c1"># Production rule methods.</span>
+<span class="c1">#</span>
+
+<span class="n">DEBUG</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="n">HUGE_PRIORITY</span> <span class="o">=</span> <span class="mi">1000000000000</span> <span class="c1"># Currently preconds for grammar-based stuff run first.</span>
+
+<span class="c1"># TODO: Optimizations to speed runtime and memory.</span>
+<span class="c1"># 1) Implement first-sets in the recursion.  Code is set up for it when it</span>
+<span class="c1">#    is calculated in Grammar.  Just register nonterminal-starting caselists</span>
+<span class="c1">#    like token-literal starting ones are currently done.  Modify partitioning fun.</span>
+<span class="c1"># 2) Consider memoization on the recursive calls, which repeat a lot of</span>
+<span class="c1">#    work re-doing parts of cases which have already been done.</span>
+<span class="c1"># 3) Optimize the selection of handlers for null-string tokens.  There is</span>
+<span class="c1">#    one such token, and it triggers *all* of the rules, sequentially running</span>
+<span class="c1">#    preconds.  Could a) add split to tree in TokenTable, b) do general optimization</span>
+<span class="c1">#    described in TokenTable, c) Make a shortcut dict from nonterm</span>
+<span class="c1">#    labels and peeks directly to the corresponding sorted list of precond funs.</span>
+
+<div class="viewcode-block" id="register_rule_handlers_with_parser"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.register_rule_handlers_with_parser">[docs]</a><span class="k">def</span> <span class="nf">register_rule_handlers_with_parser</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span> <span class="n">grammar</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Register production rules for all the cases of the nonterminal</span>
+<span class="sd">    `nonterm_label`, as defined in the `Grammar` object `grammar`.</span>
+
+<span class="sd">    This is run to initially process a caselist.  It partitions the caselist</span>
+<span class="sd">    for the `nonterm_label` nonterminal/pstate into separate caselists for</span>
+<span class="sd">    cases which start with the same thing and may require backtracking.  It</span>
+<span class="sd">    does the following:</span>
+
+<span class="sd">    1. Look up the caselist for `nonterm_label` in the grammar object.</span>
+
+<span class="sd">    2. Loop over that caselist, making a sub-caselists for cases which start</span>
+<span class="sd">    with the same thing (i.e., which have the same first set).  Start with the</span>
+<span class="sd">    first case, and proceed until the initial caselist is fully processed and</span>
+<span class="sd">    converted to a collection of sub-caselists.  (All production rule starts</span>
+<span class="sd">    are currently considered the same, but when the first-set is computed then</span>
+<span class="sd">    they will be grouped with others having the same first-set.)</span>
+
+<span class="sd">    These sub-caselists which start with a token are stored in a dict</span>
+<span class="sd">    `token_literal_start_cases`, keyed by the token label of the beginning token.</span>
+<span class="sd">    Those which start with a nonterminal are saved in a list</span>
+<span class="sd">    `nonterm_start_cases`.</span>
+
+<span class="sd">    3. For each sub-caselist created above, call</span>
+<span class="sd">    `def_handlers_for_first_case_of_nonterminal` with that caselist.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># TODO: finish implementing first-sets.  Then just need to modify the</span>
+    <span class="c1"># partition_caselist function to include the nonterminal-starting cases</span>
+    <span class="c1"># with first-sets tokens in the returned dict (keyed by token labels)</span>
+    <span class="c1"># instead of in the list of things without a peek token.  Only consider</span>
+    <span class="c1"># single-token first sets for now.</span>
+
+    <span class="c1"># TODO: Precedences not currently handled correctly.</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">==== Start registering rule:&quot;</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">parser</span><span class="o">.</span><span class="n">null_string_token_subclass</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_null_string_token</span><span class="p">()</span> <span class="c1"># Define null-string if necessary.</span>
+    <span class="n">null_token</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">null_string_token_subclass</span>
+
+    <span class="n">caselist</span> <span class="o">=</span> <span class="n">grammar</span><span class="p">[</span><span class="n">nonterm_label</span><span class="p">]</span>
+    <span class="n">caselist</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">caselist</span><span class="p">)</span> <span class="c1"># Only need ordinary Python lists here.</span>
+
+    <span class="c1"># Partition the caselist into sub-caselists.</span>
+    <span class="n">cases_with_peek_token_dict</span><span class="p">,</span> <span class="n">cases_without_peek_token_list</span> <span class="o">=</span> <span class="n">partition_caselist</span><span class="p">(</span>
+                                                                          <span class="n">caselist</span><span class="p">)</span>
+
+    <span class="c1"># For first-set items register handlers for null-string with a precond on</span>
+    <span class="c1"># both the state on the pstate_stack and the peek token label.</span>
+    <span class="k">for</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">caselist</span> <span class="ow">in</span> <span class="n">cases_with_peek_token_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;token literal start caselist @@@@@@@@ &quot;</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
+        <span class="c1"># Register handler with a precondition on the token label.</span>
+        <span class="k">if</span> <span class="n">caselist</span><span class="p">:</span>
+            <span class="n">def_null_string_handler_for_first_item_of_caselist</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span>
+                           <span class="n">null_token</span><span class="p">,</span> <span class="n">caselist</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="o">=</span><span class="n">token_label</span><span class="p">)</span>
+
+    <span class="c1"># For things without a first-set element register handlers for null-string</span>
+    <span class="c1"># with a precond only on the state on top of the pstate_stack.</span>
+    <span class="n">caselist</span> <span class="o">=</span> <span class="n">cases_without_peek_token_list</span> <span class="c1"># A list; nonterms don&#39;t need peek_token.</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;nonterm start caselist &amp;&amp;&amp;&amp;&amp;&amp;&amp;&amp; &quot;</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cases_without_peek_token_list</span><span class="p">:</span>
+        <span class="n">def_null_string_handler_for_first_item_of_caselist</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span>
+                                       <span class="n">null_token</span><span class="p">,</span> <span class="n">cases_without_peek_token_list</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="def_null_string_handler_for_first_item_of_caselist"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.def_null_string_handler_for_first_item_of_caselist">[docs]</a><span class="k">def</span> <span class="nf">def_null_string_handler_for_first_item_of_caselist</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span>
+                                  <span class="n">null_token</span><span class="p">,</span> <span class="n">caselist</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                   <span class="c1"># Below params not used yet.... need to know cases of production...</span>
+                   <span class="c1">#val_type=None, arg_types=None, eval_fun=None,</span>
+                   <span class="c1">#ast_label=None):</span>
+
+    <span class="sd">&quot;&quot;&quot;Define the head and tail handlers for the null-string token that is</span>
+<span class="sd">    called to parse a production rule (i.e., it is called when the precondition</span>
+<span class="sd">    that the state label `nonterm_label` is on the top of the `pstate_stack` is</span>
+<span class="sd">    satisfied).</span>
+
+<span class="sd">    These handlers handle all the production rule cases of the caselist for the</span>
+<span class="sd">    nonterminal `nonterminal`, backtracking on failure and trying the next</span>
+<span class="sd">    case, etc.  They act very much like the usual recursive descent function</span>
+<span class="sd">    for parsing a production rule, except that to make a recursive call to</span>
+<span class="sd">    handle a sub-production they push that production label onto the</span>
+<span class="sd">    `pstate_stack` and then call `recursive_parse`.  Then the handler for that</span>
+<span class="sd">    production will be called, doing a search over its cases, etc., returning</span>
+<span class="sd">    the value to the calling level.</span>
+
+<span class="sd">    The `peek_token_label` is used to set a precondition on cases which start</span>
+<span class="sd">    with a particular kind of token.  This can also be used to implement</span>
+<span class="sd">    first-sets.</span>
+
+<span class="sd">    The label of the starting nonterminal is assumed to have initially been</span>
+<span class="sd">    pushed on the `pstate_stack` in order to do grammar-based processing.&quot;&quot;&quot;</span>
+    <span class="c1"># Todo: later consider limiting the depth of the recursions by not allowing</span>
+    <span class="c1"># a null-string token handler to be called recursively unless something has</span>
+    <span class="c1"># been consumed from the lexer (curtailment, but no memoization, see e.g.</span>
+    <span class="c1"># Frost et. al 2007).</span>
+
+    <span class="c1"># TODO either set var below in PrattParser when settled or set pstate_stack</span>
+    <span class="c1"># here, too.  Or maybe from grammar-processing routine that calls this one.</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">False</span>
+
+
+    <span class="n">first_case_first_item_precond</span> <span class="o">=</span> <span class="n">get_precond_funs</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="p">)</span>
+
+    <span class="c1">#prec_of_first_item = caselist[0][0].prec</span>
+    <span class="n">prec_of_first_item</span> <span class="o">=</span> <span class="mi">0</span> <span class="c1"># Assume only heads for now.</span>
+
+    <span class="k">if</span> <span class="n">prec_of_first_item</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Register the handler for the first item of the first case.</span>
+        <span class="n">head_handler</span> <span class="o">=</span> <span class="n">nonterminal_handler_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
+        <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;head construct_for_nonterminal_</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">head_handler</span><span class="p">,</span> <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                     <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">first_case_first_item_precond</span><span class="p">,</span>
+                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">HUGE_PRIORITY</span><span class="p">)</span>
+                     <span class="c1">#val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,</span>
+                     <span class="c1">#ast_label=ast_label)</span>
+
+        <span class="c1"># Set up a failure case where none of the preconditions match in</span>
+        <span class="c1"># the context of the pstate.</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">always_raise_branch_fail_head_handler</span><span class="p">,</span> <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
+                     <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="s2">&quot;all_fail_construct&quot;</span><span class="p">,</span>
+                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">lower_priority_fail_if_stack_nonempty_precond</span><span class="p">,</span>
+                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">HUGE_PRIORITY</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">tail_handler</span> <span class="o">=</span> <span class="n">generic_tail_handler_function_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
+        <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;tail construct_for_nonterminal_</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">)</span>
+        <span class="n">prec</span> <span class="o">=</span> <span class="n">prec_of_first_item</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                     <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">first_case_first_item_precond</span><span class="p">,</span>
+                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">)</span>
+
+    <span class="c1">#return # &lt;================== BELOW CODE NOT CURRENTLY USED &lt;==========</span>
+
+    <span class="c1"># TODO on code below : May need to be before defining constructs above.</span>
+    <span class="c1"># This could easily implement some kind of &quot;auto-define&quot; feature for tokens</span>
+    <span class="c1"># in the grammar, even from a regex.  It is in pstate context only, so it</span>
+    <span class="c1"># avoids possible conflicts.</span>
+    <span class="c1">#</span>
+    <span class="c1"># NEED something like this since using recursive_parse token ahead of +</span>
+    <span class="c1"># token causes problems when it peeks ahead and sees the token priority.</span>
+    <span class="c1">#</span>
+    <span class="c1"># But what about, say, a token for a float.  Wouldn&#39;t you usually want to</span>
+    <span class="c1"># re-use the previous one since it is already a token literal, has a</span>
+    <span class="c1"># complex regex, and has a type set for it?  But other times a particular</span>
+    <span class="c1"># token in the grammar might not be defined as a token literal, it might be</span>
+    <span class="c1"># defined in only particular precond states, or it might conflict.</span>
+    <span class="c1">#</span>
+    <span class="c1"># --&gt; Could have a special kind of token instead of Tok to specify redef</span>
+    <span class="c1"># from regex.</span>
+
+    <span class="k">def</span> <span class="nf">token_literal_precond</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A precondition that `nonterm_label` is at the top of the `pstate_stack`</span>
+<span class="sd">        and `pstate_processing_in_progress` is true.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;running token_literal precond token&quot;</span><span class="p">,</span> <span class="n">tok</span><span class="p">)</span>
+        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
+        <span class="k">if</span> <span class="n">pstate_stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">nonterm_label</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="c1"># Register token-literal handlers for every token item every case in the</span>
+    <span class="c1"># caselist, conditioned on the nonterminal label `nonterm_label` being at</span>
+    <span class="c1"># the top of the pstate stack.  This avoids conflicts with other uses of</span>
+    <span class="c1"># the tokens in other rules and constructs, and users don&#39;t have to create</span>
+    <span class="c1"># the literals.</span>
+    <span class="k">for</span> <span class="n">case_count</span><span class="p">,</span> <span class="n">case</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">caselist</span><span class="p">):</span>
+        <span class="n">token_label_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">item_count</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">case</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">kind_of_item</span> <span class="o">==</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span>
+                <span class="n">token_label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">token_label</span>
+                <span class="k">if</span> <span class="n">token_label</span> <span class="ow">in</span> <span class="n">token_label_set</span><span class="p">:</span>
+                    <span class="k">continue</span> <span class="c1"># Only add the token literal once per nonterminal label.</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;---&gt; Register token literal:&quot;</span><span class="p">,</span> <span class="n">item</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">token_label_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">token_label</span><span class="p">)</span>
+                <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;construct_for_token_</span><span class="si">{0}</span><span class="s2">_in_nonterminal_</span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                                           <span class="n">token_label</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">)</span>
+                <span class="c1"># TODO: Set types here if Tok items define them, so they&#39;ll be checked.</span>
+                <span class="n">precond_priority</span> <span class="o">=</span> <span class="n">HUGE_PRIORITY</span>
+                <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;register new tok for&quot;</span><span class="p">,</span> <span class="n">token_label</span><span class="p">)</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="o">=</span><span class="n">token_literal_precond</span><span class="p">,</span>
+                                   <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="nonterminal_handler_factory"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.nonterminal_handler_factory">[docs]</a><span class="k">def</span> <span class="nf">nonterminal_handler_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a generic head handler with `nonterm_label` and `caselist` bound</span>
+<span class="sd">    in the closure.&quot;&quot;&quot;</span>
+    <span class="c1"># Note partial replaces positional arguments from the left.</span>
+    <span class="k">return</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span><span class="n">generic_nonterminal_handler</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="generic_nonterminal_handler"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.generic_nonterminal_handler">[docs]</a><span class="k">def</span> <span class="nf">generic_nonterminal_handler</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">,</span> <span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The head handler assigned to the first token of the first case for</span>
+<span class="sd">    a caselist.  It tries all the other cases if it fails.&quot;&quot;&quot;</span>
+    <span class="c1"># The &quot;called as head vs. tail&quot; thing won&#39;t matter, because</span>
+    <span class="c1"># productions are always called as the whole case, by the</span>
+    <span class="c1"># production label.  So, all cases will have the *same* method of</span>
+    <span class="c1"># calling....  If first case was called as head then call all later</span>
+    <span class="c1"># cases as heads; same with tails.</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Running handler for nonterm label&quot;</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span>
+                    <span class="s2">&quot;caselist is</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
+    <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
+    <span class="n">first_call_of_start_state</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="c1"># TODO Save the label of the nonterminal that parsed the token.</span>
+    <span class="c1"># Document that value of null-string token (was None) is set to</span>
+    <span class="c1"># nonterm_label.  Pass value up in modifications where full tree</span>
+    <span class="c1"># not shown.</span>
+    <span class="n">tok</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">nonterm_label</span>
+
+    <span class="c1">#def indent(): # DEBUG fun</span>
+    <span class="c1">#    return &quot; &quot; * ((len(pstate_stack)-1) * 3)</span>
+
+    <span class="n">lex_token_count</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">all_token_count</span>
+    <span class="n">lex_saved_begin_state</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">get_current_state</span><span class="p">()</span> <span class="c1"># Return here on failure.</span>
+    <span class="n">lex_peek_label</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span> <span class="c1"># ONLY saved for backtrack check</span>
+
+    <span class="c1"># Loop through the cases until one succeeds or all fail.</span>
+    <span class="n">num_cases</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">caselist</span><span class="p">)</span>
+    <span class="n">last_case</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">case_count</span><span class="p">,</span> <span class="n">case</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">caselist</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="s2">&quot;case number&quot;</span><span class="p">,</span> <span class="n">case_count</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="n">case</span><span class="p">)</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">children</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Reset the children of this null-state token.</span>
+        <span class="k">if</span> <span class="n">case_count</span> <span class="o">==</span> <span class="n">num_cases</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">last_case</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># Loop through the items testing for match; backtrack on exception.</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">parse_tree</span> <span class="o">=</span> <span class="n">parse_case</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">pstate_stack</span><span class="p">,</span> <span class="n">tok</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">)</span>
+            <span class="k">break</span>
+        <span class="k">except</span> <span class="p">(</span><span class="n">BranchFail</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="c1"># Backtrack; need to restore to previous saved state.</span>
+            <span class="n">lex</span><span class="o">.</span><span class="n">go_back_to_state</span><span class="p">(</span><span class="n">lex_saved_begin_state</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">last_case</span><span class="p">:</span> <span class="c1"># Give up, all cases failed.</span>
+                <span class="k">raise</span> <span class="n">BranchFail</span><span class="p">(</span><span class="s2">&quot;All production rule cases failed.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">parse_tree</span></div>
+
+<div class="viewcode-block" id="parse_case"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.parse_case">[docs]</a><span class="k">def</span> <span class="nf">parse_case</span><span class="p">(</span><span class="n">case</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">pstate_stack</span><span class="p">,</span> <span class="n">tok</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Try to parse the particular case represented by the `ItemList` passed as</span>
+<span class="sd">    the `case` parameter.  Raise an exception on failure.&quot;&quot;&quot;</span>
+    <span class="c1"># Get the current subexpression precedence to pass through to the</span>
+    <span class="c1"># calls to recursive_parse.</span>
+    <span class="n">subexp_prec</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">extra_data</span><span class="o">.</span><span class="n">subexp_prec</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      parsing individual case:&quot;</span><span class="p">,</span> <span class="n">nonterm_label</span><span class="p">,</span> <span class="n">case</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      pstate_stack&quot;</span><span class="p">,</span> <span class="n">pstate_stack</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">case</span><span class="p">:</span>
+        <span class="c1"># Item is a nonterminal (i.e., recursive call).</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">kind_of_item</span> <span class="o">==</span> <span class="s2">&quot;nonterminal&quot;</span><span class="p">:</span>
+            <span class="n">item_nonterm_label</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      recursing to parsing rule:&quot;</span><span class="p">,</span> <span class="n">item_nonterm_label</span><span class="p">)</span>
+
+            <span class="n">pstate_stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item_nonterm_label</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      pstate_stack before recurse&quot;</span><span class="p">,</span> <span class="n">pstate_stack</span><span class="p">)</span>
+                <span class="n">next_subexp</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">subexp_prec</span><span class="p">,</span> <span class="n">only_head</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      SUCCESS in recursion parse&quot;</span><span class="p">,</span> <span class="n">next_subexp</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      SUCCESS with pstate_stack&quot;</span><span class="p">,</span> <span class="n">pstate_stack</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="n">BranchFail</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">):</span>
+                <span class="k">raise</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">pstate_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">next_subexp</span><span class="p">)</span>
+
+        <span class="c1"># Item is a Token.</span>
+        <span class="k">elif</span> <span class="n">item</span><span class="o">.</span><span class="n">kind_of_item</span> <span class="o">==</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span>
+            <span class="n">item_token</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">item_token_label</span> <span class="o">=</span> <span class="n">item_token</span><span class="o">.</span><span class="n">token_label</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      item expects a:&quot;</span><span class="p">,</span> <span class="n">item_token_label</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      considering a match with token&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">())</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">item_token_label</span><span class="p">,</span> <span class="n">consume</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      FAIL to match expected&quot;</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">BranchFail</span><span class="p">(</span><span class="s2">&quot;Expected &#39;</span><span class="si">{0}</span><span class="s2">&#39; token not found.&quot;</span><span class="o">.</span>
+                                 <span class="nb">format</span><span class="p">(</span><span class="n">item_token_label</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      matched a token with token label&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
+                      <span class="s2">&quot;and value&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+            <span class="c1"># Set the pstate_processing_in_progress flag to avoid getting a</span>
+            <span class="c1"># null-string token for a nonterminal when trying to get a token</span>
+            <span class="c1"># literal (violates the precond for a nonterminal).</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">next_tok</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">subexp_prec</span><span class="p">,</span> <span class="n">only_head</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># Get the token.</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      ===&gt; returned this token from recursive parse&quot;</span><span class="p">,</span> <span class="n">next_tok</span><span class="p">)</span>
+            <span class="c1">#next_tok = lex.next() # Get the token. Fails, won&#39;t type check...</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="k">if</span> <span class="n">next_tok</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;In parsing the nonterminal &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
+                        <span class="s2">&quot; a call to recursive_parse_nonterm_handlers returned a&quot;</span>
+                        <span class="s2">&quot; subexpression tree rather than the expected&quot;</span>
+                        <span class="s2">&quot; single token with label &#39;</span><span class="si">{1}</span><span class="s2">&#39;.  Subexpression&quot;</span>
+                        <span class="s2">&quot; was &#39;</span><span class="si">{2}</span><span class="s2">&#39;&quot;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">item_token_label</span><span class="p">,</span> <span class="n">next_tok</span><span class="p">))</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">next_tok</span><span class="p">)</span> <span class="c1"># Make the token a child.</span>
+
+        <span class="c1"># Unknown item.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;No item recognized.&quot;</span><span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">tok</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="s2">&quot;k_null-string&quot;</span> <span class="c1"># DEBUG</span>
+
+    <span class="c1"># If parser.top_level_production is set, check that all</span>
+    <span class="c1"># the tokens were consumed from the lexer.</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">top_level_production</span>
+            <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">is_end_token</span><span class="p">()):</span>
+        <span class="k">raise</span> <span class="n">BranchFail</span><span class="p">(</span><span class="s2">&quot;Parsing did not reach end of expression.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tok</span></div>
+
+<div class="viewcode-block" id="generic_tail_handler_function_factory"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.generic_tail_handler_function_factory">[docs]</a><span class="k">def</span> <span class="nf">generic_tail_handler_function_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a generic tail handler function.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Just push the state, relay the call, and pop afterwards.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO Below not used or implemented at all yet, just a copied-over stub.</span>
+        <span class="c1">#</span>
+        <span class="c1"># TODO: since routines head and tail are the same, maybe just define a</span>
+        <span class="c1"># generic handler but look at a closure variable or bind the var as</span>
+        <span class="c1"># a partial function for head vs. tail.....</span>
+        <span class="c1">#</span>
+        <span class="c1"># Note that for tail-handler that we presumably want *this* token as the</span>
+        <span class="c1"># subtree root.</span>
+        <span class="c1"># TODO: Assoc needs to be fixed in closure at least, and find recurse_bp</span>
+        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;ERROR: Tail functions not implemented yet for&quot;</span>
+                              <span class="s2">&quot; null-string tokens.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
+        <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
+        <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
+            <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
+
+        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
+        <span class="n">pstate_stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;pstate_label&quot;</span><span class="p">)</span>
+        <span class="n">processed</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">subexp_prec</span><span class="p">,</span> <span class="c1"># Now attrs of tok.extra_data</span>
+                            <span class="n">processed_left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">extra_data</span><span class="o">=</span><span class="n">tok</span><span class="o">.</span><span class="n">extra_data</span><span class="p">)</span>
+        <span class="n">pstate_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">processed</span>
+    <span class="k">return</span> <span class="n">tail_handler</span></div>
+
+<div class="viewcode-block" id="partition_caselist"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.partition_caselist">[docs]</a><span class="k">def</span> <span class="nf">partition_caselist</span><span class="p">(</span><span class="n">caselist</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A utility routine to partition a caselist into sub-caselists.  Case</span>
+<span class="sd">    lists here are ordinary Python lists of `Case` instances, not full</span>
+<span class="sd">    `CaseList` objects (which are really only needed for the</span>
+<span class="sd">    overloaded-operator grammar processing).</span>
+
+<span class="sd">    Return a defaultdict of caselists holding the ones which start with token</span>
+<span class="sd">    literal, keyed by the token labels.  Also return a list of caselists for</span>
+<span class="sd">    those that start with a nonterminal.&quot;&quot;&quot;</span>
+
+    <span class="n">token_literal_start_cases</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span> <span class="c1"># Cases starting with a token literal.</span>
+    <span class="n">nonterm_start_cases</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Cases starting with a nonterminal.</span>
+
+    <span class="k">while</span> <span class="n">caselist</span><span class="p">:</span> <span class="c1"># Items deleted from caselist after processing; run until empty.</span>
+
+        <span class="c1"># Repeatedly cycle through caselist, comparing the first case to later</span>
+        <span class="c1"># ones, copying ones with a common start trigger to the relevant</span>
+        <span class="c1"># sub-caselist, and finally deleting from caselist all that were copied on</span>
+        <span class="c1"># that cycle.</span>
+        <span class="n">first_saved</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">first_case</span> <span class="o">=</span> <span class="n">caselist</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">first_item</span> <span class="o">=</span> <span class="n">first_case</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">first_item_val</span> <span class="o">=</span> <span class="n">first_item</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">first_item_kind</span> <span class="o">=</span> <span class="n">first_item</span><span class="o">.</span><span class="n">kind_of_item</span>
+        <span class="n">del_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="c1"># Cases to delete from caselist (after copying to other lists).</span>
+
+        <span class="k">if</span> <span class="n">first_item_kind</span> <span class="o">==</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span>
+            <span class="c1"># Note that *sequences* of tokens could also be handled with</span>
+            <span class="c1"># some preconditioned lookahead, but may not be more efficient.</span>
+            <span class="n">first_item_token_label</span> <span class="o">=</span> <span class="n">first_item_val</span><span class="o">.</span><span class="n">token_label</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">first_saved</span><span class="p">:</span>
+                <span class="n">token_literal_start_cases</span><span class="p">[</span><span class="n">first_item_token_label</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">first_case</span><span class="p">)</span>
+                <span class="n">first_saved</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr_case</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">caselist</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+                <span class="n">curr_first_item</span> <span class="o">=</span> <span class="n">curr_case</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">curr_first_item_val</span> <span class="o">=</span> <span class="n">curr_first_item</span><span class="o">.</span><span class="n">value</span>
+                <span class="n">curr_first_item_kind</span> <span class="o">=</span> <span class="n">curr_first_item</span><span class="o">.</span><span class="n">kind_of_item</span>
+                <span class="k">if</span> <span class="n">curr_first_item_kind</span> <span class="o">!=</span> <span class="s2">&quot;token&quot;</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c1"># We know now that both are starting case-items are tokens.</span>
+                <span class="n">curr_first_token_label</span> <span class="o">=</span> <span class="n">curr_first_item_val</span><span class="o">.</span><span class="n">token_label</span>
+                <span class="c1"># The token labels must also be the same.</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">curr_first_token_label</span> <span class="o">==</span> <span class="n">first_item_token_label</span><span class="p">):</span>
+                    <span class="n">token_literal_start_cases</span><span class="p">[</span><span class="n">first_item_token_label</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr_case</span><span class="p">)</span>
+                    <span class="n">del_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+        <span class="k">elif</span> <span class="n">first_item_kind</span> <span class="o">==</span> <span class="s2">&quot;nonterminal&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">first_saved</span><span class="p">:</span>
+                <span class="n">nonterm_start_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">first_case</span><span class="p">)</span>
+                <span class="n">first_saved</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">curr_case</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">caselist</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+                <span class="n">curr_first_item</span> <span class="o">=</span> <span class="n">curr_case</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">curr_first_item_val</span> <span class="o">=</span> <span class="n">curr_first_item</span><span class="o">.</span><span class="n">value</span>
+                <span class="n">curr_first_item_kind</span> <span class="o">=</span> <span class="n">curr_first_item</span><span class="o">.</span><span class="n">kind_of_item</span>
+                <span class="k">if</span> <span class="n">curr_first_item_kind</span> <span class="o">!=</span> <span class="s2">&quot;nonterminal&quot;</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="c1"># We know now that both are starting case-items are nonterminals.</span>
+                <span class="c1"># LATER these can be given precomputed lookahead preconditions.</span>
+                <span class="n">token_label</span> <span class="o">=</span> <span class="n">first_item_val</span>
+                <span class="n">nonterm_start_cases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">curr_case</span><span class="p">)</span>
+                <span class="n">del_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Unrecognized kind of item in CaseList&quot;</span>
+                    <span class="s2">&quot;processed by def_production_rule.  The item is: &quot;</span>
+                    <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">first_item</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">del_list</span><span class="p">):</span>
+            <span class="k">del</span> <span class="n">caselist</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">token_literal_start_cases</span><span class="p">,</span> <span class="n">nonterm_start_cases</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Precondition functions and fixed handlers used in registering null-string handlers.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="always_raise_branch_fail_head_handler"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.always_raise_branch_fail_head_handler">[docs]</a><span class="k">def</span> <span class="nf">always_raise_branch_fail_head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is a lower-priority head handler that is triggered by null-string</span>
+<span class="sd">    tokens when all their actual precondition functions fail.  It signals</span>
+<span class="sd">    branch failure in the search tree.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; X X X X X X X X X X X X X ALL FAIL PRECOND&quot;</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="n">BranchFail</span></div>
+
+<div class="viewcode-block" id="lower_priority_fail_if_stack_nonempty_precond"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond">[docs]</a><span class="k">def</span> <span class="nf">lower_priority_fail_if_stack_nonempty_precond</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A precondition to fail if no other stack-based precondition function</span>
+<span class="sd">    matches when `nonterm_label` is at the top of the `pstate_stack`.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;fail precond!!!&quot;</span><span class="p">)</span>
+    <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
+    <span class="n">already_processing</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">pstate_stack</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="c1">#if pstate_stack[-1] != nonterm_label:</span>
+    <span class="c1">#    if DEBUG: print(&quot;   failed lower priority already proc&quot;)</span>
+    <span class="c1">#    return False</span>
+    <span class="k">if</span> <span class="n">already_processing</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed lower priority already proc&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span> <span class="c1"># This avoids accidental recursion.</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="get_precond_funs"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.get_precond_funs">[docs]</a><span class="k">def</span> <span class="nf">get_precond_funs</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Get the precondition functions for registering null-space tokens.  The</span>
+<span class="sd">    `nonterm_label` and `peek_token_label` values are saved in the function</span>
+<span class="sd">    closure.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">first_case_first_item_precond</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A precondition that `nonterm_label` is at the top of the `pstate_stack`.</span>
+<span class="sd">        If `peek_token_label` is set then it must also match the label of the peek</span>
+<span class="sd">        token.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;running precond for null-string token, rule&quot;</span><span class="p">,</span>
+                <span class="n">nonterm_label</span><span class="p">,</span> <span class="s2">&quot;peek&quot;</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="p">)</span>
+        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
+        <span class="n">already_processing</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">pstate_stack</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">pstate_stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">nonterm_label</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond pstate&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">already_processing</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond already processing&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">False</span> <span class="c1"># This avoids accidental recursion in token processing.</span>
+        <span class="k">if</span> <span class="n">peek_token_label</span> <span class="ow">and</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="n">peek_token_label</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond peek, real peek is&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">())</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   precond success&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">return</span> <span class="n">first_case_first_item_precond</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Exceptions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="BranchFail"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.BranchFail">[docs]</a><span class="k">class</span> <span class="nc">BranchFail</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Used in backtracking when parsing production rules.  Raised when a case of</span>
+<span class="sd">    a rule fails.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

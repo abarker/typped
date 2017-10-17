@@ -1,0 +1,822 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.1. typped.pratt_parser &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.2. typped.builtin_parse_methods" href="typped.builtin_parse_methods.html" />
+    <link rel="prev" title="10. APIs and code for the modules in the Typped package" href="typped.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.builtin_parse_methods.html" title="10.2. typped.builtin_parse_methods"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.html" title="10. APIs and code for the modules in the Typped package"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.pratt_parser">
+<span id="typped-pratt-parser"></span><h1>10.1. typped.pratt_parser<a class="headerlink" href="#module-typped.pratt_parser" title="Permalink to this headline">¶</a></h1>
+<p>A general Pratt parser module that uses dispatching of handler functions and
+can check types.  The API is documented here.  See the general Sphinx
+documentation for Typped for how to use the class and examples.</p>
+<div class="section" id="api-details">
+<h2>10.1.1. API details<a class="headerlink" href="#api-details" title="Permalink to this headline">¶</a></h2>
+<p>These are some aspects of the API that are not covered by the function signatures
+and docstrings below.</p>
+<div class="section" id="extra-attributes-added-to-tokens">
+<h3>10.1.1.1. Extra attributes added to tokens<a class="headerlink" href="#extra-attributes-added-to-tokens" title="Permalink to this headline">¶</a></h3>
+<p>Token instances straight from a <code class="code docutils literal"><span class="pre">Lexer</span></code> instance have certain attributes set,
+as documented in the <code class="code docutils literal"><span class="pre">lexer</span></code> module.  In particular, the <code class="code docutils literal"><span class="pre">token_label</span></code>,
+<code class="code docutils literal"><span class="pre">value</span></code>, and <code class="code docutils literal"><span class="pre">children</span></code> attributes are commonly used.  The <code class="code docutils literal"><span class="pre">pratt_parser</span></code>
+module defines its own subclass of the <code class="code docutils literal"><span class="pre">TokenNode</span></code> class, which additionally
+assigns some extra attributes when tokens are defined.  The parsing process
+also sets several user-accessible attributes.</p>
+<p>Attributes set on <code class="code docutils literal"><span class="pre">TokenNode</span></code> subclasses (representing kinds of tokens):</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">token_label</span></code></li>
+</ul>
+<p>Attributes set on token instances (scanned tokens) during parsing:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">parser_instance</span></code> – the parser instance that parsed the token</li>
+<li><code class="code docutils literal"><span class="pre">original_formal_sig</span></code> – a <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance of the resolved original formal signature</li>
+<li><code class="code docutils literal"><span class="pre">expanded_formal_sig</span></code> – a <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance of the expanded formal signature</li>
+<li><code class="code docutils literal"><span class="pre">actual_sig</span></code> – a <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance of the actual signature</li>
+<li><code class="code docutils literal"><span class="pre">construct_label</span></code> – the string label of the winning preconditions function</li>
+</ul>
+<p>Note that both <code class="code docutils literal"><span class="pre">original_formal_sig</span></code> and <code class="code docutils literal"><span class="pre">expanded_formal_sig</span></code> are set to the
+string <code class="code docutils literal"><span class="pre">&quot;Unresolved&quot;</span></code> before the token is parsed.  The actual signature is
+found during parsing and type-checking.  Out of all possible overloads in the
+original formal signatures associated with the token (via <code class="code docutils literal"><span class="pre">modify_token</span></code>) the
+one which matches the actual arguments is chosen.  The expanded formal
+signature is the same as the original formal signature except that wildcards,
+etc., are expanded in the attempt to match the actual arguments.</p>
+<p>These two attributes are actually properties which look up the value if
+necessary (to avoid unnecessary lookups during parsing).  They both only
+work after parsing, since they use the <code class="code docutils literal"><span class="pre">original_formal_sig</span></code> to look up
+the corresponding data or function.</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">ast_data</span></code> – any AST data that was set with the construct for the resolved type</li>
+<li><code class="code docutils literal"><span class="pre">eval_fun</span></code> – any eval_fun that was set with the construct for the resolved type</li>
+</ul>
+<p>Optional attributes that can be set to a node inside a handler:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">not_in_tree</span></code> – set on a root node returned by the handler to hide it</li>
+<li><code class="code docutils literal"><span class="pre">process_and_check_kwargs</span></code> – kwargs dict to pass to type-checking routine</li>
+</ul>
+</div>
+</div>
+<div class="section" id="implementation-details">
+<h2>10.1.2. Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h2>
+<p>This section gives a general overview of the lower-level details of the
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> implementation.</p>
+<div class="section" id="the-basic-class-structure">
+<h3>10.1.2.1. The basic class structure<a class="headerlink" href="#the-basic-class-structure" title="Permalink to this headline">¶</a></h3>
+<p>TODO: Update diagram to and discussion to have ConstructTable.</p>
+<p>There are five basic classes, with instances which interact.  The main class is
+the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class, which users will mostly interact with.  The overall
+relationships are shown in this image, with discussion below.</p>
+<a class="reference internal image-reference" href="_images/relationshipsBetweenMainClasses.svg"><div align="center" class="align-center"><img alt="_images/relationshipsBetweenMainClasses.svg" src="_images/relationshipsBetweenMainClasses.svg" width="600px" /></div>
+</a>
+<p>The next three classes are defined in the lexer module, although one is
+redefined here.  They are the <code class="code docutils literal"><span class="pre">TokenSubclass</span></code>, <code class="code docutils literal"><span class="pre">TokenTable</span></code>, and <code class="code docutils literal"><span class="pre">Lexer</span></code>
+classes.</p>
+<p>A <code class="code docutils literal"><span class="pre">Lexer</span></code> instance is always initialized with a <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance, whether
+it is passed-in as an argument or created internally as an empty token table.
+A <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance always creates its own token table and then passes
+that to the lexer, which it also creates.</p>
+<p>Every <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance contains a fixed <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance, which
+never changes (except for the tokens in it).  So each token-table created by a
+parser can save a pointer back to the parser which “owns” it.  Each
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> instance also contains a <code class="code docutils literal"><span class="pre">Lexer</span></code> instance, which contains
+a pointer to a parser instance (so the lexer can access the parser).</p>
+<p>The <code class="code docutils literal"><span class="pre">TokenSubclass</span></code> class is a subclass of the <code class="code docutils literal"><span class="pre">TokenNode</span></code> class (which is
+defined in the lexer module).  The subclassing adds many additional methods and
+attributes which are needed in the parsing application.  The <code class="code docutils literal"><span class="pre">TokenSubclass</span></code>
+class is actually defined inside a factory function, called
+<code class="code docutils literal"><span class="pre">token_subclass_factory</span></code>, which produces a different subclass to represent each
+kind of token that is defined (tokens are defined via the <code class="code docutils literal"><span class="pre">def_token</span></code> method of
+<code class="code docutils literal"><span class="pre">PrattParser</span></code>).  Instances of those subclasses represent the actual tokens
+(i.e., tokens scanned and returned by the lexer containing individual
+text-string values).</p>
+<p>A <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance is basically a dict for holding all the defined
+token-subclasses.  But it also has related methods and attributes associated
+with it.  It is where all new tokens are ultimately created and defined, for
+example (although other classes like the parser class can add extra attributes
+to the created tokens).</p>
+<p>A <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance contains all the tokens defined for a language, and
+stays with the <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance which created it (from which the tokens
+were necessarily defined).  A <code class="code docutils literal"><span class="pre">Lexer</span></code> instance can use different <code class="code docutils literal"><span class="pre">TokenTable</span></code>
+instances, possibly switching on-the-fly.  A lexer instance always has a
+pointer to its <em>current</em> token-table instance, but that can change on-the-fly
+(such as when separate parsers are swapped in to parse sub-languages in the
+same text stream).  This is used when parser instances call other parser
+instances.</p>
+<p>Tokens defined by a parser also save a pointer to their defining parser, since
+the token-table has a fixed association to the parser.</p>
+<p>Tokens also need to know their current lexer instance because they need to call
+the <code class="code docutils literal"><span class="pre">next</span></code> and <code class="code docutils literal"><span class="pre">peek</span></code> methods, if nothing else.  This is equivalent to the
+token table knowing its current lexer instance.  So, whenever a token table is
+associated with a lexer using the lexer’s <code class="code docutils literal"><span class="pre">set_token_table</span></code> method it is also
+given a pointer to that lexer as an attribute.</p>
+<p>The final class of the five is the <code class="code docutils literal"><span class="pre">TypeTable</span></code> class.  This is essentially a
+dict to store all the defined types, but it also provides a nice place to
+define many methods for acting on types.  It is defined in the <code class="code docutils literal"><span class="pre">pratt_types</span></code>
+module and imported.</p>
+</div>
+<div class="section" id="using-different-parsers-inside-handler-functions">
+<h3>10.1.2.2. Using different parsers inside handler functions<a class="headerlink" href="#using-different-parsers-inside-handler-functions" title="Permalink to this headline">¶</a></h3>
+<p>It is useful to be able to call different <code class="code docutils literal"><span class="pre">PrattParser</span></code> instances from inside
+handler functions in order to parse subexpressions which are defined as
+sublanguages, having their own parsers.  The implementation supports this as
+follows.</p>
+<p>Essentially, a common lexer is passed around and told which token table (and
+hence parser) to use at any given time.  It would be possible to pass around a
+text stream of unprocessed text, but then the lexers would need to be
+initialized each time, and saving information like line numbers and columns in
+the text would need to move to the text stream object.</p>
+<p>The <code class="code docutils literal"><span class="pre">parse</span></code> routine of a <code class="code docutils literal"><span class="pre">PrattParser</span></code> takes an optional lexer argument, which
+is used by sub-parsers instead of the default lexer.  When parsing a
+sublanguage with a different parser the the <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance of the lexer
+is set to be the same as the token table instance of the <em>current</em> parser
+(using the lexer’s <code class="code docutils literal"><span class="pre">set_token_table</span></code> method).  So you can call the <code class="code docutils literal"><span class="pre">parse</span></code>
+method of a <em>different</em> parser instance from within a handler function, passing
+that other parser’s <code class="code docutils literal"><span class="pre">parse</span></code> function the <em>current</em> parser’s lexer as an
+argument.  The lexer will use the token table of the new parser but still read
+from the same text stream as the current parser.</p>
+<p>Note that a sublanguage program (or expression or wff) must always be parsed
+from the beginning, so the <code class="code docutils literal"><span class="pre">parse</span></code> method is called.  When this parser reaches
+the end, where it would normally stop, the symbol table of the lexer is
+restored to the symbol table of the current parser (again using the lexer’s
+<code class="code docutils literal"><span class="pre">set_token_table</span></code> method).</p>
+<p>A sublanguage expression can end when the lexer doesn’t recognize a token, or
+when it would normally return a parsed expression.</p>
+</div>
+</div>
+<div class="section" id="code">
+<h2>10.1.3. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<p>In reading the code, the correspondence between the naming convention used here
+and Pratt’s original naming conventions is given in this table:</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="57%" />
+<col width="43%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">This code</th>
+<th class="head">Pratt’s terminology</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>token precedence</td>
+<td>left binding power, lbp</td>
+</tr>
+<tr class="row-odd"><td>subexpression precedence</td>
+<td>right binding power, rbp</td>
+</tr>
+<tr class="row-even"><td>head handler function</td>
+<td>null denotation, nud</td>
+</tr>
+<tr class="row-odd"><td>tail handler function</td>
+<td>left denotation, led</td>
+</tr>
+</tbody>
+</table>
+<dl class="function">
+<dt id="typped.pratt_parser.DEFAULT_ALWAYS_TRUE_PRECOND_FUN">
+<code class="descclassname">typped.pratt_parser.</code><code class="descname">DEFAULT_ALWAYS_TRUE_PRECOND_FUN</code><span class="sig-paren">(</span><em>lex</em>, <em>extra_data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#DEFAULT_ALWAYS_TRUE_PRECOND_FUN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.DEFAULT_ALWAYS_TRUE_PRECOND_FUN" title="Permalink to this definition">¶</a></dt>
+<dd><p>The default precondition function; always returns true.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_parser.TokenSubclassMeta">
+<em class="property">class </em><code class="descclassname">typped.pratt_parser.</code><code class="descname">TokenSubclassMeta</code><a class="reference internal" href="_modules/typped/pratt_parser.html#TokenSubclassMeta"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.TokenSubclassMeta" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">type</span></code></p>
+<p>A trivial metaclass that will actually create the <code class="code docutils literal"><span class="pre">TokenSubclass</span></code>
+objects.  Since tokens are represented by classes, rather than instances,
+this is necessary in order to change their <code class="code docutils literal"><span class="pre">__repr__</span></code> (the defalt one is
+ugly for tokens) and to overload operators to work for token operands
+in the EBNF-like grammar.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.pratt_parser.token_subclass_factory">
+<code class="descclassname">typped.pratt_parser.</code><code class="descname">token_subclass_factory</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#token_subclass_factory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.token_subclass_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function is called from the <code class="code docutils literal"><span class="pre">create_token_subclass</span></code> method of
+<code class="code docutils literal"><span class="pre">TokenTable</span></code> when it needs to create a new subclass to begin
+with.  It should not be called directly.</p>
+<p>Create and return a new token subclass which will be modified and used
+to represent a particular kind of token.  Specifically, each scanned token
+matching the regex defined for tokens with a given token label is
+represented as an instance of the subclass created by calling this function
+(with further attributes, such as the token label, added to it).</p>
+<p>Using a separate subclass for each token label allows for attributes
+specific to a kind of token (including head and tail handler methods) to
+later be added to the class itself without conflicts.  This function
+returns a bare-bones subclass without any head or tail functions, etc.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.pratt_parser.lexer_add_parser_instance_attribute">
+<code class="descclassname">typped.pratt_parser.</code><code class="descname">lexer_add_parser_instance_attribute</code><span class="sig-paren">(</span><em>lexer</em>, <em>token</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#lexer_add_parser_instance_attribute"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.lexer_add_parser_instance_attribute" title="Permalink to this definition">¶</a></dt>
+<dd><p>Passed to lexer to add a <code class="code docutils literal"><span class="pre">parser_instance</span></code> attribute to each token it
+returns.  This attribute is added to instances at the lexer, from its
+current token table, because of the case where parsers call other parsers.
+(It is not added to general token subclasses in <code class="code docutils literal"><span class="pre">def_token_master</span></code> because
+parsers could potentially share token subclasses.)</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_parser.ExtraDataTuple">
+<code class="descclassname">typped.pratt_parser.</code><code class="descname">ExtraDataTuple</code><a class="headerlink" href="#typped.pratt_parser.ExtraDataTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <code class="xref py py-class docutils literal"><span class="pre">ExtraHandlerData</span></code></p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_parser.PrattParser">
+<em class="property">class </em><code class="descclassname">typped.pratt_parser.</code><code class="descname">PrattParser</code><span class="sig-paren">(</span><em>max_peek_tokens=None</em>, <em>max_deque_size=None</em>, <em>lexer=None</em>, <em>default_begin_end_tokens=True</em>, <em>type_table=None</em>, <em>skip_type_checking=False</em>, <em>overload_on_arg_types=True</em>, <em>overload_on_ret_types=False</em>, <em>partial_expressions=False</em>, <em>parser_label=None</em>, <em>raise_on_equal_priority_preconds=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A parser object.  Each parser object contains its own token table for tokens
+and its own lexer.</p>
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_token_master">
+<code class="descname">def_token_master</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string=None</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>token_kind='regular'</em>, <em>ignored_token_label=None</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_token_master"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_token_master" title="Permalink to this definition">¶</a></dt>
+<dd><p>The master method for defining tokens; all the convenience methods
+actually call it.  Allows for factoring out some common code and
+keeping the attributes of all the different kinds of tokens up-to-date.
+This routine calls the underlying lexer’s <code class="code docutils literal"><span class="pre">def_token</span></code> to get tokens and
+then adds extra attributes needed by the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class.</p>
+<p>The <code class="code docutils literal"><span class="pre">token_kind</span></code> argument must be one of the following strings:
+<code class="code docutils literal"><span class="pre">&quot;regular&quot;</span></code>, <code class="code docutils literal"><span class="pre">&quot;ignored&quot;</span></code>, <code class="code docutils literal"><span class="pre">&quot;begin&quot;</span></code>, <code class="code docutils literal"><span class="pre">&quot;end&quot;</span></code>, <code class="code docutils literal"><span class="pre">&quot;jop&quot;</span></code>, or
+<code class="code docutils literal"><span class="pre">&quot;null-string&quot;</span></code>.  The <code class="code docutils literal"><span class="pre">ignored_token_label</span></code> is used only when defining
+a jop.</p>
+<p>Tokens can be shared between parsers if all their properties are the
+same.  Note that for now this includes the precedence value for any
+tail handlers (since that is made a token attribute).  Null-string and
+jop tokens are the exception, but they are special in that they are
+never returned by the lexer, only by a particular parser.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_token">
+<code class="descname">def_token</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token.  Use this instead of the Lexer <code class="code docutils literal"><span class="pre">def_token</span></code> method,
+since it adds extra attributes to the tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_ignored_token">
+<code class="descname">def_ignored_token</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_ignored_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_ignored_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function to define a token with <code class="code docutils literal"><span class="pre">ignored=True</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_begin_end_tokens">
+<code class="descname">def_begin_end_tokens</code><span class="sig-paren">(</span><em>begin_token_label='k_begin'</em>, <em>end_token_label='k_end'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_begin_end_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_begin_end_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calls the <code class="code docutils literal"><span class="pre">Lexer</span></code> method to define begin- and end-tokens.  The
+subclasses are then given initial head and tail functions for use in
+the Pratt parser.  To use the <code class="code docutils literal"><span class="pre">PrattParser</span></code> this method must be called,
+not the method of <code class="code docutils literal"><span class="pre">Lexer</span></code> with the same name (since it also creates
+head and tail handler functions that raise exceptions for better error
+messages).  The default is to call this method automatically on
+initialization, with the default token labels for the begin and end
+tokens.  If the flag <code class="code docutils literal"><span class="pre">default_begin_end_tokens</span></code> is set false on
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> initalization then the user must call this function
+(setting whatever token labels are desired).  Returns a tuple
+containing the new begin and end <code class="code docutils literal"><span class="pre">TokenNode</span></code> subclasses.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_jop_token">
+<code class="descname">def_jop_token</code><span class="sig-paren">(</span><em>jop_token_label</em>, <em>ignored_token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_jop_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_jop_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token for the juxtaposition operator.  This token has no
+regex pattern.  An instance is inserted in <code class="code docutils literal"><span class="pre">recursive_parse</span></code> when it is
+inferred to be present.  This method must be explicitly called before a
+juxtaposition operator can be used (i.e., before <code class="code docutils literal"><span class="pre">def_jop</span></code>).  The
+parameter <code class="code docutils literal"><span class="pre">jop_token_label</span></code> is the label for the newly-created token
+representing the juxtaposition operator.  The <code class="code docutils literal"><span class="pre">ignored_token_label</span></code>
+parameter is the label of an ignored token which must be present for a
+jop to be inferred.  Some already-defined token is required; usually it
+will be a token for spaces and tabs.  If set to <code class="code docutils literal"><span class="pre">None</span></code> then no ignored
+space at all is required (i.e., the operands can be right next to each
+other).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_null_string_token">
+<code class="descname">def_null_string_token</code><span class="sig-paren">(</span><em>null_string_token_label='k_null-string'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_null_string_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_null_string_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the null-string token.  This token has no regex pattern.  An
+instance is inserted in <code class="code docutils literal"><span class="pre">recursive_parse</span></code> when it is inferred to be
+present based.  It can only ever have head handlers, and is not even
+tested for tail handlers.  This method must be called before a
+null-string can be used.  The parameter <code class="code docutils literal"><span class="pre">null_string_token_label</span></code> is
+the label for the newly-created tok representing it.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.get_token">
+<code class="descname">get_token</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.get_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.get_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the token with the label <code class="code docutils literal"><span class="pre">token_label</span></code>.  The reverse
+operation, getting a label from a token instance, can be done by
+looking at the <code class="code docutils literal"><span class="pre">token_label</span></code> attribute of the token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.undef_token">
+<code class="descname">undef_token</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.undef_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.undef_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A method for undefining any token defined by the <code class="code docutils literal"><span class="pre">PrattParser</span></code> methods.
+Since the <code class="code docutils literal"><span class="pre">token_kind</span></code> was set for all tokens when they were defined
+it knows how to undelete any kind of token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_assignment_op_dynamic">
+<code class="descname">def_assignment_op_dynamic</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>allowed_types=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_assignment_op_dynamic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is dynamically typed, with
+types checked at evaluation time (i.e., when the tree is interpreted).</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>No type-checking is done on the r.h.s. by default.  To limit the types that
+can be assigned you can pass in a list or iterable of <code class="code docutils literal"><span class="pre">TypeObject</span></code>
+instances as the argument <code class="code docutils literal"><span class="pre">allowed_types</span></code>.  These formal types are stored
+as the list attribute <code class="code docutils literal"><span class="pre">allowed_dynamic_assignment_types</span></code> of the parser
+instance.  An exception will be raised by the generated evaluation function
+if an assigned value does not have an actual type consistent with a formal
+type on that list.  If new types are created later they can be directly
+appended to that list without having to overload the assignment operator.</p>
+<p>If <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> is true (and <code class="code docutils literal"><span class="pre">eval_fun</span></code> is not set) then an evaluation
+function will be created automatically.  The <code class="code docutils literal"><span class="pre">symbol_value_dict</span></code> is used
+to store the values, which defaults to the parser attribute of the same
+name.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_assignment_op_static">
+<code class="descname">def_assignment_op_static</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>allowed_types=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_assignment_op_static" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is statically typed, with
+types checked at parse time.  Each identifier (with token label
+<code class="code docutils literal"><span class="pre">identifier_token_label</span></code> must already have a type associated with it in the
+<code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>.  This dict and the type values in it should be set via
+whatever kind of a type definition construct the language uses.</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>An evaluation function can optionally be created automatically, but by default is
+not.  See the <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine for more details since the
+mechanism is the same.  If <code class="code docutils literal"><span class="pre">eval_fun</span></code> is set then that evaluation function
+will always be used.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_assignment_op_untyped">
+<code class="descname">def_assignment_op_untyped</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_assignment_op_untyped" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is statically typed, with
+types checked at parse time.  Each identifier (with token label
+<code class="code docutils literal"><span class="pre">identifier_token_label</span></code> must already have a type associated with it in the
+<code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>.  This dict and the type values in it should be set via
+whatever kind of a type definition construct the language uses.</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>An evaluation function can optionally be created automatically, but by default is
+not.  See the <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine for more details since the
+mechanism is the same.  If <code class="code docutils literal"><span class="pre">eval_fun</span></code> is set then that evaluation function
+will always be used.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_bracket_pair">
+<code class="descname">def_bracket_pair</code><span class="sig-paren">(</span><em>parser</em>, <em>lbrac_token_label</em>, <em>rbrac_token_label</em>, <em>in_tree=True</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_bracket_pair" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a matching bracket grouping operation.  The returned type is
+set to the type of its single child (i.e., the type of the contents of
+the brackets).  Defines a head handler for the left bracket token, so
+effectively gets the highest evaluation precedence.  As far as types,
+it is treated as a function that takes one argument of wildcard type
+and returns whatever type the argument has.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_construct">
+<code class="descname">def_construct</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>handler_fun</em>, <em>trigger_token_label</em>, <em>prec=0</em>, <em>construct_label=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>token_value_key=None</em>, <em>dummy_handler=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a construct and register it with the token with label
+<code class="code docutils literal"><span class="pre">trigger_token_label</span></code>.  A token with that label must already be in the
+token table or an exception will be raised.</p>
+<p>Stores the construct instance in the parser’s construct table and also
+return the construct instance.</p>
+<p>The <code class="code docutils literal"><span class="pre">head_or_tail</span></code> argument should be set to either <code class="code docutils literal"><span class="pre">HEAD</span></code> or <code class="code docutils literal"><span class="pre">TAIL</span></code>.
+If <code class="code docutils literal"><span class="pre">head_or_tail==TAIL</span></code> then the operator precedence will be set to
+<code class="code docutils literal"><span class="pre">prec</span></code>.  For a head handler the <code class="code docutils literal"><span class="pre">prec</span></code> value is ignored and effectively
+set to zero.  For a tail handler a <code class="code docutils literal"><span class="pre">prec</span></code> value greater than zero is
+required or else an exception will be raised (unless <code class="code docutils literal"><span class="pre">dummy_handler</span></code> is
+set true).  Similarly, an exception is raised for a non-zero <code class="code docutils literal"><span class="pre">prec</span></code>
+value for a head-handler (the default value).</p>
+<p>The <code class="code docutils literal"><span class="pre">construct_label</span></code> is an optional string value which can result in
+better error messages.</p>
+<p>The <code class="code docutils literal"><span class="pre">eval_fun</span></code> and the <code class="code docutils literal"><span class="pre">ast_data</span></code> arguments are saved in dicts
+associated with the type signature.</p>
+<p>If <code class="code docutils literal"><span class="pre">token_value_key</span></code> is set to a string value then that value will be
+part of the key tuple for saving AST data and evaluation functions.
+This can be used, for example, when overloading a generic identifier
+with different evaluation functions for when the identifier value is
+<code class="code docutils literal"><span class="pre">sin</span></code>, <code class="code docutils literal"><span class="pre">cos</span></code>, etc.  In looking up the AST data and evaluation function
+the parsed token’s actual string value (from the program text) is used
+as the key.  If any overload of a particular construct provides a
+<code class="code docutils literal"><span class="pre">token_value_key</span></code> string then all the other overloads for that
+construct must also (for the time being, at least).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_default_float_token">
+<code class="descname">def_default_float_token</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label='k_float'</em>, <em>signed=True</em>, <em>require_decimal=False</em>, <em>on_ties=0</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_default_float_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token for floats with default label ‘k_float’.  If <code class="code docutils literal"><span class="pre">signed</span></code> is true (the
+default) then a leading ‘+’ or ‘-‘ is optionally part of the float.  Otherwise
+the sign is not included.  This is sometimes needed when the signs are defined
+as a prefix operators instead.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_default_identifier_token">
+<code class="descname">def_default_identifier_token</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label='k_identifier'</em>, <em>signed=True</em>, <em>on_ties=0</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_default_identifier_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a identifier.  It is like Python identifiers: a letter or underscore followed
+by any number of letters, underscores, and digits.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_default_int_token">
+<code class="descname">def_default_int_token</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label='k_int'</em>, <em>signed=True</em>, <em>on_ties=0</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_default_int_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token for ints with default label ‘k_int’.  If <code class="code docutils literal"><span class="pre">signed</span></code> is true (the
+default) then a leading ‘+’ or ‘-‘ is optionally part of the float.  Otherwise
+the sign is not included.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_default_single_char_tokens">
+<code class="descname">def_default_single_char_tokens</code><span class="sig-paren">(</span><em>parser</em>, <em>chars=None</em>, <em>exclude=None</em>, <em>make_literals=False</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_default_single_char_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>The characters in the string <code class="code docutils literal"><span class="pre">chars</span></code> are defined as tokens with default labels.
+Spaces are ignored in the string.  If <code class="code docutils literal"><span class="pre">chars</span></code> is not set then all the labels will be
+defined except those in the string <code class="code docutils literal"><span class="pre">exclude</span></code>.  If <code class="code docutils literal"><span class="pre">make_literals</span></code> is true then
+the tokens will also be defined as token literals (via <code class="code docutils literal"><span class="pre">def_literal</span></code>).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_default_whitespace">
+<code class="descname">def_default_whitespace</code><span class="sig-paren">(</span><em>parser</em>, <em>space_label='k_space'</em>, <em>space_regex='[ \\t]+'</em>, <em>newline_label='k_newline'</em>, <em>newline_regex='[\\n\\f\\r\\v]+'</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_default_whitespace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the standard whitespace tokens for space and newline, setting
+them as ignored tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_infix_multi_op">
+<code class="descname">def_infix_multi_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_labels</em>, <em>prec</em>, <em>assoc</em>, <em>repeat=False</em>, <em>not_in_tree=False</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_infix_multi_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes a list of operator token labels and defines a multi-infix
+operator.</p>
+<p>If <code class="code docutils literal"><span class="pre">repeat=True</span></code> then any number of repetitions of the list of operators
+will be accepted.  For example, a comma operator could be used to parse a
+full comma-separated list.  When <code class="code docutils literal"><span class="pre">arg_types</span></code> is also set use the <code class="code docutils literal"><span class="pre">Varargs</span></code>
+object in the list to check the repetitions.  For a single operator,
+repeating just has the effect of putting the arguments in a flat
+argument/child list instead of as nested binary operations based on left or
+right association.  Any argument-checking is done after any node removal,
+which may affect the types that should be passed-in in the list arg_types
+of parent constructs.</p>
+<p>If <code class="code docutils literal"><span class="pre">not_in_tree</span></code> is false then the root node will not appear in the final parse
+tree (unless it is the root).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_infix_op">
+<code class="descname">def_infix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>not_in_tree=False</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_infix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>This just calls the more general method <code class="code docutils literal"><span class="pre">def_multi_infix_op</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_jop">
+<code class="descname">def_jop</code><span class="sig-paren">(</span><em>parser</em>, <em>prec</em>, <em>assoc</em>, <em>precond_fun=None</em>, <em>precond_priority=None</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_jop" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function <code class="code docutils literal"><span class="pre">precond_fun</span></code> is called to determine whether or not to
+accept a potentially-inferred a juxtaposition operator between the
+previously-parsed subexpression result and the next token.  Note that this
+function have available <code class="code docutils literal"><span class="pre">extra_data</span></code>  as an attribute of its triggering
+token, and <code class="code docutils literal"><span class="pre">extra_data</span></code> contains the <code class="code docutils literal"><span class="pre">lookbehind</span></code> attribute.  Through the
+lookbehind list the <code class="code docutils literal"><span class="pre">jop_precond</span></code> function has access to the type
+information for the potential left operand but not for the potential right
+operand.</p>
+<p>Note that if the juxtaposition operator always resolves to a single
+type signature based on its argument types then, even if overloading on
+return types is in effect, the jop can be effectively inferred based on
+type signature information.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_literal">
+<code class="descname">def_literal</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label</em>, <em>val_type=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type_override_fun=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_literal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the token with label <code class="code docutils literal"><span class="pre">token_label</span></code> to be a literal in the
+syntax of the language being parsed.  This method adds a head handler
+function to the token.  Literal tokens are the leaves of the expression
+trees; they are things like numbers and variable names in a numerical
+expression.  They always occur as the first (and only) token in a
+subexpression being evaluated by <code class="code docutils literal"><span class="pre">recursive_parse</span></code>, so they need a head
+handler but not a tail handler.  (Though note that the token itparser
+might also have a tail handler.)</p>
+<p>A function <code class="code docutils literal"><span class="pre">val_type_override_fun</span></code> can be passed in, taking a token and a
+lexer as its two arguments and returning a <code class="code docutils literal"><span class="pre">TypeObject</span></code> instance.  If it is
+set then it will called in the handler at parse-time to get the type to set
+as the <code class="code docutils literal"><span class="pre">val_type</span></code> of the node.  This can be useful for dynamic typing such
+as when identifiers in an interpreted language are generic variables which
+can holding different types.  This option currently does not work for
+overloading on return types.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_literal_typed_from_dict">
+<code class="descname">def_literal_typed_from_dict</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>default_type=None</em>, <em>default_eval_value=None</em>, <em>raise_if_undefined=False</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>precond_fun=None</em>, <em>precond_priority=1</em>, <em>construct_label=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_literal_typed_from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a dynamically typed literal, usually a variable-name identifier.
+The type is looked up in the dict <code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>, keyed by the string
+value of the token literal.</p>
+<p>If <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> is true (and <code class="code docutils literal"><span class="pre">eval_fun</span></code> is not set) then this method
+will provides an evaluation function automatically.  This function returns
+the value looked up from <code class="code docutils literal"><span class="pre">symbol_value_dict</span></code>, keyed by the literal token’s
+string value.  The default value returned by the evaluation if the symbol
+is not in the dict is set via <code class="code docutils literal"><span class="pre">default_eval_value</span></code>.  (Currently there must
+be some default rather than raising an exception, with the default default
+value set to <code class="code docutils literal"><span class="pre">None</span></code>.) Setting <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> false will skip the setting
+of an evaluation function.</p>
+<p>The <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine should be used to handle the
+corresponding variable assignment operation.  That is, the assignment that
+dynamically sets the type of the literal to the type of the assigned value
+(storing it in <code class="code docutils literal"><span class="pre">symbol_type_dict</span></code> by default).</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_multi_ignored_tokens">
+<code class="descname">def_multi_ignored_tokens</code><span class="sig-paren">(</span><em>parser</em>, <em>tuple_list</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_multi_ignored_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function, to define multiple ignored tokens at once.
+Each element of the passed-in list should be a tuple containing the arguments
+to the ordinary <code class="code docutils literal"><span class="pre">def_token</span></code> method with <code class="code docutils literal"><span class="pre">ignore=True</span></code>.  Calls the equivalent
+<code class="code docutils literal"><span class="pre">Lexer</span></code> function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_multi_literals">
+<code class="descname">def_multi_literals</code><span class="sig-paren">(</span><em>parser</em>, <em>tuple_list</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_multi_literals" title="Permalink to this definition">¶</a></dt>
+<dd><p>An interface to the <code class="code docutils literal"><span class="pre">def_literal</span></code> method which takes a list of
+tuples.  The <code class="code docutils literal"><span class="pre">def_literal</span></code> method will be called for each tuple, unpacked
+in the order in the tuple.  Unspecified optional arguments are assigned
+their default values.</p>
+<p>Usually it is better to define <code class="code docutils literal"><span class="pre">literal</span> <span class="pre">=</span> <span class="pre">parser.def_literal</span></code> and use that
+as a shorter alias.  This method does not allow for keyword arguments and
+depends on argument ordering.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_multi_tokens">
+<code class="descname">def_multi_tokens</code><span class="sig-paren">(</span><em>parser</em>, <em>tuple_list</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_multi_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function, to define multiple tokens at once.  Each element
+of the passed-in list should be a tuple containing the arguments to the
+ordinary <code class="code docutils literal"><span class="pre">def_token</span></code> method.  Calls the equivalent <code class="code docutils literal"><span class="pre">Lexer</span></code> function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_postfix_op">
+<code class="descname">def_postfix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>allow_ignored_before=True</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_postfix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a postfix operator.  If <code class="code docutils literal"><span class="pre">allow_ignored_before</span></code> is false then
+no ignored token (usually whitespace) can appear immediately before the
+operator.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_prefix_op">
+<code class="descname">def_prefix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_prefix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a prefix operator.  Note that head handlers do not have
+precedences, only tail handlers.  (With respect to the looping in
+<code class="code docutils literal"><span class="pre">recursive_parse</span></code> it wouldn’t make a difference.)  But, within the head
+handler, the call to <code class="code docutils literal"><span class="pre">recursive_parse</span></code> can be made with a nonzero
+precedence.  This allows setting a precedence to determine the argument
+expressions that the prefix operators grabs up (or doesn’t).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_stdfun">
+<code class="descname">def_stdfun</code><span class="sig-paren">(</span><em>parser</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>precond_fun=None</em>, <em>precond_priority=1</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>num_args=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_stdfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>This definition of stdfun uses lookahead to the opening paren or
+bracket token.</p>
+<p>Note that all tokens must be defined as literal tokens except
+<code class="code docutils literal"><span class="pre">fname_token_label</span></code> (which ends up as the root of the function
+evaluation subtree).  If the latter is also a literal token then
+<code class="code docutils literal"><span class="pre">precond_priority</span></code> may need to be increased to give this use priority.</p>
+<p>The <code class="code docutils literal"><span class="pre">num_args</span></code> parameter is optional for specifying the number of
+arguments when typing is not being used.  If it is set to a nonnegative
+number then it will automatically set <code class="code docutils literal"><span class="pre">arg_types</span></code> to the corresponding
+list of <code class="code docutils literal"><span class="pre">None</span></code> values; if <code class="code docutils literal"><span class="pre">arg_types</span></code> is set then it is ignored.  If
+type-checking is disabled for the parser instance then the number of
+arguments is instead checked by the handler function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_stdfun_lpar_tail">
+<code class="descname">def_stdfun_lpar_tail</code><span class="sig-paren">(</span><em>parser</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>prec_of_lpar</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>num_args=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_stdfun_lpar_tail" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is an alternate version of stdfun that defines lpar as an infix
+operator (i.e., with a tail handler).  This function works in the usual cases
+but the current version without preconditions may have problems distinguishing
+“b (” from “b(” when a multiplication jop is set.  The lookahead version
+<code class="code docutils literal"><span class="pre">def_stdfun</span></code> is usually preferred.</p>
+<p>This method assumes type checking is turned on if <code class="code docutils literal"><span class="pre">num_arg</span></code> is set.</p>
+<p>A peek backwards to a token with label <code class="code docutils literal"><span class="pre">fname_token_label</span></code> is included in
+the preconditions function.  Definitions for different leading tokens will
+give mutually exclusive preconditions.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.undef_construct">
+<code class="descname">undef_construct</code><span class="sig-paren">(</span><em>construct</em>, <em>type_sig=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.undef_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.undef_construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undefine a construct.  If <code class="code docutils literal"><span class="pre">type_sig</span></code> is passed a <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance then
+only that overload is deleted.  If <code class="code docutils literal"><span class="pre">token_value_key</span></code> is also defined then
+only that token key is unregistered.  Otherwise the full construct is
+removed from the parser’s construct table.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.def_type">
+<code class="descname">def_type</code><span class="sig-paren">(</span><em>type_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a type associated with the name <code class="code docutils literal"><span class="pre">type_label</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.undef_type">
+<code class="descname">undef_type</code><span class="sig-paren">(</span><em>type_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.undef_type"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.undef_type" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undefine the type associated with the name <code class="code docutils literal"><span class="pre">type_label</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.parse_from_lexer">
+<code class="descname">parse_from_lexer</code><span class="sig-paren">(</span><em>lexer_to_use</em>, <em>pstate=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.parse_from_lexer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.parse_from_lexer" title="Permalink to this definition">¶</a></dt>
+<dd><p>The same as the <code class="code docutils literal"><span class="pre">parse</span></code> method, but a lexer_to_use is already assumed to be
+initialized.  This is ONLY used when one parser instance calls another
+parser instance (implicitly, via the handler functions of its tokens).
+The outer parser calls this routine of the inner, subexpression parser.
+Such a call to another parser would look something like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">alternate_parser</span><span class="o">.</span><span class="n">parse_from_lexer</span><span class="p">(</span><span class="n">lexer_to_use</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where <code class="code docutils literal"><span class="pre">lexer_to_use</span></code> is the lexer_to_use of the outer parser.  This routine
+temporarily swaps the token table for the passed-in lexer_to_use to be the
+token table for this parser (remember that this parser is the inner
+parser when this routine is called).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_parser.PrattParser.parse">
+<code class="descname">parse</code><span class="sig-paren">(</span><em>program</em>, <em>pstate=None</em>, <em>partial_expressions=None</em>, <em>skip_lex_setup=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.parse"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.parse" title="Permalink to this definition">¶</a></dt>
+<dd><p>The main routine for parsing a full program or expression.  Users of
+the class should call this method to perform the parsing operations
+(after defining a grammar, of course).</p>
+<p>Unless there was a parsing failure or <code class="code docutils literal"><span class="pre">partial_expressions</span></code> is true
+then the lexer is left with the end-token as the current token.</p>
+<p>If the <code class="code docutils literal"><span class="pre">pstate</span></code> variable is set then the value will be pushed as the
+initial state on the production rule stack <code class="code docutils literal"><span class="pre">pstate_stack</span></code>.  The stack
+is then cleared after a successful call.  (Set the parser attribute
+directly for more control.)</p>
+<p>The parser’s <code class="code docutils literal"><span class="pre">partial_expressions</span></code> attribute will be used unless it is
+overridden by the parameter <code class="code docutils literal"><span class="pre">partial_expressions</span></code> here.  When it is
+true no check is made for the end-token after <code class="code docutils literal"><span class="pre">recursive_parse</span></code> returns
+a value.    The lexer will be left at the last token consumed, so a
+check for the end-token will tell when all the text was consumed.
+Users are responsible for making sure their grammars are suitable for
+this kind of parsing if the option is set.</p>
+<p>If the <code class="code docutils literal"><span class="pre">skip_lex_setup</span></code> parameter is true then the text <code class="code docutils literal"><span class="pre">program</span></code> is
+ignored and lexer setup is skipped.  This is generally ONLY used when
+multiple parsers are parsing from a common text stream, and <code class="code docutils literal"><span class="pre">parse</span></code> is
+called from the method <code class="code docutils literal"><span class="pre">parse_from_lexer</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.pratt_parser.IncompleteParseException">
+<em class="property">exception </em><code class="descclassname">typped.pratt_parser.</code><code class="descname">IncompleteParseException</code><a class="reference internal" href="_modules/typped/pratt_parser.html#IncompleteParseException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.IncompleteParseException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException" title="typped.shared_settings_and_exceptions.ParserException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.ParserException</span></code></a></p>
+<p>Only raised at the end of the <code class="code docutils literal"><span class="pre">PrattParser</span></code> function <code class="code docutils literal"><span class="pre">parse</span></code> if tokens
+remain in the lexer after the parser finishes its parsing.</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">10.1. typped.pratt_parser</a><ul>
+<li><a class="reference internal" href="#api-details">10.1.1. API details</a><ul>
+<li><a class="reference internal" href="#extra-attributes-added-to-tokens">10.1.1.1. Extra attributes added to tokens</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#implementation-details">10.1.2. Implementation details</a><ul>
+<li><a class="reference internal" href="#the-basic-class-structure">10.1.2.1. The basic class structure</a></li>
+<li><a class="reference internal" href="#using-different-parsers-inside-handler-functions">10.1.2.2. Using different parsers inside handler functions</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#code">10.1.3. Code</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.html"
+                        title="previous chapter">10. APIs and code for the modules in the Typped package</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.builtin_parse_methods.html"
+                        title="next chapter">10.2. typped.builtin_parse_methods</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.pratt_parser.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.builtin_parse_methods.html" title="10.2. typped.builtin_parse_methods"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.html" title="10. APIs and code for the modules in the Typped package"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,336 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>7. Recursive descent parsing in Typped &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="8. Parsers calling other parsers" href="parsers_calling_other_parsers.html" />
+    <link rel="prev" title="6. Juxtaposition operators (jops)" href="juxtaposition_operators.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="parsers_calling_other_parsers.html" title="8. Parsers calling other parsers"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="juxtaposition_operators.html" title="6. Juxtaposition operators (jops)"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="recursive-descent-parsing-in-typped">
+<h1>7. Recursive descent parsing in Typped<a class="headerlink" href="#recursive-descent-parsing-in-typped" title="Permalink to this headline">¶</a></h1>
+<p>This section discusses recursive descent parsing and how it relates to Pratt
+parsing and the Typped package.  Recursive descent is implemented in the Typped
+parser via the use of preconditioned dispatching and the introduction of a new
+kind of token.</p>
+<p>The section begins with a comparison of the recursive descent parsing
+algorithm with the Pratt parser algorithm using preconditioned dispatching.  A
+new kind of token is introduced (the null-string token) which bridges over one
+important gap between the two methods.  This leads to a discussion of how
+recursive descent is implemented in Typped.</p>
+<p>The Typped package provides a higher-level EBNF-like grammar specification
+language, implemented by operator overloading, which makes it easy to implement
+grammar-based languages or partial languages.  Readers who are only interested
+in using the EBNF-like language can skip to <a class="reference internal" href="#ebnf"><span class="std std-ref">Recursive descent with Typped’s EBNF-like grammar</span></a>.</p>
+<p>It should be noted that recursive descent parsing is not all that difficult to
+implement by hand, especially with a good lexer.  It is possible to implement a
+traditional recursive descent parser using the same lexer as a <code class="docutils literal"><span class="pre">PrattParser</span></code>
+instance.  Then either the recursive descent parser can call the Pratt parser
+to handle subexpressions, or the handlers of the Pratt parser can call the
+recursive descent functions to parse sub-grammars.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Some of these features are still experimental.  The some features are only
+partially implemented.  Only basic BNF currently works in the grammar
+parser.  Type-checking and Pratt-style precedences in the grammars are not
+yet implemented.</p>
+</div>
+<div class="section" id="similarities-and-differences-between-the-parsing-methods">
+<h2>7.1. Similarities and differences between the parsing methods<a class="headerlink" href="#similarities-and-differences-between-the-parsing-methods" title="Permalink to this headline">¶</a></h2>
+<p>Pratt parsing is similar to recursive descent parsing in the sense that both
+are top-down recursive methods.  Pratt parsing, however, is token-based while
+recursive descent parsing is based on production rules in a grammar.  The
+ability to dispatch handlers based on preconditions makes the Typped Pratt
+parser even more similar to a recursive descent parser.  The terminal symbols
+in a grammar are essentially the literal tokens in a Pratt parser.  The
+discussion below assumes this correspondence, so terminals are essentially
+defined by regular expressions (like the literal tokens in Typped).</p>
+<p>Suppose all the productions in a grammar begin with a terminal symbol
+(represented by the regular expression of some corresponding token).  This is
+called a <strong>right-regular grammar</strong>.  A Pratt parser with preconditioned
+dispatching can be used to directly implement recursive descent parsing on such
+a grammar.  Since each rule in such a grammar begins with a terminal symbol,
+corresponding to a literal token, the head-handler for each such literal token
+can be set up to process the rule.  In the Typped dispatching terminology, the
+literal token can be used to trigger a syntactic construct (containing the
+handler function, a preconditions function, and related data) which will
+then process the full production rule.</p>
+<p>In order to implement the recursive descent part you can keep a stack of
+production rule labels, updated to always have the current production rule on
+the top.  In a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance this stack is stored in a list
+attribute called <code class="docutils literal"><span class="pre">pstate</span></code>.  The construct for handling a production rule is
+given a precondition that the top label in that stack is the label for the rule
+it processes.  The head-handler functions in these constructs are also
+responsible for updating the <code class="docutils literal"><span class="pre">pstate</span></code> stack as necessary.  Using this, along
+with lookahead to the upcoming tokens in the preconditions, gives the power to
+do recursive descent parsing of right regular grammars.</p>
+<p>These head-handler functions effectively mimic the separate recursive functions
+for each production rule.  They are triggered by literal token when the
+preconditions match.  The <code class="docutils literal"><span class="pre">pstate</span></code> stack keeps track of the recursion in the
+tree defined by the grammar.  Either a single one can handle all the cases of
+the nonterminal, or separate ones can be triggered to handle the cases
+separately.</p>
+<p>In extending this approach to general recursive descent, a problem arises when
+a production starts with a nonterminal symbol.  Nonterminals do not correspond
+to a tokens like they do with terminals.  So there is no token to trigger the
+construct for parsing the rule.  To deal with this, the Typped package has an
+experimental feature called a <strong>null-string token</strong>.  This is a special token
+which acts as though its regular expression “matches the null string” just
+before any upcoming text.  Other than that it is a regular token, with
+handlers, preconditions, etc.</p>
+<p>This is implemented in the <code class="docutils literal"><span class="pre">recursive_parse</span></code> function.  Before each call to
+<code class="docutils literal"><span class="pre">next</span></code> to get the next token from the lexer it first checks to see if the
+null-string token is defined for the parser instance.  If so, it checks whether
+the preconditions of any registered null-string-triggered constructs match.  If
+they do then the special null-string token is returned as the current token,
+and the handler function of the winning construct is called to process the next
+subexpression.</p>
+<p>The use of null-string tokens combined with keeping a stack of production rule
+state-labels is enough to implement general recursive descent parsing within
+the framework of a Pratt parser with preconditioned dispatching.  The method is
+essentially the same as described earlier for right-regular grammars.  You just
+use the null-string token to recognize the production rules that start with
+nonterminals (using the top of the <code class="docutils literal"><span class="pre">pstate</span></code> stack in preconditions).</p>
+</div>
+<div class="section" id="example">
+<h2>7.2. Example<a class="headerlink" href="#example" title="Permalink to this headline">¶</a></h2>
+<p>Consider a very simple expression grammar in EBNF (even though the expression
+parts of a grammar might be better evaluated with Pratt-style parsing).  The
+<code class="docutils literal"><span class="pre">identifier</span></code> and <code class="docutils literal"><span class="pre">number</span></code> productions are assumed to be implemented as
+tokens from the lexer, defined by regular expressions.  Here the square
+brackets are optional parts, and curly braces mean “zero or more.” The
+<code class="docutils literal"><span class="pre">(x|y)</span></code> construct here means either <code class="docutils literal"><span class="pre">x</span></code> or <code class="docutils literal"><span class="pre">y</span></code>.</p>
+<pre>
+<strong id="grammar-token-expression">expression</strong> ::=  [&quot;+&quot;|&quot;-&quot;] term {(&quot;+&quot;|&quot;-&quot;) term}
+<strong id="grammar-token-term">term      </strong> ::=  factor {(&quot;*&quot;|&quot;/&quot;) factor}
+<strong id="grammar-token-factor">factor    </strong> ::=  <code class="xref docutils literal"><span class="pre">identifier</span></code> | <code class="xref docutils literal"><span class="pre">number</span></code> | &quot;(&quot; expression &quot;)&quot;
+</pre>
+<p>Initially the <code class="docutils literal"><span class="pre">pstate</span></code> stack would only hold the string <code class="docutils literal"><span class="pre">&quot;expression&quot;</span></code>.  A
+head construct would be registered for the null-string token with the
+precondition that the <code class="docutils literal"><span class="pre">expression</span></code> state be at the top of the <code class="docutils literal"><span class="pre">pstate</span></code>
+stack.  The head handler for the construct would first check whether the peek
+token is “+” or “-“.  If so, it would consume it.  Then the string <code class="docutils literal"><span class="pre">&quot;term&quot;</span></code>
+would be pushed onto the stack and <code class="docutils literal"><span class="pre">recursive_parse</span></code> would be called.  The
+call to <code class="docutils literal"><span class="pre">recursive_parse</span></code> returns a processed subtree, which is incorporated
+into the expression tree.  A loop would continue this way until the peek token
+is not <code class="docutils literal"><span class="pre">+</span></code> or <code class="docutils literal"><span class="pre">-</span></code>.</p>
+<p>Another head construct would be registered for the null-string token with the
+precondition that <code class="docutils literal"><span class="pre">&quot;term&quot;</span></code> be at the top of the stack.  Its head-handler
+function would be responsible for parsing terms.  It would work in the same
+general way as described above for expressions.</p>
+<p>The <code class="docutils literal"><span class="pre">factor</span></code> production could be implemented either as a handler for the
+null-string token or by separate constructs for the identifier, number, and
+left-paren token types.</p>
+<p>An expression grammar without using the EBNF constructs is as follows:</p>
+<pre>
+<strong id="id1">expression</strong> ::=  term &quot;+&quot; expression | term &quot;-&quot; expression | term;
+<strong id="id2">term      </strong> ::=  factor &quot;*&quot; term | factor &quot;/&quot; term | factor;
+<strong id="id3">factor    </strong> ::=  constant | variable | &quot;(&quot;  expression  &quot;)&quot;;
+<strong id="grammar-token-variable">variable  </strong> ::=  &quot;x&quot; | &quot;y&quot; | &quot;z&quot;;
+<strong id="grammar-token-constant">constant  </strong> ::=  digit  {digit};
+<strong id="grammar-token-digit">digit     </strong> ::=  &quot;0&quot; | &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;;
+</pre>
+</div>
+<div class="section" id="recursive-descent-with-typped-s-ebnf-like-grammar">
+<span id="ebnf"></span><h2>7.3. Recursive descent with Typped’s EBNF-like grammar<a class="headerlink" href="#recursive-descent-with-typped-s-ebnf-like-grammar" title="Permalink to this headline">¶</a></h2>
+<p>The Typped package comes with an EBNF grammar definable via Python overloads.
+It essentially automates the procedure described above to map recursive descent
+to a generalized Pratt parser.  A grammar in Python, while not as concise as a
+parsed EBNF string, is easy to work with and has syntax highlighting.  It is
+easy to define aliases for complicated components.</p>
+<p>When the grammar is “compiled” with respect to a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance it
+produces a recursive descent parser for the grammar within the Pratt parser
+framework.  The generated parsers currently use full backtracking search
+(The use of first-sets is not fully implemented, but fits nicely into the
+precondition-triggering model.)</p>
+<p>This feature is still in development and experimental.  The code is not
+optimized and parts are currently inefficient.</p>
+<p>The EBNF language is currently bare-bones as far as what can be compiled into a
+parser instance.  It does basic BNF.  (The EBNF language itself, defined via
+Python overloading, is mostly implemented but is not yet compilable into a
+parser instance.  For details of the current state of the Python EBNF language
+see the docs for the module <code class="docutils literal"><span class="pre">ebnf_classes_and_operators.py</span></code>.)</p>
+<p>Below is a simple example running example which parses the BNF expression
+grammar above.  (It also allows signed integers, but not signed variables, and
+full identifiers as variables.)  See the file <code class="docutils literal"><span class="pre">example_expression_grammar.py</span></code>
+in the examples directory for the code.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">typped</span> <span class="kn">as</span> <span class="nn">pp</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">PrattParser</span><span class="p">()</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">def_default_whitespace</span><span class="p">()</span>
+<span class="n">parser</span><span class="o">.</span><span class="n">def_default_single_char_tokens</span><span class="p">()</span>
+<span class="n">k_int</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_default_int_token</span><span class="p">()</span>
+<span class="n">k_identifier</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_default_identifier_token</span><span class="p">()</span>
+
+<span class="n">expression</span> <span class="o">=</span> <span class="p">(</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_minus&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">))</span>
+<span class="n">term</span>       <span class="o">=</span> <span class="p">(</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;factor&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;factor&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_slash&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;factor&quot;</span><span class="p">))</span>
+<span class="n">factor</span>     <span class="o">=</span> <span class="p">(</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;constant&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;variable&quot;</span><span class="p">)</span>
+             <span class="o">|</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_rpar&quot;</span><span class="p">))</span>
+<span class="n">variable</span>   <span class="o">=</span> <span class="n">Tok</span><span class="p">(</span><span class="n">k_identifier</span><span class="p">)</span>
+<span class="n">constant</span>   <span class="o">=</span> <span class="n">k_int</span>
+
+<span class="n">g</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Grammar</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="nb">locals</span><span class="p">())</span>
+<span class="n">tree</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s2">&quot;4 + my_var * (3 - 1)&quot;</span><span class="p">,</span> <span class="n">pstate</span><span class="o">=</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span>
+<span class="k">print</span><span class="p">(</span><span class="n">tree</span><span class="o">.</span><span class="n">tree_repr</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>This example uses several of the helper methods functions to quickly define
+tokens.  The tokens must all be defined, but they do not need to be explicitly
+made into token literals.  The compiling process automatically generates
+high-priority precondition literals for any tokens.  This helps to avoid
+conflicts with other uses of the tokens in other contexts (such as in
+Pratt-parsed parts of the text).</p>
+<p>Notice that token instances can appear directly in the grammar as token
+literals.  The token named by its token label appears as, for example,
+<code class="docutils literal"><span class="pre">Tok(&quot;k_plus&quot;)</span></code>.</p>
+<p>The output from the above code is as follows:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;expression&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;factor&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;constant&#39;</span><span class="o">&gt;</span>
+                <span class="o">&lt;</span><span class="n">k_int</span><span class="p">,</span><span class="s1">&#39;4&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_plus</span><span class="p">,</span><span class="s1">&#39;+&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;expression&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;factor&#39;</span><span class="o">&gt;</span>
+                <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;variable&#39;</span><span class="o">&gt;</span>
+                    <span class="o">&lt;</span><span class="n">k_identifier</span><span class="p">,</span><span class="s1">&#39;my_var&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_ast</span><span class="p">,</span><span class="s1">&#39;*&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>
+                <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;factor&#39;</span><span class="o">&gt;</span>
+                    <span class="o">&lt;</span><span class="n">k_lpar</span><span class="p">,</span><span class="s1">&#39;(&#39;</span><span class="o">&gt;</span>
+                    <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;expression&#39;</span><span class="o">&gt;</span>
+                        <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>
+                            <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;factor&#39;</span><span class="o">&gt;</span>
+                                <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;constant&#39;</span><span class="o">&gt;</span>
+                                    <span class="o">&lt;</span><span class="n">k_int</span><span class="p">,</span><span class="s1">&#39;3&#39;</span><span class="o">&gt;</span>
+                        <span class="o">&lt;</span><span class="n">k_minus</span><span class="p">,</span><span class="s1">&#39;-&#39;</span><span class="o">&gt;</span>
+                        <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;expression&#39;</span><span class="o">&gt;</span>
+                            <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>
+                                <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;factor&#39;</span><span class="o">&gt;</span>
+                                    <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;constant&#39;</span><span class="o">&gt;</span>
+                                        <span class="o">&lt;</span><span class="n">k_int</span><span class="p">,</span><span class="s1">&#39;1&#39;</span><span class="o">&gt;</span>
+                    <span class="o">&lt;</span><span class="n">k_rpar</span><span class="p">,</span><span class="s1">&#39;)&#39;</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>At some point the ability to suppress null-string tokens representing
+nonterminals from appearing in the tree will be added.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">7. Recursive descent parsing in Typped</a><ul>
+<li><a class="reference internal" href="#similarities-and-differences-between-the-parsing-methods">7.1. Similarities and differences between the parsing methods</a></li>
+<li><a class="reference internal" href="#example">7.2. Example</a></li>
+<li><a class="reference internal" href="#recursive-descent-with-typped-s-ebnf-like-grammar">7.3. Recursive descent with Typped’s EBNF-like grammar</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="juxtaposition_operators.html"
+                        title="previous chapter">6. Juxtaposition operators (jops)</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="parsers_calling_other_parsers.html"
+                        title="next chapter">8. Parsers calling other parsers</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/recursive_descent.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="parsers_calling_other_parsers.html" title="8. Parsers calling other parsers"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="juxtaposition_operators.html" title="6. Juxtaposition operators (jops)"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,30 @@
+Metadata-Version: 1.1
+Name: typped
+Version: 0.1.0
+Summary: A parser.
+Home-page: https://github.com/abarker/typped
+Author: Allen Barker
+Author-email: Allen.L.Barker@gmail.com
+License: MIT
+Description-Content-Type: UNKNOWN
+Description: 
+        A typped Pratt parser employing dispatching.
+        
+        
+Keywords: parser,Pratt,grammar,language,syntax,syntax tree,BNF,EBNF,typped
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: Unix
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Classifier: Topic :: Utilities

@@ -1,0 +1,311 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>5. Implementing typed languages &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="6. Juxtaposition operators (jops)" href="juxtaposition_operators.html" />
+    <link rel="prev" title="4. Example: Implementing a simple calculator" href="calculator_example.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="juxtaposition_operators.html" title="6. Juxtaposition operators (jops)"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="calculator_example.html" title="4. Example: Implementing a simple calculator"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="implementing-typed-languages">
+<h1>5. Implementing typed languages<a class="headerlink" href="#implementing-typed-languages" title="Permalink to this headline">¶</a></h1>
+<p>The Typped package provides a fairly general type-definition and type-checking
+mechanism.  It is optional, however, and can be ignored for untyped languages.
+Types can be used for detecting syntax errors (either dynamically or
+statically), for overloading operators, for validating data, etc.</p>
+<p>When types are defined and set up properly (using either the built-in methods
+of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class or custom methods) the resulting expression trees
+will be automatically type-checked at parse-time.  To disable type-checking
+altogether the argument <code class="docutils literal"><span class="pre">skip_type_checking=True</span></code> can be passed to the
+initializer of the <code class="docutils literal"><span class="pre">PrattParser</span></code> instance.</p>
+<p>Only simple types are currently implemented (though the mechanism can easily be
+made more general).  As of now type are essentially just string labels which
+are equivalent iff the labels are the same.  At some point type heirarchies,
+type conversions, etc., may be added.</p>
+<p>Each construct registered with a parser instance can have type information
+associated with it.  Generally this is specified by giving the type of the root
+node in the expression subtree for the parsed construct as well as the types of
+the children of that node.  This type signature is then checked against the
+actual types in the parse subtree returned by the handler function for the
+construct.</p>
+<p>The type system allows for operator overloading, including optional overloading
+on return types.  The default is to allow overloading only on argument/child
+types.  Overloading currently has the mild restriction that all overloads
+defined for an infix operator must share the same precedence value.  To disable
+all overloading, set <code class="docutils literal"><span class="pre">overload_on_arg_types=False</span></code> in the <code class="docutils literal"><span class="pre">PrattParser</span></code>
+initializer.  To allow overloading on return types as well as argument types,
+set <code class="docutils literal"><span class="pre">overload_on_ret_types=True</span></code> in the initializer.  The default is to allow
+overloading on argument types but not on return types.</p>
+<p>Operator overloading is used for constructs which parse the same (i.e., via the
+same handler function and with the same triggering conditions) but which can
+have multiple possible type signatures.  Type resolution is then based on the
+actual arguments found at parse-time.  Overloading of a construct with a new
+type signature (and possibly with a corresponding evaluation function and/or an
+AST data item) is done by explicitly calling the <code class="docutils literal"><span class="pre">overload</span></code> method of a
+construct instance.</p>
+<p>The nodes in the final parsed expression tree have an attribute <code class="docutils literal"><span class="pre">actual_sig</span></code>
+giving the actual type signature, an attribute <code class="docutils literal"><span class="pre">original_formal_sig</span></code> giving
+the matching original signature, and an attribute <code class="docutils literal"><span class="pre">expanded_formal_sig</span></code>
+giving the intermediate, expanded form of the original signature.  The
+evaluation functions and AST data for a construct are stored keyed by the
+original signature which was passed in at the time when that overload was
+defined.</p>
+<p>Type information for a construct (e.g., a function evaluation subexpression)
+should generally be defined relative to the token which ends up as the subtree
+root in the expression/parse tree for the construct.  Type-resolution and
+checking is done as soon as possible on the nodes of the parse tree as it is
+constructed, bottom-up.  Checking makes sure that the types of the children of
+a node (if any) match the declared argument types, and that the types of the
+nodes themselves match their declared value type.  Note that if overloading on
+return types is allowed then a second downward pass can also be required to
+resolve the signatures.</p>
+<div class="section" id="declaring-types">
+<h2>5.1. Declaring types<a class="headerlink" href="#declaring-types" title="Permalink to this headline">¶</a></h2>
+<p>Types themselves are instances of the <code class="docutils literal"><span class="pre">TypeObject</span></code> class.  They are declared
+by calling the <code class="docutils literal"><span class="pre">def_type</span></code> method of a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">my_int</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_type</span><span class="p">(</span><span class="s2">&quot;t_int&quot;</span><span class="p">)</span>
+<span class="n">my_float</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_type</span><span class="p">(</span><span class="s2">&quot;t_float&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>As of now these types are essentially just string labels, and type equivalence
+is based on string equivalence.  At some point the code may be extended to
+allow more complex type objects (see the module <code class="docutils literal"><span class="pre">pratt_types</span></code>.)</p>
+<p>Type objects can be passed to functions which take <code class="docutils literal"><span class="pre">val_type</span></code>
+and <code class="docutils literal"><span class="pre">arg_types</span></code> arguments.  These include the builtin parsing methods
+as well as <code class="docutils literal"><span class="pre">def_construct</span></code> calls  for defining custom constructs.  They
+also include <code class="docutils literal"><span class="pre">overload</span></code> calls, which add a new type signature to an
+existing construct.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">floor_construct</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_floor&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span>
+                                    <span class="n">val_type</span><span class="o">=</span><span class="n">my_int</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">my_float</span><span class="p">])</span>
+<span class="n">floor_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span><span class="n">val_type</span><span class="o">=</span><span class="n">my_int</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">my_int</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="type-signatures">
+<h2>5.2. Type signatures<a class="headerlink" href="#type-signatures" title="Permalink to this headline">¶</a></h2>
+<p>A type signature is an instance of the <code class="docutils literal"><span class="pre">TypeSig</span></code> class.  It is basically a
+container class for a return or value type, called the <code class="docutils literal"><span class="pre">val_type</span></code>, and a list
+or tuple of argument types, called the <code class="docutils literal"><span class="pre">arg_types</span></code>.</p>
+<p>The built-in parsing methods of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class take arguments which
+correspond to the <code class="docutils literal"><span class="pre">val_type</span></code> and <code class="docutils literal"><span class="pre">arg_types</span></code> specifications, which are then
+used to create a <code class="docutils literal"><span class="pre">TypeSig</span></code> object.  Many users will not need to explicitly
+use the <code class="docutils literal"><span class="pre">TypeSig</span></code> class.  The basic conventions for wildcards, etc., apply to
+the <code class="docutils literal"><span class="pre">val_types</span></code> and <code class="docutils literal"><span class="pre">arg_types</span></code> arguments since they are passed to the
+initializer for a <code class="docutils literal"><span class="pre">TypeSig</span></code> object.</p>
+<p>The type specifications for a nodes (token instances) in parsed expression
+trees are stored as instances of the <code class="docutils literal"><span class="pre">TypeSig</span></code> class.  This data structure
+stores the value type of the node as an attribute <code class="docutils literal"><span class="pre">val_type</span></code>, and stores the
+types of the children nodes (i.e., any function arguments) as a tuple
+<code class="docutils literal"><span class="pre">arg_types</span></code>.</p>
+<p>Using the type <code class="docutils literal"><span class="pre">t_int</span></code> defined earlier, we might have:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">t_int</span><span class="p">,</span> <span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This specifies a function (in the abstract sense) which takes two integer
+arguments and returns an integer.  In terms of the corresponding parse-tree
+node, it specifies that the node itself has a value of type <code class="docutils literal"><span class="pre">t_int</span></code>, and that
+it has two child nodes which also both have values of type <code class="docutils literal"><span class="pre">t_int</span></code>.  This
+might be used, for example, for a function of two variables such as <code class="docutils literal"><span class="pre">gcd</span></code>
+which takes two integers and returns another integer.  Type signatures are
+associated with the handler function of the token which ends up as the root of
+the parse-subtree representing the expression.</p>
+<p>If the <code class="docutils literal"><span class="pre">arg_types</span></code> list (or iterable) is instead an individual type (i.e., a
+<code class="docutils literal"><span class="pre">TypeObject</span></code> instance) rather than a list then any number of
+arguments/children are allowed, and they must all have that type.  For example,
+this would be the type specification for a function taking any number if
+<code class="docutils literal"><span class="pre">t_int</span></code> arguments and returning a <code class="docutils literal"><span class="pre">t_int</span></code>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For more control over variable numbers of arguments, the last group of
+types in an <code class="docutils literal"><span class="pre">arg_types</span></code> list can be wrapped in a <code class="docutils literal"><span class="pre">Varargs</span></code> instance.
+Then those particular arguments will be repeated any number of times
+to match the number of actual arguments.  For example:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">t_int</span><span class="p">,</span> <span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">Varargs</span><span class="p">(</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_float</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">Varargs</span></code> initializer can also take a keyword argument <code class="docutils literal"><span class="pre">exact_repeat</span></code>
+which, if set false, truncates any repeated arguments if necessary to match
+the number of actual arguments.  The default is to raise an exception.</p>
+<p>Wildcards, which match any type, are also allowed in type specifications.  They
+can be defined by passing the value <code class="docutils literal"><span class="pre">None</span></code> as the type object instead of a
+predefined type.  As a <code class="docutils literal"><span class="pre">val_type</span></code> this wildcard matches any type at the node,
+and in place of the <code class="docutils literal"><span class="pre">arg_types</span></code> list it declares that no checking is to be
+done on the children.  The following three forms are equivalent, and specify
+that no type checking will be done (i.e., everything matches):</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="o">==</span> <span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">)</span> <span class="o">==</span> <span class="n">TypeSig</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Generally, if one argument is passed to initialize a <code class="docutils literal"><span class="pre">TypeSig</span></code> it is assumed
+to be the <code class="docutils literal"><span class="pre">val_type</span></code>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">TypeSig</span><span class="p">(</span><span class="s2">&quot;t_int&quot;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="o">==</span> <span class="n">TypeSig</span><span class="p">(</span><span class="s2">&quot;t_int&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">None</span></code> wildcards can also be used inside the <code class="docutils literal"><span class="pre">arg_types</span></code> list to
+specify arguments which are not type-checked.  This allows the number of
+arguments to be checked, and possibly some but not all arguments.  For example,
+this signature specifies a function which takes exactly one argument but is
+otherwise unchecked:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="p">[</span><span class="bp">None</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>This one takes exactly three arguments, all unchecked:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="p">[</span><span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">,</span> <span class="bp">None</span><span class="p">])</span> <span class="o">==</span> <span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span><span class="o">*</span><span class="mi">3</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Finally, this type specification is for a function that takes two arguments,
+with the first a <code class="docutils literal"><span class="pre">t_int</span></code> and the second unchecked, returning a value that
+is unchecked:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">TypeSig</span><span class="p">(</span><span class="bp">None</span><span class="p">,</span> <span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="bp">None</span><span class="p">])</span>
+</pre></div>
+</div>
+<p>Note that while paramaters like <code class="docutils literal"><span class="pre">val_types</span></code> and <code class="docutils literal"><span class="pre">arg_types</span></code> which are
+passed to a <code class="docutils literal"><span class="pre">TypeSig</span></code> interpret <code class="docutils literal"><span class="pre">None</span></code> as matching anything, passing
+<code class="docutils literal"><span class="pre">None</span></code> to a function parameter that expects an explicit <code class="docutils literal"><span class="pre">TypeSig</span></code> instance
+is interpreted as an undefined signature.</p>
+</div>
+<div class="section" id="overview-of-type-checking">
+<h2>5.3. Overview of type-checking<a class="headerlink" href="#overview-of-type-checking" title="Permalink to this headline">¶</a></h2>
+<p>Type checking is automatically performed just after the head or tail handler
+function of a construct has been called and has returned a subtree.  The
+subtree is checked for types before it is returned to the <code class="docutils literal"><span class="pre">recursive_parse</span></code>
+routine.  The <code class="docutils literal"><span class="pre">val_types</span></code> of the root node’s children are compared to the
+<code class="docutils literal"><span class="pre">arg_types</span></code> defined for the construct.  (Overloading on return types also
+requires a second pass down the tree later.)</p>
+<p>Setting the <code class="docutils literal"><span class="pre">val_type</span></code> of a construct <em>defines</em> the type of the root node of
+the subtree returned by the construct’s handler function.  So, for example,
+setting the <code class="docutils literal"><span class="pre">val_type</span></code> for a token-literal construct defines the type of that
+token (in that preconditions context).  Setting the <code class="docutils literal"><span class="pre">val_type</span></code> of an infix
+operator construct defines the type which is returned by the operator.</p>
+<p>Setting the <code class="docutils literal"><span class="pre">arg_types</span></code> of a construct specifies what the <code class="docutils literal"><span class="pre">val_types</span></code> of
+the children of the returned root node should be.  These are automatically
+checked, resolving overloading if possible.</p>
+<p>In some cases the handler might need to influence the type-checking or node
+processing.  The attribute <code class="docutils literal"><span class="pre">process_and_check_kwargs</span></code> of the root node can be
+set by a handler function before the node is returned.  It should be passed a
+dict containing keyword arguments and values of the <code class="docutils literal"><span class="pre">process_and_check_node</span></code>
+function.</p>
+<p>See the built-in methods of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class for examples of how to
+define general constructs which check types.</p>
+</div>
+<div class="section" id="implementation-details">
+<h2>5.4. Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h2>
+<p>See this page for low-level implementation details:</p>
+<blockquote>
+<div><a class="reference internal" href="type_checking_implementation_details.html"><span class="doc">Low-level implementation details</span></a></div></blockquote>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">5. Implementing typed languages</a><ul>
+<li><a class="reference internal" href="#declaring-types">5.1. Declaring types</a></li>
+<li><a class="reference internal" href="#type-signatures">5.2. Type signatures</a></li>
+<li><a class="reference internal" href="#overview-of-type-checking">5.3. Overview of type-checking</a></li>
+<li><a class="reference internal" href="#implementation-details">5.4. Implementation details</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="calculator_example.html"
+                        title="previous chapter">4. Example: Implementing a simple calculator</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="juxtaposition_operators.html"
+                        title="next chapter">6. Juxtaposition operators (jops)</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/types_in_typped.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="juxtaposition_operators.html" title="6. Juxtaposition operators (jops)"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="calculator_example.html" title="4. Example: Implementing a simple calculator"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

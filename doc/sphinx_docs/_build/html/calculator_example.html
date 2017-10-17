@@ -1,0 +1,537 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>4. Example: Implementing a simple calculator &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="5. Implementing typed languages" href="types_in_typped.html" />
+    <link rel="prev" title="3. Constructs and preconditioned dispatching" href="dispatching.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="types_in_typped.html" title="5. Implementing typed languages"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="dispatching.html" title="3. Constructs and preconditioned dispatching"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="example-implementing-a-simple-calculator">
+<h1>4. Example: Implementing a simple calculator<a class="headerlink" href="#example-implementing-a-simple-calculator" title="Permalink to this headline">¶</a></h1>
+<p>This section shows how to implement a simple calculator language using the
+Typped package.  It is an evaluating calculator with a simple
+read-evaluate-print loop (REPL).  It implements basic math operations.  It does
+not have many predefined functions, but it would be simple to add them
+according to the pattern of the current ones.  The juxtaposition operator is
+defined for multiplication, so any two terms next to each other (by default
+separated by a space character) are multiplied together.  Simple variables can
+also be set and used.</p>
+<p>This is a top-down description of the code, even though the actual file is in
+the reverse order.  The working code can be found in the file
+<a class="reference external" href="http://www.df_TODO_dfdfdfd.com">example_calculator.py</a>.  Just run that
+file to start up the calculator.  A few the lines of that file have been left
+out for readability in the code blocks below.</p>
+<p>The Python code has been broken up into various high-level functions for
+readability and to simplify the display and discussion of the code.  These
+high-level functions will be called “procedures” in the discussion, to avoid
+confusion with the functions in the calculator language or with lower-level
+Python functions inside the parser.</p>
+<div class="section" id="the-main-procedure">
+<h2>4.1. The main procedure<a class="headerlink" href="#the-main-procedure" title="Permalink to this headline">¶</a></h2>
+<p>The main procedure is called <code class="docutils literal"><span class="pre">define_and_run_basic_calculator</span></code>.  It
+is called as the last line of the calculator module.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">import</span> <span class="nn">typped</span> <span class="kn">as</span> <span class="nn">pp</span>
+
+<span class="k">def</span> <span class="nf">define_and_run_basic_calculator</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Get a parser, define the calculator language, and start the REP loop.&quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">PrattParser</span><span class="p">()</span>
+    <span class="n">define_basic_calculator</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">read_eval_print_loop</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The code first defines a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance.  It then passes that
+instance to a procedure which sets up the parser with the grammar and evaluation
+functions for the calculator language.</p>
+<p>Finally, the read-evaluate-print loop is called, passed the parser instance as
+an argument.  The three procedures above will be described shortly.  First, to
+give a preview of what the calculator does, here is a simple dialog of the
+program running:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">Enter</span> <span class="o">^</span><span class="n">C</span> <span class="n">to</span> <span class="n">exit</span><span class="p">,</span> <span class="ow">and</span> <span class="s1">&#39;toggle&#39;</span> <span class="n">to</span> <span class="n">toggle</span> <span class="n">tree</span> <span class="n">display</span><span class="o">.</span>
+<span class="o">&gt;</span> <span class="mi">5</span>
+<span class="mf">5.0</span>
+<span class="o">&gt;</span> <span class="mi">5</span> <span class="o">+</span> <span class="mi">5</span>
+<span class="mf">10.0</span>
+<span class="o">&gt;</span> <span class="mi">5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">4</span> <span class="o">-</span> <span class="mi">3</span><span class="p">)</span>
+<span class="mf">5.0</span>
+<span class="o">&gt;</span> <span class="c1"># A comment line.</span>
+<span class="o">&gt;</span> <span class="mi">4</span> <span class="mi">4</span> <span class="c1"># Juxtaposition with space is multiplication.</span>
+<span class="mf">16.0</span>
+<span class="o">&gt;</span> <span class="mi">5</span> <span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">-</span> <span class="mi">9</span><span class="p">)</span><span class="o">/</span><span class="mf">44.90</span>
+<span class="o">-</span><span class="mf">0.8798872729768252</span>
+<span class="o">&gt;</span> <span class="n">pi</span> <span class="c1"># Pi and e are predefined constants.</span>
+<span class="mf">3.141592653589793</span>
+<span class="o">&gt;</span> <span class="n">tau</span> <span class="o">=</span> <span class="mi">2</span> <span class="n">pi</span> <span class="c1"># Simple variables can be assigned.</span>
+<span class="mf">6.283185307179586</span>
+<span class="o">&gt;</span> <span class="n">sin</span><span class="p">(</span><span class="n">tau</span><span class="p">)</span>
+<span class="o">-</span><span class="mf">2.4492935982947064e-16</span>
+<span class="o">&gt;</span> <span class="n">toggle</span>
+<span class="o">&gt;</span> <span class="mi">2</span> <span class="n">pi</span> <span class="n">cos</span><span class="p">(</span><span class="n">tau</span><span class="p">)</span> <span class="o">-</span> <span class="mf">1E3</span> <span class="c1"># Scientific notation.</span>
+
+<span class="o">&lt;</span><span class="n">k_minus</span><span class="p">,</span><span class="s1">&#39;-&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_jop</span><span class="p">,</span><span class="kc">None</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_jop</span><span class="p">,</span><span class="kc">None</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;2&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_identifier</span><span class="p">,</span><span class="s1">&#39;pi&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_cos</span><span class="p">,</span><span class="s1">&#39;cos&#39;</span><span class="o">&gt;</span>
+            <span class="o">&lt;</span><span class="n">k_identifier</span><span class="p">,</span><span class="s1">&#39;tau&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;1E3&#39;</span><span class="o">&gt;</span>
+
+<span class="o">-</span><span class="mf">993.7168146928204</span>
+<span class="o">&gt;</span> <span class="mi">25</span> <span class="o">-</span> <span class="mf">5.0</span><span class="o">^</span><span class="mi">2</span>
+
+<span class="o">&lt;</span><span class="n">k_minus</span><span class="p">,</span><span class="s1">&#39;-&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;25&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_double_ast</span><span class="p">,</span><span class="s1">&#39;^&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;5.0&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;2&#39;</span><span class="o">&gt;</span>
+
+<span class="mf">0.0</span>
+<span class="o">&gt;</span> <span class="mi">25</span> <span class="o">-</span> <span class="mf">5.0</span><span class="o">**</span><span class="mi">2</span>
+
+<span class="o">&lt;</span><span class="n">k_minus</span><span class="p">,</span><span class="s1">&#39;-&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;25&#39;</span><span class="o">&gt;</span>
+    <span class="o">&lt;</span><span class="n">k_double_ast</span><span class="p">,</span><span class="s1">&#39;**&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;5.0&#39;</span><span class="o">&gt;</span>
+        <span class="o">&lt;</span><span class="n">k_float</span><span class="p">,</span><span class="s1">&#39;2&#39;</span><span class="o">&gt;</span>
+
+<span class="mf">0.0</span>
+<span class="o">&gt;</span>
+<span class="n">Bye</span><span class="o">.</span>
+</pre></div>
+</div>
+<p>Notice that when the <code class="docutils literal"><span class="pre">toggle</span></code> command is given the program prints out the
+expression tree for the expressions.  Each line is a token in the tree.  The
+representation <code class="docutils literal"><span class="pre">&lt;k_minus,'-'&gt;</span></code> is for the token that was assigned the string
+label <code class="docutils literal"><span class="pre">k_minus</span></code>.  The convention of starting token labels with <code class="docutils literal"><span class="pre">k_</span></code> is
+generally used in the code.  The string <code class="docutils literal"><span class="pre">'-'</span></code> is the value of the token, i.e.,
+the actual symbol in the parsed expression text that the lexer matched as being
+a <code class="docutils literal"><span class="pre">k_minus</span></code> token.</p>
+<p>The top line of the tree representation is the root of the tree.  Indented
+lines below are for children.  Each level of indentation is another level of
+children in the tree.</p>
+</div>
+<div class="section" id="the-read-evaluate-print-loop">
+<h2>4.2. The read-evaluate-print loop<a class="headerlink" href="#the-read-evaluate-print-loop" title="Permalink to this headline">¶</a></h2>
+<p>Continuing with the top-down presentation, the REP loop is shown next.  The
+code is basic Python, and can be skimmed by people familiar with the language.
+The code shows how a Typped parser is used at the higher level.</p>
+<p>The <code class="docutils literal"><span class="pre">cmd</span></code> module in the standard Python library can also be used to write the
+REP loop.  The example file also has an alternative version of the procedure
+which is implemented using that library.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">read_eval_print_loop</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Implement the REP loop.&quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">readline</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">read_input</span> <span class="o">=</span> <span class="nb">raw_input</span> <span class="c1"># Python 2.</span>
+    <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+        <span class="n">read_input</span> <span class="o">=</span> <span class="nb">input</span> <span class="c1"># Python 3.</span>
+
+    <span class="k">print</span><span class="p">(</span><span class="s2">&quot;Enter ^C to exit, and &#39;toggle&#39; to toggle tree display.&quot;</span><span class="p">)</span>
+
+    <span class="n">show_tree</span> <span class="o">=</span> <span class="bp">False</span> <span class="c1"># Toggled in the loop below.</span>
+    <span class="k">while</span> <span class="bp">True</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">read_input</span><span class="p">(</span><span class="s2">&quot;&gt; &quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">KeyboardInterrupt</span><span class="p">,</span> <span class="ne">EOFError</span><span class="p">):</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Bye.&quot;</span><span class="p">)</span>
+            <span class="k">break</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">line</span> <span class="o">==</span> <span class="s2">&quot;toggle&quot;</span><span class="p">:</span>
+            <span class="n">show_tree</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">show_tree</span>
+        <span class="k">elif</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;#&quot;</span><span class="p">):</span> <span class="c1"># Tries to parse empty line.</span>
+            <span class="k">continue</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">parse_tree</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="n">eval_value</span> <span class="o">=</span> <span class="n">parse_tree</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">ZeroDivisionError</span><span class="p">,</span>
+                <span class="n">pp</span><span class="o">.</span><span class="n">ParserException</span><span class="p">,</span> <span class="n">pp</span><span class="o">.</span><span class="n">LexerException</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">show_tree</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">parse_tree</span><span class="o">.</span><span class="n">tree_repr</span><span class="p">(),</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="k">print</span><span class="p">(</span><span class="n">eval_value</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The code starts by importing <code class="docutils literal"><span class="pre">readline</span></code>.  Just importing that module provides
+nice features for the Python <code class="docutils literal"><span class="pre">input</span></code> command, such as command history with the
+up and down arrows.  The code then prints a prompt and waits for the user to
+enter a line, which should contain an expression in the calculator language.</p>
+<p>Notice that ^C can be used to exit the program.  If the user types in the
+command <code class="docutils literal"><span class="pre">toggle</span></code> it will toggle the printing of expression trees for the
+user-entered expressions.</p>
+<p>The passed-in <code class="docutils literal"><span class="pre">parser</span></code> argument is used inside a <code class="docutils literal"><span class="pre">try</span></code> loop in order to catch
+errors and continue running.  As with all Typped parsing operations, the full
+expression tree for the expression that was input by the user created by this
+line:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">parse_tree</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal"><span class="pre">line</span></code> is the user’s input.  The value returned from <code class="docutils literal"><span class="pre">parse</span></code> is a
+token instance, which the <code class="docutils literal"><span class="pre">parse</span></code> function has converted into the root node
+of an expression tree of tokens.  These are the expression trees that were
+displayed in the above dialog after the <code class="docutils literal"><span class="pre">toggle</span></code> command was issued.</p>
+<p>After the expression tree is returned it is evaluated with the line
+<code class="docutils literal"><span class="pre">parse_tree.eval_subtree()</span></code>, which is a recursive evaluation function started
+at the root of the expression tree.  Evaluation functions are provided when the
+grammar for the language is defined, in the next section.</p>
+<p>Finally, the values are printed out and the loop continues.</p>
+</div>
+<div class="section" id="defining-the-grammar">
+<h2>4.3. Defining the grammar<a class="headerlink" href="#defining-the-grammar" title="Permalink to this headline">¶</a></h2>
+<p>The only high-level procedure left to describe is the
+<code class="docutils literal"><span class="pre">define_basic_calculator</span></code> procedure.  This is the procedure that really shows
+how to set up and use the <code class="docutils literal"><span class="pre">PrattParser</span></code> class (at least the basic usage).  To
+keep the procedure from being too long it has been broken up into several
+sub-procedures doing particular tasks.  This is the top-level procedure:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_basic_calculator</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define the calculator language in the parser instance.&quot;&quot;&quot;</span>
+    <span class="n">define_general_tokens_and_literals</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">define_functions_and_operators</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">define_juxtaposition_operators</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">define_assignment_operator</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">define_comments</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+    <span class="n">define_semicolon_separator</span><span class="p">(</span><span class="n">parser</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Each procedure does what the name implies.  The code for each sub-procedure, in
+sequence, will be shown and discussed next.  The first procedure defines some
+general tokens and literals in the calculator language:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_general_tokens_and_literals</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define some general tokens and literals in the calculator language.</span>
+<span class="sd">    Other tokens such as for functions in the language will be defined</span>
+<span class="sd">    later.&quot;&quot;&quot;</span>
+    <span class="c1">#</span>
+    <span class="c1"># Tokens.</span>
+    <span class="c1">#</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_default_whitespace</span><span class="p">()</span>
+
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\+&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_minus&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\-&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_fslash&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;/&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\*&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\(&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\)&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_lbrac&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\[&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_rbrac&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\]&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;,&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_bang&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;!&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_double_ast&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(?:\*\*|\^)&quot;</span><span class="p">)</span> <span class="c1"># Note ^ is a synonym for **.</span>
+
+    <span class="c1"># This token definition for a float is based on the regex from</span>
+    <span class="c1"># https://docs.python.org/2/library/re.html#simulating-scanf</span>
+    <span class="c1">#   r&quot;[-+]?(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?&quot;</span>
+    <span class="c1"># But if we used the Python doc form exactly then 4 -4 would be interpreted</span>
+    <span class="c1"># as a multiplication jop for rather than correctly, as subtraction.  So</span>
+    <span class="c1"># the [+-] part is left off and is implemented as a prefix operator instead.</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_float&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?&quot;</span><span class="p">)</span>
+
+    <span class="c1">#</span>
+    <span class="c1"># Literals.</span>
+    <span class="c1">#</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_float&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>We now have tokens for operators and other basic symbols in the language.
+Notice that <code class="docutils literal"><span class="pre">^</span></code> and <code class="docutils literal"><span class="pre">**</span></code> are both defined to produce the token labeled
+<code class="docutils literal"><span class="pre">double_ast</span></code>.  An alternate way to do this would be to define two separate
+tokens and give them the same function definition.</p>
+<p>Floating point literals are defined and provided with an evaluation function.
+This evaluation function just takes a token with label <code class="docutils literal"><span class="pre">k_float</span></code> as its
+argument <code class="docutils literal"><span class="pre">t</span></code> and converts the string value (returned by the lexer) into a
+Python float.  The floating point value is returned.</p>
+<p>The next procedure contains a group of definitions for the calculator language
+which will define almost all of the functions in the language.  This includes
+standard functions like <code class="docutils literal"><span class="pre">sin</span></code> and operators like <code class="docutils literal"><span class="pre">*</span></code> and <code class="docutils literal"><span class="pre">!</span></code>.  The
+definitions are made using built-in methods of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class.  Note
+in particular the precedence values assigned to the operators.</p>
+<p>Every function is also provided with an evaluation function, which, at
+evaluation time, runs the Python version of the function on the arguments.  The
+evaluation functions are passed a node <code class="docutils literal"><span class="pre">t</span></code>, which is a node in the final
+expression tree.  The children of the node are then accessed as <code class="docutils literal"><span class="pre">t[0]</span></code>,
+<code class="docutils literal"><span class="pre">t[1]</span></code>, etc., depending on how many arguments there are.  The evaluations are
+top-down recursive, and call the method <code class="docutils literal"><span class="pre">eval_subtree</span></code> on the child or
+children (i.e., to evaluate the function arguments).</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_functions_and_operators</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define the all the functions and operators for the calculator.</span>
+<span class="sd">    Evaluation functions are also supplied for each one.  Parentheses and</span>
+<span class="sd">    brackets are also defined here, since they have a precedence in the order</span>
+<span class="sd">    of evaluations.&quot;&quot;&quot;</span>
+
+    <span class="c1">#</span>
+    <span class="c1"># Parens and brackets, highest precedence (since they have a head function).</span>
+    <span class="c1">#</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_bracket_pair</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span>
+                            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_bracket_pair</span><span class="p">(</span><span class="s2">&quot;k_lbrac&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rbrac&quot;</span><span class="p">,</span>
+                            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
+
+    <span class="c1">#</span>
+    <span class="c1"># Standard functions.</span>
+    <span class="c1">#</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_sin&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;sin&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_sin&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                      <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_cos&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;cos&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_cos&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                      <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_sqrt&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;sqrt&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_sqrt&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                      <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="c1"># Note that log is overloaded because different numbers of arguments are</span>
+    <span class="c1"># specified.  The two versions have different eval funs.</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_log&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;log&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_log&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                      <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_stdfun</span><span class="p">(</span><span class="s2">&quot;k_log&quot;</span><span class="p">,</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+               <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="c1">#</span>
+    <span class="c1"># Basic operators, from highest to lowest precedence.</span>
+    <span class="c1">#</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_prefix_op</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span>
+                         <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">pos</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_prefix_op</span><span class="p">(</span><span class="s2">&quot;k_minus&quot;</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span>
+                         <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">neg</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_postfix_op</span><span class="p">(</span><span class="s2">&quot;k_bang&quot;</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="n">allow_ignored_before</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                          <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">factorial</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_double_ast&quot;</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">pow</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_fslash&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">truediv</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_minus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+</pre></div>
+</div>
+<p>The definitions above actually define the <code class="docutils literal"><span class="pre">log</span></code> function twice, with a
+different number of arguments each time.  This results in function overloading.
+Each overload can have a different evaluation function.  In this case the
+two-place version takes an extra argument giving the base, like in the Python
+math library (which uses a default parameter value of <code class="docutils literal"><span class="pre">math.e</span></code> for the
+single-argument form).</p>
+<p>At this point we have a working calculator.  The code up to this point can
+already be run to do basic operations.  The next three procedures just add
+extra features to the calculator.</p>
+<p>The previous procedure defined all the usual arithmetic functions, but it did
+not define the juxtaposition operator.  This procedure defines the juxtaposition
+operator as a synonym for multiplication.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_juxtaposition_operators</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define the juxtaposition operator (jop) as synonym for multiplication.&quot;&quot;&quot;</span>
+
+    <span class="n">jop_required_token</span> <span class="o">=</span> <span class="s2">&quot;k_space&quot;</span> <span class="c1"># Can be set to None to not require any whitespace.</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_jop_token</span><span class="p">(</span><span class="s2">&quot;k_jop&quot;</span><span class="p">,</span> <span class="n">jop_required_token</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_jop</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="c1"># Same precedence and assoc. as ordinary multiplication.</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">jop_required_token</span></code> argument to the method <code class="docutils literal"><span class="pre">def_jop_token</span></code> is a token
+which is required to be present in order for a juxtaposition operator to be
+inferred.  The setting above requires a space between two tokens in order for a
+jop to possibly be inferred.  After these definitions strings like <code class="docutils literal"><span class="pre">2</span>
+<span class="pre">sin(3.3)</span></code> can be evaluated with implicit multiplication.</p>
+<p>Next, the grammar for and implementation of simple assignment statements is
+defined for the calculator language.  Two symbols, for <code class="docutils literal"><span class="pre">pi</span></code> and <code class="docutils literal"><span class="pre">e</span></code> are
+predefined to the associated math constants.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_assignment_operator</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define assignment and reading of simple variables.&quot;&quot;&quot;</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">calculator_symbol_dict</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># Store symbol dict as a new parser attribute.</span>
+    <span class="n">symbol_dict</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">calculator_symbol_dict</span>
+
+    <span class="n">symbol_dict</span><span class="p">[</span><span class="s2">&quot;pi&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="c1"># Predefine pi.</span>
+    <span class="n">symbol_dict</span><span class="p">[</span><span class="s2">&quot;e&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">e</span> <span class="c1"># Predefine e.</span>
+
+    <span class="c1"># Note that on_ties for identifiers is set to -1, so that when string</span>
+    <span class="c1"># lengths are equal defined function names will take precedence over</span>
+    <span class="c1"># identifiers (which are only defined as a group regex).</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_](?:\w*)&quot;</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">symbol_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">eval_assign</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evaluate the identifier token `t` and save the value in `symbol_dict`.&quot;&quot;&quot;</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="n">symbol_dict</span><span class="p">[</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhs</span>
+        <span class="k">return</span> <span class="n">rhs</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span>
+                <span class="n">precond_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">:</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+                <span class="n">precond_label</span><span class="o">=</span><span class="s2">&quot;lhs must be identifier&quot;</span><span class="p">,</span>
+                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_assign</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Notice that the <code class="docutils literal"><span class="pre">def_infix_op</span></code> method is used to define the <code class="docutils literal"><span class="pre">=</span></code> operator
+for assignment.  A preconditions function, along with a unique label for it, is
+used to restrict the definition to the case where the left hand side of the
+assignment is an identifier.</p>
+<p>Now expressions like <code class="docutils literal"><span class="pre">sin(2</span> <span class="pre">pi)</span></code>, <code class="docutils literal"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">5</span></code>, and <code class="docutils literal"><span class="pre">x^2</span></code> can be used in the
+calculator language.  Uninitialized variables default to zero, and the
+variables <code class="docutils literal"><span class="pre">pi</span></code> and <code class="docutils literal"><span class="pre">e</span></code> are predefined.  Assignment returns the assigned
+value as its operator value, so, while it is probably not a good idea, you can
+have expressions like <code class="docutils literal"><span class="pre">sin(tau</span> <span class="pre">=</span> <span class="pre">2</span> <span class="pre">pi)</span></code>.</p>
+<p>The next feature which will be added to the calculator language is comments.
+Comments are just like comments in Python.  They are defined by defining a
+token with a regex that recognizes comments, and telling the lexer to ignore
+all such tokens.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_comments</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define comments in the calculator.  Everything from &#39;#&#39; to EOL is a</span>
+<span class="sd">    comment.  Defined using an ignored token pattern.&quot;&quot;&quot;</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_ignored_token</span><span class="p">(</span><span class="s2">&quot;k_comment_to_EOL&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\#[^\r\n]*$&quot;</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The language has now been defined and the calculator can be run as shown above
+in the interactive dialog.  As one final feature, we will define the semicolon
+operator as a statement separator.  This can be done simply by using an infix
+operator with a very low precedence value.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">define_semicolon_separator</span><span class="p">(</span><span class="n">parser</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define semicolon to separate expressions, returning the value of the last one.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">eval_semicolon</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+        <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_semicolon&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;;&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_semicolon&quot;</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span><span class="p">(</span><span class="s2">&quot;k_semicolon&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span>
+                        <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_semicolon</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Now expressions like <code class="docutils literal"><span class="pre">w</span> <span class="pre">=</span> <span class="pre">sqrt(4);</span> <span class="pre">w^2</span></code> can be used.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">4. Example: Implementing a simple calculator</a><ul>
+<li><a class="reference internal" href="#the-main-procedure">4.1. The main procedure</a></li>
+<li><a class="reference internal" href="#the-read-evaluate-print-loop">4.2. The read-evaluate-print loop</a></li>
+<li><a class="reference internal" href="#defining-the-grammar">4.3. Defining the grammar</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="dispatching.html"
+                        title="previous chapter">3. Constructs and preconditioned dispatching</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="types_in_typped.html"
+                        title="next chapter">5. Implementing typed languages</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/calculator_example.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="types_in_typped.html" title="5. Implementing typed languages"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="dispatching.html" title="3. Constructs and preconditioned dispatching"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

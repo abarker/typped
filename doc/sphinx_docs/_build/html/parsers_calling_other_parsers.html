@@ -1,0 +1,161 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>8. Parsers calling other parsers &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="9. Lookbehind" href="lookbehind.html" />
+    <link rel="prev" title="7. Recursive descent parsing in Typped" href="recursive_descent.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="lookbehind.html" title="9. Lookbehind"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="recursive_descent.html" title="7. Recursive descent parsing in Typped"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="parsers-calling-other-parsers">
+<h1>8. Parsers calling other parsers<a class="headerlink" href="#parsers-calling-other-parsers" title="Permalink to this headline">¶</a></h1>
+<div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">NOT FULLY TESTED, FUTURE FEATURE.  See the test file
+<code class="docutils literal"><span class="pre">example_parser_called_from_parser.py</span></code> for a simple, working
+example.</p>
+</div>
+<p>It is useful for a parser instance to be able to call another parser instance
+in order to parse an expression in a sublanguage that the second parser is
+defined to parse.  Strictly speaking, the other parser would be called from one
+of the handler functions of a token, but the tokens are always associated with
+a fixed parser and make the call in implementing its <code class="docutils literal"><span class="pre">parse</span></code> command.</p>
+<p>In the design for how this should work we want the associated parsers to be as
+independent as possible.  Separate parsers are considered to parse sublanguages
+which are disjoint in the sense that all the tokens in a language and any of
+its sublanguages are distinct – even when they represent the same thing, such
+as, say, a left paren.  This separation is necessary in the underlying Pratt
+parser design where tokens are associated with handler functions, and handler
+functions essentially define the language being parsed.</p>
+<p>If a final parse tree needs to be converted to a representation such that
+possible overlapping tokens from different parsers are always instances of the
+same class then a postprocessing step can be used.  This is a simple example of
+converting the parse/expression tree to an AST.</p>
+<p>One approach to the design would be to pass around a common text stream
+instance, with each parser calling its <code class="docutils literal"><span class="pre">parse</span></code> function on the remaining
+unprocessed part.  That would be elegant in a sense, but would require
+reinitializing the text for each parser’s lexer, for each subexpression parsed
+by that parser.  Things like line and column numbers in the text could become
+more difficult to keep track of.</p>
+<p>Instead of passing around a text stream, the Typped parsers call other parsers
+by passing around a common lexer, already initialized with the text.  The lexer
+is just instructed to look at a different token table, corresponding to
+whatever parser is using the lexer at the time.  It is like if one parser said
+to another, “Hey, can you do me a favor and parse a subexpression of your
+language from the text in this lexer that I’ve been using?  Use your own token
+table with it (since that defines your sublanguage).  When you are done,
+restore the lexer’s token table and pass me the result.”</p>
+<p>From the user’s point of view this operation is simple.  Suppose you are in a
+handler for an atomic formula and your want to use a separate parser, named
+<code class="docutils literal"><span class="pre">term_parser</span></code>, to parse terms inside the handler.  Inside the handler you can
+just call <code class="docutils literal"><span class="pre">term_parser.parse_from_lexer(self.parser.lex)</span></code>, passing in the
+current lexer instead of the usual arguments to <code class="docutils literal"><span class="pre">parse</span></code>.</p>
+<p>Some inefficiency is introduced when calling another parser because when the
+token table of the lexer is switched the lexer then needs to discard any
+lookahead tokens parsed using the old token table.  This should not be
+significant in most cases, especially since the lexer only does lookahead
+on-demand.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="recursive_descent.html"
+                        title="previous chapter">7. Recursive descent parsing in Typped</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="lookbehind.html"
+                        title="next chapter">9. Lookbehind</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/parsers_calling_other_parsers.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="lookbehind.html" title="9. Lookbehind"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="recursive_descent.html" title="7. Recursive descent parsing in Typped"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+typped.predefined_token_sets module
+===================================
+
+.. automodule:: typped.predefined_token_sets
+    :members:
+    :undoc-members:
+    :show-inheritance:

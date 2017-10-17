@@ -1,0 +1,356 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.5. typped.pratt_constructs &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.6. typped.pratt_types" href="typped.pratt_types.html" />
+    <link rel="prev" title="10.4. typped.shared_settings_and_exceptions" href="typped.shared_settings_and_exceptions.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_types.html" title="10.6. typped.pratt_types"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.shared_settings_and_exceptions.html" title="10.4. typped.shared_settings_and_exceptions"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.pratt_constructs">
+<span id="typped-pratt-constructs"></span><h1>10.5. typped.pratt_constructs<a class="headerlink" href="#module-typped.pratt_constructs" title="Permalink to this headline">¶</a></h1>
+<p>This module holds the <code class="code docutils literal"><span class="pre">Construct</span></code> class and the <code class="code docutils literal"><span class="pre">ConstructTable</span></code>
+class definitions.  They are basically just data containers, which are
+accessed by the <code class="code docutils literal"><span class="pre">PrattParser</span></code> instances.  Each <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance
+has a <code class="code docutils literal"><span class="pre">ConstructTable</span></code> instance.  The <code class="code docutils literal"><span class="pre">ConstructTable</span></code> instances
+hold <code class="code docutils literal"><span class="pre">Construct</span></code> instances.</p>
+<p>Constructs themselves are just handler functions for a pratt parser
+which are also associated with a triggering token label, a preconditions
+function, and other data.  See the documentation on preconditioned
+dispatching pratt parsers.</p>
+<p>The actual dispatching of handlers is done by the <code class="code docutils literal"><span class="pre">dispatch_handler</span></code> routine of
+the <code class="code docutils literal"><span class="pre">ConstructTable</span></code>.  It runs the preconditions functions in order, and
+returns a handler function for the winning construct.  This handler function
+has its arguments bound, since they are known at the time the handler is
+chosen.  This bound handler function first runs the registered handler; it
+then does type checking and other options before returning the subtree.</p>
+<dl class="class">
+<dt id="typped.pratt_constructs.Construct">
+<em class="property">class </em><code class="descclassname">typped.pratt_constructs.</code><code class="descname">Construct</code><span class="sig-paren">(</span><em>parser_instance</em>, <em>construct_label</em>, <em>trigger_head_or_tail=None</em>, <em>trigger_token_label=None</em>, <em>handler_fun=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>prec=0</em>, <em>assoc=None</em>, <em>key_on_token_values=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A syntax construct in the language.  Usually corresponds to a subtree of
+the final parse tree.  Essentially a data frame for a handler function
+containing extra context information such as the preconditions function,
+etc.</p>
+<p>A construct is possibly triggered when a hander needs to be dispatched for
+its kind of token.  The preconditions functions for all such constructs are
+run in priority-sorted order.  A construct is triggered if its
+preconditions function is the first to evaluate to true.  It then provides
+the handler function to be called.</p>
+<p>A list of typesigs must be stored because overloaded functions use the same
+handler function (it is unknown which signature will apply until after the
+arguments/subtree is parsed to resolve the overload).  Some additional
+information (eval functions and ast labels) is stored in dicts keyed by
+typesigs.</p>
+<p>This is a low-level container class which blindly creates, saves, and
+retrieves data.  Higher-level constraints on constructs (such as preventing
+redefinition with a new <code class="code docutils literal"><span class="pre">head_or_tail</span></code> or <code class="code docutils literal"><span class="pre">trigger_token_label</span></code>) are handled
+in the <code class="code docutils literal"><span class="pre">ConstructTable</span></code> class or the <code class="code docutils literal"><span class="pre">def_construct</span></code> method of <code class="code docutils literal"><span class="pre">PrattParser</span></code>.</p>
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.parser_instance">
+<code class="descname">parser_instance</code><a class="headerlink" href="#typped.pratt_constructs.Construct.parser_instance" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.construct_label">
+<code class="descname">construct_label</code><a class="headerlink" href="#typped.pratt_constructs.Construct.construct_label" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.trigger_head_or_tail">
+<code class="descname">trigger_head_or_tail</code><a class="headerlink" href="#typped.pratt_constructs.Construct.trigger_head_or_tail" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.trigger_token_label">
+<code class="descname">trigger_token_label</code><a class="headerlink" href="#typped.pratt_constructs.Construct.trigger_token_label" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.handler_fun">
+<code class="descname">handler_fun</code><a class="headerlink" href="#typped.pratt_constructs.Construct.handler_fun" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.precond_fun">
+<code class="descname">precond_fun</code><a class="headerlink" href="#typped.pratt_constructs.Construct.precond_fun" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.precond_priority">
+<code class="descname">precond_priority</code><a class="headerlink" href="#typped.pratt_constructs.Construct.precond_priority" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.assoc">
+<code class="descname">assoc</code><a class="headerlink" href="#typped.pratt_constructs.Construct.assoc" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.prec">
+<code class="descname">prec</code><a class="headerlink" href="#typped.pratt_constructs.Construct.prec" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.original_sigs">
+<code class="descname">original_sigs</code><a class="headerlink" href="#typped.pratt_constructs.Construct.original_sigs" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.ast_data_dict">
+<code class="descname">ast_data_dict</code><a class="headerlink" href="#typped.pratt_constructs.Construct.ast_data_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.eval_fun_dict">
+<code class="descname">eval_fun_dict</code><a class="headerlink" href="#typped.pratt_constructs.Construct.eval_fun_dict" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.key_on_token_values">
+<code class="descname">key_on_token_values</code><a class="headerlink" href="#typped.pratt_constructs.Construct.key_on_token_values" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.pratt_constructs.Construct.is_empty">
+<code class="descname">is_empty</code><a class="headerlink" href="#typped.pratt_constructs.Construct.is_empty" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="staticmethod">
+<dt id="typped.pratt_constructs.Construct.run">
+<em class="property">static </em><code class="descname">run</code><span class="sig-paren">(</span><em>construct</em>, <em>tok</em>, <em>lex</em>, <em>processed_left=None</em>, <em>extra_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.run"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.run" title="Permalink to this definition">¶</a></dt>
+<dd><p>Run the handler associated with the construct.  Check the returned parse
+subtree with <code class="code docutils literal"><span class="pre">process_and_check_node</span></code>.  Return the subtree if it passes type
+checking.</p>
+<p>This is a static method because the arguments will be bound using
+<code class="code docutils literal"><span class="pre">functools.partial</span></code> before it is dispatched to be called.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.save_eval_fun">
+<code class="descname">save_eval_fun</code><span class="sig-paren">(</span><em>eval_fun</em>, <em>type_sig=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.save_eval_fun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.save_eval_fun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save data in the <code class="code docutils literal"><span class="pre">eval_fun_dict</span></code> and <code class="code docutils literal"><span class="pre">ast_data_dict</span></code>, keyed by the
+<code class="code docutils literal"><span class="pre">TypeSig</span></code> instance <code class="code docutils literal"><span class="pre">typesig</span></code> and also by the <code class="code docutils literal"><span class="pre">arg_types</span></code> of that
+typesig.</p>
+<p>If type checking is disabled for the parser then <code class="code docutils literal"><span class="pre">type_sig</span></code> is set to
+<code class="code docutils literal"><span class="pre">None</span></code>.</p>
+<p>If <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> is true for the construct then the value
+<code class="code docutils literal"><span class="pre">token_value_key</span></code> is also used in the lookup key.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.save_ast_data">
+<code class="descname">save_ast_data</code><span class="sig-paren">(</span><em>ast_data</em>, <em>type_sig=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.save_ast_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.save_ast_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Save data in the <code class="code docutils literal"><span class="pre">eval_fun_dict</span></code> and <code class="code docutils literal"><span class="pre">ast_data_dict</span></code>, keyed by the
+<code class="code docutils literal"><span class="pre">TypeSig</span></code> instance <code class="code docutils literal"><span class="pre">typesig</span></code> and also by the <code class="code docutils literal"><span class="pre">arg_types</span></code> of that
+typesig.</p>
+<p>If type checking is disabled for the parser then <code class="code docutils literal"><span class="pre">type_sig</span></code> is set to
+<code class="code docutils literal"><span class="pre">None</span></code>.</p>
+<p>If <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> is true for the construct then the value
+<code class="code docutils literal"><span class="pre">token_value_key</span></code> is also used in the lookup key.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.get_eval_fun">
+<code class="descname">get_eval_fun</code><span class="sig-paren">(</span><em>orig_sig</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.get_eval_fun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.get_eval_fun" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return an evaluation function saved by <code class="code docutils literal"><span class="pre">save_eval_fun</span></code>.  The
+<code class="code docutils literal"><span class="pre">orig_sig</span></code> argument is the original signature it was saved under, not
+the expanded signature.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.get_ast_data">
+<code class="descname">get_ast_data</code><span class="sig-paren">(</span><em>orig_sig</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.get_ast_data"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.get_ast_data" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the ast data saved by <code class="code docutils literal"><span class="pre">save_ast_data</span></code>.  The <code class="code docutils literal"><span class="pre">orig_sig</span></code>
+argument is the original signature it was saved under, not the expanded
+signature.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.overload">
+<code class="descname">overload</code><span class="sig-paren">(</span><em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>token_value_key=None</em>, <em>num_args=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.overload"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.overload" title="Permalink to this definition">¶</a></dt>
+<dd><p>Overload the construct to allow a different type signature with
+a different evaluation function and AST data element.  This is the user-level
+interface.</p>
+<p>To overload only on the number of argments when all types are allowed,
+set <code class="code docutils literal"><span class="pre">num_args</span></code> to the number.  Note that in that case <code class="code docutils literal"><span class="pre">val_type</span></code> and
+<code class="code docutils literal"><span class="pre">arg_types</span></code> are ignored.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.Construct.unregister_overload">
+<code class="descname">unregister_overload</code><span class="sig-paren">(</span><em>type_sig</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct.unregister_overload"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct.unregister_overload" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unregister an overload.  If the last overload is deleted then the
+<code class="docutils literal"><span class="pre">original_sigs</span></code> attribute will be left empty.  The construct will
+still be in the any <code class="docutils literal"><span class="pre">ConstructTable</span></code> that it was part of, though.
+Called from the <code class="code docutils literal"><span class="pre">unregister_construct</span></code> of <code class="code docutils literal"><span class="pre">ConstructTable</span></code>.</p>
+<p>If <code class="code docutils literal"><span class="pre">token_value_key</span></code> is set then only that token value is removed, unless
+it is the last one in which case the whole signature is removed.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.pratt_constructs.ConstructTable">
+<em class="property">class </em><code class="descclassname">typped.pratt_constructs.</code><code class="descname">ConstructTable</code><span class="sig-paren">(</span><em>parser_instance</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A dict holding <code class="code docutils literal"><span class="pre">Construct</span></code> objects, with related methods.  Each
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> instance has a <code class="code docutils literal"><span class="pre">ConstructTable</span></code> instance to hold its
+constructs.</p>
+<dl class="method">
+<dt id="typped.pratt_constructs.ConstructTable.register_construct">
+<code class="descname">register_construct</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>trigger_token_label</em>, <em>handler_fun</em>, <em>precond_fun</em>, <em>precond_priority</em>, <em>construct_label</em>, <em>type_sig</em>, <em>eval_fun</em>, <em>ast_data</em>, <em>token_value_key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.register_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.register_construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Register a construct (either head or tail) with the subclass for
+this kind of token, setting the given properties.  This method is only
+ever called from the <code class="code docutils literal"><span class="pre">def_construct</span></code> method of a <code class="code docutils literal"><span class="pre">PrattParser</span></code>
+instance.</p>
+<p>The <code class="code docutils literal"><span class="pre">head_or_tail</span></code> argument must be <code class="code docutils literal"><span class="pre">HEAD</span></code> or <code class="code docutils literal"><span class="pre">TAIL</span></code>.</p>
+<p>The <code class="code docutils literal"><span class="pre">type_sig</span></code> argument must be a valid <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance.</p>
+<p>If <code class="code docutils literal"><span class="pre">token_value_key</span></code> is set then it will be used as part of the key on
+evaluation functions and AST data.  The <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> attribute
+of the <code class="code docutils literal"><span class="pre">Construct</span></code> instance is set based on this being set, and must
+always be the same for a given construct.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.ConstructTable.unregister_construct">
+<code class="descname">unregister_construct</code><span class="sig-paren">(</span><em>construct</em>, <em>type_sig=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.unregister_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.unregister_construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Unregister the previously-registered construct.</p>
+<p>If <code class="code docutils literal"><span class="pre">construct_label</span></code> is not set then all head or tail handlers matching
+<code class="code docutils literal"><span class="pre">head_or_tail</span></code> and <code class="code docutils literal"><span class="pre">trigger_token_label</span></code> are unregistered.</p>
+<p>The <code class="code docutils literal"><span class="pre">type_sig</span></code> argument must be a valid <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance or else
+<code class="code docutils literal"><span class="pre">None</span></code>.  If <code class="code docutils literal"><span class="pre">type_sig</span></code> is <code class="code docutils literal"><span class="pre">None</span></code> then all overloads are unregistered;
+otherwise only the particular signature is unregistered.</p>
+<p>No error is raised if a matching construct function is not found.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.ConstructTable.lookup_winning_construct">
+<code class="descname">lookup_winning_construct</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>trigger_token_instance</em>, <em>lex=None</em>, <em>extra_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.lookup_winning_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.lookup_winning_construct" title="Permalink to this definition">¶</a></dt>
+<dd><p>Look up and return the “winning” construct for the given head or tail
+position, based on the current state.</p>
+<p>This method evaluates each preconditions function in the sorted
+dict for this kind of token and the specified kind of construct
+(head or tail), returning the construct associated with the first
+one which evaluates to <code class="code docutils literal"><span class="pre">True</span></code>.  Raises <code class="code docutils literal"><span class="pre">NoHandlerFunctionDefined</span></code>
+if no handler function can be found.</p>
+<p>This function also sets the attribute <code class="code docutils literal"><span class="pre">construct</span></code> of this token
+instance to the label of the winning precondition function.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.pratt_constructs.ConstructTable.dispatch_handler">
+<code class="descname">dispatch_handler</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>trigger_token_instance</em>, <em>lex</em>, <em>extra_data</em>, <em>left=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.dispatch_handler"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.dispatch_handler" title="Permalink to this definition">¶</a></dt>
+<dd><p>Look up and return a wrapper for the “winning” handler function for the
+token, with its arguments bound.  Sets <code class="code docutils literal"><span class="pre">extra_data</span></code> attribute on
+<code class="code docutils literal"><span class="pre">trigger_token_instance</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.shared_settings_and_exceptions.html"
+                        title="previous chapter">10.4. typped.shared_settings_and_exceptions</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.pratt_types.html"
+                        title="next chapter">10.6. typped.pratt_types</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.pratt_constructs.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_types.html" title="10.6. typped.pratt_types"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.shared_settings_and_exceptions.html" title="10.4. typped.shared_settings_and_exceptions"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

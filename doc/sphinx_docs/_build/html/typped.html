@@ -1,0 +1,166 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10. APIs and code for the modules in the Typped package &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.1. typped.pratt_parser" href="typped.pratt_parser.html" />
+    <link rel="prev" title="9. Lookbehind and other extra data" href="lookbehind.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_parser.html" title="10.1. typped.pratt_parser"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="lookbehind.html" title="9. Lookbehind and other extra data"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="apis-and-code-for-the-modules-in-the-typped-package">
+<h1>10. APIs and code for the modules in the Typped package<a class="headerlink" href="#apis-and-code-for-the-modules-in-the-typped-package" title="Permalink to this headline">¶</a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="typped.pratt_parser.html">10.1. typped.pratt_parser</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_parser.html#api-details">10.1.1. API details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#extra-attributes-added-to-tokens">10.1.1.1. Extra attributes added to tokens</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_parser.html#implementation-details">10.1.2. Implementation details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#the-basic-class-structure">10.1.2.1. The basic class structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#using-different-parsers-inside-handler-functions">10.1.2.2. Using different parsers inside handler functions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_parser.html#code">10.1.3. Code</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="typped.builtin_parse_methods.html">10.2. typped.builtin_parse_methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.predefined_token_sets.html">10.3. typped.predefined_token_sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.shared_settings_and_exceptions.html">10.4. typped.shared_settings_and_exceptions</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.pratt_constructs.html">10.5. typped.pratt_constructs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.pratt_types.html">10.6. typped.pratt_types</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.ebnf_classes_and_operators.html">10.7. typped.ebnf_classes_and_operators</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#terminology-and-notation">10.7.1. Terminology and notation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#implementation">10.7.2. Implementation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#wrapper-functions">10.7.3. Wrapper functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#overloaded-operator-api">10.7.4. Overloaded operator API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#modifiers-for-items">10.7.5. Modifiers for items</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#operator-precedences-expressed-in-grammar">10.7.6. Operator precedences expressed in grammar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#optimizing-the-grammar">10.7.7. Optimizing the grammar</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#predictive-parsing">10.7.7.1. predictive parsing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#grammar-transformations">10.7.7.2. grammar transformations</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="typped.register_grammar_with_parser.html">10.8. typped.register_grammar_with_parser</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.register_grammar_with_parser.html#rules-and-guidelines">10.8.1. Rules and guidelines</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.register_grammar_with_parser.html#precedences">10.8.2. Precedences</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="typped.lexer.html">10.9. typped.lexer</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#defining-tokens">10.9.1. Defining tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#begin-and-end-tokens">10.9.2. Begin and end tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#using-the-lexer">10.9.3. Using the lexer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#user-accessible-methods-and-attributes-of-lexer">10.9.4. User-accessible methods and attributes of <code class="code docutils literal"><span class="pre">Lexer</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#user-accessible-attributes-of-tokens">10.9.5. User-accessible attributes of tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#initialization-options">10.9.6. Initialization options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html#code">10.9.7. Code</a></li>
+</ul>
+</li>
+</ul>
+</div>
+<span class="target" id="module-typped"></span></div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="lookbehind.html"
+                        title="previous chapter">9. Lookbehind and other extra data</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.pratt_parser.html"
+                        title="next chapter">10.1. typped.pratt_parser</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_parser.html" title="10.1. typped.pratt_parser"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="lookbehind.html" title="9. Lookbehind and other extra data"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

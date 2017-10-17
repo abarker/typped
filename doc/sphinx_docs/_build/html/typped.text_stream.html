@@ -1,0 +1,177 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.text_stream &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.text_stream">
+<span id="typped-text-stream"></span><h1>typped.text_stream<a class="headerlink" href="#module-typped.text_stream" title="Permalink to this headline">¶</a></h1>
+<p>The TextStream class</p>
+<dl class="class">
+<dt id="typped.text_stream.TextStream">
+<em class="property">class </em><code class="descclassname">typped.text_stream.</code><code class="descname">TextStream</code><a class="reference internal" href="_modules/typped/text_stream.html#TextStream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>This is just a unified wrapper for a stream of text characters which may
+come from various sources.</p>
+<dl class="method">
+<dt id="typped.text_stream.TextStream.clear">
+<code class="descname">clear</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.clear"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.clear" title="Permalink to this definition">¶</a></dt>
+<dd><p>Clear and reset the text stream.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.set_string_in">
+<code class="descname">set_string_in</code><span class="sig-paren">(</span><em>str_val</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.set_string_in"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.set_string_in" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a string to be the text source.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.set_file_in">
+<code class="descname">set_file_in</code><span class="sig-paren">(</span><em>f_name</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.set_file_in"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.set_file_in" title="Permalink to this definition">¶</a></dt>
+<dd><p>Set a file to be the text source.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.set_raw_in">
+<code class="descname">set_raw_in</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.set_raw_in"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.set_raw_in" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read input interactively for text source.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.next">
+<code class="descname">next</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get the next character in the text stream. Can be used as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">while</span> <span class="ow">not</span> <span class="n">ts</span><span class="o">.</span><span class="n">end_of_text_stream</span><span class="p">():</span>
+   <span class="n">char</span> <span class="o">=</span> <span class="n">ts</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+   <span class="o">...</span>
+</pre></div>
+</div>
+<p>or else as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">ts</span><span class="p">:</span>
+   <span class="o">...</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.refill_char_buffer_if_empty">
+<code class="descname">refill_char_buffer_if_empty</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.refill_char_buffer_if_empty"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.refill_char_buffer_if_empty" title="Permalink to this definition">¶</a></dt>
+<dd><p>Read a line to refill the char buffer.  Return <code class="code docutils literal"><span class="pre">False</span></code> if end of stream
+is encountered, <code class="code docutils literal"><span class="pre">True</span></code> otherwise.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.peek">
+<code class="descname">peek</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.peek"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.peek" title="Permalink to this definition">¶</a></dt>
+<dd><p>Peeks one character ahead in the text stream.  Returns empty string if
+peek is attempted after <code class="code docutils literal"><span class="pre">end_of_text_stream()</span></code> is <code class="code docutils literal"><span class="pre">True</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.get_pos_of_last_next">
+<code class="descname">get_pos_of_last_next</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.get_pos_of_last_next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.get_pos_of_last_next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a tuple containing the line number of the last character
+returned, numbered from 1, followed by the position of the character on
+that line, also numbered from 1.  Useful for error messages.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.end_of_text_stream">
+<code class="descname">end_of_text_stream</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.end_of_text_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.end_of_text_stream" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if the last character in the text stream has been returned.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.text_stream.TextStream.beginning_of_text_stream">
+<code class="descname">beginning_of_text_stream</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/text_stream.html#TextStream.beginning_of_text_stream"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.text_stream.TextStream.beginning_of_text_stream" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.text_stream.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

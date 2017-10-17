@@ -1,0 +1,388 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Templates and type parameters &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="templates-and-type-parameters">
+<h1>Templates and type parameters<a class="headerlink" href="#templates-and-type-parameters" title="Permalink to this headline">¶</a></h1>
+<dl class="docutils">
+<dt>NOTE:</dt>
+<dd><p class="first">Templates are related to types because the parameters of templates are usually
+types.  So even if the mechanism is for general parameters, make sure
+it works for types.</p>
+<p>Have a <code class="code docutils literal"><span class="pre">def_template</span></code> method that takes a subtree with certain
+variables/nodes marked for replacement or modification.  Returns a Python
+function which can be called to give a copy of the subtree with the relevant
+nodes modified or replaced.  This Python function can then be called inside
+the handler functions for the instantiation of templated constructs.</p>
+<p>Look over this, maybe, discussion of overloading vs. specialization.
+<a class="reference external" href="http://www.gotw.ca/publications/mill17.htm">http://www.gotw.ca/publications/mill17.htm</a></p>
+<p>To use a template:</p>
+<ol class="arabic simple">
+<li><dl class="first docutils">
+<dt>When a head or tail handler finds a template definition, call</dt>
+<dd><code class="code docutils literal"><span class="pre">def_template</span></code>, and get a function to eval the template (or register
+it with a class to save one, etc.)</dd>
+</dl>
+</li>
+<li><dl class="first docutils">
+<dt>When encountering the template instantiation in a head or tail handler,</dt>
+<dd>call the function above to return a subtree to use to replace the
+instantion subtree.  Be sure to call the <code class="code docutils literal"><span class="pre">process_and_check_node</span></code>
+method to do type checking.</dd>
+</dl>
+</li>
+</ol>
+<p class="last">Note that logic substitution functions are basically just templates.  But,
+you don’t always want to replace or evaluate them.  You just want to keep
+their definitions so you could evaluate them or replace them.  Then have an
+operation of a wff to do so, so you could do a proof of properties with
+substitution functions.</p>
+</dd>
+<dt>TODO:</dt>
+<dd><p class="first">For templates, maybe you parse the template’s subtree but save it, and then
+when you get an instantiation you plug in all the parameters with their
+actual types or values!</p>
+<p>The implementer must provide the way to parse the <code class="code docutils literal"><span class="pre">template</span></code> namespace down
+to code which contains substitutable parameters!!!  Then the rest should be
+fairly easy…</p>
+<p class="last">Consider arbitrary levels, too, maybe… if easy.</p>
+</dd>
+</dl>
+<p><strong>Templates</strong> are essentially a meta-construct in languages which allow for
+code to be generated at compile time (for static typing) or runtime (for
+dynamic typing) according to a previously-defined pattern.  They add a level of
+indirection or abstraction.</p>
+<p>Templates are meta-functions which take <strong>type parameters</strong> and/or <strong>value
+parameters</strong> as arguments.  The type parameters represent types, while the
+value parameters can represent any other kind if data which is known at the
+time of template specialization and which the implemented language chooses to
+allow.  (The Typped system does not restrict what kinds of parameters can be
+passed to parameters, that is language-specific.)</p>
+<p>The process of converting a defined template into code with the template
+parameters bound to actual values is known as <strong>template instantiation</strong>.
+Essentially, the template meta-function is called with actual arguments for its
+parameters and it returns some code (i.e., an AST subtree).  <strong>Implicit
+instantiation</strong> occurs whenever the compiler or interpreter chooses to do it,
+while <strong>explicit instantiation</strong> occurs at the point where a program statement
+requests it.  (The type parameters and value parameters to use in instantiating
+a template may be either deduced by the compiler or interpreter using <strong>type
+deduction</strong> or else explicitly specified in the language as an <strong>explicit type
+specification</strong>.)</p>
+<p>The particular code you get when you instantiate a template is called a
+<strong>specialization</strong> of the template.  <strong>Implicit specialization</strong> occurs
+whenever the compiler or interpreter chooses to do it.  <strong>Explicit
+specialization</strong> occurs when a program statement requests it.  An explicit
+specialization can also provide code which, for that case, will override the
+general or primary code defined for the template.</p>
+<p><strong>Partial specialization</strong> is the binding of only some of the template
+parameters.  This essentially produces a partial meta-function from the
+template meta-function, resulting in another template with fewer parameters.
+Partial specialization can also provide code which will override the general or
+primary template body code in those particular cases.</p>
+<p>In some situations certain kinds of arguments to a template function might not
+be appropriate, even with specialization.  Some languages have <strong>template
+constraints</strong> to limit the situations when a template can be instantiated.
+This is like type-checking the arguments of the meta-function representing the
+template, restricting their possible values.  Some languages such as D also
+have meta-language constructs such as if-then blocks which can be used inside
+the template and which are evaluated at compile time.</p>
+<p>The D language has a nice templating system (which was based on simplifying C++
+templates).  While the language shortcuts for using templates, under the hood
+it implements templating using <strong>template namespaces</strong>.  These have an explicit
+<code class="code docutils literal"><span class="pre">template</span></code> keyword.  Any templated code can appear inside the namespace.</p>
+<dl class="docutils">
+<dt>TODO</dt>
+<dd>Check that the code below is valid… doesn’t all highlight and I added
+extra template parameters (and name changes).</dd>
+</dl>
+<div class="highlight-d"><div class="highlight"><pre><span></span><span class="k">template</span> <span class="n">myTemplate</span><span class="p">(</span><span class="n">T1</span><span class="p">,</span> <span class="n">T2</span><span class="p">,</span> <span class="n">V1</span><span class="p">)</span> <span class="p">{</span>
+    <span class="n">T1</span> <span class="n">myTemplatedFun</span><span class="p">(</span><span class="n">T2</span> <span class="n">myVar1</span><span class="p">,</span> <span class="n">T2</span> <span class="n">myVar2</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">return</span> <span class="n">V1</span> <span class="p">*</span> <span class="n">myVar</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Since this kind of thing is sufficient to implement all the features that
+Typped provides explicit for, the discussion will be limited to that.  It is up
+to the language implementer to provide whatever additional syntactic sugar
+might be desired.  The construct above would be fairly easy to parse with
+Typped, so that will be assumed.</p>
+<p>At the time when any particular template instantiation occurs the parameterized
+types for that specialization must be known (or else an error has occurred).
+The language implementation must handle that detail, whether by explicit
+declarations in the language, by inference, or both.  The values of the type
+parameters similarly need to be known values at the time of any particular
+template specialization.  How these values are known depends on the language
+implementation.  So, the Typped system needs to provide:</p>
+<ol class="arabic simple">
+<li>Type inference for objects with declared types.</li>
+<li>A way to overload the type inference system.</li>
+<li>A way for the compiler or runtime to pass arbitrary values to the value
+parameters.</li>
+</ol>
+<p>Some languages provide for <strong>partial specialization</strong> or <strong>partial
+instantiation</strong> of templated types, to create a new templated type with some of
+the parameters bound but not all of them.  This is essentially a partial
+function made from the templating function and its parameters by binding some
+of the parameters.</p>
+<div class="topic">
+<p class="topic-title first">Composite types</p>
+<p>Composite types in a language are types which are constructed from other
+types.  The definition chains end with the primitive data types of language
+(much like the literal tokens at the leaves of a parse tree).  An example in
+C is the use of <code class="code docutils literal"><span class="pre">typedef</span></code> to create a type <code class="code docutils literal"><span class="pre">point</span></code> from a <code class="code docutils literal"><span class="pre">struct</span></code> of two
+<code class="code docutils literal"><span class="pre">int</span></code> values.  In C++ classes create types whenever they are defined (or the
+template is instantiated, if it is templated).</p>
+<p>Composite types are a feature of the implemented language, so Typped does
+not directly handle them.  In implementing this language feature using
+Typped you should always create a new type in Typped (using the <code class="code docutils literal"><span class="pre">def_type</span></code>
+method) whenever such a type definition is parsed (or instantiated, if it is
+a templated definition, or run, if typing is dynamic rather than static).</p>
+</div>
+<div class="section" id="xxxxx-update-below-move-or-delete-xxxxx">
+<h2>xxxxx Update below, move, or delete!!!!! xxxxx<a class="headerlink" href="#xxxxx-update-below-move-or-delete-xxxxx" title="Permalink to this headline">¶</a></h2>
+<p>Types are represented in the <code class="docutils literal"><span class="pre">PrattParser</span></code> by subclasses of the
+<code class="docutils literal"><span class="pre">TypeObject</span></code> class.  The subclasses themselves represent <strong>type templates</strong>,
+and their instantiations represent <strong>type instances</strong> or <strong>actual types</strong>.
+Each type template has a separate subclass created to represent it.  The Pratt
+parser class stores all defined type templates in a table, indexed by a type
+name.  A type template defines a specification that must be satisfied by any
+concrete instance.  As a special case, the Python <code class="docutils literal"><span class="pre">None</span></code> value is also a
+valid type template and a valid type instance, representing either a template
+that anything matches or an actual type for items which are considered
+typeless.</p>
+<p>Type templates can be parameterized, but even types without parameters are
+defined by creating a parameterless type template.  The type instances or
+actual types must have bindings for all the parameters.  The types of actual
+constructs in the parsed language are always actual types.  Each node in the
+final parse tree needs to have an actual type as its node type (and a signature
+containing only actual types).</p>
+<p>In the implementation language each actual type (of a construct in the parsed
+language) is represented by an instance of the <code class="docutils literal"><span class="pre">TypeObject</span></code> subclass
+representing that type template.  Each such instance must define a value for
+each parameters of the type template (if any).  The actual types may or may not
+match the types required by the template.  Checking for a type match is
+performed at the time of instantiation.  That is, the initializer for a
+subclass of <code class="docutils literal"><span class="pre">TypeObject</span></code> takes as arguments the actual values to assign to
+the parameters of the type template represented by the subclass.  If the
+arguments do not match an error is raised, otherwise an instance is created.</p>
+<p>A collection of type templates defining the required argument types and return
+type for a function will be called the function’s <strong>type specification</strong> or a
+<strong>type spec</strong>.  A collection of actual types for the arguments and return types
+of a function will be called the function’s <strong>type signature</strong> or a <strong>type
+sig</strong>.  A type sig either matches a type spec or not (either exactly or via the
+use of defined conversions).  These are represented in the program as instances
+of the class <code class="docutils literal"><span class="pre">TypeSpec</span></code> and the class <code class="docutils literal"><span class="pre">TypeSpec</span></code> (both derived from the
+class <code class="docutils literal"><span class="pre">FunctionTypes</span></code>).</p>
+<p>Recall that function overloading is implemented with respect to the type spec
+that is passed to the <code class="docutils literal"><span class="pre">PrattParser</span></code> routine for parsing the function.  The
+same head handler function or tail handler function is always used when a
+function is overloaded, but a list of all the defined type signatures is
+maintained.  The final nodes in the <code class="docutils literal"><span class="pre">TokenNode</span></code> parse tree will each contain
+an actual type signature.</p>
+</div>
+<div class="section" id="implementation">
+<h2>Implementation<a class="headerlink" href="#implementation" title="Permalink to this headline">¶</a></h2>
+<p>In the implementation a head is defined for literal tokens by <code class="docutils literal"><span class="pre">define_token</span></code>.
+The method takes an argument <code class="docutils literal"><span class="pre">val_type</span></code>.  Note that now whenever the
+<code class="docutils literal"><span class="pre">val_type</span></code> is set for the <em>node</em> it should be for an <em>instance</em> of the type
+specifier.  Perhaps it should be called <code class="docutils literal"><span class="pre">val_type_actual</span></code>, or else just set
+the full <code class="docutils literal"><span class="pre">TypeSpec</span></code> and specify that the can only contain instances.  Then,
+all the literal tokens have instances set for them as <code class="docutils literal"><span class="pre">val_type_actual</span></code>.
+Going up the parse tree, the higher nodes look down at the <code class="docutils literal"><span class="pre">val_type_actual</span></code>
+values of their children to obtain the actual types of the type specifiers.</p>
+<div class="topic">
+<p class="topic-title first">Example of defining types.</p>
+<p>The following example illustrates the definition of types and parameterized
+types in a very simple implementation of a language for matrix expressions.</p>
+<p>First, define two unparameterized types:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t_real</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_int</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;Int&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The first argument to <code class="docutils literal"><span class="pre">define_type</span></code> is an arbitary string label for the
+type.  For mnemonic purposes the string label can be chosen to correspond to
+the type label in the parsed language, but it need not be.  The returned
+values are subclasses of <code class="docutils literal"><span class="pre">TypeObject</span></code>.</p>
+<p>Now an <code class="docutils literal"><span class="pre">m</span></code> by <code class="docutils literal"><span class="pre">n</span></code> parameterized matrix type holding any type of elements
+can be defined as a templated type:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t_matrix</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;Mat&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>The second argument to <code class="docutils literal"><span class="pre">define_type</span></code> is a tuple containing the template
+parameters, which are also type specifiers.  The <code class="docutils literal"><span class="pre">None</span></code> type of the first
+parameter matches any type, for matrix elements of arbitrary types.  The
+<code class="docutils literal"><span class="pre">t_int</span></code> type parameters are for the shape parameters m and n of the
+matrix.</p>
+<p>Using the above type definition, the type signature for matrix
+multiplication can be parameterized to ensure at parse-time that both matrix
+arguments are conformable for multiplication:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">mmult_sig</span> <span class="o">=</span> <span class="n">TypeSpec</span><span class="p">(</span><span class="n">t_matrix</span><span class="p">,</span>  <span class="c1"># return type</span>
+                   <span class="p">(</span><span class="n">t_matrix</span><span class="p">,</span>  <span class="c1"># arg 1</span>
+                    <span class="n">t_matrix</span><span class="p">),</span> <span class="c1"># arg 2</span>
+                    <span class="n">test_fun</span><span class="o">=</span><span class="n">conformable_test_fun</span><span class="p">)</span>  <span class="c1"># a test to apply</span>
+</pre></div>
+</div>
+<p>Now suppose the infix operator <code class="docutils literal"><span class="pre">*</span></code> is defined for matrix multiplication,
+and that the type signature <code class="docutils literal"><span class="pre">mmult_sig</span></code> is passed as a keyword argument
+defining the signature.  When a matrix multiplication is parsed in the
+implemented language, whatever syntax is used, the actual arguments to the
+matrix multiplication become known (they are the actual types of the
+children in the parse tree, known in the bottom-up type resolution).</p>
+<p>To test whether the <code class="docutils literal"><span class="pre">mmult_sig</span></code> signature matches on the arguments we
+first test whether or not the basic types of each argument match
+(perhaps performing conversions [??? complications due to multiple
+possible ???]).</p>
+<p>Next, the function <code class="docutils literal"><span class="pre">test_fun</span></code> is run.  It is passed the current token
+node, the children of which are the operator arguments.  The
+children/operands have already had all their possible final signatures
+assigned (uniquely if overloading on return types is disallowed).  The
+<code class="docutils literal"><span class="pre">TypeObject</span></code> for each child should contain the m and n values for the
+matrix operands.  (If a matrix literal was read, for example, or an explicit
+type definition was made in the object language.) So conformability can be
+checked for the multiplication operation.</p>
+<p>TODO: consider whether the variable kind of indexing above, using a
+dict, to pass to the test function or the number indexing kind of thing
+below (for parameterized types) is best.</p>
+<p>TODO: consider defining a list or a tuple of <code class="docutils literal"><span class="pre">TypeObject</span></code> instances in
+place of a single <code class="docutils literal"><span class="pre">TypeObject</span></code> parameter to represent an “or”
+operation, accepting any of the types:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t_real</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_int</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;Int&quot;</span><span class="p">)</span>
+<span class="n">t_mat_elem</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">define_type</span><span class="p">(</span><span class="s2">&quot;MatElem&quot;</span><span class="p">,</span> <span class="p">[(</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_real</span><span class="p">,</span> <span class="n">t_complex</span><span class="p">)])</span>
+</pre></div>
+</div>
+<p>So the gist would be: - Use Python <code class="docutils literal"><span class="pre">*args</span></code> convention for indexing
+when necessary to index.</p>
+<ul class="simple">
+<li>Any type argument to the initializer of a <code class="docutils literal"><span class="pre">TypeObject</span></code> can be passed
+either the type’s string label or the actual <code class="docutils literal"><span class="pre">TypeObject</span></code> instance.</li>
+<li>Any type argument to the initializer of a <code class="docutils literal"><span class="pre">TypeObject</span></code> can alternately
+be passed a list or a tuple of instances or type labels instead, which
+represent an “or” over all the types in the list or tuple.</li>
+<li>Consider: when an “or” is needed in type specifications, consider defining
+a class or function <code class="docutils literal"><span class="pre">Or</span></code> to take the arguments.  Cleaner and clearer
+interface than just using some implicit mechanism.</li>
+</ul>
+</div>
+</div>
+<div class="section" id="partial-instantiation-of-parameterized-types">
+<h2>Partial instantiation of parameterized types<a class="headerlink" href="#partial-instantiation-of-parameterized-types" title="Permalink to this headline">¶</a></h2>
+<dl class="docutils">
+<dt>TODO:</dt>
+<dd>Is this something that should be done with templates?  Or should you also
+be able to pass parameters to a type directly?</dd>
+</dl>
+<p>Parameterized types which take a <code class="docutils literal"><span class="pre">None</span></code> argument as a type parameter
+are defined to match any type in that slot.  A partial instantiation of a
+parameterized type can bind type of some of those <code class="docutils literal"><span class="pre">None</span></code> wildcard
+types.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">t_real</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="s2">&quot;Real&quot;</span><span class="p">)</span>
+<span class="n">t_matrix</span> <span class="o">=</span> <span class="n">TypeObject</span><span class="p">(</span><span class="s2">&quot;Mat&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">))</span>
+<span class="n">t_real_matrix</span> <span class="o">=</span> <span class="n">t_matrix</span><span class="o">.</span><span class="n">set_param_type</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span> <span class="n">t_real</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The current syntax above uses indexing of the arguments with integer
+indices for the arguments of the original TypeObject (the first argument
+to <code class="docutils literal"><span class="pre">set_param_type</span></code> is a tuple indexing first the parameter position
+and then the index within the parameter value.</p>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Templates and type parameters</a><ul>
+<li><a class="reference internal" href="#xxxxx-update-below-move-or-delete-xxxxx">xxxxx Update below, move, or delete!!!!! xxxxx</a></li>
+<li><a class="reference internal" href="#implementation">Implementation</a></li>
+<li><a class="reference internal" href="#partial-instantiation-of-parameterized-types">Partial instantiation of parameterized types</a></li>
+</ul>
+</li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/templates.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

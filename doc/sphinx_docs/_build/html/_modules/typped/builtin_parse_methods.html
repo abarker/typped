@@ -1,0 +1,889 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.builtin_parse_methods &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.builtin_parse_methods</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">These are predefined, built-in parsing routines designed to parse various</span>
+<span class="sd">general types of constructs.  These functions are all made into methods of the</span>
+<span class="sd">`PrattParser` class simply because that namespace is convenient to use.  They</span>
+<span class="sd">can also be used directly, as standalone functions.</span>
+
+<span class="sd">Looking at the source code can be useful for ideas of how to implement general</span>
+<span class="sd">constructs which are not covered by a builtin routine.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="c1"># Run tests when invoked as a script.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_ebnf_classes_and_operators.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_example_calculator.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_parser_called_from_parser.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_pratt_parser.py&quot;</span>
+                              <span class="p">],</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+
+<span class="c1"># TODO: Define default construct labels that are helpful for debugging.  Also,</span>
+<span class="c1"># print out construct labels in more error messages where appropriate.</span>
+<span class="c1">#</span>
+<span class="c1"># TODO: Factor out some of the common preconditions functions used here and put</span>
+<span class="c1"># them in the helpers module.  Then just import one from there, don&#39;t re-generate.</span>
+<span class="c1">#</span>
+<span class="c1"># TODO: Work out the exceptions to call... Do we really want separate</span>
+<span class="c1"># ParserException and ErrorInParsedLanguage exceptions?  Will need to</span>
+<span class="c1"># change many places, then... maybe a TyppedException vs. a ParserException??</span>
+
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">TAIL</span><span class="p">,</span> <span class="n">ParserException</span><span class="p">,</span>
+        <span class="n">NoHandlerFunctionDefined</span><span class="p">,</span> <span class="n">CalledBeginTokenHandler</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">,</span>
+        <span class="n">ErrorInParsedLanguage</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.lexer</span> <span class="k">import</span> <span class="n">Lexer</span><span class="p">,</span> <span class="n">TokenNode</span><span class="p">,</span> <span class="n">TokenTable</span><span class="p">,</span> <span class="n">multi_funcall</span>
+<span class="kn">from</span> <span class="nn">.pratt_types</span> <span class="k">import</span> <span class="p">(</span><span class="n">TypeTable</span><span class="p">,</span> <span class="n">TypeSig</span><span class="p">,</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">,</span>
+                         <span class="n">actual_matches_formal_default</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.helpers</span> <span class="k">import</span> <span class="n">combine_precond_funs</span>
+
+<span class="c1"># As a reminder for those who are used to traditional Pratt parser terminology</span>
+<span class="c1"># and are looking at the code for ideas on how to write general parsing</span>
+<span class="c1"># functions in Typped, here a comparison of the terminology used in the Typped</span>
+<span class="c1"># package with the traditional Pratt parser terminology:</span>
+<span class="c1">#</span>
+<span class="c1"># +----------------------------------+--------------------------+</span>
+<span class="c1"># | This code                        | Pratt&#39;s terminology      |</span>
+<span class="c1"># +==================================+==========================+</span>
+<span class="c1"># | token precedence                 | left binding power, lbp  |</span>
+<span class="c1"># | subexpression precedence         | right binding power, rbp |</span>
+<span class="c1"># | head handler function            | null denotation, nud     |</span>
+<span class="c1"># | tail handler function            | left denotation, led     |</span>
+<span class="c1"># +----------------------------------+--------------------------+</span>
+
+<span class="c1">#</span>
+<span class="c1"># Methods defining syntax elements.</span>
+<span class="c1">#</span>
+
+<span class="c1"># TODO these define and undefine methods each need a corresponding undefine</span>
+<span class="c1"># method (or one that does all).   They all return the construct (or should)</span>
+<span class="c1"># so consider it the undef_construct method is sufficient...</span>
+
+<span class="c1">#</span>
+<span class="c1"># Token literals.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_literal"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_literal">[docs]</a><span class="k">def</span> <span class="nf">def_literal</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">val_type_override_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Defines the token with label `token_label` to be a literal in the</span>
+<span class="sd">    syntax of the language being parsed.  This method adds a head handler</span>
+<span class="sd">    function to the token.  Literal tokens are the leaves of the expression</span>
+<span class="sd">    trees; they are things like numbers and variable names in a numerical</span>
+<span class="sd">    expression.  They always occur as the first (and only) token in a</span>
+<span class="sd">    subexpression being evaluated by `recursive_parse`, so they need a head</span>
+<span class="sd">    handler but not a tail handler.  (Though note that the token itparser</span>
+<span class="sd">    might also have a tail handler.)</span>
+
+<span class="sd">    A function `val_type_override_fun` can be passed in, taking a token and a</span>
+<span class="sd">    lexer as its two arguments and returning a `TypeObject` instance.  If it is</span>
+<span class="sd">    set then it will called in the handler at parse-time to get the type to set</span>
+<span class="sd">    as the `val_type` of the node.  This can be useful for dynamic typing such</span>
+<span class="sd">    as when identifiers in an interpreted language are generic variables which</span>
+<span class="sd">    can holding different types.  This option currently does not work for</span>
+<span class="sd">    overloading on return types.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">head_handler_literal</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">val_type_override_fun</span><span class="p">:</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">process_and_check_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;val_type_override&quot;</span><span class="p">:</span>
+                                            <span class="n">val_type_override_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">)}</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">head_handler_literal</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[],</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="def_multi_literals"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_multi_literals">[docs]</a><span class="k">def</span> <span class="nf">def_multi_literals</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;An interface to the `def_literal` method which takes a list of</span>
+<span class="sd">    tuples.  The `def_literal` method will be called for each tuple, unpacked</span>
+<span class="sd">    in the order in the tuple.  Unspecified optional arguments are assigned</span>
+<span class="sd">    their default values.</span>
+
+<span class="sd">    Usually it is better to define `literal = parser.def_literal` and use that</span>
+<span class="sd">    as a shorter alias.  This method does not allow for keyword arguments and</span>
+<span class="sd">    depends on argument ordering.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">multi_funcall</span><span class="p">(</span><span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Brackets and parens.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_bracket_pair"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_bracket_pair">[docs]</a><span class="k">def</span> <span class="nf">def_bracket_pair</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">lbrac_token_label</span><span class="p">,</span> <span class="n">rbrac_token_label</span><span class="p">,</span> <span class="n">in_tree</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                     <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a matching bracket grouping operation.  The returned type is</span>
+<span class="sd">    set to the type of its single child (i.e., the type of the contents of</span>
+<span class="sd">    the brackets).  Defines a head handler for the left bracket token, so</span>
+<span class="sd">    effectively gets the highest evaluation precedence.  As far as types,</span>
+<span class="sd">    it is treated as a function that takes one argument of wildcard type</span>
+<span class="sd">    and returns whatever type the argument has.&quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Maybe allow optional comma_token_label for comma-separated items</span>
+    <span class="c1"># inside brackets.</span>
+
+    <span class="k">def</span> <span class="nf">head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A head handler for the left bracket of the pair.&quot;&quot;&quot;</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rbrac_token_label</span><span class="p">,</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">in_tree</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parser</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">child_type</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">process_and_check_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;val_type_override&quot;</span><span class="p">:</span> <span class="n">child_type</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">head_handler</span><span class="p">,</span> <span class="n">lbrac_token_label</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Standard functions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_stdfun"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_stdfun">[docs]</a><span class="k">def</span> <span class="nf">def_stdfun</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">fname_token_label</span><span class="p">,</span> <span class="n">lpar_token_label</span><span class="p">,</span>
+               <span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">comma_token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">precond_priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+               <span class="n">num_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This definition of stdfun uses lookahead to the opening paren or</span>
+<span class="sd">    bracket token.</span>
+
+<span class="sd">    Note that all tokens must be defined as literal tokens except</span>
+<span class="sd">    `fname_token_label` (which ends up as the root of the function</span>
+<span class="sd">    evaluation subtree).  If the latter is also a literal token then</span>
+<span class="sd">    `precond_priority` may need to be increased to give this use priority.</span>
+
+<span class="sd">    The `num_args` parameter is optional for specifying the number of</span>
+<span class="sd">    arguments when typing is not being used.  If it is set to a nonnegative</span>
+<span class="sd">    number then it will automatically set `arg_types` to the corresponding</span>
+<span class="sd">    list of `None` values; if `arg_types` is set then it is ignored.  If</span>
+<span class="sd">    type-checking is disabled for the parser instance then the number of</span>
+<span class="sd">    arguments is instead checked by the handler function.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">parser</span><span class="o">.</span><span class="n">skip_type_checking</span> <span class="ow">and</span> <span class="n">num_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">arg_types</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">arg_types</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">num_args</span>
+
+    <span class="k">def</span> <span class="nf">precond_followed_by_lpar</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Must be followed by a token with label &#39;lpar_token_label&#39;, with no</span>
+<span class="sd">        whitespace in-between.&quot;&quot;&quot;</span>
+        <span class="n">peek_tok</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">peek_tok</span><span class="o">.</span><span class="n">ignored_before</span><span class="p">:</span> <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">peek_tok</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="n">lpar_token_label</span><span class="p">:</span> <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_followed_by_lpar</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="c1"># Below match is for a precondition, so it will match and consume.</span>
+        <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">lpar_token_label</span><span class="p">,</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># Read comma-separated subexpressions until the peek is rpar_token_label.</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">consume</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">comma_token_label</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># This checks for errors like f(x,)</span>
+                <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">raise_on_success</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># Closing rpar.</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">process_not_in_tree</span><span class="p">()</span> <span class="c1"># Needed when comma is an operator that gets removed.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">parser</span><span class="o">.</span><span class="n">skip_type_checking</span> <span class="ow">and</span> <span class="n">num_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                                    <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">children</span><span class="p">)</span> <span class="o">!=</span> <span class="n">num_args</span><span class="p">):</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;tok is&quot;</span><span class="p">,</span> <span class="n">tok</span><span class="p">,</span> <span class="s2">&quot;tok children are&quot;</span><span class="p">,</span> <span class="n">tok</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Wrong number of arguments for function </span><span class="si">{0}</span><span class="s2">:&quot;</span>
+                        <span class="s2">&quot; expected </span><span class="si">{1}</span><span class="s2"> and got </span><span class="si">{2}</span><span class="s2">.&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
+                        <span class="n">num_args</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">children</span><span class="p">)))</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">head_handler</span><span class="p">,</span> <span class="n">fname_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">,</span>
+                                <span class="n">token_value_key</span><span class="o">=</span><span class="n">token_value_key</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="def_stdfun_lpar_tail"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_stdfun_lpar_tail">[docs]</a><span class="k">def</span> <span class="nf">def_stdfun_lpar_tail</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">fname_token_label</span><span class="p">,</span> <span class="n">lpar_token_label</span><span class="p">,</span>
+                         <span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">comma_token_label</span><span class="p">,</span> <span class="n">prec_of_lpar</span><span class="p">,</span>
+                         <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">num_args</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is an alternate version of stdfun that defines lpar as an infix</span>
+<span class="sd">    operator (i.e., with a tail handler).  This function works in the usual cases</span>
+<span class="sd">    but the current version without preconditions may have problems distinguishing</span>
+<span class="sd">    &quot;b (&quot; from &quot;b(&quot; when a multiplication jop is set.  The lookahead version</span>
+<span class="sd">    `def_stdfun` is usually preferred.</span>
+
+<span class="sd">    This method assumes type checking is turned on if `num_arg` is set.</span>
+
+<span class="sd">    A peek backwards to a token with label `fname_token_label` is included in</span>
+<span class="sd">    the preconditions function.  Definitions for different leading tokens will</span>
+<span class="sd">    give mutually exclusive preconditions.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">num_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">arg_types</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">arg_types</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">num_args</span>
+
+    <span class="k">def</span> <span class="nf">precond_fun_peekback</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check that the peek backward token label for the function name</span>
+<span class="sd">        is `fname_token_label`.  This is necessary to get the type sig info</span>
+<span class="sd">        to work when different functions take different numbers (and</span>
+<span class="sd">        possibly different types) of arguments.   Otherwise, defining two</span>
+<span class="sd">        different functions for different tokens like `k_add` and `k_exp`</span>
+<span class="sd">        is treated as an overload since both are really handled by the</span>
+<span class="sd">        `lpar_token_label` token.  The label would otherwise never be checked.</span>
+
+<span class="sd">        One could do a similar thing checking the value of the previous token</span>
+<span class="sd">        if the fnames are all, say, identifiers or some common token kind.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: Update to allow optional peeking back to value instead of token label.</span>
+        <span class="n">prev_tok</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">prev_tok</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="n">fname_token_label</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">lex</span><span class="o">.</span><span class="n">token</span><span class="o">.</span><span class="n">ignored_before</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span> <span class="c1"># No space allowed after fun name.</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_fun_peekback</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="c1"># Nothing between fun name and lpar_token.</span>
+        <span class="n">lex</span><span class="o">.</span><span class="n">no_ignored_before</span><span class="p">(</span><span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">consume</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="n">left</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">prec_of_lpar</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">comma_token_label</span><span class="p">):</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">raise_on_success</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">rpar_token_label</span><span class="p">,</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">left</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">lpar_token_label</span><span class="p">,</span>
+                                <span class="n">prec</span><span class="o">=</span><span class="n">prec_of_lpar</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">,</span>
+                                <span class="n">token_value_key</span><span class="o">=</span><span class="n">token_value_key</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Infix operators.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_infix_multi_op"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_infix_multi_op">[docs]</a><span class="k">def</span> <span class="nf">def_infix_multi_op</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">operator_token_labels</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                       <span class="n">repeat</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">not_in_tree</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                       <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="c1"># TODO only this utility method currently supports &quot;not_in_tree&quot; kwarg.</span>
+    <span class="c1"># General and easy mechanism, though.  Test more and add to other</span>
+    <span class="c1"># methods.  Does in-tree keep the first one? how is it defined for this</span>
+    <span class="c1"># thing?  Comma operator is example of not_in_tree=True, but how does it</span>
+    <span class="c1"># handle the root??  TODO: How about in-tree that works at root iff the</span>
+    <span class="c1"># node only has one child?</span>
+    <span class="sd">&quot;&quot;&quot;Takes a list of operator token labels and defines a multi-infix</span>
+<span class="sd">    operator.</span>
+
+<span class="sd">    If `repeat=True` then any number of repetitions of the list of operators</span>
+<span class="sd">    will be accepted.  For example, a comma operator could be used to parse a</span>
+<span class="sd">    full comma-separated list.  When `arg_types` is also set use the `Varargs`</span>
+<span class="sd">    object in the list to check the repetitions.  For a single operator,</span>
+<span class="sd">    repeating just has the effect of putting the arguments in a flat</span>
+<span class="sd">    argument/child list instead of as nested binary operations based on left or</span>
+<span class="sd">    right association.  Any argument-checking is done after any node removal,</span>
+<span class="sd">    which may affect the types that should be passed-in in the list arg_types</span>
+<span class="sd">    of parent constructs.</span>
+
+<span class="sd">    If `not_in_tree` is false then the root node will not appear in the final parse</span>
+<span class="sd">    tree (unless it is the root).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
+    <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
+        <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">))</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">operator_token_labels</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="c1">#assert tok.prec() == recurse_bp or tok.prec()-1 == recurse_bp # DEBUG</span>
+                <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">repeat</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="c1"># Peek ahead and see if we need to loop another time.</span>
+            <span class="k">if</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="n">operator_token_labels</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="k">break</span>
+            <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="n">operator_token_labels</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">not_in_tree</span><span class="p">:</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">not_in_tree</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">operator_token_labels</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="def_infix_op"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_infix_op">[docs]</a><span class="k">def</span> <span class="nf">def_infix_op</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">operator_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span> <span class="n">not_in_tree</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This just calls the more general method `def_multi_infix_op`.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_multi_op</span><span class="p">([</span><span class="n">operator_token_label</span><span class="p">],</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                                     <span class="n">not_in_tree</span><span class="o">=</span><span class="n">not_in_tree</span><span class="p">,</span>
+                                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                     <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                     <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                     <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Prefix operators.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_prefix_op"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_prefix_op">[docs]</a><span class="k">def</span> <span class="nf">def_prefix_op</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">operator_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span>
+                  <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a prefix operator.  Note that head handlers do not have</span>
+<span class="sd">    precedences, only tail handlers.  (With respect to the looping in</span>
+<span class="sd">    `recursive_parse` it wouldn&#39;t make a difference.)  But, within the head</span>
+<span class="sd">    handler, the call to `recursive_parse` can be made with a nonzero</span>
+<span class="sd">    precedence.  This allows setting a precedence to determine the argument</span>
+<span class="sd">    expressions that the prefix operators grabs up (or doesn&#39;t).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">prec</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">head_handler</span><span class="p">,</span> <span class="n">operator_token_label</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Postfix operators.</span>
+<span class="c1">#</span>
+
+
+<div class="viewcode-block" id="def_postfix_op"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_postfix_op">[docs]</a><span class="k">def</span> <span class="nf">def_postfix_op</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">operator_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">allow_ignored_before</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                   <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a postfix operator.  If `allow_ignored_before` is false then</span>
+<span class="sd">    no ignored token (usually whitespace) can appear immediately before the</span>
+<span class="sd">    operator.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">allow_ignored_before</span><span class="p">:</span>
+            <span class="n">lex</span><span class="o">.</span><span class="n">no_ignored_before</span><span class="p">(</span><span class="n">raise_on_fail</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">operator_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                             <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                             <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                             <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                             <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                             <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+
+<span class="c1">#</span>
+<span class="c1"># Juxtaposition operators.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_jop"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_jop">[docs]</a><span class="k">def</span> <span class="nf">def_jop</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+            <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The function `precond_fun` is called to determine whether or not to</span>
+<span class="sd">    accept a potentially-inferred a juxtaposition operator between the</span>
+<span class="sd">    previously-parsed subexpression result and the next token.  Note that this</span>
+<span class="sd">    function have available `extra_data`  as an attribute of its triggering</span>
+<span class="sd">    token, and `extra_data` contains the `lookbehind` attribute.  Through the</span>
+<span class="sd">    lookbehind list the `jop_precond` function has access to the type</span>
+<span class="sd">    information for the potential left operand but not for the potential right</span>
+<span class="sd">    operand.</span>
+
+<span class="sd">    Note that if the juxtaposition operator always resolves to a single</span>
+<span class="sd">    type signature based on its argument types then, even if overloading on</span>
+<span class="sd">    return types is in effect, the jop can be effectively inferred based on</span>
+<span class="sd">    type signature information.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
+    <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span> <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="n">right_operand</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">)</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right_operand</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">parser</span><span class="o">.</span><span class="n">jop_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="n">arg_types</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Utility functions used in implementing assignment operators.</span>
+<span class="c1">#</span>
+
+<span class="k">def</span> <span class="nf">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">symbol_type_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">typing</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the dicts to use, substituting defaults for `None` and creating the</span>
+<span class="sd">    defaults if they do not exist.  The defaults are `parser.symbol_value_dict` and</span>
+<span class="sd">    `parser.symbol_type_dict`.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">symbol_value_dict</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="s2">&quot;symbol_value_dict&quot;</span><span class="p">):</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">symbol_value_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">symbol_value_dict</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">symbol_value_dict</span>
+    <span class="k">if</span> <span class="n">typing</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">symbol_type_dict</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="s2">&quot;symbol_type_dict&quot;</span><span class="p">):</span>
+                <span class="n">parser</span><span class="o">.</span><span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">symbol_type_dict</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span>
+
+<span class="k">def</span> <span class="nf">_eval_statically_typed_assignment</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return an evaluation function to implement a dynamically-typed</span>
+<span class="sd">    assignment.  The token argument to the returned function must be the token</span>
+<span class="sd">    for the assignment operator, at the root of the subtree, with the left child</span>
+<span class="sd">    holding the identifier for the variable, and the right child holding the value</span>
+<span class="sd">    to assign.  The returned evaluation function returns the assigned value as its</span>
+<span class="sd">    value (so `x=4` returns `4` which can then be part of another expression).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">eval_fun</span><span class="p">(</span><span class="n">subtree_tok</span><span class="p">):</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="n">symbol_value_dict</span><span class="p">[</span><span class="n">subtree_tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhs</span>
+        <span class="k">return</span> <span class="n">rhs</span>
+
+    <span class="k">return</span> <span class="n">eval_fun</span>
+
+<span class="k">def</span> <span class="nf">_set_static_type</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">symbol_type_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Called when a static type definition is parsed in the object language.  It</span>
+<span class="sd">    associates a Typped type with the type in the language.  This allows static type</span>
+<span class="sd">    checking to work.  The default `symbol_type_dict` is `parser.symbol_type_dict`.&quot;&quot;&quot;</span>
+    <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
+                                                                      <span class="n">symbol_type_dict</span><span class="p">)</span>
+
+<span class="c1">#</span>
+<span class="c1"># Untyped variable assignments and evaluations.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_assignment_op_untyped"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_assignment_op_untyped">[docs]</a><span class="k">def</span> <span class="nf">def_assignment_op_untyped</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                              <span class="n">identifier_token_label</span><span class="p">,</span>
+                              <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">create_eval_fun</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define an infix assignment operator which is statically typed, with</span>
+<span class="sd">    types checked at parse time.  Each identifier (with token label</span>
+<span class="sd">    `identifier_token_label` must already have a type associated with it in the</span>
+<span class="sd">    `symbol_type_dict`.  This dict and the type values in it should be set via</span>
+<span class="sd">    whatever kind of a type definition construct the language uses.</span>
+
+<span class="sd">    A precondition checks that the l.h.s. of the assignment operator is a token</span>
+<span class="sd">    with label `identifier_token_label`.  If not an exception is raised.</span>
+
+<span class="sd">    An evaluation function can optionally be created automatically, but by default is</span>
+<span class="sd">    not.  See the `def_assignment_op_dynamic` routine for more details since the</span>
+<span class="sd">    mechanism is the same.  If `eval_fun` is set then that evaluation function</span>
+<span class="sd">    will always be used.</span>
+
+<span class="sd">    This method may not correctly set the return type when overloading on</span>
+<span class="sd">    return types because currently `val_type_override` is used to set it.&quot;&quot;&quot;</span>
+    <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span>
+                                                              <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                                              <span class="n">typing</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">precond_lhs_is_identifier</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="n">identifier_token_label</span>
+
+    <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_lhs_is_identifier</span><span class="p">)</span>
+
+    <span class="c1"># Create an eval fun if requested.</span>
+    <span class="k">if</span> <span class="n">create_eval_fun</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">eval_fun</span><span class="p">(</span><span class="n">subtree_tok</span><span class="p">):</span>
+            <span class="n">rhs</span> <span class="o">=</span> <span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+            <span class="n">symbol_value_dict</span><span class="p">[</span><span class="n">subtree_tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhs</span>
+            <span class="k">return</span> <span class="n">rhs</span>
+
+    <span class="c1"># Create an ordinary infix operator for untyped assignments.</span>
+    <span class="k">return</span> <span class="n">def_infix_op</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                        <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                        <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                        <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Statically typed variable assignments and evaluations.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_assignment_op_static"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_assignment_op_static">[docs]</a><span class="k">def</span> <span class="nf">def_assignment_op_static</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                             <span class="n">identifier_token_label</span><span class="p">,</span>
+                             <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">symbol_type_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">allowed_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="n">create_eval_fun</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define an infix assignment operator which is statically typed, with</span>
+<span class="sd">    types checked at parse time.  Each identifier (with token label</span>
+<span class="sd">    `identifier_token_label` must already have a type associated with it in the</span>
+<span class="sd">    `symbol_type_dict`.  This dict and the type values in it should be set via</span>
+<span class="sd">    whatever kind of a type definition construct the language uses.</span>
+
+<span class="sd">    A precondition checks that the l.h.s. of the assignment operator is a token</span>
+<span class="sd">    with label `identifier_token_label`.  If not an exception is raised.</span>
+
+<span class="sd">    An evaluation function can optionally be created automatically, but by default is</span>
+<span class="sd">    not.  See the `def_assignment_op_dynamic` routine for more details since the</span>
+<span class="sd">    mechanism is the same.  If `eval_fun` is set then that evaluation function</span>
+<span class="sd">    will always be used.</span>
+
+<span class="sd">    This method may not correctly set the return type when overloading on</span>
+<span class="sd">    return types because currently `val_type_override` is used to set it.&quot;&quot;&quot;</span>
+    <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
+                                                                      <span class="n">symbol_type_dict</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">precond_lhs_is_identifier</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="n">identifier_token_label</span>
+
+    <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_lhs_is_identifier</span><span class="p">)</span>
+    <span class="n">construct_label</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">_next_unique_construct_label</span><span class="p">()</span>
+
+    <span class="c1"># Create an eval fun if requested.</span>
+    <span class="k">if</span> <span class="n">create_eval_fun</span><span class="p">:</span>
+        <span class="n">eval_fun</span> <span class="o">=</span> <span class="n">_eval_statically_typed_assignment</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">)</span>
+
+    <span class="c1"># Create the infix operator assignment construct and register it.</span>
+
+    <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
+    <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
+        <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Parse the assignment operation, checking that the types match.&quot;&quot;&quot;</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">))</span>
+        <span class="n">identifier</span> <span class="o">=</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parser</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="c1"># Set return type to r.h.s. type (TODO later maybe have option...)</span>
+            <span class="n">rhs_type</span> <span class="o">=</span> <span class="n">tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">val_type</span><span class="p">:</span>
+                <span class="n">val_t</span> <span class="o">=</span> <span class="n">rhs_type</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">val_t</span> <span class="o">=</span> <span class="n">val_type</span>
+            <span class="c1"># Set the type returned by the assignment operation.</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">process_and_check_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;val_type_override&quot;</span><span class="p">:</span> <span class="n">val_t</span><span class="p">}</span>
+            <span class="c1"># Check that the static types match.</span>
+            <span class="n">formal_type</span> <span class="o">=</span> <span class="n">symbol_type_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">identifier</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">formal_type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span>
+                        <span class="s2">&quot;Variable identifier &#39;</span><span class="si">{0}</span><span class="s2">&#39; has not been declared with a type.&quot;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">identifier</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">rhs_type</span><span class="o">.</span><span class="n">matches_formal_type</span><span class="p">(</span><span class="n">formal_type</span><span class="p">):</span>
+                <span class="c1"># TODO: should do a reverse lookup on Typped types back to implemented lang</span>
+                <span class="c1"># types for better error message... but need that dict available.</span>
+                <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="s2">&quot;The value assigned to variable &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
+                            <span class="s2">&quot; does not match its defined type </span><span class="si">{1}</span><span class="s2">.  Its actual type&quot;</span>
+                            <span class="s2">&quot; is </span><span class="si">{2}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">identifier</span><span class="p">,</span> <span class="n">formal_type</span><span class="p">,</span> <span class="n">rhs_type</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="c1">#construct_label = &quot;def_assignment_op_static with {} tokens as triggers&quot;.format(</span>
+    <span class="c1">#                                                     assignment_op_token_label)</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Dynamically typed variable assignments and evaluations.</span>
+<span class="c1">#</span>
+
+<span class="k">def</span> <span class="nf">_eval_dynamically_typed_assignment</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return an evaluation function to implement a dynamically-typed</span>
+<span class="sd">    assignment.  The token argument to the returned function must be the token</span>
+<span class="sd">    for the assignment operator, at the root of the subtree, with the left child</span>
+<span class="sd">    holding the identifier for the variable, and the right child holding the value</span>
+<span class="sd">    to assign.  The returned evaluation function returns the assigned value as its</span>
+<span class="sd">    value (so `x=4` returns `4` which can then be part of another expression).&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">eval_fun</span><span class="p">(</span><span class="n">subtree_tok</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="s2">&quot;allowed_dynamic_assignment_types&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span>
+                <span class="nb">any</span><span class="p">(</span><span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span><span class="o">.</span><span class="n">matches_formal_type</span><span class="p">(</span><span class="n">formal_type</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">formal_type</span> <span class="ow">in</span> <span class="n">parser</span><span class="o">.</span><span class="n">allowed_dynamic_assignment_types</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="s2">&quot;Actual type </span><span class="si">{0}</span><span class="s2"> in assignment does not&quot;</span>
+                    <span class="s2">&quot; match any types in the list </span><span class="si">{1}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                  <span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span><span class="p">,</span>
+                                  <span class="n">parser</span><span class="o">.</span><span class="n">allowed_dynamic_assignment_types</span><span class="p">))</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="n">symbol_value_dict</span><span class="p">[</span><span class="n">subtree_tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">rhs</span>
+        <span class="n">symbol_type_dict</span><span class="p">[</span><span class="n">subtree_tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">subtree_tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span>
+        <span class="k">return</span> <span class="n">rhs</span>
+
+    <span class="k">return</span> <span class="n">eval_fun</span>
+
+<div class="viewcode-block" id="def_assignment_op_dynamic"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_assignment_op_dynamic">[docs]</a><span class="k">def</span> <span class="nf">def_assignment_op_dynamic</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">assoc</span><span class="p">,</span>
+                              <span class="n">identifier_token_label</span><span class="p">,</span>
+                              <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">symbol_type_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">allowed_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                              <span class="n">create_eval_fun</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define an infix assignment operator which is dynamically typed, with</span>
+<span class="sd">    types checked at evaluation time (i.e., when the tree is interpreted).</span>
+
+<span class="sd">    A precondition checks that the l.h.s. of the assignment operator is a token</span>
+<span class="sd">    with label `identifier_token_label`.  If not an exception is raised.</span>
+
+<span class="sd">    No type-checking is done on the r.h.s. by default.  To limit the types that</span>
+<span class="sd">    can be assigned you can pass in a list or iterable of `TypeObject`</span>
+<span class="sd">    instances as the argument `allowed_types`.  These formal types are stored</span>
+<span class="sd">    as the list attribute `allowed_dynamic_assignment_types` of the parser</span>
+<span class="sd">    instance.  An exception will be raised by the generated evaluation function</span>
+<span class="sd">    if an assigned value does not have an actual type consistent with a formal</span>
+<span class="sd">    type on that list.  If new types are created later they can be directly</span>
+<span class="sd">    appended to that list without having to overload the assignment operator.</span>
+
+<span class="sd">    If `create_eval_fun` is true (and `eval_fun` is not set) then an evaluation</span>
+<span class="sd">    function will be created automatically.  The `symbol_value_dict` is used</span>
+<span class="sd">    to store the values, which defaults to the parser attribute of the same</span>
+<span class="sd">    name.</span>
+
+<span class="sd">    This method may not correctly set the return type when overloading on</span>
+<span class="sd">    return types because currently `val_type_override` is used to set it.&quot;&quot;&quot;</span>
+
+    <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
+                                                                      <span class="n">symbol_type_dict</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">allowed_types</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">allowed_dynamic_assignment_types</span> <span class="o">=</span> <span class="n">allowed_types</span>
+
+    <span class="k">def</span> <span class="nf">precond_lhs_is_identifier</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="n">identifier_token_label</span>
+
+    <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_lhs_is_identifier</span><span class="p">)</span>
+
+    <span class="c1"># Create an eval fun if requested.</span>
+    <span class="k">if</span> <span class="n">create_eval_fun</span><span class="p">:</span>
+        <span class="n">eval_fun</span> <span class="o">=</span> <span class="n">_eval_dynamically_typed_assignment</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
+                                                               <span class="n">symbol_type_dict</span><span class="p">)</span>
+
+    <span class="c1"># Create the infix operator assignment construct and register it.</span>
+
+    <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
+    <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
+    <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
+        <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
+        <span class="c1"># Set return type to r.h.s. type (TODO later maybe have return type option...)</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">recurse_bp</span><span class="p">))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">parser</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">rhs_type</span> <span class="o">=</span> <span class="n">tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">expanded_formal_sig</span><span class="o">.</span><span class="n">val_type</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">process_and_check_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;val_type_override&quot;</span><span class="p">:</span> <span class="n">rhs_type</span><span class="p">}</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="c1">#construct_label = &quot;def_assignment_op_dynamic with {} tokens as triggers&quot;.format(</span>
+    <span class="c1">#                                                      assignment_op_token_label)</span>
+    <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                <span class="n">val_type</span><span class="o">=</span><span class="n">val_type</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="def_literal_typed_from_dict"><a class="viewcode-back" href="../../typped.builtin_parse_methods.html#typped.builtin_parse_methods.def_literal_typed_from_dict">[docs]</a><span class="k">def</span> <span class="nf">def_literal_typed_from_dict</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                <span class="n">symbol_type_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                <span class="n">default_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">default_eval_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                <span class="n">raise_if_undefined</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">create_eval_fun</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                                <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a dynamically typed literal, usually a variable-name identifier.</span>
+<span class="sd">    The type is looked up in the dict `symbol_type_dict`, keyed by the string</span>
+<span class="sd">    value of the token literal.</span>
+
+<span class="sd">    If `create_eval_fun` is true (and `eval_fun` is not set) then this method</span>
+<span class="sd">    will provides an evaluation function automatically.  This function returns</span>
+<span class="sd">    the value looked up from `symbol_value_dict`, keyed by the literal token&#39;s</span>
+<span class="sd">    string value.  The default value returned by the evaluation if the symbol</span>
+<span class="sd">    is not in the dict is set via `default_eval_value`.  (Currently there must</span>
+<span class="sd">    be some default rather than raising an exception, with the default default</span>
+<span class="sd">    value set to `None`.) Setting `create_eval_fun` false will skip the setting</span>
+<span class="sd">    of an evaluation function.</span>
+
+<span class="sd">    The `def_assignment_op_dynamic` routine should be used to handle the</span>
+<span class="sd">    corresponding variable assignment operation.  That is, the assignment that</span>
+<span class="sd">    dynamically sets the type of the literal to the type of the assigned value</span>
+<span class="sd">    (storing it in `symbol_type_dict` by default).</span>
+
+<span class="sd">    This method may not correctly set the return type when overloading on</span>
+<span class="sd">    return types because currently `val_type_override` is used to set it.&quot;&quot;&quot;</span>
+    <span class="c1"># TODO: raise_if_undefined could take a string or even a full exception to raise.</span>
+    <span class="c1"># instead of using the hardcoded message and error.</span>
+    <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
+                                                                      <span class="n">symbol_type_dict</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">literal_val_type_override_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A function hook passed to `def_literal` to assign a type signature.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="n">symbol_type_dict</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">symbol_type_dict</span><span class="p">[</span><span class="n">tok</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">default_type</span>
+
+    <span class="k">if</span> <span class="n">create_eval_fun</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">eval_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">symbol_value_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">default_eval_value</span><span class="p">)</span>
+
+    <span class="c1"># Note that this precondition is used to raise an exception if the identifier</span>
+    <span class="c1"># is not defined as a key in symbol_type_dict.  May be better to do this in an</span>
+    <span class="c1"># explicit head-handler rather than calling def_literal.</span>
+    <span class="k">if</span> <span class="n">raise_if_undefined</span><span class="p">:</span>
+        <span class="k">def</span> <span class="nf">precond_raise_if_undefined</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tok</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="n">parser</span><span class="o">.</span><span class="n">symbol_type_dict</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">ErrorInParsedLanguage</span><span class="p">(</span><span class="s2">&quot;Undefined identifier: &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
+                                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">lex</span><span class="o">.</span><span class="n">token</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">precond_fun</span><span class="p">:</span>
+            <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">precond_raise_if_undefined</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_raise_if_undefined</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">val_type_override_fun</span><span class="o">=</span><span class="n">literal_val_type_override_fun</span><span class="p">,</span>
+                       <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                       <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">)</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Utility functions used by this module.</span>
+<span class="c1">#</span>
+
+<span class="c1">#</span>
+<span class="c1"># The list of defined functions to be made into methods of the PrattParser class.</span>
+<span class="c1">#</span>
+
+<span class="n">parse_methods</span> <span class="o">=</span> <span class="p">[</span>
+                 <span class="c1"># Literals.</span>
+                 <span class="n">def_literal</span><span class="p">,</span>
+                 <span class="n">def_multi_literals</span><span class="p">,</span>
+
+                 <span class="c1"># Operators.</span>
+                 <span class="n">def_infix_multi_op</span><span class="p">,</span>
+                 <span class="n">def_infix_op</span><span class="p">,</span>
+                 <span class="n">def_prefix_op</span><span class="p">,</span>
+                 <span class="n">def_postfix_op</span><span class="p">,</span>
+
+                 <span class="c1"># Brackets.</span>
+                 <span class="n">def_bracket_pair</span><span class="p">,</span>
+
+                 <span class="c1"># Functions.</span>
+                 <span class="n">def_stdfun</span><span class="p">,</span>
+                 <span class="n">def_stdfun_lpar_tail</span><span class="p">,</span>
+                 <span class="n">def_jop</span><span class="p">,</span>
+
+                 <span class="c1"># Assignment-related methods.</span>
+                 <span class="n">def_assignment_op_untyped</span><span class="p">,</span>
+                 <span class="n">def_assignment_op_static</span><span class="p">,</span>
+                 <span class="n">def_assignment_op_dynamic</span><span class="p">,</span>
+                 <span class="n">def_literal_typed_from_dict</span><span class="p">,</span>
+                 <span class="p">]</span>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

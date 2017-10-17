@@ -1,0 +1,207 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Low-level implementation details &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="admonition warning">
+<p class="first admonition-title">Warning</p>
+<p class="last">This page is rough and needs editing.  Some of the details may have changed.</p>
+</div>
+<div class="section" id="low-level-implementation-details">
+<h1>Low-level implementation details<a class="headerlink" href="#low-level-implementation-details" title="Permalink to this headline">¶</a></h1>
+<p>In a top-down parser the parse tree is essentially constructed bottom-up, on
+the way back up the recursion.  So the leaves are the first nodes created and
+they can have their types checked.  Each node farther up has the types of its
+children/arguments as well as its own type checked at the time when its subtree
+of the parse tree is constructed.</p>
+<p>Based on the above, each constructed tree is guaranteed to be resolved for
+types when it is first constructed — provided that overloading is only on
+function arguments.  Overloading on return types requires another pass down the
+parse tree (not necessarily the full tree, but it can be in a worst case).  As
+soon as a node with a unique signature is created the types in the subtree are
+resolved.</p>
+<p>Type signatures can be declared whenever a construct is defined (or redefined
+for overloading).  It is passed in kwargs to the <code class="docutils literal"><span class="pre">def_construct</span></code> routine
+whenever a construct is defined.  If the construct already exists then
+overloading is assumed, and the type signature is unioned with any existing
+ones.</p>
+<p>In the Pratt parser the <code class="docutils literal"><span class="pre">recursive_parse</span></code> routine is run to do the actual
+parsing.  As each token is read in that routine the constructs for that token
+are tested to see it their preconditions match.  The winning construct (with
+the highest priority among the matching ones) provides the handler function to
+process the construct.  The dispatched handler does not just run the handler,
+though.  It first runs the handler, then it runs <code class="docutils literal"><span class="pre">process_in_tree</span></code> on the
+returned subtree, and then it runs <code class="docutils literal"><span class="pre">process_and_check_node</span></code> on the processed
+subtree.</p>
+<p>The type signature information is stored with the <code class="docutils literal"><span class="pre">SyntaxConstruct</span></code> instance
+associated with the winning construct.  The <code class="docutils literal"><span class="pre">process_and_check_node</span></code> call
+checks that the types of the children of the root of the returned subtree match
+the associated type signature.  (Children futher down were already processed,
+since we’re on the way back up the recursion.)  When a unique match is found
+the signature of a node is set as an attribute.  Going up the tree, the next
+node can now look at the return type of those signatures to check that the
+arguments of its node match its signature.</p>
+<p>TODO: rewrite below or delete</p>
+<div class="section" id="overloading-on-return-values">
+<h2>Overloading on return values<a class="headerlink" href="#overloading-on-return-values" title="Permalink to this headline">¶</a></h2>
+<p>Overloading on return values is more difficult.  Suppose there are two possible
+return values for the same argument signature.  With overloading only on
+argument types that would be an error – or at least an ambiguity that some
+other rule would need to break.  When return value overloading is allowed then
+either choice is possible, depending on the possibilities higher up in the
+tree.</p>
+<p>Suppose we have these signatures (in C-like notation):</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="nb">int</span> <span class="n">f</span><span class="p">(</span><span class="n">real</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+<span class="nb">int</span> <span class="n">f</span><span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">real</span><span class="p">)</span>
+
+<span class="nb">bool</span> <span class="n">g</span><span class="p">(</span><span class="nb">bool</span><span class="p">)</span>
+<span class="n">real</span> <span class="n">g</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="nb">bool</span> <span class="n">h</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+<span class="nb">int</span> <span class="n">h</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>We want to parse this expression:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">f</span><span class="p">(</span><span class="n">g</span><span class="p">(</span><span class="n">h</span><span class="p">(</span><span class="nb">int</span><span class="p">),</span> <span class="nb">int</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>where the int values are from literal tokens at the leaves of the parse tree.
+When we reach the bottom of the tree and start going up we cannot immediately
+choose the signature of <code class="docutils literal"><span class="pre">h</span></code> to use.  They both match arguments to <code class="docutils literal"><span class="pre">g</span></code>.  But
+only one argument to <code class="docutils literal"><span class="pre">g</span></code> also matches the argument to <code class="docutils literal"><span class="pre">f</span></code> since we can rule
+out the second signature of <code class="docutils literal"><span class="pre">f</span></code>.</p>
+<p>We might consider passing the expected argument down the tree, so that when we
+reach <code class="docutils literal"><span class="pre">h</span></code> we will know that <code class="docutils literal"><span class="pre">g</span></code> needs to return a real so it has to take an
+<code class="docutils literal"><span class="pre">int</span></code> argument.  But what about when the second argument to <code class="docutils literal"><span class="pre">f</span></code> also has a
+tree? The full signature of <code class="docutils literal"><span class="pre">f</span></code> must match like it is an “and”, not like an
+“or”.  At the bottom of the tree, evaluating <code class="docutils literal"><span class="pre">h</span></code>, we do not know how any of
+its siblings or other relatives in other subtrees will resolve.</p>
+<p>Backtracking is one possible solution.  We could choose one, and have the
+parent raise an error to backtrack if it fails to match.  But backtracking can
+be computationally expensive.</p>
+<p>A better approach is to use a two-pass system.  Note that a parent node can
+force any of its children to assume any one of its possible return types.  So
+the type-value of any child can in that case be set independently from the
+type-value of its siblings.  When the parent node knows all the possible types
+for each argument it can match against all its possible signatures and resolve
+to one signature (or raise an error).  Going up on the first-pass recursion
+will propagage up all the possibilities.  Going down on the second pass will
+propagate down the final signature-binding choices.</p>
+<p>Previous explanation, combine best of both:</p>
+<p>Suppose we pass all the possible return values to the parent.  Each sibling
+does that.  Then, it can calculate all its possible return values and pass
+those to its parent.  At some point it reaches the top again, and a function
+knows whether or not some unique return value has matched.  If so, then we can
+go back down the tree again and fix the return values, which fix the argument
+values, and so forth.  All this stuff can be pasted onto the token class
+instances as necessary.  This is more expensive, but it doesn’t seem
+exponential or anything.  Just another pass or two.</p>
+<p>Update: for the gist see below and section in the code explaining basics.
+Also, move toward full-sig comparison model and explanations.  - On way up the
+tree, collect all the possible signature types, including <em>all possible</em>
+conversions which might give different return values, and save them with each
+node.  Include all possible because going up the tree we don’t know what might
+possibly be needed.</p>
+<ul class="simple">
+<li>On way back down the tree (or down the subtree if done partially) resolve the
+possible types to a single type.</li>
+<li>Resolution is by removing impossible types, and running a ranking function on
+the remaining ones.  Remaining ties raise an exception.</li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Low-level implementation details</a><ul>
+<li><a class="reference internal" href="#overloading-on-return-values">Overloading on return values</a></li>
+</ul>
+</li>
+</ul>
+
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/type_checking_implementation_details.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

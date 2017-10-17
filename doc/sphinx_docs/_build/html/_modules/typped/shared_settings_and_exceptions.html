@@ -1,0 +1,150 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.shared_settings_and_exceptions &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.shared_settings_and_exceptions</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">Some settings and exceptions that are shared between several modules.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="c1"># These should stay strings because the strings are also used in printed error messages.</span>
+<span class="n">HEAD</span> <span class="o">=</span> <span class="s2">&quot;head&quot;</span>
+<span class="n">TAIL</span> <span class="o">=</span> <span class="s2">&quot;tail&quot;</span>
+
+<span class="c1">#</span>
+<span class="c1"># Exceptions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="TyppedBaseException"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.TyppedBaseException">[docs]</a><span class="k">class</span> <span class="nc">TyppedBaseException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The base exception for all package-defined exceptions.  All</span>
+<span class="sd">    potentially-recoverable exceptions should be subclasses of this</span>
+<span class="sd">    class (i.e., not a builtin Python exception).&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="ParserException"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ParserException">[docs]</a><span class="k">class</span> <span class="nc">ParserException</span><span class="p">(</span><span class="n">TyppedBaseException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base exception for exceptions in the parser modules.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="LexerException"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.LexerException">[docs]</a><span class="k">class</span> <span class="nc">LexerException</span><span class="p">(</span><span class="n">TyppedBaseException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base exception for exceptions in the lexer modules.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="CalledBeginTokenHandler"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.CalledBeginTokenHandler">[docs]</a><span class="k">class</span> <span class="nc">CalledBeginTokenHandler</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Called a handler for the begin token.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="CalledEndTokenHandler"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.CalledEndTokenHandler">[docs]</a><span class="k">class</span> <span class="nc">CalledEndTokenHandler</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Called a handler for the end token.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="NoHandlerFunctionDefined"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.NoHandlerFunctionDefined">[docs]</a><span class="k">class</span> <span class="nc">NoHandlerFunctionDefined</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Only raised by dispatcher function, and only when it fails to find a</span>
+<span class="sd">    handler function (head or tail, whichever it was looking for).&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="ErrorInParsedLanguage"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.ErrorInParsedLanguage">[docs]</a><span class="k">class</span> <span class="nc">ErrorInParsedLanguage</span><span class="p">(</span><span class="n">ParserException</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Raised for syntax errors and other errors in the language that is being</span>
+<span class="sd">    parsed.  For type errors the exception `TypeErrorInParsedLanguage` is raised.&quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Utility functions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="is_class"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.is_class">[docs]</a><span class="k">def</span> <span class="nf">is_class</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Test if object `obj` is a class.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="is_subclass_of"><a class="viewcode-back" href="../../typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.is_subclass_of">[docs]</a><span class="k">def</span> <span class="nf">is_subclass_of</span><span class="p">(</span><span class="n">subclass_name</span><span class="p">,</span> <span class="n">class_name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is just a call to `issubclass` except that it first checks that</span>
+<span class="sd">    the first argument is a class, returning false if it is not.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">is_class</span><span class="p">(</span><span class="n">subclass_name</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">subclass_name</span><span class="p">,</span> <span class="n">class_name</span><span class="p">)</span></div>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

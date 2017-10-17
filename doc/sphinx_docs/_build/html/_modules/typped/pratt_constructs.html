@@ -1,0 +1,658 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.pratt_constructs &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.pratt_constructs</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">This module holds the `Construct` class and the `ConstructTable`</span>
+<span class="sd">class definitions.  They are basically just data containers, which are</span>
+<span class="sd">accessed by the `PrattParser` instances.  Each `PrattParser` instance</span>
+<span class="sd">has a `ConstructTable` instance.  The `ConstructTable` instances</span>
+<span class="sd">hold `Construct` instances.</span>
+
+<span class="sd">Constructs themselves are just handler functions for a pratt parser</span>
+<span class="sd">which are also associated with a triggering token label, a preconditions</span>
+<span class="sd">function, and other data.  See the documentation on preconditioned</span>
+<span class="sd">dispatching pratt parsers.</span>
+
+<span class="sd">The actual dispatching of handlers is done by the `dispatch_handler` routine of</span>
+<span class="sd">the `ConstructTable`.  It runs the preconditions functions in order, and</span>
+<span class="sd">returns a handler function for the winning construct.  This handler function</span>
+<span class="sd">has its arguments bound, since they are known at the time the handler is</span>
+<span class="sd">chosen.  This bound handler function first runs the registered handler; it</span>
+<span class="sd">then does type checking and other options before returning the subtree.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="c1"># Run tests when invoked as a script.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_ebnf_classes_and_operators.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_example_calculator.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_parser_called_from_parser.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_pratt_parser.py&quot;</span>
+                              <span class="p">],</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">defaultdict</span>
+<span class="kn">from</span> <span class="nn">.pratt_types</span> <span class="k">import</span> <span class="n">TypeSig</span><span class="p">,</span> <span class="n">TypeErrorInParsedLanguage</span>
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">TAIL</span><span class="p">,</span> <span class="n">NoHandlerFunctionDefined</span><span class="p">,</span>
+                                             <span class="n">ParserException</span><span class="p">)</span>
+
+<span class="c1"># TODO: A construct should probably save the `assoc` attribute.  Currently it</span>
+<span class="c1"># is done inside the tail handlers, implemented in the builtins using the</span>
+<span class="c1"># standard &quot;prec - 1&quot; method.  Should also hold `prec` attributes.</span>
+<span class="c1"># Then, when variable prec implemented, the subtraction on assoc</span>
+<span class="c1"># can effectively be done in `recursive_parse` (but without using subtraction</span>
+<span class="c1"># so precedences could be anything that orders).  Just modify test from</span>
+<span class="c1"># &lt; to &lt;= and then test &lt; separately with break if assoc is set for construct.</span>
+
+<span class="c1"># TODO: Do we really want construct to be set as a token attribute in this</span>
+<span class="c1"># module, during dispatching?  It is currently used to access the eval_fun</span>
+<span class="c1"># after the parsing.  Maybe `eval_fun` attributes should be set during parsing?</span>
+<span class="c1"># Simple to then call them, also, for eval on the fly.</span>
+<span class="c1">#</span>
+<span class="c1"># If no type checking is done then the eval_fun and ast_data attrs can be set</span>
+<span class="c1"># on tokens just after their handler runs, in the wrapper (check the construct</span>
+<span class="c1"># first to see if it even has any).  The extra_data attr is still there</span>
+<span class="c1"># at that point.  If overload_on_return_types then values</span>
+<span class="c1"># would need to be copied over to a temp thing, and the lookup done when the</span>
+<span class="c1"># types are resolved, then delete the extra_data attr.</span>
+
+<div class="viewcode-block" id="Construct"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct">[docs]</a><span class="k">class</span> <span class="nc">Construct</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A syntax construct in the language.  Usually corresponds to a subtree of</span>
+<span class="sd">    the final parse tree.  Essentially a data frame for a handler function</span>
+<span class="sd">    containing extra context information such as the preconditions function,</span>
+<span class="sd">    etc.</span>
+
+<span class="sd">    A construct is possibly triggered when a hander needs to be dispatched for</span>
+<span class="sd">    its kind of token.  The preconditions functions for all such constructs are</span>
+<span class="sd">    run in priority-sorted order.  A construct is triggered if its</span>
+<span class="sd">    preconditions function is the first to evaluate to true.  It then provides</span>
+<span class="sd">    the handler function to be called.</span>
+
+<span class="sd">    A list of typesigs must be stored because overloaded functions use the same</span>
+<span class="sd">    handler function (it is unknown which signature will apply until after the</span>
+<span class="sd">    arguments/subtree is parsed to resolve the overload).  Some additional</span>
+<span class="sd">    information (eval functions and ast labels) is stored in dicts keyed by</span>
+<span class="sd">    typesigs.</span>
+
+<span class="sd">    This is a low-level container class which blindly creates, saves, and</span>
+<span class="sd">    retrieves data.  Higher-level constraints on constructs (such as preventing</span>
+<span class="sd">    redefinition with a new `head_or_tail` or `trigger_token_label`) are handled</span>
+<span class="sd">    in the `ConstructTable` class or the `def_construct` method of `PrattParser`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="vm">__slots__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;parser_instance&quot;</span><span class="p">,</span> <span class="s2">&quot;construct_label&quot;</span><span class="p">,</span> <span class="s2">&quot;trigger_head_or_tail&quot;</span><span class="p">,</span>
+                 <span class="s2">&quot;trigger_token_label&quot;</span><span class="p">,</span> <span class="s2">&quot;handler_fun&quot;</span><span class="p">,</span> <span class="s2">&quot;precond_fun&quot;</span><span class="p">,</span>
+                 <span class="s2">&quot;precond_priority&quot;</span><span class="p">,</span> <span class="s2">&quot;original_sigs&quot;</span><span class="p">,</span> <span class="s2">&quot;ast_data_dict&quot;</span><span class="p">,</span>
+                 <span class="s2">&quot;eval_fun_dict&quot;</span><span class="p">,</span> <span class="s2">&quot;assoc&quot;</span><span class="p">,</span> <span class="s2">&quot;prec&quot;</span><span class="p">,</span> <span class="s2">&quot;key_on_token_values&quot;</span><span class="p">,</span> <span class="s2">&quot;is_empty&quot;</span><span class="p">]</span>
+    <span class="c1"># At some point precedence (lbp) values might be incorporated into a</span>
+    <span class="c1"># constructs, but for now all constructs for the same token would need the</span>
+    <span class="c1"># same precedence.  The info seems to go here, though, at least for future</span>
+    <span class="c1"># generalization -- reword that section of docs to incorporate constructs.</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser_instance</span><span class="p">,</span>
+                       <span class="n">construct_label</span><span class="p">,</span>
+                       <span class="n">trigger_head_or_tail</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">trigger_token_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">handler_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                       <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="c1"># Experimental, see recursive_parse; remember slot.</span>
+                       <span class="n">assoc</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="c1"># Experimental, see recursive_parse.</span>
+                       <span class="n">key_on_token_values</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a `Construct` instance associated with the parser</span>
+<span class="sd">        `parser_instance`.  Users should usually use the `def_construct`</span>
+<span class="sd">        method of a `PrattParser` instance instead of instantiating a</span>
+<span class="sd">        `Construct` directly.  That routine calls the `register_construct`</span>
+<span class="sd">        method of a `ConstructTable` instance, which in turn instantiates a</span>
+<span class="sd">        `Construct`.</span>
+
+<span class="sd">        The initial `Construct` instances have empty `original_sigs` lists of</span>
+<span class="sd">        signatures.  Signatures must be explicitly added via the</span>
+<span class="sd">        `_add_type_sig` or `overload` methods.</span>
+
+<span class="sd">        The string `construct_label` is a string label that is used to label a</span>
+<span class="sd">        construct.  It is optional and can provide extra debugging information</span>
+<span class="sd">        and string-label access to constructs.</span>
+
+<span class="sd">        The `trigger_head_or_tail` argument should be either `HEAD` or `TAIL`</span>
+<span class="sd">        (which are currently defined as the strings `&quot;head&quot;` and `&quot;tail&quot;`).</span>
+
+<span class="sd">        The `trigger_token_label` is the label of the triggering token.</span>
+
+<span class="sd">        The `handler_fun` argument should be passed the handler function.  It</span>
+<span class="sd">        will be used with preconditions function `precond_fun`, at priority</span>
+<span class="sd">        `precond_priority`.</span>
+
+<span class="sd">        The `original_sig` argument should be a formal type signature,</span>
+<span class="sd">        unexpanded since that is done at parse-time.  If `original_sig` is none</span>
+<span class="sd">        then an empty list of signatures is created.  In the case of an empty</span>
+<span class="sd">        type list either type-checking in the parser should be disabled (via</span>
+<span class="sd">        the `skip_type_checking` flag) or else types should be added later via</span>
+<span class="sd">        the `overload` method of this class.</span>
+
+<span class="sd">        An dictionary of evaluation functions and arbitrary data can be passed</span>
+<span class="sd">        as `eval_fun_dict` and `ast_data_dict`.  Otherwise new empty instances</span>
+<span class="sd">        are created.  Dicts are passed when redefining a construct (i.e.,</span>
+<span class="sd">        overloading) in order to save the previous data.</span>
+
+<span class="sd">        If `key_on_token_values` is set true then the string values of parsed tokens</span>
+<span class="sd">        are also used as part of the key for saving and looking up AST data and</span>
+<span class="sd">        evaluation functions.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span> <span class="o">=</span> <span class="n">parser_instance</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_label</span> <span class="o">=</span> <span class="n">construct_label</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">trigger_head_or_tail</span> <span class="o">=</span> <span class="n">trigger_head_or_tail</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trigger_token_label</span> <span class="o">=</span> <span class="n">trigger_token_label</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">handler_fun</span> <span class="o">=</span> <span class="n">handler_fun</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precond_fun</span> <span class="o">=</span> <span class="n">precond_fun</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">precond_priority</span> <span class="o">=</span> <span class="n">precond_priority</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assoc</span> <span class="o">=</span> <span class="n">assoc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prec</span> <span class="o">=</span> <span class="n">prec</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ast_data_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">key_on_token_values</span> <span class="o">=</span> <span class="n">key_on_token_values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_empty</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="Construct.run"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.run">[docs]</a>    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="n">construct</span><span class="p">,</span> <span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">processed_left</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">extra_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Run the handler associated with the construct.  Check the returned parse</span>
+<span class="sd">        subtree with `process_and_check_node`.  Return the subtree if it passes type</span>
+<span class="sd">        checking.</span>
+
+<span class="sd">        This is a static method because the arguments will be bound using</span>
+<span class="sd">        `functools.partial` before it is dispatched to be called.&quot;&quot;&quot;</span>
+
+        <span class="n">handler_fun</span> <span class="o">=</span> <span class="n">construct</span><span class="o">.</span><span class="n">handler_fun</span>
+
+        <span class="k">if</span> <span class="n">construct</span><span class="o">.</span><span class="n">trigger_head_or_tail</span> <span class="o">==</span> <span class="n">HEAD</span><span class="p">:</span>
+            <span class="n">subtree</span> <span class="o">=</span> <span class="n">handler_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">subtree</span> <span class="o">=</span> <span class="n">handler_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">processed_left</span><span class="p">)</span>
+
+        <span class="c1">#</span>
+        <span class="c1"># Process any in_tree=False declarations (remove item from the final tree).</span>
+        <span class="c1">#</span>
+
+        <span class="n">subtree</span><span class="o">.</span><span class="n">process_not_in_tree</span><span class="p">()</span> <span class="c1"># Could have option to skip this...</span>
+
+        <span class="c1">#</span>
+        <span class="c1"># Do type checking on the expression tree before returning it.</span>
+        <span class="c1">#</span>
+
+        <span class="k">if</span> <span class="n">construct</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">subtree</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">subtree</span><span class="p">,</span> <span class="s2">&quot;process_and_check_kwargs&quot;</span><span class="p">):</span>
+            <span class="n">subtree</span><span class="o">.</span><span class="n">process_and_check_node</span><span class="p">(</span><span class="n">construct</span><span class="p">,</span> <span class="o">**</span><span class="n">subtree</span><span class="o">.</span><span class="n">process_and_check_kwargs</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">subtree</span><span class="o">.</span><span class="n">process_and_check_node</span><span class="p">(</span><span class="n">construct</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">subtree</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_dict_keys</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the dict key tuple based on the overload settings of the parser</span>
+<span class="sd">        instance.&quot;&quot;&quot;</span>
+        <span class="c1"># Ignore token_value_key if keying is turned of for construct.</span>
+        <span class="c1"># Global setting may not be needed...</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_on_token_values</span><span class="p">:</span>
+            <span class="n">token_value_key</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">overload_on_ret_types</span><span class="p">:</span>
+            <span class="n">dict_keys</span> <span class="o">=</span> <span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">overload_on_arg_types</span><span class="p">:</span>
+            <span class="n">dict_keys</span> <span class="o">=</span> <span class="p">(</span><span class="n">type_sig</span><span class="o">.</span><span class="n">arg_types</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">dict_keys</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dict_keys</span>
+
+<div class="viewcode-block" id="Construct.save_eval_fun"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.save_eval_fun">[docs]</a>    <span class="k">def</span> <span class="nf">save_eval_fun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">eval_fun</span><span class="p">,</span> <span class="n">type_sig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the</span>
+<span class="sd">        `TypeSig` instance `typesig` and also by the `arg_types` of that</span>
+<span class="sd">        typesig.</span>
+
+<span class="sd">        If type checking is disabled for the parser then `type_sig` is set to</span>
+<span class="sd">        `None`.</span>
+
+<span class="sd">        If `key_on_token_values` is true for the construct then the value</span>
+<span class="sd">        `token_value_key` is also used in the lookup key.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">type_sig</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">type_sig</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Attempt to add an evaluation function for a type&quot;</span>
+                    <span class="s2">&quot; signature that is not registered with the construct.  The&quot;</span>
+                    <span class="s2">&quot; function name is &#39;</span><span class="si">{0}</span><span class="s2">&#39; and the construct label is &#39;</span><span class="si">{1}</span><span class="s2">&#39;.&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">eval_fun</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_label</span><span class="p">))</span>
+        <span class="n">dict_keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_keys</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span><span class="p">[</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">eval_fun</span></div>
+
+<div class="viewcode-block" id="Construct.save_ast_data"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.save_ast_data">[docs]</a>    <span class="k">def</span> <span class="nf">save_ast_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ast_data</span><span class="p">,</span> <span class="n">type_sig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Save data in the `eval_fun_dict` and `ast_data_dict`, keyed by the</span>
+<span class="sd">        `TypeSig` instance `typesig` and also by the `arg_types` of that</span>
+<span class="sd">        typesig.</span>
+
+<span class="sd">        If type checking is disabled for the parser then `type_sig` is set to</span>
+<span class="sd">        `None`.</span>
+
+<span class="sd">        If `key_on_token_values` is true for the construct then the value</span>
+<span class="sd">        `token_value_key` is also used in the lookup key.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">type_sig</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">type_sig</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Attempt to add an AST data item for a type&quot;</span>
+                    <span class="s2">&quot; signature that is not registered with the construct.  The&quot;</span>
+                    <span class="s2">&quot; construct label is &#39;</span><span class="si">{0}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">construct_label</span><span class="p">))</span>
+        <span class="n">dict_keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_keys</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ast_data_dict</span><span class="p">[</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span> <span class="o">=</span> <span class="n">ast_data</span></div>
+
+<div class="viewcode-block" id="Construct.get_eval_fun"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.get_eval_fun">[docs]</a>    <span class="k">def</span> <span class="nf">get_eval_fun</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">orig_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an evaluation function saved by `save_eval_fun`.  The</span>
+<span class="sd">        `orig_sig` argument is the original signature it was saved under, not</span>
+<span class="sd">        the expanded signature.&quot;&quot;&quot;</span>
+        <span class="n">dict_keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_keys</span><span class="p">(</span><span class="n">orig_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Construct.get_ast_data"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.get_ast_data">[docs]</a>    <span class="k">def</span> <span class="nf">get_ast_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">orig_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the ast data saved by `save_ast_data`.  The `orig_sig`</span>
+<span class="sd">        argument is the original signature it was saved under, not the expanded</span>
+<span class="sd">        signature.&quot;&quot;&quot;</span>
+        <span class="n">dict_keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_keys</span><span class="p">(</span><span class="n">orig_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Construct.overload"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.overload">[docs]</a>    <span class="k">def</span> <span class="nf">overload</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">num_args</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Overload the construct to allow a different type signature with</span>
+<span class="sd">        a different evaluation function and AST data element.  This is the user-level</span>
+<span class="sd">        interface.</span>
+
+<span class="sd">        To overload only on the number of argments when all types are allowed,</span>
+<span class="sd">        set `num_args` to the number.  Note that in that case `val_type` and</span>
+<span class="sd">        `arg_types` are ignored.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">num_args</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">num_args</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="n">TypeSig</span><span class="p">(</span><span class="n">val_type</span><span class="p">,</span> <span class="n">arg_types</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_add_type_sig</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+    <span class="k">def</span> <span class="nf">_add_type_sig</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_sig</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A lower-level interface for adding a type signature.  Called by the</span>
+<span class="sd">        higher-level `overload` method as well as `Construct.register_construct`.</span>
+
+<span class="sd">        Use `type_sig=None` to set the values when type checking is disabled.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
+            <span class="n">type_sig</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_on_token_values</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">token_value_key</span><span class="p">:</span>
+            <span class="c1"># NOTE: Keying on values could be per type sig, vs. global for construct.</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;If `key_on_token_values` is set for a `Construct`&quot;</span>
+                    <span class="s2">&quot; instance then all its overloads must supply a `token_value_key`&quot;</span>
+                    <span class="s2">&quot; argument.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">overload_on_arg_types</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TypeErrorInParsedLanguage</span><span class="p">(</span><span class="s2">&quot;Value of overload_on_arg_types&quot;</span>
+                   <span class="s2">&quot; is False but attempt to redefine and possibly set multiple&quot;</span>
+                   <span class="s2">&quot; signatures for the </span><span class="si">{0}</span><span class="s2"> function triggered by tokens with the&quot;</span>
+                   <span class="s2">&quot; label &#39;</span><span class="si">{1}</span><span class="s2">&#39; from the construct with label &#39;</span><span class="si">{2}</span><span class="s2">&#39;.&quot;</span>
+                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">trigger_token_label</span><span class="p">,</span>
+                           <span class="bp">self</span><span class="o">.</span><span class="n">construct_label</span><span class="p">))</span>
+
+        <span class="n">TypeSig</span><span class="o">.</span><span class="n">append_sig_to_list_replacing_if_identical</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span><span class="p">,</span>
+                                                          <span class="n">type_sig</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eval_fun</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_eval_fun</span><span class="p">(</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ast_data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">save_ast_data</span><span class="p">(</span><span class="n">ast_data</span><span class="p">,</span> <span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="Construct.unregister_overload"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.Construct.unregister_overload">[docs]</a>    <span class="k">def</span> <span class="nf">unregister_overload</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unregister an overload.  If the last overload is deleted then the</span>
+<span class="sd">        ``original_sigs`` attribute will be left empty.  The construct will</span>
+<span class="sd">        still be in the any ``ConstructTable`` that it was part of, though.</span>
+<span class="sd">        Called from the `unregister_construct` of `ConstructTable`.</span>
+
+<span class="sd">        If `token_value_key` is set then only that token value is removed, unless</span>
+<span class="sd">        it is the last one in which case the whole signature is removed.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: Untested method.</span>
+        <span class="n">dict_keys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_dict_keys</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+
+        <span class="c1"># Remove the data associated with the type sig.</span>
+        <span class="k">for</span> <span class="n">eval_or_data_dict</span> <span class="ow">in</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ast_data_dict</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">eval_or_data_dict</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">token_value_key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">eval_or_data_dict</span><span class="p">[</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">values_dict</span> <span class="o">=</span> <span class="n">eval_or_data_dict</span><span class="p">[</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+                    <span class="k">if</span> <span class="n">dict_key</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">values_dict</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="n">values_dict</span><span class="p">[</span><span class="n">token_value_key</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="ow">not</span> <span class="n">eval_or_data_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                        <span class="k">del</span> <span class="n">eval_or_data_dict</span><span class="p">[</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+
+        <span class="c1"># If all associated data is now gone, remove the type sig itself.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">eval_fun_dict</span>
+                <span class="ow">and</span> <span class="n">dict_keys</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ast_data_dict</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span> <span class="o">=</span> <span class="p">[</span><span class="n">s</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span> <span class="k">if</span> <span class="n">s</span> <span class="o">!=</span> <span class="n">type_sig</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">original_sigs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">is_empty</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print nice output.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;Construct(parser_instance=</span><span class="si">{}</span><span class="s2">, construct_label=</span><span class="si">{}</span><span class="s2">,&quot;</span>
+                <span class="s2">&quot; trigger_head_or_tail=</span><span class="si">{}</span><span class="s2">, trigger_token_label=</span><span class="si">{}</span><span class="s2">,&quot;</span>
+                <span class="s2">&quot; handler_fun=</span><span class="si">{}</span><span class="s2">, precond_fun=</span><span class="si">{}</span><span class="s2">, precond_priority=</span><span class="si">{}</span><span class="s2">,&quot;</span>
+                <span class="s2">&quot; key_on_token_values=</span><span class="si">{}</span><span class="s2">)&quot;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">parser_label</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_label</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">trigger_head_or_tail</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">trigger_token_label</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">handler_fun</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">precond_fun</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">precond_priority</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_on_token_values</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="ConstructTable"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable">[docs]</a><span class="k">class</span> <span class="nc">ConstructTable</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A dict holding `Construct` objects, with related methods.  Each</span>
+<span class="sd">    `PrattParser` instance has a `ConstructTable` instance to hold its</span>
+<span class="sd">    constructs.&quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parser_instance</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize a `ConstructTable` associated with the `PrattParser`</span>
+<span class="sd">        instance `parser_instance`.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span> <span class="o">=</span> <span class="n">parser_instance</span>
+        <span class="c1"># Dict of sorted lists of constructs by [head_or_tail][trigger_token_label]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span><span class="n">HEAD</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span><span class="n">TAIL</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="ConstructTable.register_construct"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable.register_construct">[docs]</a>    <span class="k">def</span> <span class="nf">register_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">handler_fun</span><span class="p">,</span>
+                           <span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_priority</span><span class="p">,</span> <span class="n">construct_label</span><span class="p">,</span>
+                           <span class="n">type_sig</span><span class="p">,</span> <span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Register a construct (either head or tail) with the subclass for</span>
+<span class="sd">        this kind of token, setting the given properties.  This method is only</span>
+<span class="sd">        ever called from the `def_construct` method of a `PrattParser`</span>
+<span class="sd">        instance.</span>
+
+<span class="sd">        The `head_or_tail` argument must be `HEAD` or `TAIL`.</span>
+
+<span class="sd">        The `type_sig` argument must be a valid `TypeSig` instance.</span>
+
+<span class="sd">        If `token_value_key` is set then it will be used as part of the key on</span>
+<span class="sd">        evaluation functions and AST data.  The `key_on_token_values` attribute</span>
+<span class="sd">        of the `Construct` instance is set based on this being set, and must</span>
+<span class="sd">        always be the same for a given construct.&quot;&quot;&quot;</span>
+        <span class="n">key_on_token_values</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">token_value_key</span><span class="p">:</span>
+            <span class="n">key_on_token_values</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># Todo maybe later, if profiling shows it might be worth it: Consider</span>
+        <span class="c1"># possible optimizations in looking up handler functions, instead of</span>
+        <span class="c1"># always linear search after splitting on `head_or_tail` and</span>
+        <span class="c1"># `trigger_token_label` values.  Some other commonly-used preconditions</span>
+        <span class="c1"># could potentially also to reduce the linear search space.  But, by</span>
+        <span class="c1"># definition, the `head_or_tail` and `trigger_token_label`</span>
+        <span class="c1"># preconditions are mutually exclusive in selecting constructs.  For</span>
+        <span class="c1"># other preconditions you also have the possibility of a &quot;don&#39;t care&quot;</span>
+        <span class="c1"># value, though, which increases the complexity in just extending the</span>
+        <span class="c1"># splitting.</span>
+        <span class="c1">#</span>
+        <span class="c1"># Suppose a decorator is used on preconditions functions (which returns</span>
+        <span class="c1"># a wrapper that first runs any of the preset kwarg tests that are set):</span>
+        <span class="c1">#</span>
+        <span class="c1">#    @precond_fun(peek_token_label=&quot;k_lpar&quot;)</span>
+        <span class="c1">#    def my_fun(...):</span>
+        <span class="c1">#        return True</span>
+        <span class="c1">#</span>
+        <span class="c1"># Assume the same setup as now for mutually-exclusive properties but</span>
+        <span class="c1"># with this kind of thing done for each priority-sorted sublist above</span>
+        <span class="c1"># some threshold size (properties are things like &quot;peek token label</span>
+        <span class="c1"># value&quot; or &quot;string value on top of pstate stack&quot;).</span>
+        <span class="c1">#</span>
+        <span class="c1"># 1) A list of dicts, one for each extra property to test on.</span>
+        <span class="c1"># 2) Each dict for a property has items keyed by the property values</span>
+        <span class="c1">#    (which are inserted into it as it is built up).  Each dict item contains</span>
+        <span class="c1">#    as its value a two-tuple containing 1) a priority-sorted sub-sublist of</span>
+        <span class="c1">#    constructs in the sublist with that property value, as well as 2) a set</span>
+        <span class="c1">#    of the constructs with that value for the property.</span>
+        <span class="c1"># 3) To look up a construct you get the sorted sub-sublist for each property,</span>
+        <span class="c1">#    keyed by the property&#39;s value in the current precond context.</span>
+        <span class="c1"># 4) Take the intersection of these sub-sublists.</span>
+        <span class="c1">#    Algorithm: start with one (smallest size is best) and sequentially (by</span>
+        <span class="c1">#    priority ordering) compare for membership in all the others, using the</span>
+        <span class="c1">#    sets that are also saved.  Take the first construct that is contained in</span>
+        <span class="c1">#    all of them.</span>
+        <span class="c1"># Premature optimization for now.  What sizes of sets involved would make</span>
+        <span class="c1"># it worth the overhead is another question.</span>
+
+        <span class="c1"># Set up the construct_lookup_dict structure if necessary.</span>
+        <span class="n">head_or_tail_construct_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span><span class="n">head_or_tail</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">trigger_token_label</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">head_or_tail_construct_dict</span><span class="p">:</span>
+            <span class="n">head_or_tail_construct_dict</span><span class="p">[</span><span class="n">trigger_token_label</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">sorted_construct_list</span> <span class="o">=</span> <span class="n">head_or_tail_construct_dict</span><span class="p">[</span><span class="n">trigger_token_label</span><span class="p">]</span>
+
+        <span class="n">construct</span> <span class="o">=</span> <span class="n">Construct</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="p">,</span>
+                              <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                              <span class="n">trigger_head_or_tail</span><span class="o">=</span><span class="n">head_or_tail</span><span class="p">,</span>
+                              <span class="n">trigger_token_label</span><span class="o">=</span><span class="n">trigger_token_label</span><span class="p">,</span>
+                              <span class="n">handler_fun</span><span class="o">=</span><span class="n">handler_fun</span><span class="p">,</span>
+                              <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                              <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                              <span class="n">key_on_token_values</span><span class="o">=</span><span class="n">key_on_token_values</span><span class="p">)</span>
+
+        <span class="c1"># Make sure we don&#39;t get multiple definitions with the same priority if</span>
+        <span class="c1"># that checking is enabled.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">raise_on_equal_priority_preconds</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">prev_construct_instance</span> <span class="ow">in</span> <span class="n">sorted_construct_list</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">prev_construct_instance</span><span class="o">.</span><span class="n">precond_priority</span> <span class="o">!=</span> <span class="n">precond_priority</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">trigger_token</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">get_token</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">)</span>
+                <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Two preconditions functions for the token&quot;</span>
+                        <span class="s2">&quot; subclass named</span><span class="se">\n</span><span class="s2">   &#39;</span><span class="si">{0}</span><span class="s2">&#39;</span><span class="se">\n</span><span class="s2">for token with label</span><span class="se">\n</span><span class="s2">   &#39;</span><span class="si">{1}</span><span class="s2">&#39;</span><span class="se">\n</span><span class="s2">&quot;</span>
+                        <span class="s2">&quot; would have the same priority, </span><span class="si">{2}</span><span class="s2">.  Their constructs&quot;</span>
+                        <span class="s2">&quot; are</span><span class="se">\n</span><span class="s2">   </span><span class="si">{3}</span><span class="se">\n</span><span class="s2">and</span><span class="se">\n</span><span class="s2">   </span><span class="si">{4}</span><span class="se">\n</span><span class="s2">If the precond funs are not&quot;</span>
+                        <span class="s2">&quot; mutually exclusive then the later-defined construct</span><span class="se">\n</span><span class="s2">will&quot;</span>
+                        <span class="s2">&quot; never be called when both are true.  Set the parser&quot;</span>
+                        <span class="s2">&quot; flag</span><span class="se">\n</span><span class="s2">   raise_on_equal_priority_preconds=False</span><span class="se">\n</span><span class="s2">if&quot;</span>
+                        <span class="s2">&quot; you actually want to allow precondition ties.&quot;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trigger_token</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">trigger_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
+                                <span class="n">precond_priority</span><span class="p">,</span> <span class="n">construct</span><span class="p">,</span> <span class="n">prev_construct_instance</span><span class="p">))</span>
+
+        <span class="n">sorted_construct_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">construct</span><span class="p">)</span>
+
+        <span class="c1"># Re-sort the list, since we appended an item.  (Could be a little</span>
+        <span class="c1"># more efficient as a binary tree insertion, putting it in where it belongs,</span>
+        <span class="c1"># but the builtin Python sort is in C so it might still win.)</span>
+        <span class="n">sorted_construct_list</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="o">.</span><span class="n">precond_priority</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span>
+                       <span class="n">head_or_tail</span><span class="p">][</span><span class="n">trigger_token_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">sorted_construct_list</span>
+
+        <span class="c1"># Save the eval_fun and ast_data.</span>
+        <span class="n">construct</span><span class="o">.</span><span class="n">_add_type_sig</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span>
+                                <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">,</span>
+                                <span class="n">token_value_key</span><span class="o">=</span><span class="n">token_value_key</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">construct</span></div>
+
+<div class="viewcode-block" id="ConstructTable.unregister_construct"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable.unregister_construct">[docs]</a>    <span class="k">def</span> <span class="nf">unregister_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">construct</span><span class="p">,</span> <span class="n">type_sig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Unregister the previously-registered construct.</span>
+
+<span class="sd">        If `construct_label` is not set then all head or tail handlers matching</span>
+<span class="sd">        `head_or_tail` and `trigger_token_label` are unregistered.</span>
+
+<span class="sd">        The `type_sig` argument must be a valid `TypeSig` instance or else</span>
+<span class="sd">        `None`.  If `type_sig` is `None` then all overloads are unregistered;</span>
+<span class="sd">        otherwise only the particular signature is unregistered.</span>
+
+<span class="sd">        No error is raised if a matching construct function is not found.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO Untested method.</span>
+        <span class="n">token_label_keyed_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span><span class="n">construct</span><span class="o">.</span><span class="n">head_or_tail</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">token_label_keyed_dict</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">construct</span><span class="o">.</span><span class="n">trigger_token_label</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">token_label_keyed_dict</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">construct_list</span> <span class="o">=</span> <span class="n">token_label_keyed_dict</span><span class="p">[</span><span class="n">construct</span><span class="o">.</span><span class="n">trigger_token_label</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">type_sig</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">construct</span><span class="o">.</span><span class="n">unregister_overload</span><span class="p">(</span><span class="n">type_sig</span><span class="p">,</span> <span class="n">token_value_key</span><span class="p">)</span>
+
+        <span class="c1"># Delete whole thing if no type_sig or no sigs are left in the construct.</span>
+        <span class="k">if</span> <span class="n">type_sig</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">construct</span><span class="o">.</span><span class="n">original_sigs</span><span class="p">:</span>
+            <span class="n">construct_list</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">construct_list</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">construct</span><span class="p">]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">construct_list</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">token_label_keyed_dict</span><span class="p">[</span><span class="n">trigger_token_label</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="ConstructTable.lookup_winning_construct"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable.lookup_winning_construct">[docs]</a>    <span class="k">def</span> <span class="nf">lookup_winning_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span>
+                                 <span class="n">lex</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">extra_data</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Look up and return the &quot;winning&quot; construct for the given head or tail</span>
+<span class="sd">        position, based on the current state.</span>
+
+<span class="sd">        This method evaluates each preconditions function in the sorted</span>
+<span class="sd">        dict for this kind of token and the specified kind of construct</span>
+<span class="sd">        (head or tail), returning the construct associated with the first</span>
+<span class="sd">        one which evaluates to `True`.  Raises `NoHandlerFunctionDefined`</span>
+<span class="sd">        if no handler function can be found.</span>
+
+<span class="sd">        This function also sets the attribute `construct` of this token</span>
+<span class="sd">        instance to the label of the winning precondition function.&quot;&quot;&quot;</span>
+        <span class="n">trigger_token_label</span> <span class="o">=</span> <span class="n">trigger_token_instance</span><span class="o">.</span><span class="n">token_label</span>
+
+        <span class="n">head_or_tail_construct_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_lookup_dict</span><span class="p">[</span><span class="n">head_or_tail</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">trigger_token_label</span> <span class="ow">in</span> <span class="n">head_or_tail_construct_dict</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">parser_label</span><span class="p">:</span>
+                <span class="n">parser_msg</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parser_msg</span> <span class="o">=</span> <span class="s2">&quot;  Parser has label &#39;</span><span class="si">{0}</span><span class="s2">&#39;.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                          <span class="bp">self</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">parser_label</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="n">NoHandlerFunctionDefined</span><span class="p">(</span>
+                    <span class="s2">&quot;No </span><span class="si">{0}</span><span class="s2"> handler functions at all are defined&quot;</span>
+                    <span class="s2">&quot; for tokens with token label &#39;</span><span class="si">{1}</span><span class="s2">&#39;.  The token&#39;s&quot;</span>
+                    <span class="s2">&quot; value is &#39;</span><span class="si">{2}</span><span class="s2">&#39;.</span><span class="si">{3}</span><span class="s2">&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span>
+                            <span class="n">trigger_token_instance</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">parser_msg</span><span class="p">))</span>
+        <span class="n">sorted_construct_list</span> <span class="o">=</span> <span class="n">head_or_tail_construct_dict</span><span class="p">[</span><span class="n">trigger_token_label</span><span class="p">]</span>
+
+        <span class="c1"># Sequentially run sorted precondition functions until one is true.</span>
+        <span class="k">for</span> <span class="n">construct</span> <span class="ow">in</span> <span class="n">sorted_construct_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">construct</span><span class="o">.</span><span class="n">is_empty</span><span class="p">:</span> <span class="c1"># Ignore empty constructs.</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">construct</span><span class="o">.</span><span class="n">precond_fun</span><span class="p">(</span><span class="n">trigger_token_instance</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+                <span class="c1"># Note construct is saved as a user-accesible token attribute here.</span>
+                <span class="n">trigger_token_instance</span><span class="o">.</span><span class="n">construct</span> <span class="o">=</span> <span class="n">construct</span>
+                <span class="k">return</span> <span class="n">construct</span>
+
+        <span class="k">raise</span> <span class="n">NoHandlerFunctionDefined</span><span class="p">(</span><span class="s2">&quot;No </span><span class="si">{0}</span><span class="s2"> handler function matched the token &quot;</span>
+                <span class="s2">&quot;with value &#39;</span><span class="si">{1}</span><span class="s2">&#39; and label &#39;</span><span class="si">{2}</span><span class="s2">&#39; in the current preconditions.&quot;</span>
+                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                        <span class="n">trigger_token_label</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="ConstructTable.dispatch_handler"><a class="viewcode-back" href="../../typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable.dispatch_handler">[docs]</a>    <span class="k">def</span> <span class="nf">dispatch_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span>
+                         <span class="n">lex</span><span class="p">,</span> <span class="n">extra_data</span><span class="p">,</span> <span class="n">left</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Look up and return a wrapper for the &quot;winning&quot; handler function for the</span>
+<span class="sd">        token, with its arguments bound.  Sets `extra_data` attribute on</span>
+<span class="sd">        `trigger_token_instance`.&quot;&quot;&quot;</span>
+        <span class="n">trigger_token_instance</span><span class="o">.</span><span class="n">extra_data</span> <span class="o">=</span> <span class="n">extra_data</span>
+        <span class="k">if</span> <span class="n">head_or_tail</span> <span class="o">==</span> <span class="n">HEAD</span><span class="p">:</span>
+            <span class="n">construct</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_winning_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span>
+                                                      <span class="n">lex</span><span class="p">,</span> <span class="n">extra_data</span><span class="p">)</span>
+            <span class="n">handler</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span>
+                            <span class="n">construct</span><span class="o">.</span><span class="n">run</span><span class="p">,</span> <span class="n">construct</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span> <span class="n">lex</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">head_or_tail</span> <span class="o">==</span> <span class="n">TAIL</span><span class="p">:</span>
+            <span class="n">construct</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_winning_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span>
+                                                      <span class="n">lex</span><span class="p">,</span> <span class="n">extra_data</span><span class="p">)</span>
+            <span class="n">handler</span> <span class="o">=</span> <span class="n">functools</span><span class="o">.</span><span class="n">partial</span><span class="p">(</span>
+                            <span class="n">construct</span><span class="o">.</span><span class="n">run</span><span class="p">,</span> <span class="n">construct</span><span class="p">,</span> <span class="n">trigger_token_instance</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Bad first argument to dispatch_handler&quot;</span>
+                    <span class="s2">&quot; function: must be HEAD or TAIL or the equivalent.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">handler</span><span class="p">,</span> <span class="n">construct</span></div></div>
+
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

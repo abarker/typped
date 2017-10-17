@@ -1,0 +1,92 @@
+
+.. warning::
+
+   This page is rough and needs editing.  Some of the details may have changed.
+
+TODO update to use **construct** (handler function data frame) terminology.
+
+Low-level implementation details
+================================
+
+This section contains some low-level implementation details and can be skipped
+by most users of the Typped package.
+
+As far as the implementation of dispatching, the method ``dispatch_handler`` of
+``TokenNode`` does the lookup and call of the handler functions.  Most users
+will have no need to modify the basic parsing routines ``parse`` and
+``recursive_parse``.  Nevertheless, this is what the code looks like when
+dispatching is used.  It is a little simplified from the actual code in Typped
+because it does not handler jops, null-string tokens, or error-checking.
+
+In this code the ``recursive_parse`` function is a method of the ``TokenNode``
+class (subclasses of which represent kinds of tokens, with instances
+representing actual parsed values).  This is only because it is a convenient
+namespace and the lexer does not need to be passed in.
+
+.. code-block:: python
+
+   def recursive_parse(self, subexp_prec):
+       lex = self.token_table.lex
+       curr_token = lex.next()
+       head_handler = curr_token.dispatch_handler(HEAD, lex)
+       processed_left = head_handler()
+       lookbehind = [processed_left]
+
+       while lex.peek().prec() > subexp_prec:
+           curr_token = lex.next()
+           tail_handler = curr_token.dispatch_handler(
+                                  TAIL, lex, processed_left, lookbehind)
+           processed_left = tail_handler()
+           lookbehind.append(processed_left)
+
+The lookup is performed by getting the list of precondition functions, ordered
+by priority, and calling each one until one returns ``True`` based on the
+current conditions.  The associated handler function is then executed.  Note
+that the dispatch handler binds the arguments of the function it returns (i.e.,
+it returns a partial function since it knows the arguments).
+
+All the registered handler functions for a token label are stored in a static
+``OrderedDict`` attribute of the corresponding ``TokenNode`` subclass (after
+being passed into ``modify_token`` via keyword arguments).  The dict
+is called ``handler_funs`` and is keyed first by ``HEAD`` or ``TAIL`` and then
+by precondition label strings.  For each type of handler function, head or
+tail, the ordered dict holds a named tuple keyed by precondition labels and
+having the following format::
+
+     (precond_fun, precond_priority, handler_fun)
+
+Each such ordered dict is ordered by the precondition priorities.
+
+Internally the preconditions functions for a token label are stored in a static
+dict attribute of the corresponding ``TokenNode`` subclass called
+``preconditions_dict``.  There are methods to register handler functions and
+unregister them.  This dict is keyed by the unique labels required for unique
+preconditions functions and contains data tuples as items.
+
+Defined type signatures (possibly overloaded, as a list) are stored as
+attributes of the handler functions themselves.  Duplicates are not allowed,
+and equality is defined by the definition of operator ``==`` for the
+``TypeSig`` class (currently only exact match).
+
+Remember these points:
+
+- Handler functions are in one-to-one correspondence with ``(head_or_tail,
+  token_label, precond_label)`` tuples (using a default label if one is not
+  specified), not overloaded signatures.
+
+- In order to have a unique head or tail handler function there must be a
+  unique precondition label associated with its handler function.
+
+- Each defined type signature is stored with its corresponding handler
+  function.  Currently a list of signatures is actually pasted onto the
+  function as an attribute, **so function objects used as handlers cannot ever
+  be reused**.  Use a factory function if you need to use the same code for
+  different handler functions.  In the built-in methods such as ``def_stdfun``
+  the handlers are defined inside the method, so a different function object is
+  created each time.
+
+- Evaluation functions are saved with tokens keyed by the precondition label
+  and the formal type that they are defined with.  They are looked up based on
+  the information resolved at parse time (the winning precond label and the
+  winning formal signature).
+

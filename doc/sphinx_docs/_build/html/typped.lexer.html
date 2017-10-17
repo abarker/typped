@@ -1,0 +1,1015 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.9. typped.lexer &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="11. Appendix A: Possible (but currently unimplemented) generalizations" href="other_possible_generalizations.html" />
+    <link rel="prev" title="10.8. typped.register_grammar_with_parser" href="typped.register_grammar_with_parser.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="other_possible_generalizations.html" title="11. Appendix A: Possible (but currently unimplemented) generalizations"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.register_grammar_with_parser.html" title="10.8. typped.register_grammar_with_parser"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.lexer">
+<span id="typped-lexer"></span><h1>10.9. typped.lexer<a class="headerlink" href="#module-typped.lexer" title="Permalink to this headline">¶</a></h1>
+<p>A <code class="code docutils literal"><span class="pre">Lexer</span></code> class instance is a general lexer/scanner/tokenizer.  It was designed
+to be used by the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class, but it can also be used for other
+lexical scanning applications.</p>
+<p>The general purpose of the <code class="code docutils literal"><span class="pre">Lexer</span></code> is to take a string of text and produce a
+corresponding sequence of tokens from the text.  The set of possible tokens is
+defined by the user, with a string label and a regex pattern that is searched
+for in the program text.  Once initialized with text a <code class="code docutils literal"><span class="pre">Lexer</span></code> instance is a
+generator which sequentially produces tokens with its <code class="code docutils literal"><span class="pre">next</span></code> method.  It is
+also an iterator, so it can be used in loops, etc.</p>
+<p>With some lexers the order in which tokens are defined is significant.  They
+match regexes from a list of regexes, taking the first match without regard
+to the length of the match.  The
+<code class="code docutils literal"><span class="pre">Lexer</span></code> class was designed to function independently of the order in which
+tokens are defined.  The longest match is always returned, with ties broken
+by an explicit priority mechanism.  This allows token definitions to be
+organized in various ways.   They can all be done in one
+place or spread around in the code in any order, however the programmer wants
+to do it.</p>
+<div class="section" id="defining-tokens">
+<h2>10.9.1. Defining tokens<a class="headerlink" href="#defining-tokens" title="Permalink to this headline">¶</a></h2>
+<p>This section describes the low-level definition of tokens when using <code class="code docutils literal"><span class="pre">Lexer</span></code> as
+a standalone application.  To use tokens with a <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance, though,
+you need to use the corresponding <code class="code docutils literal"><span class="pre">def_token</span></code> method of the <code class="code docutils literal"><span class="pre">PrattParser</span></code>
+class.  That class adds extra attributes, methods, etc., to the tokens.  The
+interface is generally the same.</p>
+<p>A token for a left parenthesis would be defined like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span> <span class="o">=</span> <span class="n">typped</span><span class="o">.</span><span class="n">Lexer</span><span class="p">()</span>
+<span class="n">lex</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;lpar&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The string <code class="code docutils literal"><span class="pre">k_lpar</span></code> is a label for the token.  The use of the string prefix
+“<code class="code docutils literal"><span class="pre">k_</span></code>” is a naming convention for token labels.  An identifier token could be
+defined like this:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_](?:\w*)&quot;</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Notice that in the definition of the identifier the keyword argument <code class="code docutils literal"><span class="pre">on_ties</span></code>
+is set to -1.  The lexer will by default always choose the longest string which
+matches a defined regex pattern for a token.  If there is a tie then, by
+default, an exception will be raised.  The <code class="code docutils literal"><span class="pre">on_ties</span></code> value is used to break
+ties; strings of the same length are sorted by that value and the
+highest-priority string is chosen.  The default <code class="code docutils literal"><span class="pre">on_ties</span></code> value is <code class="code docutils literal"><span class="pre">0</span></code>.  Suppose
+you also wanted a token for the string <code class="code docutils literal"><span class="pre">mod</span></code>, and defined it as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_mod&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;mod&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Since this token has a higher <code class="code docutils literal"><span class="pre">on_ties</span></code> value, it will always take precedence over
+the identifier token, even though both match and have the same length.</p>
+</div>
+<div class="section" id="begin-and-end-tokens">
+<h2>10.9.2. Begin and end tokens<a class="headerlink" href="#begin-and-end-tokens" title="Permalink to this headline">¶</a></h2>
+<p>The lexer uses sentinel begin-token and end-token tokens for the beginning and
+the end of the token sequence for text.  These tokens must be explicitly
+defined (i.e., given string labels) either by calling <code class="code docutils literal"><span class="pre">def_begin_end_tokens</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span><span class="o">.</span><span class="n">def_begin_end_tokens</span><span class="p">(</span><span class="s2">&quot;k_begin&quot;</span><span class="p">,</span> <span class="s2">&quot;k_end&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>or else by setting the <code class="code docutils literal"><span class="pre">default_begin_end_tokens</span></code> flag to <code class="code docutils literal"><span class="pre">True</span></code> when
+initializing the lexer:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span> <span class="o">=</span> <span class="n">Lexer</span><span class="p">(</span><span class="n">def_begin_end_tokens</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The default tokens have the labels <code class="code docutils literal"><span class="pre">k_begin</span></code> and <code class="code docutils literal"><span class="pre">k_end</span></code>.</p>
+<p>The begin-token is never explicitly returned.  After the call to <code class="code docutils literal"><span class="pre">set_text</span></code> to
+define the text to tokenize and before any calls to <code class="code docutils literal"><span class="pre">next</span></code> the begin-token is
+the current token <code class="code docutils literal"><span class="pre">lexer.token</span></code>.  So <code class="code docutils literal"><span class="pre">lex.token</span></code> and <code class="code docutils literal"><span class="pre">lex.peek(0)</span></code> would both
+return the begin token.</p>
+<p>After the end of the text the <code class="code docutils literal"><span class="pre">next</span></code> method explicitly returns one end-token.
+Calling <code class="code docutils literal"><span class="pre">next</span></code> again raises <code class="code docutils literal"><span class="pre">StopIteration</span></code> and halts the lexing of the
+currently-set text.  All peeks beyond the end of the text are reported as
+end-tokens.</p>
+</div>
+<div class="section" id="using-the-lexer">
+<h2>10.9.3. Using the lexer<a class="headerlink" href="#using-the-lexer" title="Permalink to this headline">¶</a></h2>
+<p>This is a simple example of using the lexer.  Notice that multiple token definitions
+can be combined using the <code class="code docutils literal"><span class="pre">def_multi_tokens</span></code> method.  It is usually better to
+define a shorter alias for the function call, however.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">lex</span> <span class="o">=</span> <span class="n">Lexer</span><span class="p">()</span>
+
+<span class="n">lex</span><span class="o">.</span><span class="n">def_begin_end_tokens</span><span class="p">(</span><span class="s2">&quot;k_begin&quot;</span><span class="p">,</span> <span class="s2">&quot;k_end&quot;</span><span class="p">)</span>
+<span class="n">lex</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_space&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[ \t]+&quot;</span><span class="p">,</span> <span class="n">ignore</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># note + NOT *</span>
+<span class="n">lex</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="s2">&quot;k_newline&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[\n\f\r\v]+&quot;</span><span class="p">,</span> <span class="n">ignore</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># note + NOT *</span>
+<span class="n">tokens</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_](?:\w*)&quot;</span><span class="p">)</span>
+    <span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\+&quot;</span><span class="p">)</span>
+    <span class="p">]</span>
+<span class="n">lex</span><span class="o">.</span><span class="n">def_multi_tokens</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span>
+
+<span class="n">lex</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="s2">&quot;x  + y&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">lex</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The result is as follows:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">k_identifier</span><span class="p">,</span><span class="n">x</span><span class="o">&gt;</span>
+<span class="o">&lt;</span><span class="n">k_plus</span><span class="p">,</span><span class="o">+&gt;</span>
+<span class="o">&lt;</span><span class="n">k_identifier</span><span class="p">,</span><span class="n">y</span><span class="o">&gt;</span>
+<span class="o">&lt;</span><span class="n">k_end</span><span class="p">,</span><span class="kc">None</span><span class="o">&gt;</span>
+</pre></div>
+</div>
+<p>Notice that the end-token is actually returned, but the begin-token is not.
+The method <code class="code docutils literal"><span class="pre">def_default_whitespace</span></code> could alternately be used to define the
+whitespace tokens.</p>
+</div>
+<div class="section" id="user-accessible-methods-and-attributes-of-lexer">
+<h2>10.9.4. User-accessible methods and attributes of <code class="code docutils literal"><span class="pre">Lexer</span></code><a class="headerlink" href="#user-accessible-methods-and-attributes-of-lexer" title="Permalink to this headline">¶</a></h2>
+<p>The lexer class has many utility methods and user-accessible attributes.  Some
+of the main ones are listed here.  One of the most commonly-accessed attributes
+of a lexer <code class="code docutils literal"><span class="pre">lex</span></code> is the current token, <code class="code docutils literal"><span class="pre">lex.token</span></code>.</p>
+<p>General methods:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">next</span></code> — return the next token</li>
+<li><code class="code docutils literal"><span class="pre">peek</span></code> — peek at the next token without consuming it</li>
+<li><code class="code docutils literal"><span class="pre">go_back</span></code> — go back in the text stream by some number of tokens</li>
+</ul>
+<p>Helper methods:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">match_next</span></code> — matches the specified token, with various options</li>
+<li><code class="code docutils literal"><span class="pre">in_ignored_tokens</span></code> — test if some particular token was ignored before the current one</li>
+<li><code class="code docutils literal"><span class="pre">no_ignored_after</span></code> — true if no ignored tokens immediately follow current token</li>
+<li><code class="code docutils literal"><span class="pre">no_ignored_before</span></code> — true if no ignored tokens immediately preceed current token</li>
+</ul>
+<p>Some boolean-valued informational methods:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">curr_token_is_first</span></code> — true if the current token is the first returned</li>
+<li><code class="code docutils literal"><span class="pre">text_is_set</span></code> — true only when text is currently set for scanning</li>
+</ul>
+<p>Other attributes:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">token</span></code> — the current token (the most recent one returned by <code class="code docutils literal"><span class="pre">next</span></code>)</li>
+<li><code class="code docutils literal"><span class="pre">all_token_count</span></code> — num of tokens since text was set (begin and end not counted)</li>
+<li><code class="code docutils literal"><span class="pre">non_ignored_token_count</span></code> — num of not-ignored tokens since text was set</li>
+<li><code class="code docutils literal"><span class="pre">default_helper_exception</span></code> — the default exception for helpers like <code class="code docutils literal"><span class="pre">match_next</span></code></li>
+<li><code class="code docutils literal"><span class="pre">text_is_set</span></code> — whether or not text has been set for the lexer</li>
+</ul>
+<p>TODO, list more, and why not make some of these methods of <code class="code docutils literal"><span class="pre">TokenNode</span></code> instead?</p>
+</div>
+<div class="section" id="user-accessible-attributes-of-tokens">
+<h2>10.9.5. User-accessible attributes of tokens<a class="headerlink" href="#user-accessible-attributes-of-tokens" title="Permalink to this headline">¶</a></h2>
+<p>The tokens returned by the lexer are instances of a subclass of the class
+<code class="code docutils literal"><span class="pre">TokenNode</span></code> (named that since the parser combines them into the nodes of a
+parse tree).  The subclasses themselves represent the general kind of token,
+for example if <code class="code docutils literal"><span class="pre">k_identifier</span></code> was defined as a token label then a particular
+subclass of <code class="code docutils literal"><span class="pre">TokenNode</span></code> would be created to represent identifiers in general.
+The particular instances of identifiers, found in the lexed text with their
+actual string values, are represented by instances of the general class for
+identifiers.</p>
+<p>User-accessible methods of tokens.</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">is_begin_token</span></code> — true when tokens is a begin token</li>
+<li><code class="code docutils literal"><span class="pre">is_end_token</span></code> — true when tokens is a end token</li>
+<li><code class="code docutils literal"><span class="pre">is_begin_or_end_token</span></code> — true when tokens is a begin_or_end_token</li>
+<li><code class="code docutils literal"><span class="pre">ignored_before_labels</span></code> — just the token labels of the tokens ignored before</li>
+</ul>
+<p>For a token named <code class="code docutils literal"><span class="pre">t</span></code>, these attributes are available:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">t.token_label</span></code> — the string label of the token (which was defined with it)</li>
+<li><code class="code docutils literal"><span class="pre">t.value</span></code> — the string value for the token, found in the lexed text</li>
+<li><code class="code docutils literal"><span class="pre">t.is_first</span></code> — true iff this is the first non-begin token in the text</li>
+<li><code class="code docutils literal"><span class="pre">t.is_first_on_line</span></code> — true iff this is the first token returned for a line</li>
+<li><code class="code docutils literal"><span class="pre">t.parent</span></code> — can be set to the parent in a tree; set by the lexer to <code class="code docutils literal"><span class="pre">None</span></code></li>
+<li><code class="code docutils literal"><span class="pre">t.children</span></code> — can be set to a list of children; set by the lexer to <code class="code docutils literal"><span class="pre">[]</span></code></li>
+<li><code class="code docutils literal"><span class="pre">t.original_matched_string</span></code> — the original text that was consumed for this token</li>
+<li><code class="code docutils literal"><span class="pre">t.line_and_char</span></code> — tuple of line number and character where the token started</li>
+<li><code class="code docutils literal"><span class="pre">t.char_index_in_program</span></code> — the index of this token into the text set via <code class="code docutils literal"><span class="pre">set_text</span></code></li>
+<li><code class="code docutils literal"><span class="pre">t.ignored_before</span></code> — a tuple of all tokens ignored immediately before this one</li>
+</ul>
+<p>TODO, list other methods, too.</p>
+</div>
+<div class="section" id="initialization-options">
+<h2>10.9.6. Initialization options<a class="headerlink" href="#initialization-options" title="Permalink to this headline">¶</a></h2>
+<p>There are several options that can be set on initialization, including the
+level of token lookahead that is supported.</p>
+<p>TODO</p>
+</div>
+<div class="section" id="code">
+<h2>10.9.7. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="typped.lexer.TokenNode">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">TokenNode</code><a class="reference internal" href="_modules/typped/lexer.html#TokenNode"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>The base class for token objects.  Each different kind of token is represented
+by a subclass of this class.  Instances of the tokens in the program text are
+represented by instances of the subclass for that kind of token.</p>
+<p>The attribute <code class="code docutils literal"><span class="pre">token_label</span></code> is the string token label for the kind of token
+represented by an instance.  The attribute <code class="code docutils literal"><span class="pre">value</span></code> is set to the actual
+string value in the lexed text which matched the regex of the token.  The
+attribute <code class="code docutils literal"><span class="pre">ignored_before</span></code> is a tuple of all tokens ignored just
+before the lexer got this token.</p>
+<p>The attribute <code class="code docutils literal"><span class="pre">children</span></code> is a list of the child nodes, and <code class="code docutils literal"><span class="pre">parent</span></code> is the
+parent.  Indexing a <code class="code docutils literal"><span class="pre">TokenNode</span></code> class also returns the corresponding child
+node, i.e. <code class="code docutils literal"><span class="pre">t_node[0]</span></code> would be the leftmost child.</p>
+<dl class="attribute">
+<dt id="typped.lexer.TokenNode.token_label">
+<code class="descname">token_label</code><em class="property"> = None</em><a class="headerlink" href="#typped.lexer.TokenNode.token_label" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.TokenNode.original_matched_string">
+<code class="descname">original_matched_string</code><em class="property"> = ''</em><a class="headerlink" href="#typped.lexer.TokenNode.original_matched_string" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.original_text">
+<code class="descname">original_text</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.original_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.original_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the original text that was read in lexing the token, including
+any ignored text.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.ignored_before_labels">
+<code class="descname">ignored_before_labels</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.ignored_before_labels"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.ignored_before_labels" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the list of token labels of tokens which were ignored just
+before this token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.append_children">
+<code class="descname">append_children</code><span class="sig-paren">(</span><em>*token_nodes</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.append_children"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.append_children" title="Permalink to this definition">¶</a></dt>
+<dd><p>Append all the arguments as children, also setting their parent to self.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.convert_to_AST">
+<code class="descname">convert_to_AST</code><span class="sig-paren">(</span><em>convert_TokenNode_to_AST_node_fun</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.convert_to_AST"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.convert_to_AST" title="Permalink to this definition">¶</a></dt>
+<dd><p>Call this on the root node.  Converts the token tree to an abstract
+syntax tree.  This basically converts the nodes one-to-one to a more
+convenient type of node for the AST of a given application.  The
+function <code class="code docutils literal"><span class="pre">convert_TokenNode_to_AST_node_fun</span></code> should take one argument,
+a <code class="code docutils literal"><span class="pre">TokenNode</span></code> instance, and return an AST node instance for the
+corresponding AST node.  The only requirement for the AST nodes is that
+they have a method called <code class="code docutils literal"><span class="pre">append_children</span></code>.  The <code class="code docutils literal"><span class="pre">ast_data</span></code> attribute
+of a node can be used to save information useful in the transformation.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.is_begin_token">
+<code class="descname">is_begin_token</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.is_begin_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.is_begin_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test whether this token is the begin-token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.is_end_token">
+<code class="descname">is_end_token</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.is_end_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.is_end_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test whether this token is the end-token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.is_begin_or_end_token">
+<code class="descname">is_begin_or_end_token</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.is_begin_or_end_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.is_begin_or_end_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Test whether this token is either the begin- or end-token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.traditional_repr">
+<code class="descname">traditional_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.traditional_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.traditional_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Representation as a string that looks like class initialization.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.value_repr">
+<code class="descname">value_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.value_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.value_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Token representation as its value.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.label_repr">
+<code class="descname">label_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.label_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.label_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Token representation as its token label.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.summary_repr">
+<code class="descname">summary_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.summary_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.summary_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Token representation as a summarizing string containing both the label and
+the value.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.tree_repr">
+<code class="descname">tree_repr</code><span class="sig-paren">(</span><em>indent=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.tree_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.tree_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Token representation as the root of a parse subtree, with formatting.
+The optional <code class="code docutils literal"><span class="pre">indent</span></code> parameter can be either an indent string or else
+an integer for the number of spaces to indent.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.string_tree_repr">
+<code class="descname">string_tree_repr</code><span class="sig-paren">(</span><em>only_vals=False</em>, <em>only_labels=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.string_tree_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.string_tree_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Token representation as the root of a parse subtree, in a string format.
+This is the default representation, used for <code class="code docutils literal"><span class="pre">__repr__</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenNode.old_repr">
+<code class="descname">old_repr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenNode.old_repr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenNode.old_repr" title="Permalink to this definition">¶</a></dt>
+<dd><p>This old representation is kept <em>only</em> because it is used in some tests.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.lexer.basic_token_subclass_factory">
+<code class="descclassname">typped.lexer.</code><code class="descname">basic_token_subclass_factory</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#basic_token_subclass_factory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.basic_token_subclass_factory" title="Permalink to this definition">¶</a></dt>
+<dd><p>Create and return a new token subclass representing tokens with label
+<code class="code docutils literal"><span class="pre">token_label</span></code>.  This function is called from the <code class="code docutils literal"><span class="pre">_create_token_subclass</span></code>
+method  of <code class="code docutils literal"><span class="pre">TokenTable</span></code> when it needs to create a new one to
+start with.  This function <strong>should not be called directly</strong>, since
+additional attributes (such as the token label and a new subclass name)
+also need to be added to the generated subclass.</p>
+<p>This function is the default argument to the <code class="code docutils literal"><span class="pre">token_subclassing_fun</span></code>
+keyword argument of the initializer for <code class="code docutils literal"><span class="pre">TokenTable</span></code>.  Users
+can define their own such function in order to add methods to token objects
+which are particular to their own application (the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class does
+this, for example).</p>
+<p>Note that using a separate subclass for each token label allows for
+attributes and methods specific to a kind of token to be pasted onto the
+class itself without conflicts.  For example, the <code class="code docutils literal"><span class="pre">PrattParser</span></code> subclass
+adds head handler and tail handler methods which are specific to a given
+token label.</p>
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.lexer.TokenTable">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">TokenTable</code><span class="sig-paren">(</span><em>token_subclass_factory_fun=&lt;function basic_token_subclass_factory&gt;</em>, <em>pattern_matcher_instance=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A symbol table holding subclasses of the <code class="code docutils literal"><span class="pre">TokenNode</span></code> class for each token label
+defined in a <code class="code docutils literal"><span class="pre">Lexer</span></code> instance.  Also has methods for operating on tokens.
+Each <code class="code docutils literal"><span class="pre">Lexer</span></code> instance contains an instance of this class to save the subclasses for
+the kinds of tokens which have been defined for it.</p>
+<dl class="method">
+<dt id="typped.lexer.TokenTable.undef_token_subclass">
+<code class="descname">undef_token_subclass</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.undef_token_subclass"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.undef_token_subclass" title="Permalink to this definition">¶</a></dt>
+<dd><p>Un-define the token with label token_label.  The <code class="code docutils literal"><span class="pre">TokenNode</span></code> subclass
+previously associated with that label is removed from the dictionary.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.undef_token">
+<code class="descname">undef_token</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.undef_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.undef_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Undefine the token corresponding to <code class="code docutils literal"><span class="pre">token_label</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.def_token">
+<code class="descname">def_token</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.def_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.def_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a token and the regex to recognize it.  Returns the new
+token subclass.</p>
+<p>The label <code class="code docutils literal"><span class="pre">token_label</span></code> is the label for the kind of token.</p>
+<p>The label <code class="code docutils literal"><span class="pre">regex_string</span></code> is a Python regular expression defining the
+text strings which match for the token.  If <code class="code docutils literal"><span class="pre">regex_string</span></code> is set to
+<code class="code docutils literal"><span class="pre">None</span></code> then a dummy token will be created which is never searched for
+in the lexed text.  To better catch errors it does not have a default
+value, so setting it to <code class="code docutils literal"><span class="pre">None</span></code> must be done explicitly.</p>
+<p>Setting <code class="code docutils literal"><span class="pre">ignore=True</span></code> will cause all such tokens to be ignored (except
+that they will be placed on the <code class="code docutils literal"><span class="pre">ignored_before</span></code> list of the
+non-ignored token that they precede).</p>
+<p>In case of ties for the longest match in scanning, the integer
+<code class="code docutils literal"><span class="pre">on_ties</span></code> values are used to break the ties.  If any two are still
+equal an exception will be raised.</p>
+<p>The <code class="code docutils literal"><span class="pre">option</span></code> parameter takes a string value, which is then passed to
+the <code class="code docutils literal"><span class="pre">insert_pattern</span></code> method of whatever matcher is being used.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.def_begin_token">
+<code class="descname">def_begin_token</code><span class="sig-paren">(</span><em>begin_token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.def_begin_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.def_begin_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the begin-token.  The lexer’s <code class="code docutils literal"><span class="pre">def_begin_end_tokens</span></code> method
+should usually be called instead.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.def_end_token">
+<code class="descname">def_end_token</code><span class="sig-paren">(</span><em>end_token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.def_end_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.def_end_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the end-token.  The <code class="code docutils literal"><span class="pre">def_begin_end_tokens</span></code> method should usually
+be called instead.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.get_next_token_label_and_value">
+<code class="descname">get_next_token_label_and_value</code><span class="sig-paren">(</span><em>program</em>, <em>prog_unprocessed_indices</em>, <em>ERROR_MSG_TEXT_SNIPPET_SIZE</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.get_next_token_label_and_value"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.get_next_token_label_and_value" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the next token label for the start of the current program
+text, as in the string <code class="code docutils literal"><span class="pre">program</span></code> and indexed by the numbers in
+the ordered-pair tuple <code class="code docutils literal"><span class="pre">prog_unprocessed</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenTable.ignored_tokens">
+<code class="descname">ignored_tokens</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenTable.ignored_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenTable.ignored_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the set of ignored tokens.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.lexer.TokenBuffer">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">TokenBuffer</code><span class="sig-paren">(</span><em>token_getter_fun</em>, <em>max_peek=-1</em>, <em>max_deque_size=-1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>An abstraction of the token buffer.  This is used internally by the
+<code class="code docutils literal"><span class="pre">Lexer</span></code> class and should not usually be accessed by users.  It is basically
+a nice wrapper over an underlying deque, but this is complicated by the
+need to save persistent state pointers into the buffer even in fixed-size
+buffers when tokens at the front get dropped.</p>
+<p>Previous tokens are stored in the same deque as the current token and any
+lookahead tokens.  The default indexing is relative to the current token,
+at <code class="code docutils literal"><span class="pre">current_offset</span></code>, which is zero for the current token.  (The current
+offset is itself relative to a reference point, but users do not need to
+know that detail).</p>
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><em>begin_token</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Initialize the token buffer, or clear an reset it.  Any saved
+offsets are no longer valid, but no check is made for that.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.state_to_offset">
+<code class="descname">state_to_offset</code><span class="sig-paren">(</span><em>state</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.state_to_offset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.state_to_offset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the offset into the current deque that corresponds to what
+was the offset (absolute index to the current token) at the time when
+the state was saved.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.get_state">
+<code class="descname">get_state</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.get_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.get_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return a buffer state indicator that can be returned to later.  The
+<code class="code docutils literal"><span class="pre">go_back</span></code> or <code class="code docutils literal"><span class="pre">push_back</span></code> methods of the lexer use this.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.num_saved_previous_tokens">
+<code class="descname">num_saved_previous_tokens</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.num_saved_previous_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.num_saved_previous_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the number of tokens before the current token that are saved.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.num_tokens_after_current">
+<code class="descname">num_tokens_after_current</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.num_tokens_after_current"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.num_tokens_after_current" title="Permalink to this definition">¶</a></dt>
+<dd><p>An informational method.  Returns the number of tokens from
+the current token to the end of the token buffer.  Some may have been
+read past the position of the current token due to peeks or
+pushbacks.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.move_forward">
+<code class="descname">move_forward</code><span class="sig-paren">(</span><em>num_toks=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.move_forward"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.move_forward" title="Permalink to this definition">¶</a></dt>
+<dd><p>Move the current token (i.e., the offset) forward by one.  This is
+the token buffer’s equivalent of <code class="code docutils literal"><span class="pre">next</span></code>, except that it returns
+previously-buffered tokens if possible.  The <code class="code docutils literal"><span class="pre">Lexer</span></code> method <code class="code docutils literal"><span class="pre">next</span></code>
+should always be called by users of that class, because it also handles
+some other things.</p>
+<p>Attempts to move past the first end-token leave the current offset at
+the first end-token.  No new tokens are added to the buffer.  The
+end-token is returned.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.TokenBuffer.move_back">
+<code class="descname">move_back</code><span class="sig-paren">(</span><em>num_toks=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#TokenBuffer.move_back"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.TokenBuffer.move_back" title="Permalink to this definition">¶</a></dt>
+<dd><p>Move the current token (i.e., offset) back <code class="code docutils literal"><span class="pre">num_toks</span></code> tokens.  Will
+always stop at the begin-token.  Users should check the condition if it
+matters.  If the move attempts to move back to before the
+currently-saved tokens, but the begin-token is no longer saved, then a
+<code class="code docutils literal"><span class="pre">LexerException</span></code> is raised.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.lexer.GenTokenState">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">GenTokenState</code><a class="reference internal" href="_modules/typped/lexer.html#GenTokenState"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.GenTokenState" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>The state of the token_generator program execution.</p>
+<dl class="attribute">
+<dt id="typped.lexer.GenTokenState.ordinary">
+<code class="descname">ordinary</code><em class="property"> = 1</em><a class="headerlink" href="#typped.lexer.GenTokenState.ordinary" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.GenTokenState.end">
+<code class="descname">end</code><em class="property"> = 2</em><a class="headerlink" href="#typped.lexer.GenTokenState.end" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.GenTokenState.uninitialized">
+<code class="descname">uninitialized</code><em class="property"> = 3</em><a class="headerlink" href="#typped.lexer.GenTokenState.uninitialized" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.lexer.LexerState">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">LexerState</code><span class="sig-paren">(</span><em>x</em>, <em>y</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.lexer.LexerState" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<dl class="attribute">
+<dt id="typped.lexer.LexerState.x">
+<code class="descname">x</code><a class="headerlink" href="#typped.lexer.LexerState.x" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.LexerState.y">
+<code class="descname">y</code><a class="headerlink" href="#typped.lexer.LexerState.y" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.lexer.Lexer">
+<em class="property">class </em><code class="descclassname">typped.lexer.</code><code class="descname">Lexer</code><span class="sig-paren">(</span><em>token_table=None</em>, <em>max_peek_tokens=None</em>, <em>max_deque_size=None</em>, <em>default_begin_end_tokens=False</em>, <em>final_mod_function=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>Scans text and returns tokens, represented by instances of <code class="code docutils literal"><span class="pre">TokenNode</span></code>
+subclass instances. There is one subclass for each kind of token, i.e., for
+each token label.  These subclasses themselves are assumed to have been
+created before any scanning operation, via the <code class="code docutils literal"><span class="pre">def_token</span></code> method.</p>
+<p>Token sequences are assumed to have both a begin-token and an end-token
+sentinel, defined via the <code class="code docutils literal"><span class="pre">def_begin_end_tokens</span></code> method.  Exactly one
+end-token will be returned by <code class="code docutils literal"><span class="pre">next</span></code>; any further calls to <code class="code docutils literal"><span class="pre">next</span></code> raise
+<code class="code docutils literal"><span class="pre">StopIteration</span></code>.</p>
+<p>The scanning is independent of the order in which tokens are defined.  The
+longest match over all token patterns will always be the one selected.  In
+case of ties the <code class="code docutils literal"><span class="pre">on_ties</span></code> value (passed to <code class="code docutils literal"><span class="pre">def_token</span></code>) is used to
+break it.  If that fails a <code class="code docutils literal"><span class="pre">LexerException</span></code> is raised.</p>
+<p>If no token table is passed into <code class="code docutils literal"><span class="pre">__init__</span></code> the <code class="code docutils literal"><span class="pre">Lexer</span></code> will create its
+own empty one.</p>
+<dl class="attribute">
+<dt id="typped.lexer.Lexer.ERROR_MSG_TEXT_SNIPPET_SIZE">
+<code class="descname">ERROR_MSG_TEXT_SNIPPET_SIZE</code><em class="property"> = 40</em><a class="headerlink" href="#typped.lexer.Lexer.ERROR_MSG_TEXT_SNIPPET_SIZE" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.Lexer.DEFAULT_BEGIN">
+<code class="descname">DEFAULT_BEGIN</code><em class="property"> = 'k_begin'</em><a class="headerlink" href="#typped.lexer.Lexer.DEFAULT_BEGIN" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="attribute">
+<dt id="typped.lexer.Lexer.DEFAULT_END">
+<code class="descname">DEFAULT_END</code><em class="property"> = 'k_end'</em><a class="headerlink" href="#typped.lexer.Lexer.DEFAULT_END" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.reset">
+<code class="descname">reset</code><span class="sig-paren">(</span><em>token_table=None</em>, <em>max_peek_tokens=None</em>, <em>max_deque_size=None</em>, <em>default_begin_end_tokens=False</em>, <em>final_mod_function=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.reset"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.reset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the lexer to the initial state.  Takes the same arguments as
+the initializer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.set_token_table">
+<code class="descname">set_token_table</code><span class="sig-paren">(</span><em>token_table</em>, <em>go_back=0</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.set_token_table"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.set_token_table" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sets the current <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance for the lexer to
+<code class="code docutils literal"><span class="pre">token_table</span></code>.  This is called on initialization, but can also be
+called at any time.  If text is being scanned at the time then it
+flushes the current and lookahead tokens and re-scans the current
+token.</p>
+<p>When set with this method the token table is always given the attribute
+<code class="code docutils literal"><span class="pre">lex</span></code>, which points to the lexer instance that this method was called from.
+This attribute is used by tokens (which know their fixed symbol table)
+so they can find the current lexer (to call <code class="code docutils literal"><span class="pre">next</span></code>, etc.)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.set_text">
+<code class="descname">set_text</code><span class="sig-paren">(</span><em>program</em>, <em>reset_linenumber=True</em>, <em>reset_charnumber=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.set_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.set_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Users should call this method to pass in the program text (or other
+text) which is to be lexically scanned.  The parameter <code class="code docutils literal"><span class="pre">program</span></code> should
+be a string.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.next">
+<code class="descname">next</code><span class="sig-paren">(</span><em>num=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.next" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the next token, consuming from the token stream.  Also sets
+<code class="code docutils literal"><span class="pre">self.token</span></code> to the return value.  Returns one end-token and raises
+<code class="code docutils literal"><span class="pre">StopIteration</span></code> on a <code class="code docutils literal"><span class="pre">next</span></code> after that end-token.</p>
+<p>If <code class="code docutils literal"><span class="pre">num</span></code> is greater than one a list of the tokens is returned.  This
+list is cut short if the first end-token is encountered, so this
+kind of <code class="code docutils literal"><span class="pre">next</span></code> call will never generate <code class="code docutils literal"><span class="pre">StopIteration</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.peek">
+<code class="descname">peek</code><span class="sig-paren">(</span><em>num_toks=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.peek"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.peek" title="Permalink to this definition">¶</a></dt>
+<dd><p>Peek ahead in the token stream without consuming any tokens.  The
+argument <code class="code docutils literal"><span class="pre">num_toks</span></code> is the number of tokens ahead to peek.  The default
+peek of <code class="code docutils literal"><span class="pre">num_toks=1</span></code> peeks at the token just beyond the current token.
+Peeking zero shows the current token.  Negative peeks are allowed, and
+look back at the previous tokens (up to the number saved in the token
+buffer).</p>
+<p>Tokens are read into the buffer on-demand to satisfy any requested
+peek.  If <code class="code docutils literal"><span class="pre">max_peek_tokens</span></code> is set then an exception will be raised on
+attempts to peek farther than that.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.move_back">
+<code class="descname">move_back</code><span class="sig-paren">(</span><em>num_toks=1</em>, <em>num_is_raw=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.move_back"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.move_back" title="Permalink to this definition">¶</a></dt>
+<dd><p>NOT YET IMPLEMENTED</p>
+<p>Move the current token back in the token stream.  This method is
+similar to methods commonly called <code class="code docutils literal"><span class="pre">push_back</span></code>. It is similar to
+<code class="code docutils literal"><span class="pre">go_back</span></code> except that tokens are not rescanned.  The current position
+in the token buffer is just moved back.  This is more efficient than
+<code class="code docutils literal"><span class="pre">go_back</span></code> but it assumes that there have been no modifications,
+additions, or deletions to the token definitions.  If the parser is
+guaranteed to be static with respect to the defined tokens then this is
+the routine to use.  Otherwise, use <code class="code docutils literal"><span class="pre">go_back</span></code>.</p>
+<p>The optional parameter <code class="code docutils literal"><span class="pre">num_toks</span></code> is the number of tokens to move
+back.  Negative numbers move forward, consuming more tokens if
+necessary.  Moving forward will always stop before consuming a second
+end-token (which would raise <code class="code docutils literal"><span class="pre">StopIteration</span></code> if done in <code class="code docutils literal"><span class="pre">next</span></code>).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.go_back">
+<code class="descname">go_back</code><span class="sig-paren">(</span><em>num_toks=1</em>, <em>num_is_raw=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.go_back"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.go_back" title="Permalink to this definition">¶</a></dt>
+<dd><p>This method allows the lexer to go back in the token buffer by
+<code class="code docutils literal"><span class="pre">num_toks</span></code> tokens.  The call <code class="code docutils literal"><span class="pre">go_back(n)</span></code> will undo the effects of the
+last <code class="code docutils literal"><span class="pre">n</span></code> calls to <code class="code docutils literal"><span class="pre">next</span></code>.  This operation is different from the usual
+pushback operations because the program text will be re-scanned for the
+current token and later tokens (rather than simply backing up to
+already-scanned tokens and saving the most-recent as lookahead tokens,
+like with <code class="code docutils literal"><span class="pre">move_back</span></code>).</p>
+<p>Going back one with <code class="code docutils literal"><span class="pre">go_back(1)</span></code> or just <code class="code docutils literal"><span class="pre">go_back()</span></code> results in the
+current token being set back to the previous token and also re-scanned
+from the original text.  Calling <code class="code docutils literal"><span class="pre">go_back(0)</span></code> just re-scans the current
+token (and flushes any tokens in the lookahead buffer).  Values greater
+than one go farther back in the token stream.  Attempts to go back
+before the beginning of the program text go back to the beginning and
+stop there.</p>
+<p>This method returns the current token after any re-scanning.</p>
+<p>Negative numbers of tokens can be specified.  When <code class="code docutils literal"><span class="pre">num_toks</span> <span class="pre">&lt;=</span> <span class="pre">0</span></code> the
+operation only applies to saved loohahead tokens (if there are any).
+The call <code class="code docutils literal"><span class="pre">go_back(-1)</span></code> flushes all lookahead tokens saved in the buffer
+except the one immediately following the current token.  The current
+offset in the token buffer never moves forward when this method is
+called; only can only go back or stay the same.</p>
+<p>If <code class="code docutils literal"><span class="pre">num_is_raw</span></code> is true then <code class="code docutils literal"><span class="pre">num_toks</span></code> is interpreted as the actual
+number of tokens to go back, including any in the buffer (which are
+otherwise handled automatically).  This can be useful when looking at
+<code class="code docutils literal"><span class="pre">lex.all_token_count</span></code> to determine how far to go back and undo
+something.</p>
+<p>Going back with re-scanning can be necessary when token definitions
+themselves change dynamically, such as by semantic actions.  For
+example, a declaration of the string “my_fun” as a variable might
+dynamically add a token for that new variable, which would then stop it
+from matching a general identifier with a lower on_ties value (set to,
+say, -1).  This kind of thing is also needed when swapping token
+tables, such as in parsing a sublanguage with a different parser.
+Since the sublanguage has a different collection of tokens the
+lookahead buffer must be re-scanned based on those tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.get_current_state">
+<code class="descname">get_current_state</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.get_current_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.get_current_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Get a lexer state that can be returned to with <code class="code docutils literal"><span class="pre">go_back_to_state</span></code>.
+States become invalid after the text is reset, but no check is made.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.go_back_to_state">
+<code class="descname">go_back_to_state</code><span class="sig-paren">(</span><em>state</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.go_back_to_state"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.go_back_to_state" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the lexer to the state <code class="code docutils literal"><span class="pre">state</span></code> saved from a previous call to
+<code class="code docutils literal"><span class="pre">get_current_state</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.curr_token_is_begin">
+<code class="descname">curr_token_is_begin</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.curr_token_is_begin"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.curr_token_is_begin" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if <code class="code docutils literal"><span class="pre">self.token</span></code> (the last one returned by the <code class="code docutils literal"><span class="pre">next</span></code> method) is
+the begin-token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.curr_token_is_first">
+<code class="descname">curr_token_is_first</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.curr_token_is_first"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.curr_token_is_first" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if <code class="code docutils literal"><span class="pre">self.token</span></code> (the last one returned by the <code class="code docutils literal"><span class="pre">next</span></code> function)
+is the first actual token in the currently-set program text.  Resetting
+the text resets this.  This value is also set as the attribute
+<code class="code docutils literal"><span class="pre">is_first</span></code> on all returned tokens.  This is useful, for example, for
+finding indentation levels (along with <code class="code docutils literal"><span class="pre">ignored_before_curr</span></code>).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.ignored_before_curr">
+<code class="descname">ignored_before_curr</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.ignored_before_curr"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.ignored_before_curr" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the list of all tokens ignored just before <code class="code docutils literal"><span class="pre">self.token</span></code> (the
+last token returned by the <code class="code docutils literal"><span class="pre">next</span></code> function).  Useful for enforcing
+things like syntactic whitespace requirements, along with
+<code class="code docutils literal"><span class="pre">curr_token_is_first</span></code>. This list is also set as the attribute
+<code class="code docutils literal"><span class="pre">ignored_before_tokens</span></code> on all returned tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.curr_token_is_end">
+<code class="descname">curr_token_is_end</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.curr_token_is_end"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.curr_token_is_end" title="Permalink to this definition">¶</a></dt>
+<dd><p>True if <code class="code docutils literal"><span class="pre">self.token</span></code> (the last one returned by the <code class="code docutils literal"><span class="pre">next</span></code> method) is
+the end-token.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.is_defined_token_label">
+<code class="descname">is_defined_token_label</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.is_defined_token_label"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.is_defined_token_label" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return true if <code class="code docutils literal"><span class="pre">token</span></code> is currently defined as a token label.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.last_n_tokens_original_text">
+<code class="descname">last_n_tokens_original_text</code><span class="sig-paren">(</span><em>n</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.last_n_tokens_original_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.last_n_tokens_original_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Returns the original text parsed by the last <code class="code docutils literal"><span class="pre">n</span></code> tokens (back from
+and including the current token).  This routine is mainly used to make
+error messages more helpful.  It uses the token attribute
+<code class="code docutils literal"><span class="pre">original_matched_string</span></code> and the saved tokens in the token buffer.
+(which must be large enough for <code class="code docutils literal"><span class="pre">n</span></code>).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.get_unprocessed_text">
+<code class="descname">get_unprocessed_text</code><span class="sig-paren">(</span><em>peek=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.get_unprocessed_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.get_unprocessed_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all the text that is set but not yet processed.  Returns
+<code class="code docutils literal"><span class="pre">None</span></code> if no text is currently set.  The current token is assumed
+to have been processed.</p>
+<p>By default this is relative to the token at a peek of <code class="code docutils literal"><span class="pre">1</span></code>, but the
+<code class="code docutils literal"><span class="pre">peek</span></code> number can be set to a previous or later one if available in the
+buffer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.get_processed_text">
+<code class="descname">get_processed_text</code><span class="sig-paren">(</span><em>peek=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.get_processed_text"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.get_processed_text" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return all the text that is set and has been processed.  Returns
+<code class="code docutils literal"><span class="pre">None</span></code> if no text is currently set.  The current token is assumed
+to have been processed.</p>
+<p>By default this is relative to the current peek token, but the <code class="code docutils literal"><span class="pre">peek</span></code>
+number can be set to a previous or later one if available in the
+buffer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_token">
+<code class="descname">def_token</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience method to define a token. It calls the corresponding
+<code class="code docutils literal"><span class="pre">def_token</span></code> method of the current <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance associated with
+the lexer, and does nothing else.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.undef_token">
+<code class="descname">undef_token</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.undef_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.undef_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function to call the corresponding <code class="code docutils literal"><span class="pre">undef_token</span></code> of
+the current <code class="code docutils literal"><span class="pre">TokenTable</span></code> instance associated with the Lexer.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_ignored_token">
+<code class="descname">def_ignored_token</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_ignored_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_ignored_token" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function to define an ignored token without setting
+<code class="code docutils literal"><span class="pre">ignore=True</span></code>.  This just calls <code class="code docutils literal"><span class="pre">def_token</span></code> with the value set.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_multi_tokens">
+<code class="descname">def_multi_tokens</code><span class="sig-paren">(</span><em>tuple_list</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_multi_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_multi_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function, to define multiple tokens at once.  Each element
+of the passed-in list should be a tuple containing the arguments to the
+ordinary <code class="code docutils literal"><span class="pre">def_token</span></code> method.  Called in the same order as the list.  Any
+keyword arguments are passed on to <code class="code docutils literal"><span class="pre">def_token</span></code>.  Returns a tuple of the
+defined tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_multi_ignored_tokens">
+<code class="descname">def_multi_ignored_tokens</code><span class="sig-paren">(</span><em>tuple_list</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_multi_ignored_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_multi_ignored_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function, to define multiple tokens at once with
+<code class="code docutils literal"><span class="pre">ignore=True</span></code> set.  Each element of the passed-in list should be a tuple
+containing the arguments to the ordinary <code class="code docutils literal"><span class="pre">def_token</span></code> method.  Called in
+the same order as the list.  Any keyword arguments are passed on to
+<code class="code docutils literal"><span class="pre">def_token</span></code>.  Returns a tuple of the defined tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_begin_end_tokens">
+<code class="descname">def_begin_end_tokens</code><span class="sig-paren">(</span><em>begin_token_label</em>, <em>end_token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_begin_end_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_begin_end_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the sentinel tokens at the beginning and end of the token
+stream.  This method must be called before using the Lexer.  It will
+automatically be called using default token label values unless
+<code class="code docutils literal"><span class="pre">default_begin_end_tokens</span></code> was set false on initialization.  Returns a
+tuple of the new begin- and end-token subclasses.  These tokens do not
+need to be defined with <code class="code docutils literal"><span class="pre">def_token</span></code> because they are never actually
+scanned and recognized in the program text (which would also require a
+regex pattern).</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.def_default_whitespace">
+<code class="descname">def_default_whitespace</code><span class="sig-paren">(</span><em>space_label='k_space'</em>, <em>space_regex='[ \\t]+'</em>, <em>newline_label='k_newline'</em>, <em>newline_regex='[\\n\\f\\r\\v]+'</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.def_default_whitespace"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.def_default_whitespace" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define the standard whitespace tokens for space and newline, setting
+them as ignored tokens.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.match_next">
+<code class="descname">match_next</code><span class="sig-paren">(</span><em>token_label_to_match</em>, <em>peeklevel=1</em>, <em>consume=True</em>, <em>raise_on_fail=False</em>, <em>raise_on_success=False</em>, <em>err_msg_tokens=3</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.match_next"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.match_next" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility function that tests whether the value of the next token
+label equals a given token label.</p>
+<p>This method consumes a token from the lexer if and only if there is a
+match.  Either way, a boolean is returned indicating the match status.</p>
+<p>If <code class="code docutils literal"><span class="pre">consume</span></code> is false then no tokens will ever be consumed.  Otherwise,
+and by default, a token will be consumed if and only if it matches.</p>
+<p>The parameter <code class="code docutils literal"><span class="pre">peeklevel</span></code> is passed to the peek function for how far
+ahead to look; the default is one.</p>
+<p>If <code class="code docutils literal"><span class="pre">raise_on_fail</span></code> set true then a <code class="code docutils literal"><span class="pre">LexerException</span></code> will be raised by
+default if the match fails.  The default can be changed by setting the
+lexer instance attribute <code class="code docutils literal"><span class="pre">default_helper_exception</span></code>.  Similarly,
+<code class="code docutils literal"><span class="pre">raise_on_success</span></code> raises an exception when a match is found.  Either one
+can be set to a subclass of <code class="code docutils literal"><span class="pre">Exception</span></code> instead of a boolean, and then
+that exception will be called.</p>
+<p>The parameter <code class="code docutils literal"><span class="pre">err_msg_tokens</span></code> can be set to change how many tokens
+worth of text back the error messages report (as debugging
+information) when an exception is raised.  (The count does not
+include whitespace, but it is printed, too.)</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.in_ignored_tokens">
+<code class="descname">in_ignored_tokens</code><span class="sig-paren">(</span><em>token_label_to_match</em>, <em>raise_on_fail=False</em>, <em>raise_on_success=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.in_ignored_tokens"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.in_ignored_tokens" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility function to test if a particular token label is among
+the tokens ignored before the current token.  Returns a boolean
+value.  Like <code class="code docutils literal"><span class="pre">match_next</span></code>, this method can be set to raise an
+exception on success or failure.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.no_ignored_after">
+<code class="descname">no_ignored_after</code><span class="sig-paren">(</span><em>raise_on_fail=False</em>, <em>raise_on_success=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.no_ignored_after"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.no_ignored_after" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean utility function to test if any tokens were ignored
+between current token and lookahead.  Like <code class="code docutils literal"><span class="pre">match_next</span></code>, this method
+can be set to raise an exception on success or failure.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.lexer.Lexer.no_ignored_before">
+<code class="descname">no_ignored_before</code><span class="sig-paren">(</span><em>raise_on_fail=False</em>, <em>raise_on_success=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#Lexer.no_ignored_before"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.Lexer.no_ignored_before" title="Permalink to this definition">¶</a></dt>
+<dd><p>A boolean utility function to test if any tokens were ignored between
+previous token and current token.  Like <code class="code docutils literal"><span class="pre">match_next</span></code>, this method
+can be set to raise an exception on success or failure.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.lexer.multi_funcall">
+<code class="descclassname">typped.lexer.</code><code class="descname">multi_funcall</code><span class="sig-paren">(</span><em>function</em>, <em>tuple_list</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#multi_funcall"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.multi_funcall" title="Permalink to this definition">¶</a></dt>
+<dd><p>A convenience function that takes a function (or method) and a list of tuples
+and calls <code class="code docutils literal"><span class="pre">function</span></code> with the values in those tuple as arguments.
+Any unrecognized keyword arguments are passed on to the function <code class="code docutils literal"><span class="pre">function</span></code>
+as keyword arguments.  If the <code class="code docutils literal"><span class="pre">exception_to_raise</span></code> keyword argument is provided with
+an exception then that exception will be called whenever a <code class="code docutils literal"><span class="pre">TypeError</span></code> results from
+the attempt to call <code class="code docutils literal"><span class="pre">function</span></code> (defaulting to <code class="code docutils literal"><span class="pre">LexerException</span></code>).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.lexer.return_first_exception">
+<code class="descclassname">typped.lexer.</code><code class="descname">return_first_exception</code><span class="sig-paren">(</span><em>*args</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/lexer.html#return_first_exception"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.return_first_exception" title="Permalink to this definition">¶</a></dt>
+<dd><p>Go down the argument list and return the first object that is a
+subclass of the <code class="code docutils literal"><span class="pre">Exception</span></code> class.  Arguments do not need to all be
+classes.  Returns <code class="code docutils literal"><span class="pre">None</span></code> if all fail.  Used to allow an optional exception
+class to be passed to a function instead of true, with a default called
+if the passed-in value is not an exception.</p>
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.lexer.BufferIndexError">
+<em class="property">exception </em><code class="descclassname">typped.lexer.</code><code class="descname">BufferIndexError</code><a class="reference internal" href="_modules/typped/lexer.html#BufferIndexError"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.lexer.BufferIndexError" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.LexerException" title="typped.shared_settings_and_exceptions.LexerException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.LexerException</span></code></a></p>
+<p>Raised on attempts to read past the beginning or the end of the buffer
+(such as in <code class="code docutils literal"><span class="pre">peek</span></code> methods).</p>
+</dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">10.9. typped.lexer</a><ul>
+<li><a class="reference internal" href="#defining-tokens">10.9.1. Defining tokens</a></li>
+<li><a class="reference internal" href="#begin-and-end-tokens">10.9.2. Begin and end tokens</a></li>
+<li><a class="reference internal" href="#using-the-lexer">10.9.3. Using the lexer</a></li>
+<li><a class="reference internal" href="#user-accessible-methods-and-attributes-of-lexer">10.9.4. User-accessible methods and attributes of <code class="code docutils literal"><span class="pre">Lexer</span></code></a></li>
+<li><a class="reference internal" href="#user-accessible-attributes-of-tokens">10.9.5. User-accessible attributes of tokens</a></li>
+<li><a class="reference internal" href="#initialization-options">10.9.6. Initialization options</a></li>
+<li><a class="reference internal" href="#code">10.9.7. Code</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.register_grammar_with_parser.html"
+                        title="previous chapter">10.8. typped.register_grammar_with_parser</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="other_possible_generalizations.html"
+                        title="next chapter">11. Appendix A: Possible (but currently unimplemented) generalizations</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.lexer.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="other_possible_generalizations.html" title="11. Appendix A: Possible (but currently unimplemented) generalizations"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.register_grammar_with_parser.html" title="10.8. typped.register_grammar_with_parser"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

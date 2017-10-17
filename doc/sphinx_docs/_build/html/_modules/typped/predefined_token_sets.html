@@ -1,0 +1,240 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.predefined_token_sets &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.predefined_token_sets</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">This module contains convenience functions for defining commonly-used groups of</span>
+<span class="sd">tokens.  The functions are all copied to the `PrattParser` class as methods</span>
+<span class="sd">simply because the namespace is convenient.  They can be used standalone or as</span>
+<span class="sd">methods of a parser instance.</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># TODO: add method to define a float, a number, an identifier.  Just take from</span>
+<span class="c1"># existing code.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="c1"># Run tests when invoked as a script.</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_ebnf_classes_and_operators.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_example_calculator.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_parser_called_from_parser.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_pratt_parser.py&quot;</span>
+                              <span class="p">],</span> <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">.lexer</span> <span class="k">import</span> <span class="n">multi_funcall</span>
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="n">ParserException</span>
+
+<span class="n">default_token_label_dict</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;~&quot;</span><span class="p">:</span> <span class="s2">&quot;k_tilde&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;`&quot;</span><span class="p">:</span> <span class="s2">&quot;k_backtick&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;!&quot;</span><span class="p">:</span> <span class="s2">&quot;k_bang&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;@&quot;</span><span class="p">:</span> <span class="s2">&quot;k_atsign&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;#&quot;</span><span class="p">:</span> <span class="s2">&quot;k_pound&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;$&quot;</span><span class="p">:</span> <span class="s2">&quot;k_dollar&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;%&quot;</span><span class="p">:</span> <span class="s2">&quot;k_percent&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;^&quot;</span><span class="p">:</span> <span class="s2">&quot;k_caret&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&amp;&quot;</span><span class="p">:</span> <span class="s2">&quot;k_ampersand&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;*&quot;</span><span class="p">:</span> <span class="s2">&quot;k_ast&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;(&quot;</span><span class="p">:</span> <span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;)&quot;</span><span class="p">:</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;_&quot;</span><span class="p">:</span> <span class="s2">&quot;k_underscore&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;-&quot;</span><span class="p">:</span> <span class="s2">&quot;k_minus&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;+&quot;</span><span class="p">:</span> <span class="s2">&quot;k_plus&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;=&quot;</span><span class="p">:</span> <span class="s2">&quot;k_equals&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;{&quot;</span><span class="p">:</span> <span class="s2">&quot;k_lcurly&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;}&quot;</span><span class="p">:</span> <span class="s2">&quot;k_rcurly&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;[&quot;</span><span class="p">:</span> <span class="s2">&quot;k_lbrac&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;]&quot;</span><span class="p">:</span> <span class="s2">&quot;k_rbrac&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;|&quot;</span><span class="p">:</span> <span class="s2">&quot;k_vert&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">:</span> <span class="s2">&quot;k_backslash&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;:&quot;</span><span class="p">:</span> <span class="s2">&quot;k_colon&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;;&quot;</span><span class="p">:</span> <span class="s2">&quot;k_semicolon&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">:</span> <span class="s2">&quot;k_quote&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&#39;&quot;</span><span class="p">:</span> <span class="s2">&quot;k_singlequote&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&lt;&quot;</span><span class="p">:</span> <span class="s2">&quot;k_lessthan&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;&gt;&quot;</span><span class="p">:</span> <span class="s2">&quot;k_greaterthan&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;,&quot;</span><span class="p">:</span> <span class="s2">&quot;k_comma&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;.&quot;</span><span class="p">:</span> <span class="s2">&quot;k_period&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;?&quot;</span><span class="p">:</span> <span class="s2">&quot;k_question&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;/&quot;</span><span class="p">:</span> <span class="s2">&quot;k_slash&quot;</span><span class="p">,</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="def_default_whitespace"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_default_whitespace">[docs]</a><span class="k">def</span> <span class="nf">def_default_whitespace</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">space_label</span><span class="o">=</span><span class="s2">&quot;k_space&quot;</span><span class="p">,</span> <span class="n">space_regex</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;[ \t]+&quot;</span><span class="p">,</span>
+                    <span class="n">newline_label</span><span class="o">=</span><span class="s2">&quot;k_newline&quot;</span><span class="p">,</span> <span class="n">newline_regex</span><span class="o">=</span><span class="sa">r</span><span class="s2">&quot;[\n\f\r\v]+&quot;</span><span class="p">,</span>
+                    <span class="n">matcher_options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define the standard whitespace tokens for space and newline, setting</span>
+<span class="sd">    them as ignored tokens.&quot;&quot;&quot;</span>
+    <span class="c1"># Note + symbol for one or more, NOT the * symbol for zero or more.</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_ignored_token</span>
+    <span class="n">tok</span><span class="p">(</span><span class="n">space_label</span><span class="p">,</span> <span class="n">space_regex</span><span class="p">,</span> <span class="n">matcher_options</span><span class="o">=</span><span class="n">matcher_options</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="n">newline_label</span><span class="p">,</span> <span class="n">newline_regex</span><span class="p">,</span> <span class="n">matcher_options</span><span class="o">=</span><span class="n">matcher_options</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="def_default_single_char_tokens"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_default_single_char_tokens">[docs]</a><span class="k">def</span> <span class="nf">def_default_single_char_tokens</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">chars</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">make_literals</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;The characters in the string `chars` are defined as tokens with default labels.</span>
+<span class="sd">    Spaces are ignored in the string.  If `chars` is not set then all the labels will be</span>
+<span class="sd">    defined except those in the string `exclude`.  If `make_literals` is true then</span>
+<span class="sd">    the tokens will also be defined as token literals (via `def_literal`).&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">chars</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">chars</span> <span class="o">=</span> <span class="n">default_token_label_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">chars</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">c</span> <span class="o">==</span> <span class="s2">&quot; &quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">exclude</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">exclude</span><span class="p">:</span>
+                <span class="k">continue</span>
+        <span class="n">token_label</span> <span class="o">=</span> <span class="n">default_token_label_dict</span><span class="p">[</span><span class="n">c</span><span class="p">]</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">escape</span><span class="p">(</span><span class="n">c</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">make_literals</span><span class="p">:</span>
+            <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="n">token_label</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="def_default_float_token"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_default_float_token">[docs]</a><span class="k">def</span> <span class="nf">def_default_float_token</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">token_label</span><span class="o">=</span><span class="s2">&quot;k_float&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="n">require_decimal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a token for floats with default label &#39;k_float&#39;.  If `signed` is true (the</span>
+<span class="sd">    default) then a leading &#39;+&#39; or &#39;-&#39; is optionally part of the float.  Otherwise</span>
+<span class="sd">    the sign is not included.  This is sometimes needed when the signs are defined</span>
+<span class="sd">    as a prefix operators instead.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">require_decimal</span><span class="p">:</span>
+        <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(\d+\.\d*)([eE][-+]?\d+)?&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(\d+(\.\d*)?|\.\d+)([eE][-+]?\d+)?&quot;</span>
+    <span class="k">if</span> <span class="n">signed</span><span class="p">:</span>
+        <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;[+-]?&quot;</span> <span class="o">+</span> <span class="n">regex</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">regex</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tok</span></div>
+
+<div class="viewcode-block" id="def_default_int_token"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_default_int_token">[docs]</a><span class="k">def</span> <span class="nf">def_default_int_token</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">token_label</span><span class="o">=</span><span class="s2">&quot;k_int&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a token for ints with default label &#39;k_int&#39;.  If `signed` is true (the</span>
+<span class="sd">    default) then a leading &#39;+&#39; or &#39;-&#39; is optionally part of the float.  Otherwise</span>
+<span class="sd">    the sign is not included.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">signed</span><span class="p">:</span>
+        <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;(\d+)&quot;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;[-+]?(\d+)&quot;</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">regex</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tok</span></div>
+
+<div class="viewcode-block" id="def_default_identifier_token"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_default_identifier_token">[docs]</a><span class="k">def</span> <span class="nf">def_default_identifier_token</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">token_label</span><span class="o">=</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="n">signed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a identifier.  It is like Python identifiers: a letter or underscore followed</span>
+<span class="sd">    by any number of letters, underscores, and digits.&quot;&quot;&quot;</span>
+    <span class="n">regex</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_][a-zA-Z0-9_]*&quot;</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">(</span><span class="n">token_label</span><span class="p">,</span> <span class="n">regex</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">tok</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Multi-token definitions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="def_multi_tokens"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_multi_tokens">[docs]</a><span class="k">def</span> <span class="nf">def_multi_tokens</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A convenience function, to define multiple tokens at once.  Each element</span>
+<span class="sd">    of the passed-in list should be a tuple containing the arguments to the</span>
+<span class="sd">    ordinary `def_token` method.  Calls the equivalent `Lexer` function.&quot;&quot;&quot;</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;exception_to_raise&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ParserException</span>
+    <span class="k">return</span> <span class="n">multi_funcall</span><span class="p">(</span><span class="n">parser</span><span class="o">.</span><span class="n">def_token</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="def_multi_ignored_tokens"><a class="viewcode-back" href="../../typped.predefined_token_sets.html#typped.pratt_parser.def_multi_ignored_tokens">[docs]</a><span class="k">def</span> <span class="nf">def_multi_ignored_tokens</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A convenience function, to define multiple ignored tokens at once.</span>
+<span class="sd">    Each element of the passed-in list should be a tuple containing the arguments</span>
+<span class="sd">    to the ordinary `def_token` method with `ignore=True`.  Calls the equivalent</span>
+<span class="sd">    `Lexer` function.&quot;&quot;&quot;</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;exception_to_raise&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ParserException</span>
+    <span class="k">return</span> <span class="n">multi_funcall</span><span class="p">(</span><span class="n">parser</span><span class="o">.</span><span class="n">def_ignored_token</span><span class="p">,</span> <span class="n">tuple_list</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="c1"># This list of functions is copied to the PrattParser class as methods.</span>
+<span class="n">token_defining_methods</span> <span class="o">=</span> <span class="p">[</span>
+                         <span class="n">def_default_whitespace</span><span class="p">,</span>
+                         <span class="n">def_default_single_char_tokens</span><span class="p">,</span>
+                         <span class="n">def_default_float_token</span><span class="p">,</span>
+                         <span class="n">def_default_int_token</span><span class="p">,</span>
+                         <span class="n">def_default_identifier_token</span><span class="p">,</span>
+                         <span class="n">def_multi_tokens</span><span class="p">,</span>
+                         <span class="n">def_multi_ignored_tokens</span><span class="p">,</span>
+                         <span class="p">]</span>
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

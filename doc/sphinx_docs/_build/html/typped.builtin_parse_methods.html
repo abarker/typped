@@ -1,0 +1,338 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.2. typped.builtin_parse_methods &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="10.3. typped.predefined_token_sets" href="typped.predefined_token_sets.html" />
+    <link rel="prev" title="10.1. typped.pratt_parser" href="typped.pratt_parser.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.predefined_token_sets.html" title="10.3. typped.predefined_token_sets"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_parser.html" title="10.1. typped.pratt_parser"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.builtin_parse_methods">
+<span id="typped-builtin-parse-methods"></span><h1>10.2. typped.builtin_parse_methods<a class="headerlink" href="#module-typped.builtin_parse_methods" title="Permalink to this headline">¶</a></h1>
+<p>These are predefined, built-in parsing routines designed to parse various
+general types of constructs.  These functions are all made into methods of the
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> class simply because that namespace is convenient to use.  They
+can also be used directly, as standalone functions.</p>
+<p>Looking at the source code can be useful for ideas of how to implement general
+constructs which are not covered by a builtin routine.</p>
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_literal">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_literal</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label</em>, <em>val_type=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type_override_fun=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_literal"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_literal" title="Permalink to this definition">¶</a></dt>
+<dd><p>Defines the token with label <code class="code docutils literal"><span class="pre">token_label</span></code> to be a literal in the
+syntax of the language being parsed.  This method adds a head handler
+function to the token.  Literal tokens are the leaves of the expression
+trees; they are things like numbers and variable names in a numerical
+expression.  They always occur as the first (and only) token in a
+subexpression being evaluated by <code class="code docutils literal"><span class="pre">recursive_parse</span></code>, so they need a head
+handler but not a tail handler.  (Though note that the token itparser
+might also have a tail handler.)</p>
+<p>A function <code class="code docutils literal"><span class="pre">val_type_override_fun</span></code> can be passed in, taking a token and a
+lexer as its two arguments and returning a <code class="code docutils literal"><span class="pre">TypeObject</span></code> instance.  If it is
+set then it will called in the handler at parse-time to get the type to set
+as the <code class="code docutils literal"><span class="pre">val_type</span></code> of the node.  This can be useful for dynamic typing such
+as when identifiers in an interpreted language are generic variables which
+can holding different types.  This option currently does not work for
+overloading on return types.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_multi_literals">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_multi_literals</code><span class="sig-paren">(</span><em>parser</em>, <em>tuple_list</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_multi_literals"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_multi_literals" title="Permalink to this definition">¶</a></dt>
+<dd><p>An interface to the <code class="code docutils literal"><span class="pre">def_literal</span></code> method which takes a list of
+tuples.  The <code class="code docutils literal"><span class="pre">def_literal</span></code> method will be called for each tuple, unpacked
+in the order in the tuple.  Unspecified optional arguments are assigned
+their default values.</p>
+<p>Usually it is better to define <code class="code docutils literal"><span class="pre">literal</span> <span class="pre">=</span> <span class="pre">parser.def_literal</span></code> and use that
+as a shorter alias.  This method does not allow for keyword arguments and
+depends on argument ordering.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_bracket_pair">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_bracket_pair</code><span class="sig-paren">(</span><em>parser</em>, <em>lbrac_token_label</em>, <em>rbrac_token_label</em>, <em>in_tree=True</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_bracket_pair"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_bracket_pair" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a matching bracket grouping operation.  The returned type is
+set to the type of its single child (i.e., the type of the contents of
+the brackets).  Defines a head handler for the left bracket token, so
+effectively gets the highest evaluation precedence.  As far as types,
+it is treated as a function that takes one argument of wildcard type
+and returns whatever type the argument has.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_stdfun">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_stdfun</code><span class="sig-paren">(</span><em>parser</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>precond_fun=None</em>, <em>precond_priority=1</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>num_args=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_stdfun"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_stdfun" title="Permalink to this definition">¶</a></dt>
+<dd><p>This definition of stdfun uses lookahead to the opening paren or
+bracket token.</p>
+<p>Note that all tokens must be defined as literal tokens except
+<code class="code docutils literal"><span class="pre">fname_token_label</span></code> (which ends up as the root of the function
+evaluation subtree).  If the latter is also a literal token then
+<code class="code docutils literal"><span class="pre">precond_priority</span></code> may need to be increased to give this use priority.</p>
+<p>The <code class="code docutils literal"><span class="pre">num_args</span></code> parameter is optional for specifying the number of
+arguments when typing is not being used.  If it is set to a nonnegative
+number then it will automatically set <code class="code docutils literal"><span class="pre">arg_types</span></code> to the corresponding
+list of <code class="code docutils literal"><span class="pre">None</span></code> values; if <code class="code docutils literal"><span class="pre">arg_types</span></code> is set then it is ignored.  If
+type-checking is disabled for the parser instance then the number of
+arguments is instead checked by the handler function.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_stdfun_lpar_tail">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_stdfun_lpar_tail</code><span class="sig-paren">(</span><em>parser</em>, <em>fname_token_label</em>, <em>lpar_token_label</em>, <em>rpar_token_label</em>, <em>comma_token_label</em>, <em>prec_of_lpar</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em>, <em>num_args=None</em>, <em>token_value_key=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_stdfun_lpar_tail"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_stdfun_lpar_tail" title="Permalink to this definition">¶</a></dt>
+<dd><p>This is an alternate version of stdfun that defines lpar as an infix
+operator (i.e., with a tail handler).  This function works in the usual cases
+but the current version without preconditions may have problems distinguishing
+“b (” from “b(” when a multiplication jop is set.  The lookahead version
+<code class="code docutils literal"><span class="pre">def_stdfun</span></code> is usually preferred.</p>
+<p>This method assumes type checking is turned on if <code class="code docutils literal"><span class="pre">num_arg</span></code> is set.</p>
+<p>A peek backwards to a token with label <code class="code docutils literal"><span class="pre">fname_token_label</span></code> is included in
+the preconditions function.  Definitions for different leading tokens will
+give mutually exclusive preconditions.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_infix_multi_op">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_infix_multi_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_labels</em>, <em>prec</em>, <em>assoc</em>, <em>repeat=False</em>, <em>not_in_tree=False</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_infix_multi_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_infix_multi_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes a list of operator token labels and defines a multi-infix
+operator.</p>
+<p>If <code class="code docutils literal"><span class="pre">repeat=True</span></code> then any number of repetitions of the list of operators
+will be accepted.  For example, a comma operator could be used to parse a
+full comma-separated list.  When <code class="code docutils literal"><span class="pre">arg_types</span></code> is also set use the <code class="code docutils literal"><span class="pre">Varargs</span></code>
+object in the list to check the repetitions.  For a single operator,
+repeating just has the effect of putting the arguments in a flat
+argument/child list instead of as nested binary operations based on left or
+right association.  Any argument-checking is done after any node removal,
+which may affect the types that should be passed-in in the list arg_types
+of parent constructs.</p>
+<p>If <code class="code docutils literal"><span class="pre">not_in_tree</span></code> is false then the root node will not appear in the final parse
+tree (unless it is the root).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_infix_op">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_infix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>not_in_tree=False</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_infix_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_infix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>This just calls the more general method <code class="code docutils literal"><span class="pre">def_multi_infix_op</span></code>.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_prefix_op">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_prefix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_prefix_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_prefix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a prefix operator.  Note that head handlers do not have
+precedences, only tail handlers.  (With respect to the looping in
+<code class="code docutils literal"><span class="pre">recursive_parse</span></code> it wouldn’t make a difference.)  But, within the head
+handler, the call to <code class="code docutils literal"><span class="pre">recursive_parse</span></code> can be made with a nonzero
+precedence.  This allows setting a precedence to determine the argument
+expressions that the prefix operators grabs up (or doesn’t).</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_postfix_op">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_postfix_op</code><span class="sig-paren">(</span><em>parser</em>, <em>operator_token_label</em>, <em>prec</em>, <em>allow_ignored_before=True</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_postfix_op"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_postfix_op" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a postfix operator.  If <code class="code docutils literal"><span class="pre">allow_ignored_before</span></code> is false then
+no ignored token (usually whitespace) can appear immediately before the
+operator.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_jop">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_jop</code><span class="sig-paren">(</span><em>parser</em>, <em>prec</em>, <em>assoc</em>, <em>precond_fun=None</em>, <em>precond_priority=None</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>arg_types=None</em>, <em>eval_fun=None</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_jop"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_jop" title="Permalink to this definition">¶</a></dt>
+<dd><p>The function <code class="code docutils literal"><span class="pre">precond_fun</span></code> is called to determine whether or not to
+accept a potentially-inferred a juxtaposition operator between the
+previously-parsed subexpression result and the next token.  Note that this
+function have available <code class="code docutils literal"><span class="pre">extra_data</span></code>  as an attribute of its triggering
+token, and <code class="code docutils literal"><span class="pre">extra_data</span></code> contains the <code class="code docutils literal"><span class="pre">lookbehind</span></code> attribute.  Through the
+lookbehind list the <code class="code docutils literal"><span class="pre">jop_precond</span></code> function has access to the type
+information for the potential left operand but not for the potential right
+operand.</p>
+<p>Note that if the juxtaposition operator always resolves to a single
+type signature based on its argument types then, even if overloading on
+return types is in effect, the jop can be effectively inferred based on
+type signature information.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_assignment_op_untyped">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_assignment_op_untyped</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_assignment_op_untyped"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_assignment_op_untyped" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is statically typed, with
+types checked at parse time.  Each identifier (with token label
+<code class="code docutils literal"><span class="pre">identifier_token_label</span></code> must already have a type associated with it in the
+<code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>.  This dict and the type values in it should be set via
+whatever kind of a type definition construct the language uses.</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>An evaluation function can optionally be created automatically, but by default is
+not.  See the <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine for more details since the
+mechanism is the same.  If <code class="code docutils literal"><span class="pre">eval_fun</span></code> is set then that evaluation function
+will always be used.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_assignment_op_static">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_assignment_op_static</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>allowed_types=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_assignment_op_static"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_assignment_op_static" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is statically typed, with
+types checked at parse time.  Each identifier (with token label
+<code class="code docutils literal"><span class="pre">identifier_token_label</span></code> must already have a type associated with it in the
+<code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>.  This dict and the type values in it should be set via
+whatever kind of a type definition construct the language uses.</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>An evaluation function can optionally be created automatically, but by default is
+not.  See the <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine for more details since the
+mechanism is the same.  If <code class="code docutils literal"><span class="pre">eval_fun</span></code> is set then that evaluation function
+will always be used.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_assignment_op_dynamic">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_assignment_op_dynamic</code><span class="sig-paren">(</span><em>parser</em>, <em>assignment_op_token_label</em>, <em>prec</em>, <em>assoc</em>, <em>identifier_token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>allowed_types=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>construct_label=None</em>, <em>val_type=None</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>ast_data=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_assignment_op_dynamic"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_assignment_op_dynamic" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define an infix assignment operator which is dynamically typed, with
+types checked at evaluation time (i.e., when the tree is interpreted).</p>
+<p>A precondition checks that the l.h.s. of the assignment operator is a token
+with label <code class="code docutils literal"><span class="pre">identifier_token_label</span></code>.  If not an exception is raised.</p>
+<p>No type-checking is done on the r.h.s. by default.  To limit the types that
+can be assigned you can pass in a list or iterable of <code class="code docutils literal"><span class="pre">TypeObject</span></code>
+instances as the argument <code class="code docutils literal"><span class="pre">allowed_types</span></code>.  These formal types are stored
+as the list attribute <code class="code docutils literal"><span class="pre">allowed_dynamic_assignment_types</span></code> of the parser
+instance.  An exception will be raised by the generated evaluation function
+if an assigned value does not have an actual type consistent with a formal
+type on that list.  If new types are created later they can be directly
+appended to that list without having to overload the assignment operator.</p>
+<p>If <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> is true (and <code class="code docutils literal"><span class="pre">eval_fun</span></code> is not set) then an evaluation
+function will be created automatically.  The <code class="code docutils literal"><span class="pre">symbol_value_dict</span></code> is used
+to store the values, which defaults to the parser attribute of the same
+name.</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.builtin_parse_methods.def_literal_typed_from_dict">
+<code class="descclassname">typped.builtin_parse_methods.</code><code class="descname">def_literal_typed_from_dict</code><span class="sig-paren">(</span><em>parser</em>, <em>token_label</em>, <em>symbol_value_dict=None</em>, <em>symbol_type_dict=None</em>, <em>default_type=None</em>, <em>default_eval_value=None</em>, <em>raise_if_undefined=False</em>, <em>eval_fun=None</em>, <em>create_eval_fun=False</em>, <em>precond_fun=None</em>, <em>precond_priority=1</em>, <em>construct_label=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/builtin_parse_methods.html#def_literal_typed_from_dict"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.builtin_parse_methods.def_literal_typed_from_dict" title="Permalink to this definition">¶</a></dt>
+<dd><p>Define a dynamically typed literal, usually a variable-name identifier.
+The type is looked up in the dict <code class="code docutils literal"><span class="pre">symbol_type_dict</span></code>, keyed by the string
+value of the token literal.</p>
+<p>If <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> is true (and <code class="code docutils literal"><span class="pre">eval_fun</span></code> is not set) then this method
+will provides an evaluation function automatically.  This function returns
+the value looked up from <code class="code docutils literal"><span class="pre">symbol_value_dict</span></code>, keyed by the literal token’s
+string value.  The default value returned by the evaluation if the symbol
+is not in the dict is set via <code class="code docutils literal"><span class="pre">default_eval_value</span></code>.  (Currently there must
+be some default rather than raising an exception, with the default default
+value set to <code class="code docutils literal"><span class="pre">None</span></code>.) Setting <code class="code docutils literal"><span class="pre">create_eval_fun</span></code> false will skip the setting
+of an evaluation function.</p>
+<p>The <code class="code docutils literal"><span class="pre">def_assignment_op_dynamic</span></code> routine should be used to handle the
+corresponding variable assignment operation.  That is, the assignment that
+dynamically sets the type of the literal to the type of the assigned value
+(storing it in <code class="code docutils literal"><span class="pre">symbol_type_dict</span></code> by default).</p>
+<p>This method may not correctly set the return type when overloading on
+return types because currently <code class="code docutils literal"><span class="pre">val_type_override</span></code> is used to set it.</p>
+</dd></dl>
+
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.pratt_parser.html"
+                        title="previous chapter">10.1. typped.pratt_parser</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="typped.predefined_token_sets.html"
+                        title="next chapter">10.3. typped.predefined_token_sets</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.builtin_parse_methods.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="typped.predefined_token_sets.html" title="10.3. typped.predefined_token_sets"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.pratt_parser.html" title="10.1. typped.pratt_parser"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>
