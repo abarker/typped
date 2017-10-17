@@ -223,7 +223,7 @@ setup(
     name="typped",
     version="0.1.0", # Versions should comply with PEP440.
     #description="A typped Pratt parser which employs dispatching of handler functions.",
-    description="A parser.", # TODO elaborate...
+    description="A framework for generalized Pratt parsing which can optionally check simple types.",
     url="https://github.com/abarker/typped",
     keywords=["parser", "Pratt", "grammar", "language", "syntax", "syntax tree",
               "BNF", "EBNF", "typped"],
