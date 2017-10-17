@@ -69,7 +69,8 @@ The current way to install is to clone the GitHub repo and install with pip:
 As usual, use a virtual environment or at least run pip with the ``--user``
 option.  (If you really want to modify the system Python installation the
 command needs to be run with administrative privileges.)  Use the ``-e`` option
-to pip if you want to experiment with the code.
+to pip if you want to experiment with the code.  See the comments in the
+``setup.py`` file for how to compile with Cython.
 
 At a more stable development point Typped will be uploaded to PyPI so users can
 install Typped directly:

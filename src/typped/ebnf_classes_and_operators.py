@@ -428,6 +428,8 @@ class Grammar(object):
         #    print("   {0} = {1}".format(name, caselist))
         #print()
 
+        self._set_first_and_follow_sets()
+
         if register:
             for label, caselist in self.nonterm_to_caselist_dict.items():
                 register_rule_handlers_with_parser(self.parser, label, self)
@@ -514,81 +516,76 @@ class Grammar(object):
     def _set_first_and_follow_sets(self):
         """Set the first and follow sets for every case of every nonterminal."""
         for nonterm_label, caselist in self.nonterm_to_caselist_dict.items():
-            for rule in caselist:
-                self._recursive_set_first_sets(nonterm_label, rule)
+            for case in caselist:
+                self._recursive_set_first_sets(nonterm_label, case)
         # TODO do follow sets separately, if done at all.
 
-    def _recursive_set_first_sets(self, nonterm_label, rule):
+    def _recursive_set_first_sets(self, nonterm_label, case):
         """Recursively compute the first set for each rule and store it with that
         rule object."""
-
-        # TODO Only partial implementation below.  Need to work out how to map
-        # the concepts to a regex token based parser.  Suppose we base things
-        # on the token label of the token returned by the lexer?
+        # First sets are based on the token label of the token returned by the
+        # lexer.
         #
-        # To prune the tree based on lookahead we need to guarantee that all
-        # the regexes are DISJOINT in the sense that their languages are
-        # disjoint.  An intersection would disallow the pruning cutoff.  This
-        # could still be interpreted in various ways.  The token labels,
-        # though, could be used as a simple way to determine disjointness.
-        # This would probably work in most cases, and the tokens could be
-        # defined slightly differently if necessary...  Note that priorities
-        # could also come into play...  In some sense the tokens ARE disjoint
-        # in the sense that the lexer will uniquely choose one and not the other.
-        # Is that sufficient here?
+        # The labels are necessarily mutually exclusive, and the lexer is not
+        # context sensitive.  This is imporant because to prune the search tree
+        # based on lookahead we need to guarantee that there is no possibility
+        # for the excluded branches to ever match.
         #
-        # Consider using the first token-literal label as the thing to compare
-        # with.  This assumes one-token lookahead.  Can this be proved to work?
-        # How about sequences of token-literal labels when multiple
-        # token-literals start a rule, multiple token lookahead, etc?
-
-        # See algorithm on this page:
+        # As of now only the first token literal is considered in computing
+        # first sets, but really any sequence of tokens could serve as a
+        # longer, more-effective required sequence of peeks.
+        #
+        # See the basic algorithm on these pages:
         # http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
         # http://www.csd.uwo.ca/~moreno/CS447/Lectures/Syntax.html/node12.html
         #
         # Note that epsilon is neither a terminal nor a nonterminal.  Terminals
         # cannot expand to epsilon.
-        if rule.first_set and rule.follow_set:
-            return rule
+        #
+        # Code for calculating follow sets is only partially implemented.
+        if case.first_set and case.follow_set:
+            return case
 
-        rule.first_set = set()
-        rule.expands_to_epsilon = False
-        rule.first_item_not_epsilon_expanding = None
+        case.first_set = set()
+        case.expands_to_epsilon = False
+        case.first_item_not_epsilon_expanding = None
 
-        if rule[0].kind_of_item == "epsilon": # Handle epsilon production.
+        if case[0].kind_of_item == "epsilon": # Handle epsilon production.
             pass # TODO, also raise exception if len not one, return.
 
-        for item in rule:
+        for item in case:
             if item.kind_of_item == "nonterminal":
                 # Recursively set the attributes of the subrule.
-                subrule_nonterm = item.value
-                if subrule_nonterm != nonterm_label:
-                    subrule = self._set_first_and_follow_sets(subrule_nonterm)
+                subrule_nonterm_label = item.value
+                if subrule_nonterm_label != nonterm_label:
+                    # Do we want cases or caselist here?  Needs second argument...
+                    subrule = self._recursive_set_first_sets(subrule_nonterm_label)
                 else:
-                    continue
+                    continue # A self-recursion.
 
-                # Expand the first set with subrule's first set.
-                rule.first_set |= subrule.first_set
+                # Union the current first set with subrule's first set.
+                case.first_set |= subrule.first_set
 
                 # Handle epsilon stuff.
                 if subrule.expands_to_epsilon:
-                    rule.expands_to_epsilon = True
+                    case.expands_to_epsilon = True
                 if (not subrule.expands_to_epsilon
-                        and rule.first_item_not_epsilon_expanding is None):
-                    rule.first_item_not_epsilon_expanding = item
+                        and case.first_item_not_epsilon_expanding is None):
+                    case.first_item_not_epsilon_expanding = item
 
-            else: # terminal (i.e., token)
-                rule.first_set.add(item) # TODO should be token group....
-                if rule.first_item_not_epsilon_expanding is None:
-                    rule.first_item_not_epsilon_expanding = item
+            else: # terminal (i.e., a token item)
+                case.first_set.add(item) # Note: could sequential tokens, too.
+                if case.first_item_not_epsilon_expanding is None:
+                    case.first_item_not_epsilon_expanding = item
 
         # Include epsilon-based first items.
-        if rule.first_item_not_epsilon_expanding is None:
-            rule.first_set.add(EPSILON)
+        if case.first_item_not_epsilon_expanding is None:
+            case.first_set.add(EPSILON)
         else:
-            rule.first_set |= rule.first_item_not_epsilon_expanding
+            case.first_set |= case.first_item_not_epsilon_expanding
 
-        return rule
+        print("case is:", case, "\nits first set is:", case.first_set)
+        return case
 
     def print_grammar(self):
         for nonterm_label, caselist in self.nonterm_to_caselist_dict.items():
@@ -737,6 +734,8 @@ class ItemList(object):
             else:
                 raise ParserGrammarRuleException("Unknown type in initializer to"
                         " ItemList class.  Object is: {0}.".format(a))
+        self.first_set = None
+        self.follow_set = None
 
     def append(self, item):
         """Append an item to the list."""

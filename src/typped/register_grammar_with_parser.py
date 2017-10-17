@@ -123,13 +123,10 @@ DEBUG = False
 HUGE_PRIORITY = 1000000000000 # Currently preconds for grammar-based stuff run first.
 
 # TODO: Optimizations to speed runtime and memory.
-# 1) Only declare the handler functions needed, and put them in a scope
-#    where there will only be one copy, if possible.  Some redundant preconds
-#    are also being added which just waste time.
-# 2) Implement first-sets in the recursion.  Code is set up for it when it
+# 1) Implement first-sets in the recursion.  Code is set up for it when it
 #    is calculated in Grammar.  Just register nonterminal-starting caselists
 #    like token-literal starting ones are currently done.  Modify partitioning fun.
-# 3) Consider memoization on the recursive calls, which repeat a lot of
+# 2) Consider memoization on the recursive calls, which repeat a lot of
 #    work re-doing parts of cases which have already been done.
 # 3) Optimize the selection of handlers for null-string tokens.  There is
 #    one such token, and it triggers *all* of the rules, sequentially running
@@ -164,48 +161,43 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     `def_handlers_for_first_case_of_nonterminal` with that caselist.
 
     """
-    # TODO: finish implementing first-sets and make the sub-caselists be groups
-    # that start with the same first-set (modify the partition routine).  Then
-    # make that a precond on it.  To start with, ONLY consider the first
-    # literal token in a case as far as calculating first sets (and make
-    # comment that users should note this).
-    #
-    # The above is close to done when first-set info is available; maybe later
-    # possibly add support for using several sequential token literals as an
-    # expanded start pattern.
+
+    # TODO: finish implementing first-sets.  Then just need to modify the
+    # partition_caselist function to include the nonterminal-starting cases
+    # with first-sets tokens in the returned dict (keyed by token labels)
+    # instead of in the list of things without a peek token.  Only consider
+    # single-token first sets for now.
 
     # TODO: Precedences not currently handled correctly.
     if DEBUG: print("\n==== Start registering rule:", nonterm_label)
 
     if not parser.null_string_token_subclass:
         parser.def_null_string_token() # Define null-string if necessary.
+    null_token = parser.null_string_token_subclass
 
     caselist = grammar[nonterm_label]
     caselist = list(caselist) # Only need ordinary Python lists here.
 
     # Partition the caselist into sub-caselists.
-    token_literal_start_cases, nonterm_start_cases = partition_caselist(caselist)
+    cases_with_peek_token_dict, cases_without_peek_token_list = partition_caselist(
+                                                                          caselist)
 
-    # Register null-string handlers for each unique first item of some case.
-    # All rules currently treated as non-unique.
-    null_token = parser.null_string_token_subclass
-
-    # Use null-string with a peek in front of actual tokens, also, to avoid
-    # special-curr_case handling in later code.
-    for token_label, caselist in token_literal_start_cases.items():
+    # For first-set items register handlers for null-string with a precond on
+    # both the state on the pstate_stack and the peek token label.
+    for token_label, caselist in cases_with_peek_token_dict.items():
         if DEBUG: print("token literal start caselist @@@@@@@@ ", token_label, caselist)
         # Register handler with a precondition on the token label.
         if caselist:
             def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
                            null_token, caselist, peek_token_label=token_label)
 
-    caselist = nonterm_start_cases # All rules currently handled the same.
-    # Register handler with the null-string token preconditioned on
-    # nonterm_label being on the top of the pstate_stack.
+    # For things without a first-set element register handlers for null-string
+    # with a precond only on the state on top of the pstate_stack.
+    caselist = cases_without_peek_token_list # A list; nonterms don't need peek_token.
     if DEBUG: print("nonterm start caselist &&&&&&&& ", caselist)
-    if caselist:
+    if cases_without_peek_token_list:
         def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
-                                                   null_token, caselist)
+                                       null_token, cases_without_peek_token_list)
 
 def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
                                   null_token, caselist, peek_token_label=None):
@@ -242,43 +234,8 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
     # here, too.  Or maybe from grammar-processing routine that calls this one.
     parser.pstate_processing_in_progress = False
 
-    def first_case_first_item_precond(tok, lex):
-        """A precondition that `nonterm_label` is at the top of the `pstate_stack`.
-        If `peek_token_label` is set then it must also match the label of the peek
-        token."""
-        if DEBUG: print("running precond for null-string token, rule",
-                nonterm_label, "peek", peek_token_label)
-        pstate_stack = lex.token_table.parser_instance.pstate_stack
-        already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
-        if pstate_stack[-1] != nonterm_label:
-            if DEBUG: print("   failed precond pstate")
-            return False
-        if already_processing:
-            if DEBUG: print("   failed precond already processing")
-            return False # This avoids accidental recursion in token processing.
-        if peek_token_label and lex.peek().token_label != peek_token_label:
-            if DEBUG: print("   failed precond peek, real peek is", lex.peek())
-            return False
-        if DEBUG: print("   precond success")
-        return True
 
-    def lower_priority_fail_precond(tok, lex): # TODO only need one per nonterminal
-        """A precondition to fail if no other stack-based precondition function
-        matches when `nonterm_label` is at the top of the `pstate_stack`."""
-        if DEBUG: print("fail precond!!!")
-        pstate_stack = lex.token_table.parser_instance.pstate_stack
-        already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
-        if pstate_stack[-1] != nonterm_label:
-            if DEBUG: print("   failed lower priority already proc")
-            return False
-        if already_processing:
-            if DEBUG: print("   failed lower priority already proc")
-            return False # This avoids accidental recursion.
-        return True
-
-    def all_fail_head_handler(tok, lex):
-        if DEBUG: print(" X X X X X X X X X X X X X ALL FAIL PRECOND")
-        raise BranchFail
+    first_case_first_item_precond = get_precond_funs(nonterm_label, peek_token_label)
 
     #prec_of_first_item = caselist[0][0].prec
     prec_of_first_item = 0 # Assume only heads for now.
@@ -287,20 +244,19 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
         # Register the handler for the first item of the first case.
         head_handler = nonterminal_handler_factory(nonterm_label, caselist)
         construct_label = "head construct_for_nonterminal_{0}".format(nonterm_label)
-        precond_priority = HUGE_PRIORITY # TODO: Temporary, decide on actual.
         parser.def_construct(HEAD, head_handler, null_token.token_label, prec=0,
                      construct_label=construct_label,
                      precond_fun=first_case_first_item_precond,
-                     precond_priority=precond_priority)
+                     precond_priority=HUGE_PRIORITY)
                      #val_type=val_type, arg_types=arg_types, eval_fun=eval_fun,
                      #ast_label=ast_label)
 
         # Set up a failure case where none of the preconditions match in
         # the context of the pstate.
-        parser.def_construct(HEAD, all_fail_head_handler, null_token.token_label,
+        parser.def_construct(HEAD, always_raise_branch_fail_head_handler, null_token.token_label,
                      prec=0, construct_label="all_fail_construct",
-                     precond_fun=lower_priority_fail_precond,
-                     precond_priority=precond_priority - 1)
+                     precond_fun=lower_priority_fail_if_stack_nonempty_precond,
+                     precond_priority=HUGE_PRIORITY-1)
 
     else:
         tail_handler = generic_tail_handler_function_factory(nonterm_label, caselist)
@@ -311,7 +267,7 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
                      precond_fun=first_case_first_item_precond,
                      precond_priority=precond_priority)
 
-    return # <================== BELOW CODE NOT CURRENTLY USED <==========
+    #return # <================== BELOW CODE NOT CURRENTLY USED <==========
 
     # TODO on code below : May need to be before defining constructs above.
     # This could easily implement some kind of "auto-define" feature for tokens
@@ -339,25 +295,25 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
             return False
         return True
 
-    # Register token-literal handlers for every token item in the caselist,
-    # conditioned on the label at the top of the pstate stack.  This avoids
-    # conflicts with other uses of the tokens in other rules and constructs,
-    # and users don't have to create the literals.
+    # Register token-literal handlers for every token item every case in the
+    # caselist, conditioned on the nonterminal label `nonterm_label` being at
+    # the top of the pstate stack.  This avoids conflicts with other uses of
+    # the tokens in other rules and constructs, and users don't have to create
+    # the literals.
     for case_count, case in enumerate(caselist):
         token_label_set = set()
         for item_count, item in enumerate(case):
-            if (case_count, item_count) == (0, 0):
-                continue
             if item.kind_of_item == "token":
                 token_label = item.value.token_label
-                if DEBUG: print("register new tok for", token_label)
                 if token_label in token_label_set:
                     continue # Only add the token literal once per nonterminal label.
+                print("---> Register token literal:", item.value)
                 token_label_set.add(token_label)
                 construct_label = "construct_for_token_{0}_in_nonterminal_{1}".format(
                                                            token_label, nonterm_label)
-                # TODO: Set types here if items define them, so they will be checked.
+                # TODO: Set types here if Tok items define them, so they'll be checked.
                 precond_priority = HUGE_PRIORITY
+                if DEBUG: print("register new tok for", token_label)
                 parser.def_literal(token_label, precond_fun=token_literal_precond,
                                    precond_priority=precond_priority)
 
@@ -518,7 +474,6 @@ def generic_tail_handler_function_factory(nonterm_label, caselist):
         return processed
     return tail_handler
 
-
 def partition_caselist(caselist):
     """A utility routine to partition a caselist into sub-caselists.  Case
     lists here are ordinary Python lists of `Case` instances, not full
@@ -591,6 +546,66 @@ def partition_caselist(caselist):
         for i in reversed(del_list):
             del caselist[i]
     return token_literal_start_cases, nonterm_start_cases
+
+#
+# Precondition functions and fixed handlers used in registering null-string handlers.
+#
+
+def always_raise_branch_fail_head_handler(tok, lex):
+    """This is a lower-priority head handler that is triggered by null-string
+    tokens when all their actual precondition functions fail.  It signals
+    branch failure in the search tree."""
+    if DEBUG: print(" X X X X X X X X X X X X X ALL FAIL PRECOND")
+    raise BranchFail
+
+def lower_priority_fail_if_stack_nonempty_precond(tok, lex):
+    """A precondition to fail if no other stack-based precondition function
+    matches when `nonterm_label` is at the top of the `pstate_stack`."""
+    if DEBUG: print("fail precond!!!")
+    pstate_stack = lex.token_table.parser_instance.pstate_stack
+    already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
+    if not pstate_stack:
+        return False
+    #if pstate_stack[-1] != nonterm_label:
+    #    if DEBUG: print("   failed lower priority already proc")
+    #    return False
+    if already_processing:
+        if DEBUG: print("   failed lower priority already proc")
+        return False # This avoids accidental recursion.
+    return True
+
+def get_precond_funs(nonterm_label, peek_token_label):
+    """Get the precondition functions for registering null-space tokens.  The
+    `nonterm_label` and `peek_token_label` values are saved in the function
+    closure."""
+
+    def first_case_first_item_precond(tok, lex):
+        """A precondition that `nonterm_label` is at the top of the `pstate_stack`.
+        If `peek_token_label` is set then it must also match the label of the peek
+        token."""
+        if DEBUG: print("running precond for null-string token, rule",
+                nonterm_label, "peek", peek_token_label)
+        pstate_stack = lex.token_table.parser_instance.pstate_stack
+        already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
+        if not pstate_stack:
+            return False
+        if pstate_stack[-1] != nonterm_label:
+            if DEBUG: print("   failed precond pstate")
+            return False
+        if already_processing:
+            if DEBUG: print("   failed precond already processing")
+            return False # This avoids accidental recursion in token processing.
+        if peek_token_label and lex.peek().token_label != peek_token_label:
+            if DEBUG: print("   failed precond peek, real peek is", lex.peek())
+            return False
+        if DEBUG: print("   precond success")
+        return True
+
+    return first_case_first_item_precond
+
+#
+# Exceptions.
+#
 
 class BranchFail(ParserException):
     """Used in backtracking when parsing production rules.  Raised when a case of

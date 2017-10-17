@@ -157,7 +157,8 @@ easy to define aliases for complicated components.
 When the grammar is "compiled" with respect to a ``PrattParser`` instance it
 produces a recursive descent parser for the grammar within the Pratt parser
 framework.  The generated parsers currently use full backtracking search
-(finding stop-sets is not yet implemented).
+(The use of first-sets is not fully implemented, but fits nicely into the
+precondition-triggering model.)
 
 This feature is still in development and experimental.  The code is not
 optimized and parts are currently inefficient.
@@ -184,9 +185,6 @@ in the examples directory for the code.
     parser.def_default_single_char_tokens()
     k_int = parser.def_default_int_token()
     k_identifier = parser.def_default_identifier_token()
-    literals = ["k_int", "k_identifier", "k_plus", "k_minus",
-                "k_ast", "k_slash", "k_lpar", "k_rpar"]
-    parser.def_multi_literals([lit,] for lit in literals)
 
     expression = ( Rule("term") + Tok("k_plus") + Rule("expression")
                  | Rule("term") + Tok("k_minus") + Rule("expression")
@@ -205,9 +203,15 @@ in the examples directory for the code.
     print(tree.tree_repr())
 
 This example uses several of the helper methods functions to quickly define
-tokens and literals.  Notice that token instances can appear directly in the
-grammar as token literals.  The token named by its token label appears as, for
-example, ``Tok("k_plus")``.
+tokens.  The tokens must all be defined, but they do not need to be explicitly
+made into token literals.  The compiling process automatically generates
+high-priority precondition literals for any tokens.  This helps to avoid
+conflicts with other uses of the tokens in other contexts (such as in
+Pratt-parsed parts of the text).
+
+Notice that token instances can appear directly in the grammar as token
+literals.  The token named by its token label appears as, for example,
+``Tok("k_plus")``.
 
 The output from the above code is as follows::
 

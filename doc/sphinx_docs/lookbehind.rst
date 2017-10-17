@@ -33,11 +33,12 @@ practice, however, and so has been kept.
 Lookbehind information is not a feature which will be commonly used, but it may
 have some use cases.
 
-In addition to lookbehind information, the temporary ``extra_data`` attribute
-of a triggering token (which is a namedtuple) contains some other information
-which users might want to access.  The current subexpression precedence is
-available as ``subexp_prec``.  Also available is a list ``constructs`` which
-contains all the constructs for all the previous sub-subexpressions of the
-subexpression.  They are appended just after they are dispatched, and so the
-current construct is available in head or tail handler functions.
+In addition to lookbehind information, a namedtuple containing other
+information that users might want to access during parsing is temporarily set
+as the attribute ``extra_data`` of a triggering token.  The current
+subexpression precedence is available as ``subexp_prec``.  Also available is a
+list ``constructs`` which contains all the constructs for all the previous
+sub-subexpressions of the subexpression.  They are appended just after they are
+dispatched, and so the current construct is available in head or tail handler
+functions.
 

@@ -64,29 +64,33 @@ Subexpression lookahead
 -----------------------
 
 In this generalization you would be able to use lookahead on the next
-subexpression, not just the next token.  Preconditioning on a subexpression
-lookahead and then a token lookahead would be one way (probably not the best
-way) to resolve things like ternary operations where the first operator is also
-an operator by itself: ``x ? y`` versus ``x ? y : z``.  Similarly, an if-then
-with optional else could be resolved that way: ``if <test> then <action>`` versus
-``if <test> then <action> else <other-action>``.  The tail handler for
-processing the first operator can be chosen dependent on the token type two
-tokens ahead.
+subexpression, not just the next token.  The advantage of this kind of
+lookahead is that infix operator overloading can then depend on the types (or
+other properties) of both of the fully-resolved operands, not just the left
+operand and the raw lookahead tokens.
 
-The real advantage of this kind of lookahead is that operator overloading can
-be more easily made dependent on the types (or other properties) of the fully
-resolved operands, not just the left operand and the raw lookahead tokens.
+Preconditioning on a token lookahead just after a subexpression lookahead could
+be one way (not the best way) to resolve things like ternary operations where
+the first operator is also an operator by itself: ``x ? y`` versus ``x ? y :
+z``.  Similarly, an if-then with optional else could be resolved that way: ``if
+<test> then <action>`` versus ``if <test> then <action> else <other-action>``.
+The tail handler for processing the first operator can be chosen dependent on
+the token type two tokens ahead.
 
 This would be a useful feature, but it would obviously be more expensive since
 full subexpressions would have to be provisionally parsed.  It has the
 potential to interact with other features, such as the jop feature.  So the
-implementation would need to be carefully considered.  Some form of this is
-likely to be implemented at some point, if only to make overloading on types
-easier to implement.
+implementation would need to be carefully considered.  Some limited form of
+this is likely to be implemented at some point, if only to allow for full
+overloading on types.
 
-You can currently do something similar inside a handler function if you really
-must.  You can save the state of the lexer, call ``recursive_parse`` to get a
-subexpression, and then restore the state of the lexer.
+The required number of ``go_back`` lexer operations on failure could be limited
+by possibly allowing preconditions functions to specify a subexpression
+lookahead, preferably after the constraints based on available data are
+satisfied.  You can already do something similar inside a precondition or
+handler function if you really must.  You can save the state of the lexer, call
+``recursive_parse`` to get a subexpression, and then restore the state of the
+lexer.
 
 Constructs with multiple possible trigger tokens
 ------------------------------------------------

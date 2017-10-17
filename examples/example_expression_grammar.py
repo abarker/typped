@@ -26,9 +26,6 @@ def example_from_Sphinx_recursive_descent_page():
     parser.def_default_single_char_tokens()
     k_int = parser.def_default_int_token(signed=True)
     k_identifier = parser.def_default_identifier_token()
-    literals = ["k_int", "k_identifier", "k_plus", "k_minus",
-                "k_ast", "k_slash", "k_lpar", "k_rpar"]
-    parser.def_multi_literals([lit,] for lit in literals)
 
     expression = ( Rule("term") + Tok("k_plus") + Rule("expression")
                  | Rule("term") + Tok("k_minus") + Rule("expression")
