@@ -1,7 +1,0 @@
-typped.ebnf_classes_and_operators module
-========================================
-
-.. automodule:: typped.ebnf_classes_and_operators
-    :members:
-    :undoc-members:
-    :show-inheritance:

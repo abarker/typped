@@ -1,6 +1,0 @@
-{
-  "test/test_ebnf_classes_and_operators.py::test_parsing_from_bnf_expression_grammar": true,
-  "test/test_pratt_parser.py::test_stdfun_lpar_tail_functions[1]": true,
-  "test/test_pratt_parser.py::test_stdfun_lpar_tail_functions[2]": true,
-  "test/test_pratt_parser.py::test_stdfun_lpar_tail_functions[3]": true
-}

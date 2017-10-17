@@ -1,1 +1,283 @@
-Sphinx documentation coming soon.
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Typped: A framework for typed Pratt parsers employing dispatching &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="1. Basic usage" href="basic_usage.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="basic_usage.html" title="1. Basic usage"
+             accesskey="N">next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="typped-a-framework-for-typed-pratt-parsers-employing-dispatching">
+<h1>Typped: A framework for typed Pratt parsers employing dispatching<a class="headerlink" href="#typped-a-framework-for-typed-pratt-parsers-employing-dispatching" title="Permalink to this headline">¶</a></h1>
+<p>The Typped package provides a general Python framework for defining and using
+Pratt parsers.  The parsed languages can optionally be typed, with basic types
+which are checked at parse-time.  Overloading on types is also allowed.</p>
+<p>Default parser methods are provided for many standard constructs such as infix
+operators and ordinary function calls.  Users can define their own customized
+functions or methods in order to parse more-complicated and/or more-specific
+grammatical constructs.  An EBNF-like Python syntax is also provided, which can
+be used to define and implement recursive descent parsing of a grammar within
+the Typped framework (integrated with Pratt parsing).</p>
+<p>Although the framework is general, the package was originally designed to parse
+logic languages and mathematical languages which use syntax approximating the
+often-ambiguous informal syntax which is used in practice.  Because it is based
+on Pratt parsing it is especially good at parsing expression languages which
+have various operators at different precedence levels.  Pratt parsing tends to
+be fairly efficient in this context, but the Typped package focuses more on
+ease-of-use than execution speed.  The parsers and lexers are modifiable
+on-the-fly, allowing the parsed languages to be fully dynamic.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This is alpha-level software.  The basic parts work but many features are
+experimental and/or partially implemented.  The documentation is incomplete.
+The user API can still change — probably in minor ways, but not
+necessarily.</p>
+</div>
+<div class="section" id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this headline">¶</a></h2>
+<p>The current way to install is to clone the GitHub repo and install with pip:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span></span>git clone https://github.com/abarker/typped
+<span class="nb">cd</span> typped
+pip install .
+</pre></div>
+</div>
+<p>As usual, use a virtual environment or at least run pip with the <code class="docutils literal"><span class="pre">--user</span></code>
+option.  (If you really want to modify the system Python installation the
+command needs to be run with administrative privileges.)  Use the <code class="docutils literal"><span class="pre">-e</span></code> option
+to pip if you want to experiment with the code.  See the comments in the
+<code class="docutils literal"><span class="pre">setup.py</span></code> file for how to compile with Cython.</p>
+<p>At a more stable development point Typped will be uploaded to PyPI so users can
+install Typped directly:</p>
+<div class="highlight-bash"><div class="highlight"><pre><span></span>pip install typped
+</pre></div>
+</div>
+</div>
+<div class="section" id="content">
+<h2>Content<a class="headerlink" href="#content" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="basic_usage.html">1. Basic usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="basic_usage.html#example-parsing-a-simple-expression">1.1. Example: Parsing a simple expression</a></li>
+<li class="toctree-l2"><a class="reference internal" href="basic_usage.html#example-parsing-a-simple-expression-without-using-builtins">1.2. Example: Parsing a simple expression without using builtins</a></li>
+<li class="toctree-l2"><a class="reference internal" href="basic_usage.html#example-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing">1.3. Example: A simple string and number language with evaluation and dynamic typing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="basic_usage.html#example-4-a-simple-string-and-number-language-with-evaluation-and-static-typing">1.4. Example 4: A simple string and number language with evaluation and static typing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="basic_usage.html#defining-a-new-construct-for-type-definitions">1.4.1. Defining a new construct for type definitions</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="pratt_parsing_intro.html">2. Introduction to Pratt parsing and its terminology</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#what-is-a-pratt-parser">2.1. What is a Pratt parser?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#basic-assumptions">2.2. Basic assumptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#operator-precedence">2.3. Operator precedence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#subexpressions">2.4. Subexpressions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#basic-parsing">2.5. Basic parsing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#the-handler-functions-head-and-tail">2.6. The handler functions head and tail</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="pratt_parsing_intro.html#literal-tokens">2.6.1. Literal tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="pratt_parsing_intro.html#non-literal-tokens">2.6.2. Non-literal tokens</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#an-example-parse">2.7. An example parse</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#summary">2.8. Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="pratt_parsing_intro.html#references">2.9. References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="dispatching.html">3. Constructs and preconditioned dispatching</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#what-is-preconditioned-dispatching">3.1. What is preconditioned dispatching?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-dispatching">3.2. Using dispatching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#uniqueness-of-constructs">3.3. Uniqueness of constructs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="dispatching.html#overloading">3.3.1. Overloading</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#example-defining-standard-functions-with-lookahead">3.4. Example: Defining standard functions with lookahead</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="calculator_example.html">4. Example: Implementing a simple calculator</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="calculator_example.html#the-main-procedure">4.1. The main procedure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="calculator_example.html#the-read-evaluate-print-loop">4.2. The read-evaluate-print loop</a></li>
+<li class="toctree-l2"><a class="reference internal" href="calculator_example.html#defining-the-grammar">4.3. Defining the grammar</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="types_in_typped.html">5. Implementing typed languages</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="types_in_typped.html#declaring-types">5.1. Declaring types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="types_in_typped.html#type-signatures">5.2. Type signatures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="types_in_typped.html#overview-of-type-checking">5.3. Overview of type-checking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="types_in_typped.html#implementation-details">5.4. Implementation details</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="juxtaposition_operators.html">6. Juxtaposition operators (jops)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="juxtaposition_operators.html#assumptions-for-inferring-jops">6.1. Assumptions for inferring jops</a></li>
+<li class="toctree-l2"><a class="reference internal" href="juxtaposition_operators.html#disambiguating-jops">6.2. Disambiguating jops</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="recursive_descent.html">7. Recursive descent parsing in Typped</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="recursive_descent.html#similarities-and-differences-between-the-parsing-methods">7.1. Similarities and differences between the parsing methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recursive_descent.html#example">7.2. Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="recursive_descent.html#recursive-descent-with-typped-s-ebnf-like-grammar">7.3. Recursive descent with Typped’s EBNF-like grammar</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="parsers_calling_other_parsers.html">8. Parsers calling other parsers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lookbehind.html">9. Lookbehind and other extra data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="typped.html">10. APIs and code for the modules in the Typped package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_parser.html">10.1. typped.pratt_parser</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#api-details">10.1.1. API details</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#implementation-details">10.1.2. Implementation details</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.pratt_parser.html#code">10.1.3. Code</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="typped.builtin_parse_methods.html">10.2. typped.builtin_parse_methods</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.predefined_token_sets.html">10.3. typped.predefined_token_sets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.shared_settings_and_exceptions.html">10.4. typped.shared_settings_and_exceptions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_constructs.html">10.5. typped.pratt_constructs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.pratt_types.html">10.6. typped.pratt_types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="typped.ebnf_classes_and_operators.html">10.7. typped.ebnf_classes_and_operators</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#terminology-and-notation">10.7.1. Terminology and notation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#implementation">10.7.2. Implementation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#wrapper-functions">10.7.3. Wrapper functions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#overloaded-operator-api">10.7.4. Overloaded operator API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#modifiers-for-items">10.7.5. Modifiers for items</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#operator-precedences-expressed-in-grammar">10.7.6. Operator precedences expressed in grammar</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.ebnf_classes_and_operators.html#optimizing-the-grammar">10.7.7. Optimizing the grammar</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="typped.register_grammar_with_parser.html">10.8. typped.register_grammar_with_parser</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.register_grammar_with_parser.html#rules-and-guidelines">10.8.1. Rules and guidelines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.register_grammar_with_parser.html#precedences">10.8.2. Precedences</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="typped.lexer.html">10.9. typped.lexer</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#defining-tokens">10.9.1. Defining tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#begin-and-end-tokens">10.9.2. Begin and end tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#using-the-lexer">10.9.3. Using the lexer</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#user-accessible-methods-and-attributes-of-lexer">10.9.4. User-accessible methods and attributes of <code class="code docutils literal"><span class="pre">Lexer</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#user-accessible-attributes-of-tokens">10.9.5. User-accessible attributes of tokens</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#initialization-options">10.9.6. Initialization options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="typped.lexer.html#code">10.9.7. Code</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="other_possible_generalizations.html">11. Appendix A: Possible (but currently unimplemented) generalizations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#modifiable-token-precedence-values">11.1. Modifiable token precedence values</a></li>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#general-position-dependent-handling-functions">11.2. General position-dependent handling functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#subexpression-lookahead">11.3. Subexpression lookahead</a></li>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#constructs-with-multiple-possible-trigger-tokens">11.4. Constructs with multiple possible trigger tokens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#more-complex-types">11.5. More complex types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="other_possible_generalizations.html#floating-point-precedence-values">11.6. Floating point precedence values</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+<div class="section" id="indices-and-tables">
+<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></li>
+<li><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></li>
+<li><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="#">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">Typped: A framework for typed Pratt parsers employing dispatching</a><ul>
+<li><a class="reference internal" href="#installation">Installation</a></li>
+<li><a class="reference internal" href="#content">Content</a></li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Next topic</h4>
+  <p class="topless"><a href="basic_usage.html"
+                        title="next chapter">1. Basic usage</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/index.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="basic_usage.html" title="1. Basic usage"
+             >next</a> |</li>
+        <li class="nav-item nav-item-0"><a href="#">Typped  documentation</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

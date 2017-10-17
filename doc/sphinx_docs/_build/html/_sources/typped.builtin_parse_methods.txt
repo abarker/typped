@@ -1,7 +1,0 @@
-typped.builtin_parse_methods module
-===================================
-
-.. automodule:: typped.builtin_parse_methods
-    :members:
-    :undoc-members:
-    :show-inheritance:

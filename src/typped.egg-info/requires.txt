@@ -1,2 +1,0 @@
-pytest-helper
-pytest>=2.0
