@@ -220,12 +220,6 @@ and Pratt’s original naming conventions is given in this table:</p>
 </tr>
 </tbody>
 </table>
-<dl class="function">
-<dt id="typped.pratt_parser.DEFAULT_ALWAYS_TRUE_PRECOND_FUN">
-<code class="descclassname">typped.pratt_parser.</code><code class="descname">DEFAULT_ALWAYS_TRUE_PRECOND_FUN</code><span class="sig-paren">(</span><em>lex</em>, <em>extra_data</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#DEFAULT_ALWAYS_TRUE_PRECOND_FUN"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.DEFAULT_ALWAYS_TRUE_PRECOND_FUN" title="Permalink to this definition">¶</a></dt>
-<dd><p>The default precondition function; always returns true.</p>
-</dd></dl>
-
 <dl class="class">
 <dt id="typped.pratt_parser.TokenSubclassMeta">
 <em class="property">class </em><code class="descclassname">typped.pratt_parser.</code><code class="descname">TokenSubclassMeta</code><a class="reference internal" href="_modules/typped/pratt_parser.html#TokenSubclassMeta"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.TokenSubclassMeta" title="Permalink to this definition">¶</a></dt>
@@ -345,8 +339,7 @@ other).</p>
 <code class="descname">def_null_string_token</code><span class="sig-paren">(</span><em>null_string_token_label='k_null-string'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_null_string_token"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_null_string_token" title="Permalink to this definition">¶</a></dt>
 <dd><p>Define the null-string token.  This token has no regex pattern.  An
 instance is inserted in <code class="code docutils literal"><span class="pre">recursive_parse</span></code> when it is inferred to be
-present based.  It can only ever have head handlers, and is not even
-tested for tail handlers.  This method must be called before a
+present based.  This method must be called before a
 null-string can be used.  The parameter <code class="code docutils literal"><span class="pre">null_string_token_label</span></code> is
 the label for the newly-created tok representing it.</p>
 </dd></dl>

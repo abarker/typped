@@ -72,7 +72,7 @@ chosen.  This bound handler function first runs the registered handler; it
 then does type checking and other options before returning the subtree.</p>
 <dl class="class">
 <dt id="typped.pratt_constructs.Construct">
-<em class="property">class </em><code class="descclassname">typped.pratt_constructs.</code><code class="descname">Construct</code><span class="sig-paren">(</span><em>parser_instance</em>, <em>construct_label</em>, <em>trigger_head_or_tail=None</em>, <em>trigger_token_label=None</em>, <em>handler_fun=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>prec=0</em>, <em>assoc=None</em>, <em>key_on_token_values=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">typped.pratt_constructs.</code><code class="descname">Construct</code><span class="sig-paren">(</span><em>parser_instance</em>, <em>construct_label</em>, <em>trigger_head_or_tail=None</em>, <em>trigger_token_label=None</em>, <em>handler_fun=None</em>, <em>precond_fun=None</em>, <em>precond_priority=0</em>, <em>prec=0</em>, <em>assoc=None</em>, <em>key_eval_and_data_on_token_value=False</em>, <em>lookup_depends_on_pstate=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#Construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.Construct" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
 <p>A syntax construct in the language.  Usually corresponds to a subtree of
 the final parse tree.  Essentially a data frame for a handler function
@@ -153,8 +153,8 @@ in the <code class="code docutils literal"><span class="pre">ConstructTable</spa
 <dd></dd></dl>
 
 <dl class="attribute">
-<dt id="typped.pratt_constructs.Construct.key_on_token_values">
-<code class="descname">key_on_token_values</code><a class="headerlink" href="#typped.pratt_constructs.Construct.key_on_token_values" title="Permalink to this definition">¶</a></dt>
+<dt id="typped.pratt_constructs.Construct.key_eval_and_data_on_token_value">
+<code class="descname">key_eval_and_data_on_token_value</code><a class="headerlink" href="#typped.pratt_constructs.Construct.key_eval_and_data_on_token_value" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
 
 <dl class="attribute">
@@ -180,7 +180,7 @@ checking.</p>
 typesig.</p>
 <p>If type checking is disabled for the parser then <code class="code docutils literal"><span class="pre">type_sig</span></code> is set to
 <code class="code docutils literal"><span class="pre">None</span></code>.</p>
-<p>If <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> is true for the construct then the value
+<p>If <code class="code docutils literal"><span class="pre">key_eval_and_data_on_token_value</span></code> is true for the construct then the value
 <code class="code docutils literal"><span class="pre">token_value_key</span></code> is also used in the lookup key.</p>
 </dd></dl>
 
@@ -192,7 +192,7 @@ typesig.</p>
 typesig.</p>
 <p>If type checking is disabled for the parser then <code class="code docutils literal"><span class="pre">type_sig</span></code> is set to
 <code class="code docutils literal"><span class="pre">None</span></code>.</p>
-<p>If <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> is true for the construct then the value
+<p>If <code class="code docutils literal"><span class="pre">key_eval_and_data_on_token_value</span></code> is true for the construct then the value
 <code class="code docutils literal"><span class="pre">token_value_key</span></code> is also used in the lookup key.</p>
 </dd></dl>
 
@@ -245,7 +245,7 @@ it is the last one in which case the whole signature is removed.</p>
 constructs.</p>
 <dl class="method">
 <dt id="typped.pratt_constructs.ConstructTable.register_construct">
-<code class="descname">register_construct</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>trigger_token_label</em>, <em>handler_fun</em>, <em>precond_fun</em>, <em>precond_priority</em>, <em>construct_label</em>, <em>type_sig</em>, <em>eval_fun</em>, <em>ast_data</em>, <em>token_value_key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.register_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.register_construct" title="Permalink to this definition">¶</a></dt>
+<code class="descname">register_construct</code><span class="sig-paren">(</span><em>head_or_tail</em>, <em>trigger_token_subclass</em>, <em>handler_fun</em>, <em>precond_fun</em>, <em>precond_priority</em>, <em>construct_label</em>, <em>type_sig</em>, <em>eval_fun</em>, <em>ast_data</em>, <em>token_value_key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_constructs.html#ConstructTable.register_construct"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_constructs.ConstructTable.register_construct" title="Permalink to this definition">¶</a></dt>
 <dd><p>Register a construct (either head or tail) with the subclass for
 this kind of token, setting the given properties.  This method is only
 ever called from the <code class="code docutils literal"><span class="pre">def_construct</span></code> method of a <code class="code docutils literal"><span class="pre">PrattParser</span></code>
@@ -253,9 +253,10 @@ instance.</p>
 <p>The <code class="code docutils literal"><span class="pre">head_or_tail</span></code> argument must be <code class="code docutils literal"><span class="pre">HEAD</span></code> or <code class="code docutils literal"><span class="pre">TAIL</span></code>.</p>
 <p>The <code class="code docutils literal"><span class="pre">type_sig</span></code> argument must be a valid <code class="code docutils literal"><span class="pre">TypeSig</span></code> instance.</p>
 <p>If <code class="code docutils literal"><span class="pre">token_value_key</span></code> is set then it will be used as part of the key on
-evaluation functions and AST data.  The <code class="code docutils literal"><span class="pre">key_on_token_values</span></code> attribute
-of the <code class="code docutils literal"><span class="pre">Construct</span></code> instance is set based on this being set, and must
-always be the same for a given construct.</p>
+evaluation functions and AST data.  The
+<code class="code docutils literal"><span class="pre">key_eval_and_data_on_token_value</span></code> attribute of the <code class="code docutils literal"><span class="pre">Construct</span></code>
+instance is set based on this being set, and must always be the same
+for a given construct.</p>
 </dd></dl>
 
 <dl class="method">

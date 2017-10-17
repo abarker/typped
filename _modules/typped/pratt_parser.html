@@ -248,7 +248,8 @@
 <span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
 
 <span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">TAIL</span><span class="p">,</span> <span class="n">ParserException</span><span class="p">,</span>
-        <span class="n">NoHandlerFunctionDefined</span><span class="p">,</span> <span class="n">CalledBeginTokenHandler</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">)</span>
+        <span class="n">NoHandlerFunctionDefined</span><span class="p">,</span> <span class="n">CalledBeginTokenHandler</span><span class="p">,</span> <span class="n">CalledEndTokenHandler</span><span class="p">,</span>
+        <span class="n">DEFAULT_ALWAYS_TRUE_PRECOND_FUN</span><span class="p">)</span>
 <span class="kn">from</span> <span class="nn">.lexer</span> <span class="k">import</span> <span class="n">Lexer</span><span class="p">,</span> <span class="n">TokenNode</span><span class="p">,</span> <span class="n">TokenTable</span>
 <span class="kn">from</span> <span class="nn">.pratt_types</span> <span class="k">import</span> <span class="n">TypeTable</span><span class="p">,</span> <span class="n">TypeSig</span><span class="p">,</span> <span class="n">TypeErrorInParsedLanguage</span>
 <span class="kn">from</span> <span class="nn">.pratt_constructs</span> <span class="k">import</span> <span class="n">ConstructTable</span>
@@ -285,10 +286,6 @@
 <span class="c1"># the priorities.  Gives a define-time check, not having to wait until</span>
 <span class="c1"># parse-time (perhaps waiting for some obscure combination).  Shouldn&#39;t be too</span>
 <span class="c1"># hard to write.</span>
-
-<div class="viewcode-block" id="DEFAULT_ALWAYS_TRUE_PRECOND_FUN"><a class="viewcode-back" href="../../typped.pratt_parser.html#typped.pratt_parser.DEFAULT_ALWAYS_TRUE_PRECOND_FUN">[docs]</a><span class="k">def</span> <span class="nf">DEFAULT_ALWAYS_TRUE_PRECOND_FUN</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">extra_data</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;The default precondition function; always returns true.&quot;&quot;&quot;</span>
-    <span class="k">return</span> <span class="kc">True</span></div>
 
 <span class="c1">#</span>
 <span class="c1"># TokenNode</span>
@@ -829,7 +826,7 @@
             <span class="k">if</span> <span class="ow">not</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">null_string_token_label</span><span class="p">:</span>
                 <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
             <span class="k">else</span><span class="p">:</span>
-                <span class="c1"># TODO: Don&#39;t re-create each time, save one.</span>
+                <span class="c1"># TODO: Later don&#39;t re-create each time, save one.</span>
                 <span class="n">null_string_token</span> <span class="o">=</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">null_string_token_subclass</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
             <span class="n">null_string_token</span><span class="o">.</span><span class="n">extra_data</span> <span class="o">=</span> <span class="n">extra_data</span>
 
@@ -907,7 +904,6 @@
             <span class="c1"># Start the actual Pratt parsing recursion.</span>
             <span class="c1">#</span>
 
-
             <span class="n">curr_token</span><span class="p">,</span> <span class="n">head_handler</span><span class="p">,</span> <span class="n">construct</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dispatch_null_string_handler</span><span class="p">(</span>
                                                      <span class="n">HEAD</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">subexp_prec</span><span class="p">,</span> <span class="n">extra_data</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="n">curr_token</span><span class="p">:</span> <span class="c1"># No null-string token fired, so use normal next() call.</span>
@@ -925,7 +921,6 @@
 
             <span class="n">processed_left</span> <span class="o">=</span> <span class="n">head_handler</span><span class="p">()</span>
 
-            <span class="c1"># Could 3 lines below be put at the end of handler functions, automatic call?</span>
             <span class="nb">delattr</span><span class="p">(</span><span class="n">curr_token</span><span class="p">,</span> <span class="s2">&quot;extra_data&quot;</span><span class="p">)</span> <span class="c1"># Delete after recurse, allow mem cleanup.</span>
             <span class="n">extra_data</span><span class="o">.</span><span class="n">lookbehind</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">processed_left</span><span class="p">)</span>
             <span class="n">extra_data</span><span class="o">.</span><span class="n">constructs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">construct</span><span class="p">)</span>
@@ -1291,6 +1286,7 @@
             <span class="k">def</span> <span class="nf">begin_tail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
                 <span class="sd">&quot;&quot;&quot;Dummy tail-handler for begin-tokens.&quot;&quot;&quot;</span>
                 <span class="k">raise</span> <span class="n">CalledBeginTokenHandler</span><span class="p">(</span><span class="s2">&quot;Called tail-handler for begin token.&quot;</span><span class="p">)</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">token_kind</span> <span class="o">=</span> <span class="n">token_kind</span> <span class="c1"># Needed before calls to def_construct.</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">begin_head</span><span class="p">,</span> <span class="n">token_label</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">begin_tail</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">dummy_handler</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">begin_token_subclass</span> <span class="o">=</span> <span class="n">tok</span>
@@ -1305,6 +1301,7 @@
             <span class="k">def</span> <span class="nf">end_tail</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
                 <span class="sd">&quot;&quot;&quot;Dummy tail-handler for end-tokens.&quot;&quot;&quot;</span>
                 <span class="k">raise</span> <span class="n">CalledEndTokenHandler</span><span class="p">(</span><span class="s2">&quot;Called tail-handler for end token.&quot;</span><span class="p">)</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">token_kind</span> <span class="o">=</span> <span class="n">token_kind</span> <span class="c1"># Needed before calls to def_construct.</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">end_head</span><span class="p">,</span> <span class="n">token_label</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">end_tail</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">dummy_handler</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">end_token_subclass</span> <span class="o">=</span> <span class="n">tok</span>
@@ -1386,8 +1383,7 @@
 <div class="viewcode-block" id="PrattParser.def_null_string_token"><a class="viewcode-back" href="../../typped.pratt_parser.html#typped.pratt_parser.PrattParser.def_null_string_token">[docs]</a>    <span class="k">def</span> <span class="nf">def_null_string_token</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">null_string_token_label</span><span class="o">=</span><span class="s2">&quot;k_null-string&quot;</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;Define the null-string token.  This token has no regex pattern.  An</span>
 <span class="sd">        instance is inserted in `recursive_parse` when it is inferred to be</span>
-<span class="sd">        present based.  It can only ever have head handlers, and is not even</span>
-<span class="sd">        tested for tail handlers.  This method must be called before a</span>
+<span class="sd">        present based.  This method must be called before a</span>
 <span class="sd">        null-string can be used.  The parameter `null_string_token_label` is</span>
 <span class="sd">        the label for the newly-created tok representing it.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">def_token_master</span><span class="p">(</span><span class="n">null_string_token_label</span><span class="p">,</span>
@@ -1483,7 +1479,7 @@
             <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">DEFAULT_ALWAYS_TRUE_PRECOND_FUN</span>
 
         <span class="k">if</span> <span class="n">trigger_token_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">token_table</span><span class="p">:</span>
-            <span class="n">token_subclass</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_token</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">)</span>
+            <span class="n">trigger_token_subclass</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_token</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;In call to def_construct: subclass for&quot;</span>
                     <span class="s2">&quot; token labeled &#39;</span><span class="si">{0}</span><span class="s2">&#39; has not been defined.  Maybe try&quot;</span>
@@ -1491,11 +1487,17 @@
             <span class="c1"># Below line formerly just created a subclass, but that can mask errors!</span>
             <span class="c1">#TokenSubclass = self.token_table.create_token_subclass(token_label)</span>
 
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">trigger_token_subclass</span><span class="p">,</span> <span class="s2">&quot;token_kind&quot;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Token with label &#39;</span><span class="si">{0}</span><span class="s2">&#39;  must be defined by the&quot;</span>
+                                  <span class="s2">&quot; parser&#39;s def_token method, not the lexer&#39;s method.&quot;</span>
+                                  <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">))</span>
+
         <span class="c1"># TODO: Precedence is currently saved as a token attribute.  Consider</span>
         <span class="c1"># saving it in the construct instead.  See main Sphinx docs, unimplemented</span>
         <span class="c1"># generalizations.</span>
         <span class="k">if</span> <span class="n">head_or_tail</span> <span class="o">==</span> <span class="n">TAIL</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">token_subclass</span><span class="o">.</span><span class="n">static_prec</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">prec</span> <span class="o">!=</span> <span class="n">token_subclass</span><span class="o">.</span><span class="n">static_prec</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">trigger_token_subclass</span><span class="o">.</span><span class="n">static_prec</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span>
+                    <span class="n">prec</span> <span class="o">!=</span> <span class="n">trigger_token_subclass</span><span class="o">.</span><span class="n">static_prec</span><span class="p">):</span>
                 <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Redefining the precedence of the triggering&quot;</span>
                         <span class="s2">&quot; token subclass &#39;</span><span class="si">{0}</span><span class="s2">&#39; to a new value </span><span class="si">{1}</span><span class="s2"> not equal&quot;</span>
                         <span class="s2">&quot; to the previous nonzero value of </span><span class="si">{2}</span><span class="s2">.&quot;</span>
@@ -1504,8 +1506,9 @@
                         <span class="s2">&quot; explicitly before this call to def_construct.  Currently&quot;</span>
                         <span class="s2">&quot; all operators with the same triggering token must have&quot;</span>
                         <span class="s2">&quot; the same precedence value, regardless of preconditions.&quot;</span>
-                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span> <span class="n">token_subclass</span><span class="o">.</span><span class="n">static_prec</span><span class="p">))</span>
-            <span class="n">token_subclass</span><span class="o">.</span><span class="n">static_prec</span> <span class="o">=</span> <span class="n">prec</span> <span class="c1"># Ignore prec for heads; it will stay 0.</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="p">,</span>
+                                <span class="n">trigger_token_subclass</span><span class="o">.</span><span class="n">static_prec</span><span class="p">))</span>
+            <span class="n">trigger_token_subclass</span><span class="o">.</span><span class="n">static_prec</span> <span class="o">=</span> <span class="n">prec</span> <span class="c1"># Ignore prec for heads; will stay 0.</span>
 
         <span class="c1"># Create the type sig object.</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">skip_type_checking</span><span class="p">:</span>
@@ -1515,17 +1518,16 @@
 
         <span class="c1"># Register the handler funs.</span>
         <span class="n">construct</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_table</span><span class="o">.</span><span class="n">register_construct</span><span class="p">(</span>
-                                              <span class="n">head_or_tail</span><span class="o">=</span><span class="n">head_or_tail</span><span class="p">,</span>
-                                              <span class="n">trigger_token_label</span><span class="o">=</span><span class="n">trigger_token_label</span><span class="p">,</span>
-                                              <span class="n">handler_fun</span><span class="o">=</span><span class="n">handler_fun</span><span class="p">,</span>
-                                              <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
-                                              <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
-                                              <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
-                                              <span class="n">type_sig</span><span class="o">=</span><span class="n">type_sig</span><span class="p">,</span>
-                                              <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span>
-                                              <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">,</span>
-                                              <span class="n">token_value_key</span><span class="o">=</span><span class="n">token_value_key</span><span class="p">)</span>
-                                              <span class="c1">#parser_instance=self)</span>
+                                          <span class="n">head_or_tail</span><span class="o">=</span><span class="n">head_or_tail</span><span class="p">,</span>
+                                          <span class="n">trigger_token_subclass</span><span class="o">=</span><span class="n">trigger_token_subclass</span><span class="p">,</span>
+                                          <span class="n">handler_fun</span><span class="o">=</span><span class="n">handler_fun</span><span class="p">,</span>
+                                          <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
+                                          <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
+                                          <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
+                                          <span class="n">type_sig</span><span class="o">=</span><span class="n">type_sig</span><span class="p">,</span>
+                                          <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_fun</span><span class="p">,</span>
+                                          <span class="n">ast_data</span><span class="o">=</span><span class="n">ast_data</span><span class="p">,</span>
+                                          <span class="n">token_value_key</span><span class="o">=</span><span class="n">token_value_key</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">construct</span></div>
 
 <div class="viewcode-block" id="PrattParser.undef_construct"><a class="viewcode-back" href="../../typped.pratt_parser.html#typped.pratt_parser.PrattParser.undef_construct">[docs]</a>    <span class="k">def</span> <span class="nf">undef_construct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">construct</span><span class="p">,</span> <span class="n">type_sig</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
