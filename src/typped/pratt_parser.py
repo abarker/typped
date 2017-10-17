@@ -859,7 +859,6 @@ def token_subclass_factory():
             # Start the actual Pratt parsing recursion.
             #
 
-
             curr_token, head_handler, construct = self.dispatch_null_string_handler(
                                                      HEAD, lex, subexp_prec, extra_data)
             if not curr_token: # No null-string token fired, so use normal next() call.
@@ -877,7 +876,6 @@ def token_subclass_factory():
 
             processed_left = head_handler()
 
-            # Could 3 lines below be put at the end of handler functions, automatic call?
             delattr(curr_token, "extra_data") # Delete after recurse, allow mem cleanup.
             extra_data.lookbehind.append(processed_left)
             extra_data.constructs.append(construct)

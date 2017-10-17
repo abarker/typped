@@ -428,7 +428,7 @@ class Grammar(object):
         #    print("   {0} = {1}".format(name, caselist))
         #print()
 
-        self._set_first_and_follow_sets()
+        #self._set_first_and_follow_sets()
 
         if register:
             for label, caselist in self.nonterm_to_caselist_dict.items():

@@ -116,16 +116,16 @@ Example: Parsing a simple expression without using builtins
 This example parses the same language as Example 1, but none of the builtin
 parsing routines of the ``PrattParser`` class are used.  Raw Pratt parsing is
 used, explicitly defining the head and tail handler functions and registering
-them with the parser as a construct.
+them with the parser as a construct.  (Head and tail handler functions are
+called null denotations and left denotations, respectively, in traditional
+Pratt Parser terminology.)
 
 See the section ":ref:`Introduction to Pratt parsing and its terminology`" for
-background information.  Head and tail handler functions are just null
-denotations and left denotations, respectively, in traditional Pratt Parser
-terminology.  A construct here can be thought of as simply a container class
-that holds a token label and a corresponding head or tail handler function
-which is triggered by that kind of token (though actually constructs are more
-general than that).  See the section ":ref:`Constructs and preconditioned
-dispatching`" for more information on constructs.
+background information.  A construct here can be thought of as simply a
+container class that holds a token label and a corresponding head or tail
+handler function which is triggered by that kind of token (though actually
+constructs are more general than that).  See the section ":ref:`Constructs and
+preconditioned dispatching`" for more information on constructs.
 
 The definitions of the initial parser instance and the tokens are exactly the
 same in this example as in the previous example, so that portion of the code

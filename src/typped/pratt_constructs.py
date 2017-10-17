@@ -190,6 +190,7 @@ class Construct(object):
 
         if hasattr(subtree, "process_and_check_kwargs"):
             subtree.process_and_check_node(construct, **subtree.process_and_check_kwargs)
+            delattr(subtree, "process_and_check_kwargs")
         else:
             subtree.process_and_check_node(construct)
 

@@ -109,6 +109,8 @@ from collections import defaultdict
 import functools
 from .shared_settings_and_exceptions import (HEAD, TAIL,
                                      ParserException, CalledEndTokenHandler)
+from .pratt_types import TypeSig
+from .pratt_constructs import Construct
 
 #from .lexer import (Lexer, TokenNode, TokenTable, LexerException, BufferIndexError,
 #                    multi_funcall)
@@ -267,55 +269,21 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
                      precond_fun=first_case_first_item_precond,
                      precond_priority=precond_priority)
 
-    #return # <================== BELOW CODE NOT CURRENTLY USED <==========
-
-    # TODO on code below : May need to be before defining constructs above.
-    # This could easily implement some kind of "auto-define" feature for tokens
-    # in the grammar, even from a regex.  It is in pstate context only, so it
-    # avoids possible conflicts.
-    #
-    # NEED something like this since using recursive_parse token ahead of +
-    # token causes problems when it peeks ahead and sees the token priority.
-    #
-    # But what about, say, a token for a float.  Wouldn't you usually want to
-    # re-use the previous one since it is already a token literal, has a
-    # complex regex, and has a type set for it?  But other times a particular
-    # token in the grammar might not be defined as a token literal, it might be
-    # defined in only particular precond states, or it might conflict.
-    #
-    # --> Could have a special kind of token instead of Tok to specify redef
-    # from regex.
-
-    def token_literal_precond(tok, lex):
-        """A precondition that `nonterm_label` is at the top of the `pstate_stack`
-        and `pstate_processing_in_progress` is true."""
-        if DEBUG: print("running token_literal precond token", tok)
-        pstate_stack = lex.token_table.parser_instance.pstate_stack
-        if pstate_stack[-1] != nonterm_label:
-            return False
-        return True
-
-    # Register token-literal handlers for every token item every case in the
-    # caselist, conditioned on the nonterminal label `nonterm_label` being at
-    # the top of the pstate stack.  This avoids conflicts with other uses of
-    # the tokens in other rules and constructs, and users don't have to create
-    # the literals.
-    for case_count, case in enumerate(caselist):
-        token_label_set = set()
-        for item_count, item in enumerate(case):
-            if item.kind_of_item == "token":
-                token_label = item.value.token_label
-                if token_label in token_label_set:
-                    continue # Only add the token literal once per nonterminal label.
-                print("---> Register token literal:", item.value)
-                token_label_set.add(token_label)
-                construct_label = "construct_for_token_{0}_in_nonterminal_{1}".format(
-                                                           token_label, nonterm_label)
-                # TODO: Set types here if Tok items define them, so they'll be checked.
-                precond_priority = HUGE_PRIORITY
-                if DEBUG: print("register new tok for", token_label)
-                parser.def_literal(token_label, precond_fun=token_literal_precond,
-                                   precond_priority=precond_priority)
+    ## Create a construct for every token-literal to hold its associated data.
+    ## ACTUALLY constructs_by_label_and_nonterm_label MUST BE SOMEWHERE ACCESSIBLE.
+    #constructs_by_label_and_nonterm_label = {}
+    #for case_count, case in enumerate(caselist):
+    #    token_label_set = set()
+    #    for item_count, item in enumerate(case):
+    #        if item.kind_of_item == "token":
+    #            token_label = item.value.token_label
+    #            if token_label in token_label_set:
+    #                continue # Only add the token literal once per nonterminal label.
+    #            token_label_set.add(token_label)
+    #            construct_label = "construct_for_token_{0}_in_nonterminal_{1}".format(
+    #                                                       token_label, nonterm_label)
+    #            c = None # = Construct(...) # SET AND FILL IN.
+    #            constructs_by_label_and_nonterm_label[(token_label, nonterm_label)] = c
 
 def nonterminal_handler_factory(nonterm_label, caselist):
     """Return a generic head handler with `nonterm_label` and `caselist` bound
@@ -371,6 +339,21 @@ def generic_nonterminal_handler(nonterm_label, caselist, tok, lex):
 
     return parse_tree
 
+def next_token_literal_with_type_assignment(lex):
+    """Read a token and set its types."""
+    # TODO: May later want to define a full Construct object for each token in the grammar,
+    # or even for each (token_label, nonterminal) in the grammar.  Then eval funs,
+    # etc. can also be put there.
+    tok = lex.next()
+    sig = TypeSig(None) # TODO: Save in a dict somewhere along with prec to look up.
+    #tok.all_possible_sigs = [TypeSig(None)]
+    #tok._check_types_one_pass() # Just set the types directly below.
+    tok.is_head = True # To lookup eval funs, later maybe just set eval fun when option added.
+    tok.original_sig = sig
+    tok.actual_sig = sig
+    tok.expanded_formal_sig = sig
+    return tok
+
 def parse_case(case, lex, pstate_stack, tok, nonterm_label):
     """Try to parse the particular case represented by the `ItemList` passed as
     the `case` parameter.  Raise an exception on failure."""
@@ -415,7 +398,8 @@ def parse_case(case, lex, pstate_stack, tok, nonterm_label):
             # null-string token for a nonterminal when trying to get a token
             # literal (violates the precond for a nonterminal).
             tok.parser_instance.pstate_processing_in_progress = True
-            next_tok = tok.recursive_parse(subexp_prec, only_head=True) # Get the token.
+            #next_tok = tok.recursive_parse(subexp_prec, only_head=True) # Get the token.
+            next_tok = next_token_literal_with_type_assignment(lex)
             if DEBUG: print("      ===> returned this token from recursive parse", next_tok)
             #next_tok = lex.next() # Get the token. Fails, won't type check...
             tok.parser_instance.pstate_processing_in_progress = False
