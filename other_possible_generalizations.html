@@ -69,7 +69,7 @@ loop for tail handlers there is always a lookahead to the precedence of the
 next token (which is compared to the subexpression precedence).  So we need to
 find the precedence of the <code class="code docutils literal"><span class="pre">peek(1)</span></code> token.  Precedence can vary according to
 which tail handler (construct) <em>would be</em> dispatched, so we need to determine
-that.  But which constuct “wins” the dispatching can vary according to the
+that.  But which construct “wins” the dispatching can vary according to the
 conditions at the time when that peek token itself is processed.</p>
 <p>There are ways to get a reasonable version of this, subject to some
 limitations.  You essentially step the lexer ahead to approximate the time when

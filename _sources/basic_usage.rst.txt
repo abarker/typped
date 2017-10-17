@@ -153,7 +153,7 @@ tail handler function:
         tok.append_children(left, tok.recursive_parse(10)) # Use 9 for right assoc.
         return tok
 
-This handler function has a hardcoded left-association prececence value of 10
+This handler function has a hardcoded left-association precedence value of 10
 (for right-association 9 would be used instead).  When called, the ``tok``
 parameter will hold the token for the ``"k_plus"`` operator which triggers this
 particular handler function.  The function simply sets the left child of

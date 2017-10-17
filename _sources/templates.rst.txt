@@ -1,6 +1,10 @@
 Templates and type parameters
 =============================
 
+.. note::
+
+   DRAFT ONLY, some parts outdated
+
 NOTE:
    Templates are related to types because the parameters of templates are usually
    types.  So even if the mechanism is for general parameters, make sure
