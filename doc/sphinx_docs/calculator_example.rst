@@ -185,7 +185,7 @@ line:
 
     parse_tree = parser.parse(line)
 
-where ``line`` is the user's input.  The value returned from ``parse`` is a
+Here ``line`` is the user's input.  The value returned from ``parse`` is a
 token instance, which the ``parse`` function has converted into the root node
 of an expression tree of tokens.  These are the expression trees that were
 displayed in the above dialog after the ``toggle`` command was issued.

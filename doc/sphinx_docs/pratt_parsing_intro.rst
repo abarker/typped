@@ -27,7 +27,7 @@ parsing for that particular kind of token.
 
 Some of Pratt's original terminology is less-than-intuitive in a modern
 context.  That original terminology is still commonly used in descriptions of
-Pratt parsing and in the example code.  The Typped package uses alternatative
+Pratt parsing and in the example code.  The Typped package uses alternative
 terminology which is hopefully more intuitive --- at least in the context of a
 Python implementation.  The correspondences between the terms in Pratt's
 original terminology and the terms used in Typped are noted below at the points

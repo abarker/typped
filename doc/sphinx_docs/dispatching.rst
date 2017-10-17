@@ -357,7 +357,7 @@ In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and
 ``recursive_parse``.  Generally, tokens which will appear in the final parse
 tree, even literal tokens, should be retrieved with ``recursive_parse``.  That
-is because it peforms some extra processing the nodes such as setting their
+is because it performs some extra processing the nodes such as setting their
 actual types.  Tokens which do not appear in the final parse tree, such as the
 final closing rpar token of the function arguments, can simply be consumed by
 ``match_next`` or an explicit call to ``lex.next()`` and discarded.

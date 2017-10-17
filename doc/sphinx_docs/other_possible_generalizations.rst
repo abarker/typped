@@ -24,7 +24,7 @@ loop for tail handlers there is always a lookahead to the precedence of the
 next token (which is compared to the subexpression precedence).  So we need to
 find the precedence of the `peek(1)` token.  Precedence can vary according to
 which tail handler (construct) *would be* dispatched, so we need to determine
-that.  But which constuct "wins" the dispatching can vary according to the
+that.  But which construct "wins" the dispatching can vary according to the
 conditions at the time when that peek token itself is processed.
 
 There are ways to get a reasonable version of this, subject to some
