@@ -305,9 +305,10 @@ terminology that is used in this documentation and in the code:
      instance (which is used for more advanced features). |br|
 
    - The implementation of ``recursive_parse`` in the Typped package is
-     actually a generalization which calls ``head_dispatcher`` instead of
-     ``head_handler``, and ``tail_dispatcher`` instead ``tail_handler`` (this
-     will be discussed later).  The general principle, however, is the same. |br|
+     actually a generalization which calls a method ``dispatcher_handler``,
+     passed either ``HEAD`` or ``TAIL`` as its first argument, instead of
+     ``head_handler`` and ``tail_handler`` (this will be discussed later).  The
+     general principle, however, is the same. |br|
 
    - The ``processed_left`` structure can in general be a partial parse tree,
      the result of a numerical evaluation, or anything else.  The handler
@@ -317,10 +318,11 @@ terminology that is used in this documentation and in the code:
 
    - In the Typped package the handler functions are not made into
      directly-callable methods of the token subclasses.  Instead, they are
-     stored with the `PrattParser` instance.  Access is keyed by the token
-     label as well as by other data.  This is because the Typped package
-     generalizes to allow for multiple head and tail handlers, which are
-     looked up and dispatched before being called. |br|
+     stored with the `PrattParser` instance in a ``ConstructTable`` object
+     instance.  Access is keyed in a tree by the token label as well as by
+     other data.  This is because the Typped package generalizes to allow for
+     multiple head and tail handlers, which are looked up and dispatched before
+     being called.  |br|
 
    - Outside of an error condition the algorithm never even looks at the
      precedence of a token having *only* a head handler (i.e., a token which can
