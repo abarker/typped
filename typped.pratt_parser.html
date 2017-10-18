@@ -58,12 +58,14 @@
 <p>A general Pratt parser module that uses dispatching of handler functions and
 can check types.  The API is documented here.  See the general Sphinx
 documentation for Typped for how to use the class and examples.</p>
-<div class="section" id="api-details">
-<h2>10.1.1. API details<a class="headerlink" href="#api-details" title="Permalink to this headline">¶</a></h2>
-<p>These are some aspects of the API that are not covered by the function signatures
-and docstrings below.</p>
-<div class="section" id="extra-attributes-added-to-tokens">
-<h3>10.1.1.1. Extra attributes added to tokens<a class="headerlink" href="#extra-attributes-added-to-tokens" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="user-accessible-parser-attributes">
+<h2>10.1.1. User-accessible parser attributes<a class="headerlink" href="#user-accessible-parser-attributes" title="Permalink to this headline">¶</a></h2>
+<p>User accessible attributes are mostly the same as the initialization
+keywords to the <code class="code docutils literal"><span class="pre">PrattParser</span></code> initializer.  Most are read-only, but
+some can be changed between parses.</p>
+</div>
+<div class="section" id="user-accessible-token-attributes">
+<h2>10.1.2. User-accessible token attributes<a class="headerlink" href="#user-accessible-token-attributes" title="Permalink to this headline">¶</a></h2>
 <p>Token instances straight from a <code class="code docutils literal"><span class="pre">Lexer</span></code> instance have certain attributes set,
 as documented in the <code class="code docutils literal"><span class="pre">lexer</span></code> module.  In particular, the <code class="code docutils literal"><span class="pre">token_label</span></code>,
 <code class="code docutils literal"><span class="pre">value</span></code>, and <code class="code docutils literal"><span class="pre">children</span></code> attributes are commonly used.  The <code class="code docutils literal"><span class="pre">pratt_parser</span></code>
@@ -100,16 +102,15 @@ the corresponding data or function.</p>
 <p>Optional attributes that can be set to a node inside a handler:</p>
 <ul class="simple">
 <li><code class="code docutils literal"><span class="pre">not_in_tree</span></code> – set on a root node returned by the handler to hide it</li>
-<li><code class="code docutils literal"><span class="pre">process_and_check_kwargs</span></code> – kwargs dict to pass to type-checking routine</li>
+<li><code class="code docutils literal"><span class="pre">process_and_check_kwargs</span></code> – a kwargs dict to pass to type-checking routine</li>
 </ul>
 </div>
-</div>
 <div class="section" id="implementation-details">
-<h2>10.1.2. Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h2>
+<h2>10.1.3. Implementation details<a class="headerlink" href="#implementation-details" title="Permalink to this headline">¶</a></h2>
 <p>This section gives a general overview of the lower-level details of the
 <code class="code docutils literal"><span class="pre">PrattParser</span></code> implementation.</p>
 <div class="section" id="the-basic-class-structure">
-<h3>10.1.2.1. The basic class structure<a class="headerlink" href="#the-basic-class-structure" title="Permalink to this headline">¶</a></h3>
+<h3>10.1.3.1. The basic class structure<a class="headerlink" href="#the-basic-class-structure" title="Permalink to this headline">¶</a></h3>
 <p>TODO: Update diagram to and discussion to have ConstructTable.</p>
 <p>There are five basic classes, with instances which interact.  The main class is
 the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class, which users will mostly interact with.  The overall
@@ -163,7 +164,7 @@ define many methods for acting on types.  It is defined in the <code class="code
 module and imported.</p>
 </div>
 <div class="section" id="using-different-parsers-inside-handler-functions">
-<h3>10.1.2.2. Using different parsers inside handler functions<a class="headerlink" href="#using-different-parsers-inside-handler-functions" title="Permalink to this headline">¶</a></h3>
+<h3>10.1.3.2. Using different parsers inside handler functions<a class="headerlink" href="#using-different-parsers-inside-handler-functions" title="Permalink to this headline">¶</a></h3>
 <p>It is useful to be able to call different <code class="code docutils literal"><span class="pre">PrattParser</span></code> instances from inside
 handler functions in order to parse subexpressions which are defined as
 sublanguages, having their own parsers.  The implementation supports this as
@@ -192,7 +193,7 @@ when it would normally return a parsed expression.</p>
 </div>
 </div>
 <div class="section" id="code">
-<h2>10.1.3. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<h2>10.1.4. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
 <p>In reading the code, the correspondence between the naming convention used here
 and Pratt’s original naming conventions is given in this table:</p>
 <table border="1" class="docutils">
@@ -268,8 +269,8 @@ parsers could potentially share token subclasses.)</p>
 <dt id="typped.pratt_parser.PrattParser">
 <em class="property">class </em><code class="descclassname">typped.pratt_parser.</code><code class="descname">PrattParser</code><span class="sig-paren">(</span><em>max_peek_tokens=None</em>, <em>max_deque_size=None</em>, <em>lexer=None</em>, <em>default_begin_end_tokens=True</em>, <em>type_table=None</em>, <em>skip_type_checking=False</em>, <em>overload_on_arg_types=True</em>, <em>overload_on_ret_types=False</em>, <em>partial_expressions=False</em>, <em>parser_label=None</em>, <em>raise_on_equal_priority_preconds=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser" title="Permalink to this definition">¶</a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
-<p>A parser object.  Each parser object contains its own token table for tokens
-and its own lexer.</p>
+<p>A parser object.  Each parser object contains a table of defined tokens,
+a lexer, a table of constructs, and a table of defined types.</p>
 <dl class="method">
 <dt id="typped.pratt_parser.PrattParser.def_token_master">
 <code class="descname">def_token_master</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string=None</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>token_kind='regular'</em>, <em>ignored_token_label=None</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/pratt_parser.html#PrattParser.def_token_master"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.pratt_parser.PrattParser.def_token_master" title="Permalink to this definition">¶</a></dt>
@@ -747,16 +748,14 @@ remain in the lexer after the parser finishes its parsing.</p>
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">10.1. typped.pratt_parser</a><ul>
-<li><a class="reference internal" href="#api-details">10.1.1. API details</a><ul>
-<li><a class="reference internal" href="#extra-attributes-added-to-tokens">10.1.1.1. Extra attributes added to tokens</a></li>
+<li><a class="reference internal" href="#user-accessible-parser-attributes">10.1.1. User-accessible parser attributes</a></li>
+<li><a class="reference internal" href="#user-accessible-token-attributes">10.1.2. User-accessible token attributes</a></li>
+<li><a class="reference internal" href="#implementation-details">10.1.3. Implementation details</a><ul>
+<li><a class="reference internal" href="#the-basic-class-structure">10.1.3.1. The basic class structure</a></li>
+<li><a class="reference internal" href="#using-different-parsers-inside-handler-functions">10.1.3.2. Using different parsers inside handler functions</a></li>
 </ul>
 </li>
-<li><a class="reference internal" href="#implementation-details">10.1.2. Implementation details</a><ul>
-<li><a class="reference internal" href="#the-basic-class-structure">10.1.2.1. The basic class structure</a></li>
-<li><a class="reference internal" href="#using-different-parsers-inside-handler-functions">10.1.2.2. Using different parsers inside handler functions</a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#code">10.1.3. Code</a></li>
+<li><a class="reference internal" href="#code">10.1.4. Code</a></li>
 </ul>
 </li>
 </ul>

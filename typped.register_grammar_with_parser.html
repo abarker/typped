@@ -65,7 +65,7 @@ formally exposed to be called externally (and it is only called from the
 instance.  The function modifies the parser to parse the grammar rule which is
 also passed in.</p>
 <p>Note that because the processing uses the parser instance variables <code class="code docutils literal"><span class="pre">pstate_stack</span></code>
-and <code class="code docutils literal"><span class="pre">pstate_processing_in_progress</span></code> this parsing is not thread-safe for
+and <code class="code docutils literal"><span class="pre">disable_pstate_processing</span></code> this parsing is not thread-safe for
 multiple parses on the same parser (but the parser in general probably is not,
 either).</p>
 <div class="section" id="rules-and-guidelines">
@@ -93,12 +93,7 @@ satisfied:</p>
 </div>
 <div class="section" id="precedences">
 <h2>10.8.2. Precedences<a class="headerlink" href="#precedences" title="Permalink to this headline">¶</a></h2>
-<p>Precedences not handled right for now…</p>
-<p>Currently head or tail handlers are registered only for the first item of first
-case, but really ALL literal tokens and nonterminals should have a handler
-defined – conditioned on the pstate value to avoid conflicts.  They can check
-types if the types are defined correctly.  For literal tokens we could just
-call def_literal (or just read the thing with <code class="code docutils literal"><span class="pre">next</span></code> in if it must be there).</p>
+<p>Precedences not yet implemented.</p>
 <p>Assume for now that precedences only apply to token literals.  Two possible
 ways to consider:</p>
 <blockquote>
@@ -107,38 +102,27 @@ operator      = Tok(“k_ast”)[10] | Tok(“k_plus”)[20]</p>
 <p>num_expr         = k_number + Rule(“op_and_right_arg”) | k_number
 op_and_right_arg = Tok(“k_ast”)[10] + num_expr | Tok(“k_plus”)[20] + num_expr</p>
 </div></blockquote>
-<p>parse(“5 + 3 * 2”)</p>
-<p>When the handler for a nonterminal calls <code class="code docutils literal"><span class="pre">recursive_parse</span></code> it always does it as
-<code class="code docutils literal"><span class="pre">recursive_parse(tok.extra_data.subexp_prec)</span></code> to simply forward the current
-subexpression precedence to the next call.</p>
-<p>When a nonterminal handler processes a case the it goes through the items,
-calling recursive_parse to get each one.  If they have <code class="code docutils literal"><span class="pre">prec=0</span></code> then they are
-parsed via their head handlers, which just return the subtree (for either the
-token literal or the rule).  All those values are just appended to the children
-list.</p>
-<p>When a token with a precedence &gt;0 is called it is parsed with the tail handler.
-The tail handler does exactly the same thing as the head handler <em>except</em> that
-it 1) takes the <code class="code docutils literal"><span class="pre">left</span></code> argument and makes it it own left child/operand, and 2)
-calls <code class="code docutils literal"><span class="pre">recursive_parse</span></code> to get the right child/operand.</p>
-<p>But when the parser encounters a nonterminal it is not sure if it will be a
-head or tail token…</p>
-<hr class="docutils" />
-<p>The handler for a nonterminal does this:</p>
-<ol class="arabic simple">
-<li>Sequentially call recursive-parse for each item.  Check that the returned
-thing matches what it is supposed to match.</li>
-</ol>
-<dl class="docutils">
-<dt>for item in item_list:</dt>
-<dd><p class="first">next_from_text = recursive_parse(0)
-if not compare_item_with_tree(item, next_from_text):</p>
-<blockquote class="last">
-<div>raise Fail</div></blockquote>
-</dd>
-</dl>
-<p>Consider peekahead prec for nonterminals:  The precedence is the same
+<p>Now consider <code class="code docutils literal"><span class="pre">parse(&quot;5</span> <span class="pre">+</span> <span class="pre">3</span> <span class="pre">*</span> <span class="pre">2&quot;)</span></code>.</p>
+<p>When the handler for a nonterminal runs it processes all tokens simply by
+reading them (effectively as heads) and processes nonterminals by pushing that
+label on the pstate stack and calling <code class="code docutils literal"><span class="pre">recursive_parse</span></code>.  Only the precedences
+of tokens matter in this sequence, since they are the only ones a Pratt parser
+would ever see.  When <code class="code docutils literal"><span class="pre">recursive_parse(subexp_prec)</span></code> is called for a
+nonterminal it is passed the <code class="code docutils literal"><span class="pre">subexp_prec</span></code> of the current subexpression.  So
+the information is essentially just forwarded by nonterminal handlers.</p>
+<p>Inside each nonterminal handler, then, we need to mimic the basic form of
+<code class="code docutils literal"><span class="pre">recursive_parse</span></code>, starting when a token with nonzero precedence is read.  That
+precedence is pushed as the new <code class="code docutils literal"><span class="pre">subexp_prec</span></code>.  We keep track of the
+<code class="code docutils literal"><span class="pre">recursive_parse</span></code> loop condition and fail if we encounter a “loop break” before
+the end of the rule case being handled.  Nonzero precedence tokens also take
+the current <code class="code docutils literal"><span class="pre">processed_left</span></code> as their left child and all in the rest of the
+case as their right child.</p>
+<p>Todo: Consider peekahead prec for nonterminals:  The precedence is the same
 as the peek token, i.e., the next non-virtual token that is actually in
-the lexer.  Easy to do, since prec() is a function (or can be a property).</p>
+the lexer.  Easy to do, since prec() is a function (or can be a property).
+Then a grammar nonterminal could possibly fit into a Pratt context as
+an infix operator (actually, processing the right argument of an infix
+operator.</p>
 <dl class="function">
 <dt id="typped.register_grammar_with_parser.register_rule_handlers_with_parser">
 <code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">register_rule_handlers_with_parser</code><span class="sig-paren">(</span><em>parser</em>, <em>nonterm_label</em>, <em>grammar</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#register_rule_handlers_with_parser"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.register_rule_handlers_with_parser" title="Permalink to this definition">¶</a></dt>
@@ -215,12 +199,6 @@ the <code class="code docutils literal"><span class="pre">case</span></code> par
 </dd></dl>
 
 <dl class="function">
-<dt id="typped.register_grammar_with_parser.generic_tail_handler_function_factory">
-<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">generic_tail_handler_function_factory</code><span class="sig-paren">(</span><em>nonterm_label</em>, <em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#generic_tail_handler_function_factory"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.generic_tail_handler_function_factory" title="Permalink to this definition">¶</a></dt>
-<dd><p>Return a generic tail handler function.</p>
-</dd></dl>
-
-<dl class="function">
 <dt id="typped.register_grammar_with_parser.partition_caselist">
 <code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">partition_caselist</code><span class="sig-paren">(</span><em>caselist</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#partition_caselist"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.partition_caselist" title="Permalink to this definition">¶</a></dt>
 <dd><p>A utility routine to partition a caselist into sub-caselists.  Case
@@ -241,8 +219,8 @@ branch failure in the search tree.</p>
 </dd></dl>
 
 <dl class="function">
-<dt id="typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond">
-<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">lower_priority_fail_if_stack_nonempty_precond</code><span class="sig-paren">(</span><em>tok</em>, <em>lex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#lower_priority_fail_if_stack_nonempty_precond"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond" title="Permalink to this definition">¶</a></dt>
+<dt id="typped.register_grammar_with_parser.lower_priority_fail_if_pstate_stack_nonempty_precond">
+<code class="descclassname">typped.register_grammar_with_parser.</code><code class="descname">lower_priority_fail_if_pstate_stack_nonempty_precond</code><span class="sig-paren">(</span><em>tok</em>, <em>lex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/register_grammar_with_parser.html#lower_priority_fail_if_pstate_stack_nonempty_precond"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.register_grammar_with_parser.lower_priority_fail_if_pstate_stack_nonempty_precond" title="Permalink to this definition">¶</a></dt>
 <dd><p>A precondition to fail if no other stack-based precondition function
 matches when <code class="code docutils literal"><span class="pre">nonterm_label</span></code> is at the top of the <code class="code docutils literal"><span class="pre">pstate_stack</span></code>.</p>
 </dd></dl>

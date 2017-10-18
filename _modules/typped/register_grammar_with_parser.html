@@ -62,7 +62,7 @@
 <span class="sd">also passed in.</span>
 
 <span class="sd">Note that because the processing uses the parser instance variables `pstate_stack`</span>
-<span class="sd">and `pstate_processing_in_progress` this parsing is not thread-safe for</span>
+<span class="sd">and `disable_pstate_processing` this parsing is not thread-safe for</span>
 <span class="sd">multiple parses on the same parser (but the parser in general probably is not,</span>
 <span class="sd">either).</span>
 
@@ -88,13 +88,7 @@
 <span class="sd">Precedences</span>
 <span class="sd">-----------</span>
 
-<span class="sd">Precedences not handled right for now...</span>
-
-<span class="sd">Currently head or tail handlers are registered only for the first item of first</span>
-<span class="sd">case, but really ALL literal tokens and nonterminals should have a handler</span>
-<span class="sd">defined -- conditioned on the pstate value to avoid conflicts.  They can check</span>
-<span class="sd">types if the types are defined correctly.  For literal tokens we could just</span>
-<span class="sd">call def_literal (or just read the thing with `next` in if it must be there).</span>
+<span class="sd">Precedences not yet implemented.</span>
 
 <span class="sd">Assume for now that precedences only apply to token literals.  Two possible</span>
 <span class="sd">ways to consider:</span>
@@ -105,42 +99,30 @@
 <span class="sd">   num_expr         = k_number + Rule(&quot;op_and_right_arg&quot;) | k_number</span>
 <span class="sd">   op_and_right_arg = Tok(&quot;k_ast&quot;)[10] + num_expr | Tok(&quot;k_plus&quot;)[20] + num_expr</span>
 
-<span class="sd">parse(&quot;5 + 3 * 2&quot;)</span>
+<span class="sd">Now consider `parse(&quot;5 + 3 * 2&quot;)`.</span>
 
-<span class="sd">When the handler for a nonterminal calls `recursive_parse` it always does it as</span>
-<span class="sd">`recursive_parse(tok.extra_data.subexp_prec)` to simply forward the current</span>
-<span class="sd">subexpression precedence to the next call.</span>
+<span class="sd">When the handler for a nonterminal runs it processes all tokens simply by</span>
+<span class="sd">reading them (effectively as heads) and processes nonterminals by pushing that</span>
+<span class="sd">label on the pstate stack and calling `recursive_parse`.  Only the precedences</span>
+<span class="sd">of tokens matter in this sequence, since they are the only ones a Pratt parser</span>
+<span class="sd">would ever see.  When `recursive_parse(subexp_prec)` is called for a</span>
+<span class="sd">nonterminal it is passed the `subexp_prec` of the current subexpression.  So</span>
+<span class="sd">the information is essentially just forwarded by nonterminal handlers.</span>
 
-<span class="sd">When a nonterminal handler processes a case the it goes through the items,</span>
-<span class="sd">calling recursive_parse to get each one.  If they have `prec=0` then they are</span>
-<span class="sd">parsed via their head handlers, which just return the subtree (for either the</span>
-<span class="sd">token literal or the rule).  All those values are just appended to the children</span>
-<span class="sd">list.</span>
+<span class="sd">Inside each nonterminal handler, then, we need to mimic the basic form of</span>
+<span class="sd">`recursive_parse`, starting when a token with nonzero precedence is read.  That</span>
+<span class="sd">precedence is pushed as the new `subexp_prec`.  We keep track of the</span>
+<span class="sd">`recursive_parse` loop condition and fail if we encounter a &quot;loop break&quot; before</span>
+<span class="sd">the end of the rule case being handled.  Nonzero precedence tokens also take</span>
+<span class="sd">the current `processed_left` as their left child and all in the rest of the</span>
+<span class="sd">case as their right child.</span>
 
-<span class="sd">When a token with a precedence &gt;0 is called it is parsed with the tail handler.</span>
-<span class="sd">The tail handler does exactly the same thing as the head handler *except* that</span>
-<span class="sd">it 1) takes the `left` argument and makes it it own left child/operand, and 2)</span>
-<span class="sd">calls `recursive_parse` to get the right child/operand.</span>
-
-<span class="sd">But when the parser encounters a nonterminal it is not sure if it will be a</span>
-<span class="sd">head or tail token...</span>
-
-<span class="sd">------------------</span>
-
-<span class="sd">The handler for a nonterminal does this:</span>
-
-<span class="sd">1. Sequentially call recursive-parse for each item.  Check that the returned</span>
-<span class="sd">   thing matches what it is supposed to match.</span>
-
-
-<span class="sd">for item in item_list:</span>
-<span class="sd">    next_from_text = recursive_parse(0)</span>
-<span class="sd">    if not compare_item_with_tree(item, next_from_text):</span>
-<span class="sd">       raise Fail</span>
-
-<span class="sd">Consider peekahead prec for nonterminals:  The precedence is the same</span>
+<span class="sd">Todo: Consider peekahead prec for nonterminals:  The precedence is the same</span>
 <span class="sd">as the peek token, i.e., the next non-virtual token that is actually in</span>
 <span class="sd">the lexer.  Easy to do, since prec() is a function (or can be a property).</span>
+<span class="sd">Then a grammar nonterminal could possibly fit into a Pratt context as</span>
+<span class="sd">an infix operator (actually, processing the right argument of an infix</span>
+<span class="sd">operator.</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 
@@ -282,11 +264,6 @@
     <span class="c1"># been consumed from the lexer (curtailment, but no memoization, see e.g.</span>
     <span class="c1"># Frost et. al 2007).</span>
 
-    <span class="c1"># TODO either set var below in PrattParser when settled or set pstate_stack</span>
-    <span class="c1"># here, too.  Or maybe from grammar-processing routine that calls this one.</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># Preconds look at this, don&#39;t fire when true.</span>
-
-
     <span class="n">first_case_first_item_precond</span> <span class="o">=</span> <span class="n">get_precond_funs</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="p">)</span>
 
     <span class="c1">#prec_of_first_item = caselist[0][0].prec</span>
@@ -305,20 +282,22 @@
 
         <span class="c1"># Set up a failure case where none of the preconditions match in</span>
         <span class="c1"># the context of the pstate.</span>
-        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">always_raise_branch_fail_head_handler</span><span class="p">,</span> <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
-                     <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="s2">&quot;all_fail_construct&quot;</span><span class="p">,</span>
-                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">lower_priority_fail_if_stack_nonempty_precond</span><span class="p">,</span>
-                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">HUGE_PRIORITY</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">always_raise_branch_fail_head_handler</span><span class="p">,</span>
+                     <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                     <span class="n">construct_label</span><span class="o">=</span><span class="s2">&quot;all_fail_construct&quot;</span><span class="p">,</span>
+                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">lower_priority_fail_if_pstate_stack_nonempty_precond</span><span class="p">,</span>
+                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">HUGE_PRIORITY</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span></div>
 
-    <span class="k">else</span><span class="p">:</span>
-        <span class="n">tail_handler</span> <span class="o">=</span> <span class="n">generic_tail_handler_function_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">)</span>
-        <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;tail construct_for_nonterminal_</span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">)</span>
-        <span class="n">prec</span> <span class="o">=</span> <span class="n">prec_of_first_item</span>
-        <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">null_token</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
-                     <span class="n">construct_label</span><span class="o">=</span><span class="n">construct_label</span><span class="p">,</span>
-                     <span class="n">precond_fun</span><span class="o">=</span><span class="n">first_case_first_item_precond</span><span class="p">,</span>
-                     <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">)</span></div>
+    <span class="c1">#else: # Probably will only use head handlers.</span>
+    <span class="c1">#    tail_handler = generic_tail_handler_function_factory(nonterm_label, caselist)</span>
+    <span class="c1">#    construct_label = &quot;tail construct_for_nonterminal_{0}&quot;.format(nonterm_label)</span>
+    <span class="c1">#    prec = prec_of_first_item</span>
+    <span class="c1">#    parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,</span>
+    <span class="c1">#                 construct_label=construct_label,</span>
+    <span class="c1">#                 precond_fun=first_case_first_item_precond,</span>
+    <span class="c1">#                 precond_priority=precond_priority)</span>
 
+    <span class="c1"># Skeleton code below may be useful for defining Constructs.</span>
     <span class="c1">## Create a construct for every token-literal to hold its associated data.</span>
     <span class="c1">## ACTUALLY constructs_by_label_and_nonterm_label MUST BE SOMEWHERE ACCESSIBLE.</span>
     <span class="c1">#constructs_by_label_and_nonterm_label = {}</span>
@@ -444,15 +423,15 @@
             <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      matched a token with token label&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span>
                       <span class="s2">&quot;and value&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
 
-            <span class="c1"># Set the pstate_processing_in_progress flag to avoid getting a</span>
+            <span class="c1"># Set the disable_pstate_processing flag to avoid getting a</span>
             <span class="c1"># null-string token for a nonterminal when trying to get a token</span>
             <span class="c1"># literal (violates the precond for a nonterminal).</span>
-            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">disable_pstate_processing</span> <span class="o">=</span> <span class="kc">True</span>
             <span class="c1">#next_tok = tok.recursive_parse(subexp_prec, only_head=True) # Get the token.</span>
             <span class="n">next_tok</span> <span class="o">=</span> <span class="n">next_token_literal_with_type_assignment</span><span class="p">(</span><span class="n">lex</span><span class="p">)</span>
             <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;      ===&gt; returned this token from recursive parse&quot;</span><span class="p">,</span> <span class="n">next_tok</span><span class="p">)</span>
             <span class="c1">#next_tok = lex.next() # Get the token. Fails, won&#39;t type check...</span>
-            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">disable_pstate_processing</span> <span class="o">=</span> <span class="kc">False</span>
 
             <span class="k">if</span> <span class="n">next_tok</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
                 <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;In parsing the nonterminal &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
@@ -477,36 +456,36 @@
         <span class="k">raise</span> <span class="n">BranchFail</span><span class="p">(</span><span class="s2">&quot;Parsing did not reach end of expression.&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">tok</span></div>
 
-<div class="viewcode-block" id="generic_tail_handler_function_factory"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.generic_tail_handler_function_factory">[docs]</a><span class="k">def</span> <span class="nf">generic_tail_handler_function_factory</span><span class="p">(</span><span class="n">nonterm_label</span><span class="p">,</span> <span class="n">caselist</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;Return a generic tail handler function.&quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">tail_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;Just push the state, relay the call, and pop afterwards.&quot;&quot;&quot;</span>
-        <span class="c1"># TODO Below not used or implemented at all yet, just a copied-over stub.</span>
-        <span class="c1">#</span>
-        <span class="c1"># TODO: since routines head and tail are the same, maybe just define a</span>
-        <span class="c1"># generic handler but look at a closure variable or bind the var as</span>
-        <span class="c1"># a partial function for head vs. tail.....</span>
-        <span class="c1">#</span>
-        <span class="c1"># Note that for tail-handler that we presumably want *this* token as the</span>
-        <span class="c1"># subtree root.</span>
-        <span class="c1"># TODO: Assoc needs to be fixed in closure at least, and find recurse_bp</span>
-        <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;ERROR: Tail functions not implemented yet for&quot;</span>
-                              <span class="s2">&quot; null-string tokens.&quot;</span><span class="p">)</span>
-
-        <span class="k">if</span> <span class="n">assoc</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">]:</span>
-            <span class="k">raise</span> <span class="n">ParserException</span><span class="p">(</span><span class="s1">&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;</span><span class="p">)</span>
-        <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span>
-        <span class="k">if</span> <span class="n">assoc</span> <span class="o">==</span> <span class="s2">&quot;right&quot;</span><span class="p">:</span>
-            <span class="n">recurse_bp</span> <span class="o">=</span> <span class="n">prec</span> <span class="o">-</span> <span class="mi">1</span>
-
-        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
-        <span class="n">pstate_stack</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;pstate_label&quot;</span><span class="p">)</span>
-        <span class="n">processed</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">subexp_prec</span><span class="p">,</span> <span class="c1"># Now attrs of tok.extra_data</span>
-                            <span class="n">processed_left</span><span class="o">=</span><span class="n">left</span><span class="p">,</span> <span class="n">extra_data</span><span class="o">=</span><span class="n">tok</span><span class="o">.</span><span class="n">extra_data</span><span class="p">)</span>
-        <span class="n">pstate_stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">processed</span>
-    <span class="k">return</span> <span class="n">tail_handler</span></div>
+<span class="c1">#def generic_tail_handler_function_factory(nonterm_label, caselist):</span>
+<span class="c1">#    &quot;&quot;&quot;Return a generic tail handler function.&quot;&quot;&quot;</span>
+<span class="c1">#</span>
+<span class="c1">#    def tail_handler(tok, lex, left):</span>
+<span class="c1">#        &quot;&quot;&quot;Just push the state, relay the call, and pop afterwards.&quot;&quot;&quot;</span>
+<span class="c1">#        # TODO Below not used or implemented at all yet, just a copied-over stub.</span>
+<span class="c1">#        #</span>
+<span class="c1">#        # TODO: since routines head and tail are the same, maybe just define a</span>
+<span class="c1">#        # generic handler but look at a closure variable or bind the var as</span>
+<span class="c1">#        # a partial function for head vs. tail.....</span>
+<span class="c1">#        #</span>
+<span class="c1">#        # Note that for tail-handler that we presumably want *this* token as the</span>
+<span class="c1">#        # subtree root.</span>
+<span class="c1">#        # TODO: Assoc needs to be fixed in closure at least, and find recurse_bp</span>
+<span class="c1">#        raise ParserException(&quot;ERROR: Tail functions not implemented yet for&quot;</span>
+<span class="c1">#                              &quot; null-string tokens.&quot;)</span>
+<span class="c1">#</span>
+<span class="c1">#        if assoc not in [&quot;left&quot;, &quot;right&quot;]:</span>
+<span class="c1">#            raise ParserException(&#39;Argument assoc must be &quot;left&quot; or &quot;right&quot;.&#39;)</span>
+<span class="c1">#        recurse_bp = prec</span>
+<span class="c1">#        if assoc == &quot;right&quot;:</span>
+<span class="c1">#            recurse_bp = prec - 1</span>
+<span class="c1">#</span>
+<span class="c1">#        pstate_stack = tok.parser_instance.pstate_stack</span>
+<span class="c1">#        pstate_stack.append(&quot;pstate_label&quot;)</span>
+<span class="c1">#        processed = tok.recursive_parse(tok.subexp_prec, # Now attrs of tok.extra_data</span>
+<span class="c1">#                            processed_left=left, extra_data=tok.extra_data)</span>
+<span class="c1">#        pstate_stack.pop()</span>
+<span class="c1">#        return processed</span>
+<span class="c1">#    return tail_handler</span>
 
 <div class="viewcode-block" id="partition_caselist"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.partition_caselist">[docs]</a><span class="k">def</span> <span class="nf">partition_caselist</span><span class="p">(</span><span class="n">caselist</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A utility routine to partition a caselist into sub-caselists.  Case</span>
@@ -592,19 +571,19 @@
     <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot; X X X X X X X X X X X X X ALL FAIL PRECOND&quot;</span><span class="p">)</span>
     <span class="k">raise</span> <span class="n">BranchFail</span></div>
 
-<div class="viewcode-block" id="lower_priority_fail_if_stack_nonempty_precond"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.lower_priority_fail_if_stack_nonempty_precond">[docs]</a><span class="k">def</span> <span class="nf">lower_priority_fail_if_stack_nonempty_precond</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+<div class="viewcode-block" id="lower_priority_fail_if_pstate_stack_nonempty_precond"><a class="viewcode-back" href="../../typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.lower_priority_fail_if_pstate_stack_nonempty_precond">[docs]</a><span class="k">def</span> <span class="nf">lower_priority_fail_if_pstate_stack_nonempty_precond</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A precondition to fail if no other stack-based precondition function</span>
 <span class="sd">    matches when `nonterm_label` is at the top of the `pstate_stack`.&quot;&quot;&quot;</span>
     <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;fail precond!!!&quot;</span><span class="p">)</span>
-    <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
-    <span class="n">already_processing</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span>
+    <span class="n">parser_instance</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span>
+    <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">pstate_stack</span><span class="p">:</span>
         <span class="k">return</span> <span class="kc">False</span>
     <span class="c1">#if pstate_stack[-1] != nonterm_label:</span>
     <span class="c1">#    if DEBUG: print(&quot;   failed lower priority already proc&quot;)</span>
     <span class="c1">#    return False</span>
-    <span class="k">if</span> <span class="n">already_processing</span><span class="p">:</span>
-        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed lower priority already proc&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">disable_pstate_processing</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed lower priority disabled proc&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">False</span> <span class="c1"># This avoids accidental recursion.</span>
     <span class="k">return</span> <span class="kc">True</span></div>
 
@@ -617,17 +596,17 @@
         <span class="sd">&quot;&quot;&quot;A precondition that `nonterm_label` is at the top of the `pstate_stack`.</span>
 <span class="sd">        If `peek_token_label` is set then it must also match the label of the peek</span>
 <span class="sd">        token.&quot;&quot;&quot;</span>
+        <span class="n">parser_instance</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">parser_instance</span>
         <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;running precond for null-string token, rule&quot;</span><span class="p">,</span>
                 <span class="n">nonterm_label</span><span class="p">,</span> <span class="s2">&quot;peek&quot;</span><span class="p">,</span> <span class="n">peek_token_label</span><span class="p">)</span>
-        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
-        <span class="n">already_processing</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">token_table</span><span class="o">.</span><span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_processing_in_progress</span>
+        <span class="n">pstate_stack</span> <span class="o">=</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">pstate_stack</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">pstate_stack</span><span class="p">:</span>
             <span class="k">return</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="n">pstate_stack</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">nonterm_label</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond pstate&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span>
-        <span class="k">if</span> <span class="n">already_processing</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond already processing&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">parser_instance</span><span class="o">.</span><span class="n">disable_pstate_processing</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond disabled processing&quot;</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">False</span> <span class="c1"># This avoids accidental recursion in token processing.</span>
         <span class="k">if</span> <span class="n">peek_token_label</span> <span class="ow">and</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="n">peek_token_label</span><span class="p">:</span>
             <span class="k">if</span> <span class="n">DEBUG</span><span class="p">:</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;   failed precond peek, real peek is&quot;</span><span class="p">,</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">())</span>

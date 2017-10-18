@@ -53,14 +53,15 @@
 <span class="sd">can check types.  The API is documented here.  See the general Sphinx</span>
 <span class="sd">documentation for Typped for how to use the class and examples.</span>
 
-<span class="sd">API details</span>
-<span class="sd">===========</span>
+<span class="sd">User-accessible parser attributes</span>
+<span class="sd">=================================</span>
 
-<span class="sd">These are some aspects of the API that are not covered by the function signatures</span>
-<span class="sd">and docstrings below.</span>
+<span class="sd">User accessible attributes are mostly the same as the initialization</span>
+<span class="sd">keywords to the `PrattParser` initializer.  Most are read-only, but</span>
+<span class="sd">some can be changed between parses.</span>
 
-<span class="sd">Extra attributes added to tokens</span>
-<span class="sd">--------------------------------</span>
+<span class="sd">User-accessible token attributes</span>
+<span class="sd">================================</span>
 
 <span class="sd">Token instances straight from a `Lexer` instance have certain attributes set,</span>
 <span class="sd">as documented in the `lexer` module.  In particular, the `token_label`,</span>
@@ -100,7 +101,7 @@
 <span class="sd">Optional attributes that can be set to a node inside a handler:</span>
 
 <span class="sd">* `not_in_tree` -- set on a root node returned by the handler to hide it</span>
-<span class="sd">* `process_and_check_kwargs` -- kwargs dict to pass to type-checking routine</span>
+<span class="sd">* `process_and_check_kwargs` -- a kwargs dict to pass to type-checking routine</span>
 
 <span class="sd">Implementation details</span>
 <span class="sd">======================</span>
@@ -1107,8 +1108,8 @@
                                                  <span class="s2">&quot;subexp_prec&quot;</span><span class="p">])</span>
 
 <div class="viewcode-block" id="PrattParser"><a class="viewcode-back" href="../../typped.pratt_parser.html#typped.pratt_parser.PrattParser">[docs]</a><span class="k">class</span> <span class="nc">PrattParser</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
-    <span class="sd">&quot;&quot;&quot;A parser object.  Each parser object contains its own token table for tokens</span>
-<span class="sd">    and its own lexer.&quot;&quot;&quot;</span>
+    <span class="sd">&quot;&quot;&quot;A parser object.  Each parser object contains a table of defined tokens,</span>
+<span class="sd">    a lexer, a table of constructs, and a table of defined types.&quot;&quot;&quot;</span>
     <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_peek_tokens</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                        <span class="n">max_deque_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                        <span class="n">lexer</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
@@ -1240,8 +1241,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">null_string_token_subclass</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># The actual null-string token, if any.</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">partial_expressions</span> <span class="o">=</span> <span class="n">partial_expressions</span> <span class="c1"># Whether to parse multiple expressions.</span>
+
         <span class="bp">self</span><span class="o">.</span><span class="n">pstate_stack</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Stack of production rules used in grammar parsing.</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">top_level_production</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># If true, force prod. rule to consume all.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">top_level_production</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># If true, require grammar parses to consume to end.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">disable_pstate_processing</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># Set to temporarily disable grammar parsing.</span>
 
     <span class="c1">#</span>
     <span class="c1"># Methods defining tokens.</span>
