@@ -155,38 +155,6 @@ known.
    or tail handler then that case statement would have to be modified for each
    such method.
 
-Uniqueness of constructs
-------------------------
-
-Equality or non-equality of two constructs in the sense of being triggered by
-identical conditions is determined by equality of triples of the form::
-
-   (head_or_tail, trigger_token_label, precond_fun)
-
-The preconditions priority is not included because it determines the
-interaction between different constructs match.  If two constructs match in the
-above tuple but have different ``precond_priority`` values then one will always
-shadow the other.  The shadowed construct will never run.
-
-Unfortunately it is impractical to determine in general when two preconditions
-functions are identical in the sense that they compute the same thing.
-
-Overloading
-~~~~~~~~~~~
-
-Recall that function overloading based on argument types is used for
-syntactical constructs which parse the same (i.e., with the same preconditions
-and using the same handler function) but which are then resolved into different
-semantic objects based on the actual types of the arguments which are processed
-at parse-time.  Overloading can also involve the type of the function's return
-value.
-
-Overloading must be explicitly specified, via a call to the ``overload`` method
-of a previously-defined construct instance.  Because of the difficulty of
-determining equivalence of preconditions functions, described above,
-overloading cannot be done by simply calling ``def_construct`` again with the
-same arguments and a different type.  
-
 .. topic:: Two ways to parse identifiers
 
    The Typped parser and lexer are both dynamic and can be updated on-the-fly.
@@ -235,6 +203,35 @@ same arguments and a different type.
    Their insert and delete time is linear in the pattern length.  So, while the
    Typped parser can be used in either way, the use of dynamic token
    definitions is worth considering.
+
+Uniqueness of constructs
+------------------------
+
+Equality or non-equality of two constructs in the sense of being triggered by
+identical conditions is determined by equality of triples of the form::
+
+   (head_or_tail, trigger_token_label, precond_fun)
+
+The preconditions priority is not included because it determines the
+interaction between different constructs match.  If two constructs match in the
+above tuple but have different ``precond_priority`` values then one will always
+shadow the other.  The shadowed construct will never run.
+
+Unfortunately it is impractical to determine in general when two preconditions
+functions are identical in the sense that they compute the same thing.
+
+Recall that function overloading based on argument types is used for
+syntactical constructs which parse the same (i.e., with the same preconditions
+and using the same handler function) but which are then resolved into different
+semantic objects based on the actual types of the arguments which are processed
+at parse-time.  Overloading can also involve the type of the function's return
+value.
+
+Overloading must be explicitly specified, via a call to the ``overload`` method
+of a previously-defined construct instance.  Because of the difficulty of
+determining equivalence of preconditions functions, described above,
+overloading cannot be done by simply calling ``def_construct`` again with the
+same arguments and a different type.  
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
@@ -351,7 +348,6 @@ space.
                                   precond_fun=preconditions,
                                   precond_priority=precond_priority)
        return MyParser
-
 
 In parsing the full function call the handler defined above uses both the
 helper function ``match_next`` as well as calls to the lexer and

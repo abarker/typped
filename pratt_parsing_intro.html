@@ -338,9 +338,10 @@ which are passed a token instance as an argument.  It also allows
 <code class="docutils literal"><span class="pre">recursive_parse</span></code> to access to the corresponding <code class="docutils literal"><span class="pre">PrattParser</span></code>
 instance (which is used for more advanced features). <p></li>
 <li>The implementation of <code class="docutils literal"><span class="pre">recursive_parse</span></code> in the Typped package is
-actually a generalization which calls <code class="docutils literal"><span class="pre">head_dispatcher</span></code> instead of
-<code class="docutils literal"><span class="pre">head_handler</span></code>, and <code class="docutils literal"><span class="pre">tail_dispatcher</span></code> instead <code class="docutils literal"><span class="pre">tail_handler</span></code> (this
-will be discussed later).  The general principle, however, is the same. <p></li>
+actually a generalization which calls a method <code class="docutils literal"><span class="pre">dispatcher_handler</span></code>,
+passed either <code class="docutils literal"><span class="pre">HEAD</span></code> or <code class="docutils literal"><span class="pre">TAIL</span></code> as its first argument, instead of
+<code class="docutils literal"><span class="pre">head_handler</span></code> and <code class="docutils literal"><span class="pre">tail_handler</span></code> (this will be discussed later).  The
+general principle, however, is the same. <p></li>
 <li>The <code class="docutils literal"><span class="pre">processed_left</span></code> structure can in general be a partial parse tree,
 the result of a numerical evaluation, or anything else.  The handler
 functions can build and return any processed form for their tokens.  The
@@ -348,10 +349,11 @@ Typped package, however, always builds an expression tree out of token
 nodes (which can be evaluated later, if desired). <p></li>
 <li>In the Typped package the handler functions are not made into
 directly-callable methods of the token subclasses.  Instead, they are
-stored with the <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance.  Access is keyed by the token
-label as well as by other data.  This is because the Typped package
-generalizes to allow for multiple head and tail handlers, which are
-looked up and dispatched before being called. <p></li>
+stored with the <code class="code docutils literal"><span class="pre">PrattParser</span></code> instance in a <code class="docutils literal"><span class="pre">ConstructTable</span></code> object
+instance.  Access is keyed in a tree by the token label as well as by
+other data.  This is because the Typped package generalizes to allow for
+multiple head and tail handlers, which are looked up and dispatched before
+being called.  <p></li>
 <li>Outside of an error condition the algorithm never even looks at the
 precedence of a token having <em>only</em> a head handler (i.e., a token which can
 only occur in the beginning position of an expression).  The precedence of

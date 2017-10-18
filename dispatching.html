@@ -191,33 +191,6 @@ function, etc.  If one big case statement were being used in a single head
 or tail handler then that case statement would have to be modified for each
 such method.</p>
 </div>
-</div>
-<div class="section" id="uniqueness-of-constructs">
-<h2>3.3. Uniqueness of constructs<a class="headerlink" href="#uniqueness-of-constructs" title="Permalink to this headline">¶</a></h2>
-<p>Equality or non-equality of two constructs in the sense of being triggered by
-identical conditions is determined by equality of triples of the form:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>The preconditions priority is not included because it determines the
-interaction between different constructs match.  If two constructs match in the
-above tuple but have different <code class="docutils literal"><span class="pre">precond_priority</span></code> values then one will always
-shadow the other.  The shadowed construct will never run.</p>
-<p>Unfortunately it is impractical to determine in general when two preconditions
-functions are identical in the sense that they compute the same thing.</p>
-<div class="section" id="overloading">
-<h3>3.3.1. Overloading<a class="headerlink" href="#overloading" title="Permalink to this headline">¶</a></h3>
-<p>Recall that function overloading based on argument types is used for
-syntactical constructs which parse the same (i.e., with the same preconditions
-and using the same handler function) but which are then resolved into different
-semantic objects based on the actual types of the arguments which are processed
-at parse-time.  Overloading can also involve the type of the function’s return
-value.</p>
-<p>Overloading must be explicitly specified, via a call to the <code class="docutils literal"><span class="pre">overload</span></code> method
-of a previously-defined construct instance.  Because of the difficulty of
-determining equivalence of preconditions functions, described above,
-overloading cannot be done by simply calling <code class="docutils literal"><span class="pre">def_construct</span></code> again with the
-same arguments and a different type.</p>
 <div class="topic">
 <p class="topic-title first">Two ways to parse identifiers</p>
 <p>The Typped parser and lexer are both dynamic and can be updated on-the-fly.
@@ -263,6 +236,30 @@ Typped parser can be used in either way, the use of dynamic token
 definitions is worth considering.</p>
 </div>
 </div>
+<div class="section" id="uniqueness-of-constructs">
+<h2>3.3. Uniqueness of constructs<a class="headerlink" href="#uniqueness-of-constructs" title="Permalink to this headline">¶</a></h2>
+<p>Equality or non-equality of two constructs in the sense of being triggered by
+identical conditions is determined by equality of triples of the form:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The preconditions priority is not included because it determines the
+interaction between different constructs match.  If two constructs match in the
+above tuple but have different <code class="docutils literal"><span class="pre">precond_priority</span></code> values then one will always
+shadow the other.  The shadowed construct will never run.</p>
+<p>Unfortunately it is impractical to determine in general when two preconditions
+functions are identical in the sense that they compute the same thing.</p>
+<p>Recall that function overloading based on argument types is used for
+syntactical constructs which parse the same (i.e., with the same preconditions
+and using the same handler function) but which are then resolved into different
+semantic objects based on the actual types of the arguments which are processed
+at parse-time.  Overloading can also involve the type of the function’s return
+value.</p>
+<p>Overloading must be explicitly specified, via a call to the <code class="docutils literal"><span class="pre">overload</span></code> method
+of a previously-defined construct instance.  Because of the difficulty of
+determining equivalence of preconditions functions, described above,
+overloading cannot be done by simply calling <code class="docutils literal"><span class="pre">def_construct</span></code> again with the
+same arguments and a different type.</p>
 </div>
 <div class="section" id="example-defining-standard-functions-with-lookahead">
 <h2>3.4. Example: Defining standard functions with lookahead<a class="headerlink" href="#example-defining-standard-functions-with-lookahead" title="Permalink to this headline">¶</a></h2>
@@ -459,10 +456,7 @@ with a single construct.</p>
 <li><a class="reference internal" href="#">3. Constructs and preconditioned dispatching</a><ul>
 <li><a class="reference internal" href="#what-is-preconditioned-dispatching">3.1. What is preconditioned dispatching?</a></li>
 <li><a class="reference internal" href="#using-dispatching">3.2. Using dispatching</a></li>
-<li><a class="reference internal" href="#uniqueness-of-constructs">3.3. Uniqueness of constructs</a><ul>
-<li><a class="reference internal" href="#overloading">3.3.1. Overloading</a></li>
-</ul>
-</li>
+<li><a class="reference internal" href="#uniqueness-of-constructs">3.3. Uniqueness of constructs</a></li>
 <li><a class="reference internal" href="#example-defining-standard-functions-with-lookahead">3.4. Example: Defining standard functions with lookahead</a></li>
 </ul>
 </li>
