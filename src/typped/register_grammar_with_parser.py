@@ -14,7 +14,7 @@ instance.  The function modifies the parser to parse the grammar rule which is
 also passed in.
 
 Note that because the processing uses the parser instance variables `pstate_stack`
-and `pstate_processing_in_progress` this parsing is not thread-safe for
+and `disable_pstate_processing` this parsing is not thread-safe for
 multiple parses on the same parser (but the parser in general probably is not,
 either).
 
@@ -40,13 +40,7 @@ Rules and guidelines
 Precedences
 -----------
 
-Precedences not handled right for now...
-
-Currently head or tail handlers are registered only for the first item of first
-case, but really ALL literal tokens and nonterminals should have a handler
-defined -- conditioned on the pstate value to avoid conflicts.  They can check
-types if the types are defined correctly.  For literal tokens we could just
-call def_literal (or just read the thing with `next` in if it must be there).
+Precedences not yet implemented.
 
 Assume for now that precedences only apply to token literals.  Two possible
 ways to consider:
@@ -57,42 +51,30 @@ ways to consider:
    num_expr         = k_number + Rule("op_and_right_arg") | k_number
    op_and_right_arg = Tok("k_ast")[10] + num_expr | Tok("k_plus")[20] + num_expr
 
-parse("5 + 3 * 2")
+Now consider `parse("5 + 3 * 2")`.
 
-When the handler for a nonterminal calls `recursive_parse` it always does it as
-`recursive_parse(tok.extra_data.subexp_prec)` to simply forward the current
-subexpression precedence to the next call.
+When the handler for a nonterminal runs it processes all tokens simply by
+reading them (effectively as heads) and processes nonterminals by pushing that
+label on the pstate stack and calling `recursive_parse`.  Only the precedences
+of tokens matter in this sequence, since they are the only ones a Pratt parser
+would ever see.  When `recursive_parse(subexp_prec)` is called for a
+nonterminal it is passed the `subexp_prec` of the current subexpression.  So
+the information is essentially just forwarded by nonterminal handlers.
 
-When a nonterminal handler processes a case the it goes through the items,
-calling recursive_parse to get each one.  If they have `prec=0` then they are
-parsed via their head handlers, which just return the subtree (for either the
-token literal or the rule).  All those values are just appended to the children
-list.
+Inside each nonterminal handler, then, we need to mimic the basic form of
+`recursive_parse`, starting when a token with nonzero precedence is read.  That
+precedence is pushed as the new `subexp_prec`.  We keep track of the
+`recursive_parse` loop condition and fail if we encounter a "loop break" before
+the end of the rule case being handled.  Nonzero precedence tokens also take
+the current `processed_left` as their left child and all in the rest of the
+case as their right child.
 
-When a token with a precedence >0 is called it is parsed with the tail handler.
-The tail handler does exactly the same thing as the head handler *except* that
-it 1) takes the `left` argument and makes it it own left child/operand, and 2)
-calls `recursive_parse` to get the right child/operand.
-
-But when the parser encounters a nonterminal it is not sure if it will be a
-head or tail token...
-
-------------------
-
-The handler for a nonterminal does this:
-
-1. Sequentially call recursive-parse for each item.  Check that the returned
-   thing matches what it is supposed to match.
-
-
-for item in item_list:
-    next_from_text = recursive_parse(0)
-    if not compare_item_with_tree(item, next_from_text):
-       raise Fail
-
-Consider peekahead prec for nonterminals:  The precedence is the same
+Todo: Consider peekahead prec for nonterminals:  The precedence is the same
 as the peek token, i.e., the next non-virtual token that is actually in
 the lexer.  Easy to do, since prec() is a function (or can be a property).
+Then a grammar nonterminal could possibly fit into a Pratt context as
+an infix operator (actually, processing the right argument of an infix
+operator.
 
 """
 
@@ -234,11 +216,6 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
     # been consumed from the lexer (curtailment, but no memoization, see e.g.
     # Frost et. al 2007).
 
-    # TODO either set var below in PrattParser when settled or set pstate_stack
-    # here, too.  Or maybe from grammar-processing routine that calls this one.
-    parser.pstate_processing_in_progress = False # Preconds look at this, don't fire when true.
-
-
     first_case_first_item_precond = get_precond_funs(nonterm_label, peek_token_label)
 
     #prec_of_first_item = caselist[0][0].prec
@@ -257,20 +234,22 @@ def def_null_string_handler_for_first_item_of_caselist(parser, nonterm_label,
 
         # Set up a failure case where none of the preconditions match in
         # the context of the pstate.
-        parser.def_construct(HEAD, always_raise_branch_fail_head_handler, null_token.token_label,
-                     prec=0, construct_label="all_fail_construct",
-                     precond_fun=lower_priority_fail_if_stack_nonempty_precond,
+        parser.def_construct(HEAD, always_raise_branch_fail_head_handler,
+                     null_token.token_label, prec=0,
+                     construct_label="all_fail_construct",
+                     precond_fun=lower_priority_fail_if_pstate_stack_nonempty_precond,
                      precond_priority=HUGE_PRIORITY-1)
 
-    else:
-        tail_handler = generic_tail_handler_function_factory(nonterm_label, caselist)
-        construct_label = "tail construct_for_nonterminal_{0}".format(nonterm_label)
-        prec = prec_of_first_item
-        parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
-                     construct_label=construct_label,
-                     precond_fun=first_case_first_item_precond,
-                     precond_priority=precond_priority)
+    #else: # Probably will only use head handlers.
+    #    tail_handler = generic_tail_handler_function_factory(nonterm_label, caselist)
+    #    construct_label = "tail construct_for_nonterminal_{0}".format(nonterm_label)
+    #    prec = prec_of_first_item
+    #    parser.def_construct(TAIL, tail_handler, null_token.token_label, prec=prec,
+    #                 construct_label=construct_label,
+    #                 precond_fun=first_case_first_item_precond,
+    #                 precond_priority=precond_priority)
 
+    # Skeleton code below may be useful for defining Constructs.
     ## Create a construct for every token-literal to hold its associated data.
     ## ACTUALLY constructs_by_label_and_nonterm_label MUST BE SOMEWHERE ACCESSIBLE.
     #constructs_by_label_and_nonterm_label = {}
@@ -396,15 +375,15 @@ def parse_case(case, lex, pstate_stack, tok, nonterm_label):
             if DEBUG: print("      matched a token with token label", lex.peek().token_label,
                       "and value", lex.peek().value)
 
-            # Set the pstate_processing_in_progress flag to avoid getting a
+            # Set the disable_pstate_processing flag to avoid getting a
             # null-string token for a nonterminal when trying to get a token
             # literal (violates the precond for a nonterminal).
-            tok.parser_instance.pstate_processing_in_progress = True
+            tok.parser_instance.disable_pstate_processing = True
             #next_tok = tok.recursive_parse(subexp_prec, only_head=True) # Get the token.
             next_tok = next_token_literal_with_type_assignment(lex)
             if DEBUG: print("      ===> returned this token from recursive parse", next_tok)
             #next_tok = lex.next() # Get the token. Fails, won't type check...
-            tok.parser_instance.pstate_processing_in_progress = False
+            tok.parser_instance.disable_pstate_processing = False
 
             if next_tok.children:
                 raise ParserException("In parsing the nonterminal '{0}'"
@@ -429,36 +408,36 @@ def parse_case(case, lex, pstate_stack, tok, nonterm_label):
         raise BranchFail("Parsing did not reach end of expression.")
     return tok
 
-def generic_tail_handler_function_factory(nonterm_label, caselist):
-    """Return a generic tail handler function."""
-
-    def tail_handler(tok, lex, left):
-        """Just push the state, relay the call, and pop afterwards."""
-        # TODO Below not used or implemented at all yet, just a copied-over stub.
-        #
-        # TODO: since routines head and tail are the same, maybe just define a
-        # generic handler but look at a closure variable or bind the var as
-        # a partial function for head vs. tail.....
-        #
-        # Note that for tail-handler that we presumably want *this* token as the
-        # subtree root.
-        # TODO: Assoc needs to be fixed in closure at least, and find recurse_bp
-        raise ParserException("ERROR: Tail functions not implemented yet for"
-                              " null-string tokens.")
-
-        if assoc not in ["left", "right"]:
-            raise ParserException('Argument assoc must be "left" or "right".')
-        recurse_bp = prec
-        if assoc == "right":
-            recurse_bp = prec - 1
-
-        pstate_stack = tok.parser_instance.pstate_stack
-        pstate_stack.append("pstate_label")
-        processed = tok.recursive_parse(tok.subexp_prec, # Now attrs of tok.extra_data
-                            processed_left=left, extra_data=tok.extra_data)
-        pstate_stack.pop()
-        return processed
-    return tail_handler
+#def generic_tail_handler_function_factory(nonterm_label, caselist):
+#    """Return a generic tail handler function."""
+#
+#    def tail_handler(tok, lex, left):
+#        """Just push the state, relay the call, and pop afterwards."""
+#        # TODO Below not used or implemented at all yet, just a copied-over stub.
+#        #
+#        # TODO: since routines head and tail are the same, maybe just define a
+#        # generic handler but look at a closure variable or bind the var as
+#        # a partial function for head vs. tail.....
+#        #
+#        # Note that for tail-handler that we presumably want *this* token as the
+#        # subtree root.
+#        # TODO: Assoc needs to be fixed in closure at least, and find recurse_bp
+#        raise ParserException("ERROR: Tail functions not implemented yet for"
+#                              " null-string tokens.")
+#
+#        if assoc not in ["left", "right"]:
+#            raise ParserException('Argument assoc must be "left" or "right".')
+#        recurse_bp = prec
+#        if assoc == "right":
+#            recurse_bp = prec - 1
+#
+#        pstate_stack = tok.parser_instance.pstate_stack
+#        pstate_stack.append("pstate_label")
+#        processed = tok.recursive_parse(tok.subexp_prec, # Now attrs of tok.extra_data
+#                            processed_left=left, extra_data=tok.extra_data)
+#        pstate_stack.pop()
+#        return processed
+#    return tail_handler
 
 def partition_caselist(caselist):
     """A utility routine to partition a caselist into sub-caselists.  Case
@@ -544,19 +523,19 @@ def always_raise_branch_fail_head_handler(tok, lex):
     if DEBUG: print(" X X X X X X X X X X X X X ALL FAIL PRECOND")
     raise BranchFail
 
-def lower_priority_fail_if_stack_nonempty_precond(tok, lex):
+def lower_priority_fail_if_pstate_stack_nonempty_precond(tok, lex):
     """A precondition to fail if no other stack-based precondition function
     matches when `nonterm_label` is at the top of the `pstate_stack`."""
     if DEBUG: print("fail precond!!!")
-    pstate_stack = lex.token_table.parser_instance.pstate_stack
-    already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
+    parser_instance = tok.parser_instance
+    pstate_stack = parser_instance.pstate_stack
     if not pstate_stack:
         return False
     #if pstate_stack[-1] != nonterm_label:
     #    if DEBUG: print("   failed lower priority already proc")
     #    return False
-    if already_processing:
-        if DEBUG: print("   failed lower priority already proc")
+    if parser_instance.disable_pstate_processing:
+        if DEBUG: print("   failed lower priority disabled proc")
         return False # This avoids accidental recursion.
     return True
 
@@ -569,17 +548,17 @@ def get_precond_funs(nonterm_label, peek_token_label):
         """A precondition that `nonterm_label` is at the top of the `pstate_stack`.
         If `peek_token_label` is set then it must also match the label of the peek
         token."""
+        parser_instance = tok.parser_instance
         if DEBUG: print("running precond for null-string token, rule",
                 nonterm_label, "peek", peek_token_label)
-        pstate_stack = lex.token_table.parser_instance.pstate_stack
-        already_processing = lex.token_table.parser_instance.pstate_processing_in_progress
+        pstate_stack = parser_instance.pstate_stack
         if not pstate_stack:
             return False
         if pstate_stack[-1] != nonterm_label:
             if DEBUG: print("   failed precond pstate")
             return False
-        if already_processing:
-            if DEBUG: print("   failed precond already processing")
+        if parser_instance.disable_pstate_processing:
+            if DEBUG: print("   failed precond disabled processing")
             return False # This avoids accidental recursion in token processing.
         if peek_token_label and lex.peek().token_label != peek_token_label:
             if DEBUG: print("   failed precond peek, real peek is", lex.peek())

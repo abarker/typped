@@ -64,12 +64,12 @@ responsible for updating the ``pstate`` stack as necessary.  Using this, along
 with lookahead to the upcoming tokens in the preconditions, gives the power to
 do recursive descent parsing of right regular grammars.
 
-These head-handler functions effectively mimic the separate recursive functions
-for each production rule.  They are triggered by literal token when the
-preconditions match.  The ``pstate`` stack keeps track of the recursion in the
-tree defined by the grammar.  Either a single one can handle all the cases of
-the nonterminal, or separate ones can be triggered to handle the cases
-separately.
+These head-handler functions mimic the separate recursive functions for each
+production rule in recursive descent.  They are triggered by token literals
+when the preconditions match (or in general by first-set elements).  The
+``pstate`` stack keeps track of the recursion in the tree defined  by the
+grammar.  Either a single one can handle all the cases of the nonterminal, or
+separate ones can be triggered to handle the cases separately.
 
 In extending this approach to general recursive descent, a problem arises when
 a production starts with a nonterminal symbol.  Nonterminals do not correspond
@@ -204,10 +204,9 @@ in the examples directory for the code.
 
 This example uses several of the helper methods functions to quickly define
 tokens.  The tokens must all be defined, but they do not need to be explicitly
-made into token literals.  The compiling process automatically generates
-high-priority precondition literals for any tokens.  This helps to avoid
-conflicts with other uses of the tokens in other contexts (such as in
-Pratt-parsed parts of the text).
+made into token literals (at least not for grammar-based parsing alone).  They
+are simply read in as tokens from the lexer because the grammar specifies what
+to look for.
 
 Notice that token instances can appear directly in the grammar as token
 literals.  The token named by its token label appears as, for example,

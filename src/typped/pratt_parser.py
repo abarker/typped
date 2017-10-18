@@ -5,14 +5,15 @@ A general Pratt parser module that uses dispatching of handler functions and
 can check types.  The API is documented here.  See the general Sphinx
 documentation for Typped for how to use the class and examples.
 
-API details
-===========
+User-accessible parser attributes
+=================================
 
-These are some aspects of the API that are not covered by the function signatures
-and docstrings below.
+User accessible attributes are mostly the same as the initialization
+keywords to the `PrattParser` initializer.  Most are read-only, but
+some can be changed between parses.
 
-Extra attributes added to tokens
---------------------------------
+User-accessible token attributes
+================================
 
 Token instances straight from a `Lexer` instance have certain attributes set,
 as documented in the `lexer` module.  In particular, the `token_label`,
@@ -52,7 +53,7 @@ the corresponding data or function.
 Optional attributes that can be set to a node inside a handler:
 
 * `not_in_tree` -- set on a root node returned by the handler to hide it
-* `process_and_check_kwargs` -- kwargs dict to pass to type-checking routine
+* `process_and_check_kwargs` -- a kwargs dict to pass to type-checking routine
 
 Implementation details
 ======================
@@ -1059,8 +1060,8 @@ ExtraDataTuple = namedtuple("ExtraHandlerData", ["lookbehind",
                                                  "subexp_prec"])
 
 class PrattParser(object):
-    """A parser object.  Each parser object contains its own token table for tokens
-    and its own lexer."""
+    """A parser object.  Each parser object contains a table of defined tokens,
+    a lexer, a table of constructs, and a table of defined types."""
     def __init__(self, max_peek_tokens=None,
                        max_deque_size=None,
                        lexer = None,
@@ -1192,8 +1193,10 @@ class PrattParser(object):
         self.null_string_token_subclass = None # The actual null-string token, if any.
 
         self.partial_expressions = partial_expressions # Whether to parse multiple expressions.
+
         self.pstate_stack = [] # Stack of production rules used in grammar parsing.
-        self.top_level_production = False # If true, force prod. rule to consume all.
+        self.top_level_production = False # If true, require grammar parses to consume to end.
+        self.disable_pstate_processing = False # Set to temporarily disable grammar parsing.
 
     #
     # Methods defining tokens.
