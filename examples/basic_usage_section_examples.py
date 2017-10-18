@@ -413,6 +413,11 @@ def setup_string_language_parser_static_typing():
 
 def run_string_language_parser_static_typing():
     """REPL for the statically-typed number and string language."""
+    try:
+        from StringIO import StringIO
+    except ImportError:
+        from io import StringIO
+    import sys
 
     class NumberStringLangREPL(cmd.Cmd, object):
         prompt = "> "
@@ -448,8 +453,14 @@ def run_string_language_parser_static_typing():
                     try:
                         print("\nPython evaluation:")
                         # The Python eval below also prints to stdout.
-                        result = eval(compile(python_command, '<string>', 'single'),
+                        #_stdout = sys.stdout
+                        #sys.stdout = StringIO()
+                        result = eval(compile(python_command + "\n", "<string>", "single"),
                                               self.builtins_dict, self.locals_dict)
+                        #output = str(sys.stdout.getvalue())
+                        #sys.stdout.close()
+                        #sys.stdout = _stdout
+                        #print(output)
                         print()
                     except Exception as e:
                         print("Error in evaluating the Python code:\n", e, "\n", sep="")

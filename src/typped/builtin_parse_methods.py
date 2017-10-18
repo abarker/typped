@@ -558,7 +558,6 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
         return lex.peek(-1).token_label == identifier_token_label
 
     precond_fun = combine_precond_funs(precond_fun, precond_lhs_is_identifier)
-    construct_label = parser._next_unique_construct_label()
 
     # Create an eval fun if requested.
     if create_eval_fun:

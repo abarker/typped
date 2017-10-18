@@ -96,8 +96,15 @@ def test_string_language_parser_dynamic():
 
 def test_string_language_parser_static():
     """An example from the Sphinx docs overview section."""
-    skip() # TODO: finish
     parser = setup_string_language_parser_static_typing()
+
+    builtins_dict = {"__builtins__": __builtins__}
+    locals_dict = {}
+
+    def python_evaluate_command(python_command):
+        result = eval(compile(python_command, '<string>', 'exec'),
+                      builtins_dict, locals_dict)
+        return result
 
     # Test basic parsing to syntax tree.
     with raises(pp.ErrorInParsedLanguage):
@@ -105,7 +112,6 @@ def test_string_language_parser_static():
     result = parser.parse("int x")
     assert result.eval_subtree() == 'None'
     result_tree = parser.parse("x + (4 + 3)*5")
-    #print(result_tree.tree_repr_with_types(indent=12))
 
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_int')>
@@ -119,8 +125,6 @@ def test_string_language_parser_static():
 
             """)
     result_tree = parser.parse('"foo" + "bar"')
-    #print(resul1t_tree.tree_repr())
-    #print(result_tree.tree_repr_with_types())
     assert result_tree.tree_repr_with_types() == unindent(12, """
             <k_plus,'+',TypeObject('t_str')>
                 <k_string,'"foo"',TypeObject('t_str')>
@@ -135,12 +139,20 @@ def test_string_language_parser_static():
     assert result.eval_subtree() == "x = 4"
     result = parser.parse('x    * "egg"')
     assert result.eval_subtree() == 'x * "egg"'
-    with raises(pp.ErrorInParsedLanguage):
+    with raises(pp.TypeErrorInParsedLanguage):
         result = parser.parse('x = "water"')
-    #result = parser.parse('str x = "water"')
-    # TODO failing to properly redefine the type.
     result = parser.parse('str x')
-    result = parser.parse('x = "water"')
+    assert str(result) == "<k_identifier,'str'>(<k_identifier,'x'>)"
+    result = parser.parse('str x = "water"')
+    print(result)
+    assert str(result) == "<k_identifier,'str'>(<k_equals,'='>(<k_identifier,'x'>,<k_string,'\"water\"'>))"
+    python_evaluated_result = python_evaluate_command(result.eval_subtree())
+    assert result.eval_subtree() == 'x = "water"; x'
     result = parser.parse('x + "tree"')
-    assert result.eval_subtree() == '"watertree"'
+    assert str(result) == "<k_plus,'+'>(<k_identifier,'x'>,<k_string,'\"tree\"'>)"
+    assert str(result.eval_subtree()) == 'x + "tree"'
+    python_evaluated_result = python_evaluate_command(result.eval_subtree())
+    assert python_evaluated_result == None
+    python_evaluated_result = python_evaluate_command('x')
+    #assert python_evaluated_result == '"watertree"' # Need to capture output as string...
 
