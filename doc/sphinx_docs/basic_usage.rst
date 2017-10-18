@@ -6,8 +6,9 @@ Basic usage
    keep synced with file basic_usage_examples.py in examples dir
 
 This section gives an overview of the basic usage of the Typped package.  Later
-sections go into many more details.  Executable code for the examples on
-this page can be found in the file `this example file <TODO/basic_usage_examples.py>`_.
+sections go into many more details.  Executable code for the examples on this
+page can be found in the file `examples/basic_usage_examples.py
+<https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py>`_.
 
 The ``PrattParser`` class is the main class provided by the Typped package.  It
 is the only class that is needed for basic usage of the parser.
@@ -18,7 +19,7 @@ Example: Parsing a simple expression
 This example parses simple expressions such as ``x * 4 + 4`` using the builtin
 methods of the ``PrattParser`` class.  The builtin parsing methods that can be
 called for a ``PrattParser`` instance are documented here:
-":ref:`typped.builtin_parse_methods module`".  Only a few are used in this
+:py:mod:`typped.builtin_parse_methods`.  Only a few are used in this
 example.  Example 2 will parse the same language without using any of the
 builtin parsing methods.  Instead, it will directly use Pratt parsing
 techniques.
@@ -120,12 +121,13 @@ them with the parser as a construct.  (Head and tail handler functions are
 called null denotations and left denotations, respectively, in traditional
 Pratt Parser terminology.)
 
-See the section ":ref:`Introduction to Pratt parsing and its terminology`" for
-background information.  A construct here can be thought of as simply a
-container class that holds a token label and a corresponding head or tail
-handler function which is triggered by that kind of token (though actually
-constructs are more general than that).  See the section ":ref:`Constructs and
-preconditioned dispatching`" for more information on constructs.
+See the section ":ref:`pratt_parsing_intro:Introduction to Pratt parsing and
+its terminology`" for background information.  A construct here can be thought
+of as simply a container class that holds a token label and a corresponding
+head or tail handler function which is triggered by that kind of token (though
+actually constructs are more general than that).  See the section
+":ref:`dispatching:Constructs and preconditioned dispatching`" for more
+information on constructs.
 
 The definitions of the initial parser instance and the tokens are exactly the
 same in this example as in the previous example, so that portion of the code
@@ -223,7 +225,7 @@ scenes.  They are written for much more generality than the above code, and
 they tend to have various options.  If you need to write your own wrapper
 functions it can be useful to look at the code for the builtin parse routines
 in the file ``builtin_parse_methods.py`` documented in
-":ref:`typped.builtin_parse_methods module`".
+:py:mod:`typped.builtin_parse_methods`.
 
 Example: A simple string and number language with evaluation and dynamic typing
 -------------------------------------------------------------------------------

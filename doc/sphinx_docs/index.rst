@@ -58,7 +58,8 @@ on-the-fly, allowing the parsed languages to be fully dynamic.
 Installation
 ============
 
-The current way to install is to clone the GitHub repo and install with pip:
+The current way to install is to clone `the GitHub repo
+<https://github.com/abarker/typped>`_ and install with pip:
 
 .. code-block:: bash
 

@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.abspath("../../src"))
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.viewcode',
-    'sphinx.ext.autosectionlabel',
+    'sphinx.ext.autosectionlabel', # Automatically label sections.
 ]
 
 autosectionlabel_prefix_document = True # Prefix doc name, e.g., `index:Introduction`

@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
 
-The TextStream class
+The `TextStream` class.  Not currently used, may become an abstraction layer for
+the stream of text to be parsed.
 
 """
 

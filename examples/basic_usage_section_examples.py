@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 
-This file contains the runnable code for the Basic Usage section of the Sphinx docs.
+This file contains the runnable code for the Basic Usage section of the Sphinx
+docs.  The code prints output for the first two examples, and starts a
+read-evaluate-print loop for the simple language examples.  Use ^D to exit
+the REP loops.
 
 """
 from __future__ import print_function, division, absolute_import

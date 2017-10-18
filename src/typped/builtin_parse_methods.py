@@ -3,8 +3,10 @@
 
 These are predefined, built-in parsing routines designed to parse various
 general types of constructs.  These functions are all made into methods of the
-`PrattParser` class simply because that namespace is convenient to use.  They
-can also be used directly, as standalone functions.
+`PrattParser` class simply because that namespace is convenient to use.  When
+calling as a parser method the first argument should be omitted, e.g.,
+``parser.def_literal("k_lpar")`  The functions can also be called directly,
+passed the parser as the first argument.
 
 Looking at the source code can be useful for ideas of how to implement general
 constructs which are not covered by a builtin routine.
