@@ -57,8 +57,10 @@
 <span id="typped-builtin-parse-methods"></span><h1>10.2. typped.builtin_parse_methods<a class="headerlink" href="#module-typped.builtin_parse_methods" title="Permalink to this headline">¶</a></h1>
 <p>These are predefined, built-in parsing routines designed to parse various
 general types of constructs.  These functions are all made into methods of the
-<code class="code docutils literal"><span class="pre">PrattParser</span></code> class simply because that namespace is convenient to use.  They
-can also be used directly, as standalone functions.</p>
+<code class="code docutils literal"><span class="pre">PrattParser</span></code> class simply because that namespace is convenient to use.  When
+calling as a parser method the first argument should be omitted, e.g.,
+<a href="#id1"><span class="problematic" id="id2">``</span></a>parser.def_literal(“k_lpar”)`  The functions can also be called directly,
+passed the parser as the first argument.</p>
 <p>Looking at the source code can be useful for ideas of how to implement general
 constructs which are not covered by a builtin routine.</p>
 <dl class="function">

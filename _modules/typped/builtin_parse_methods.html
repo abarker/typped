@@ -51,8 +51,10 @@
 
 <span class="sd">These are predefined, built-in parsing routines designed to parse various</span>
 <span class="sd">general types of constructs.  These functions are all made into methods of the</span>
-<span class="sd">`PrattParser` class simply because that namespace is convenient to use.  They</span>
-<span class="sd">can also be used directly, as standalone functions.</span>
+<span class="sd">`PrattParser` class simply because that namespace is convenient to use.  When</span>
+<span class="sd">calling as a parser method the first argument should be omitted, e.g.,</span>
+<span class="sd">``parser.def_literal(&quot;k_lpar&quot;)`  The functions can also be called directly,</span>
+<span class="sd">passed the parser as the first argument.</span>
 
 <span class="sd">Looking at the source code can be useful for ideas of how to implement general</span>
 <span class="sd">constructs which are not covered by a builtin routine.</span>
