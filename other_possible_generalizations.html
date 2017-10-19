@@ -80,32 +80,9 @@ be little-used.  It is not currently implemented (but there is currently
 commented-out code that could be adapted to do it).  Interactions with other
 features, such as jops, would also need to be considered.</p>
 </div>
-<div class="section" id="general-position-dependent-handling-functions">
-<h2>11.2. General position-dependent handling functions<a class="headerlink" href="#general-position-dependent-handling-functions" title="Permalink to this headline">¶</a></h2>
-<p>Instead of head and tail we could just have a collection of generic handler
-functions associated with each function.  These functions would be passed one
-argument giving the position in the current subexpression (e.g., <code class="docutils literal"><span class="pre">&quot;[0]&quot;</span></code> for
-the head and <code class="docutils literal"><span class="pre">&quot;[1:]&quot;</span></code> for the tail).  We might have something like:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">denote</span><span class="p">(</span><span class="n">pos_selector</span><span class="p">,</span> <span class="o">&lt;</span><span class="n">rest_of_args</span><span class="o">&gt;</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>which, if <code class="docutils literal"><span class="pre">HEAD</span></code> and <code class="docutils literal"><span class="pre">TAIL</span></code> are defined constants, can be called as:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">denote</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>or:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">denote</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>This is not done because head and tail handlers are usually distinct in their
-code and semantics, and because the same effect can be achieved by using
-lookbehind (which is implemented).  Any head or tail handlers can look at the
-lookbehind list and infer their exact position in their subexpression (at the
-current recursion level).</p>
-</div>
 <div class="section" id="subexpression-lookahead">
-<h2>11.3. Subexpression lookahead<a class="headerlink" href="#subexpression-lookahead" title="Permalink to this headline">¶</a></h2>
-<p>In this generalization you would be able to use lookahead on the next
+<h2>11.2. Subexpression lookahead<a class="headerlink" href="#subexpression-lookahead" title="Permalink to this headline">¶</a></h2>
+<p>In this generalization you would be able to use lookahead to the next
 subexpression, not just the next token.  The advantage of this kind of
 lookahead is that infix operator overloading can then depend on the types (or
 other properties) of both of the fully-resolved operands, not just the left
@@ -132,7 +109,7 @@ handler function if you really must.  You can save the state of the lexer, call
 lexer.</p>
 </div>
 <div class="section" id="constructs-with-multiple-possible-trigger-tokens">
-<h2>11.4. Constructs with multiple possible trigger tokens<a class="headerlink" href="#constructs-with-multiple-possible-trigger-tokens" title="Permalink to this headline">¶</a></h2>
+<h2>11.3. Constructs with multiple possible trigger tokens<a class="headerlink" href="#constructs-with-multiple-possible-trigger-tokens" title="Permalink to this headline">¶</a></h2>
 <p>The current implementation follows the Pratt parsing scheme of having handlers
 associated with triggering tokens, as well as the head or tail position.  In
 general, the looking at the current kind of token could instead be implemented
@@ -150,7 +127,7 @@ above is to declare multiple constructs, one for each kind of triggering token.
 A null-string token could also be used to do something similar.</p>
 </div>
 <div class="section" id="more-complex-types">
-<h2>11.5. More complex types<a class="headerlink" href="#more-complex-types" title="Permalink to this headline">¶</a></h2>
+<h2>11.4. More complex types<a class="headerlink" href="#more-complex-types" title="Permalink to this headline">¶</a></h2>
 <p>Generally we might want:</p>
 <blockquote>
 <div><ul class="simple">
@@ -163,7 +140,7 @@ defined.</li>
 </div></blockquote>
 </div>
 <div class="section" id="floating-point-precedence-values">
-<h2>11.6. Floating point precedence values<a class="headerlink" href="#floating-point-precedence-values" title="Permalink to this headline">¶</a></h2>
+<h2>11.5. Floating point precedence values<a class="headerlink" href="#floating-point-precedence-values" title="Permalink to this headline">¶</a></h2>
 <p>The builtin functions that set right associativity currently assume that the
 precedence values are ints.  The examples also use ints.  As explained
 below, this is not strictly required.  Limited precision floating point values
@@ -206,10 +183,10 @@ of 1.</p>
 <p>This kind of thing is easy to implement, and has been tested, but is it a good
 idea?  As of now the Typped builtins that set right associativity assume
 precedences are ints.  In tweaking precedences during development sometimes
-floats might be useful.  There is a slight loss of efficiency in the comparison
-operations when floats are involved, but probably not enough to be a problem.
-If it is implemented later it would still be backward compatible with using
-ints.</p>
+float precedences might be useful.  There is a slight loss of efficiency in the
+comparison operations when floats are involved, but probably not enough to be a
+problem.  (If it is implemented later it would still be backward compatible with
+using ints.)</p>
 <p>As a possible alternative, just after precedence values are defined and passed
 to <code class="docutils literal"><span class="pre">def_construct</span></code> they could always be multiplied by, say, 1000 and then
 rounded to an int.  Then internally the representation would be as ints but to
@@ -231,11 +208,10 @@ resulting int would overflow.</p>
   <ul>
 <li><a class="reference internal" href="#">11. Appendix A: Possible (but currently unimplemented) generalizations</a><ul>
 <li><a class="reference internal" href="#modifiable-token-precedence-values">11.1. Modifiable token precedence values</a></li>
-<li><a class="reference internal" href="#general-position-dependent-handling-functions">11.2. General position-dependent handling functions</a></li>
-<li><a class="reference internal" href="#subexpression-lookahead">11.3. Subexpression lookahead</a></li>
-<li><a class="reference internal" href="#constructs-with-multiple-possible-trigger-tokens">11.4. Constructs with multiple possible trigger tokens</a></li>
-<li><a class="reference internal" href="#more-complex-types">11.5. More complex types</a></li>
-<li><a class="reference internal" href="#floating-point-precedence-values">11.6. Floating point precedence values</a></li>
+<li><a class="reference internal" href="#subexpression-lookahead">11.2. Subexpression lookahead</a></li>
+<li><a class="reference internal" href="#constructs-with-multiple-possible-trigger-tokens">11.3. Constructs with multiple possible trigger tokens</a></li>
+<li><a class="reference internal" href="#more-complex-types">11.4. More complex types</a></li>
+<li><a class="reference internal" href="#floating-point-precedence-values">11.5. Floating point precedence values</a></li>
 </ul>
 </li>
 </ul>

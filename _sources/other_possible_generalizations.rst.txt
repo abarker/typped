@@ -36,34 +36,10 @@ be little-used.  It is not currently implemented (but there is currently
 commented-out code that could be adapted to do it).  Interactions with other
 features, such as jops, would also need to be considered.
 
-General position-dependent handling functions
----------------------------------------------
-
-Instead of head and tail we could just have a collection of generic handler
-functions associated with each function.  These functions would be passed one
-argument giving the position in the current subexpression (e.g., ``"[0]"`` for
-the head and ``"[1:]"`` for the tail).  We might have something like::
-
-       denote(pos_selector, <rest_of_args>)
-
-which, if ``HEAD`` and ``TAIL`` are defined constants, can be called as::
-
-       denote(HEAD, ...)
-
-or::
-
-       denote(TAIL, ...)
-
-This is not done because head and tail handlers are usually distinct in their
-code and semantics, and because the same effect can be achieved by using
-lookbehind (which is implemented).  Any head or tail handlers can look at the
-lookbehind list and infer their exact position in their subexpression (at the
-current recursion level).
-
 Subexpression lookahead
 -----------------------
 
-In this generalization you would be able to use lookahead on the next
+In this generalization you would be able to use lookahead to the next
 subexpression, not just the next token.  The advantage of this kind of
 lookahead is that infix operator overloading can then depend on the types (or
 other properties) of both of the fully-resolved operands, not just the left
@@ -176,10 +152,10 @@ of 1.
 This kind of thing is easy to implement, and has been tested, but is it a good
 idea?  As of now the Typped builtins that set right associativity assume
 precedences are ints.  In tweaking precedences during development sometimes
-floats might be useful.  There is a slight loss of efficiency in the comparison
-operations when floats are involved, but probably not enough to be a problem.
-If it is implemented later it would still be backward compatible with using
-ints.
+float precedences might be useful.  There is a slight loss of efficiency in the
+comparison operations when floats are involved, but probably not enough to be a
+problem.  (If it is implemented later it would still be backward compatible with
+using ints.)
 
 As a possible alternative, just after precedence values are defined and passed
 to ``def_construct`` they could always be multiplied by, say, 1000 and then

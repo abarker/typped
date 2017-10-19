@@ -606,7 +606,6 @@
         <span class="k">return</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="n">identifier_token_label</span>
 
     <span class="n">precond_fun</span> <span class="o">=</span> <span class="n">combine_precond_funs</span><span class="p">(</span><span class="n">precond_fun</span><span class="p">,</span> <span class="n">precond_lhs_is_identifier</span><span class="p">)</span>
-    <span class="n">construct_label</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">_next_unique_construct_label</span><span class="p">()</span>
 
     <span class="c1"># Create an eval fun if requested.</span>
     <span class="k">if</span> <span class="n">create_eval_fun</span><span class="p">:</span>
@@ -647,8 +646,9 @@
                             <span class="s2">&quot; is </span><span class="si">{2}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">identifier</span><span class="p">,</span> <span class="n">formal_type</span><span class="p">,</span> <span class="n">rhs_type</span><span class="p">))</span>
         <span class="k">return</span> <span class="n">tok</span>
 
-    <span class="c1">#construct_label = &quot;def_assignment_op_static with {} tokens as triggers&quot;.format(</span>
-    <span class="c1">#                                                     assignment_op_token_label)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">construct_label</span><span class="p">:</span>
+        <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;def_assignment_op_static with </span><span class="si">{}</span><span class="s2"> tokens as triggers&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                                             <span class="n">assignment_op_token_label</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
                                 <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
                                 <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>
@@ -711,7 +711,6 @@
 
 <span class="sd">    This method may not correctly set the return type when overloading on</span>
 <span class="sd">    return types because currently `val_type_override` is used to set it.&quot;&quot;&quot;</span>
-
     <span class="n">symbol_value_dict</span><span class="p">,</span> <span class="n">symbol_type_dict</span> <span class="o">=</span> <span class="n">_setup_symbol_dicts</span><span class="p">(</span><span class="n">parser</span><span class="p">,</span> <span class="n">symbol_value_dict</span><span class="p">,</span>
                                                                       <span class="n">symbol_type_dict</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">allowed_types</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
@@ -743,8 +742,9 @@
             <span class="n">tok</span><span class="o">.</span><span class="n">process_and_check_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;val_type_override&quot;</span><span class="p">:</span> <span class="n">rhs_type</span><span class="p">}</span>
         <span class="k">return</span> <span class="n">tok</span>
 
-    <span class="c1">#construct_label = &quot;def_assignment_op_dynamic with {} tokens as triggers&quot;.format(</span>
-    <span class="c1">#                                                      assignment_op_token_label)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">construct_label</span><span class="p">:</span>
+        <span class="n">construct_label</span> <span class="o">=</span> <span class="s2">&quot;def_assignment_op_dynamic with </span><span class="si">{}</span><span class="s2"> tokens as triggers&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                                              <span class="n">assignment_op_token_label</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">tail_handler</span><span class="p">,</span> <span class="n">assignment_op_token_label</span><span class="p">,</span> <span class="n">prec</span><span class="o">=</span><span class="n">prec</span><span class="p">,</span>
                                 <span class="n">precond_fun</span><span class="o">=</span><span class="n">precond_fun</span><span class="p">,</span>
                                 <span class="n">precond_priority</span><span class="o">=</span><span class="n">precond_priority</span><span class="p">,</span>

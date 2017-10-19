@@ -107,9 +107,9 @@ example.  Strings of the language are parsed to an expression tree.
             <k_number,'5'>
 
 
-See the calculator example for a similar example with many more features and which
-also evaluates the expressions.
-
+See ":ref:`calculator_example:Example: Implementing a simple calculator`" for a
+similar example with many more features and which also evaluates the
+expressions.
 
 Example: Parsing a simple expression without using builtins
 -----------------------------------------------------------
