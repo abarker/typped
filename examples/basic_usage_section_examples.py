@@ -452,7 +452,8 @@ def run_string_language_parser_static_typing():
                 else:
                     try:
                         print("\nPython evaluation:")
-                        # The Python eval below also prints to stdout.
+                        # The Python eval below with 'single' also prints to stdout.
+                        # https://stackoverflow.com/questions/16571150
                         #_stdout = sys.stdout
                         #sys.stdout = StringIO()
                         result = eval(compile(python_command + "\n", "<string>", "single"),

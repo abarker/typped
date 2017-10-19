@@ -598,8 +598,9 @@ def def_assignment_op_static(parser, assignment_op_token_label, prec, assoc,
                             " is {2}.".format(identifier, formal_type, rhs_type))
         return tok
 
-    #construct_label = "def_assignment_op_static with {} tokens as triggers".format(
-    #                                                     assignment_op_token_label)
+    if not construct_label:
+        construct_label = "def_assignment_op_static with {} tokens as triggers".format(
+                                                             assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
@@ -662,7 +663,6 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
 
     This method may not correctly set the return type when overloading on
     return types because currently `val_type_override` is used to set it."""
-
     symbol_value_dict, symbol_type_dict = _setup_symbol_dicts(parser, symbol_value_dict,
                                                                       symbol_type_dict)
     if allowed_types is not None:
@@ -694,8 +694,9 @@ def def_assignment_op_dynamic(parser, assignment_op_token_label, prec, assoc,
             tok.process_and_check_kwargs = {"val_type_override": rhs_type}
         return tok
 
-    #construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
-    #                                                      assignment_op_token_label)
+    if not construct_label:
+        construct_label = "def_assignment_op_dynamic with {} tokens as triggers".format(
+                                                              assignment_op_token_label)
     return parser.def_construct(TAIL, tail_handler, assignment_op_token_label, prec=prec,
                                 precond_fun=precond_fun,
                                 precond_priority=precond_priority,
