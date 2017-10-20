@@ -14,8 +14,6 @@ import math
 import operator
 import typped as pp
 
-# TODO: another example where a regular function is defined.
-
 def define_parser_subclass():
 
     class MyParser(pp.PrattParser):

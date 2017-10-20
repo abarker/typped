@@ -3,9 +3,9 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-=================================================================
-Typped: A framework for typed Pratt parsers employing dispatching
-=================================================================
+=================================================
+Typped: Typed Pratt parsers employing dispatching
+=================================================
 
 ..
    NOTE: Use |nbsp| for nonbreaking space, and |br| for adding line breaks.
@@ -41,12 +41,12 @@ the Typped framework (integrated with Pratt parsing).
 
 Although the framework is general, the package was originally designed to parse
 logic languages and mathematical languages which use syntax approximating the
-often-ambiguous informal syntax which is used in practice.  Because it is based
-on Pratt parsing it is especially good at parsing expression languages which
-have various operators at different precedence levels.  Pratt parsing tends to
-be fairly efficient in this context, but the Typped package focuses more on
-ease-of-use than execution speed.  The parsers and lexers are modifiable
-on-the-fly, allowing the parsed languages to be fully dynamic.
+syntax which is used in practice.  Because it is based on Pratt parsing it is
+especially good at parsing expression languages which have various operators at
+different precedence levels.  Pratt parsing tends to be fairly efficient in
+this context, but the Typped package focuses more on ease-of-use than execution
+speed.  The parsers and lexers are modifiable on-the-fly, allowing the parsed
+languages to be fully dynamic.
 
 .. note::
 

@@ -92,9 +92,9 @@ Using dispatching
 -----------------
 
 The ``PrattParser`` method which registers a construct with the parser is
-called ``def_construct``.  It is used inside the builtin methods after
-defining the handler functions and any preconditions functions.  To define
-custom constructs it needs to be explicitly called.
+called ``def_construct``.  It is used, for example, inside the builtin methods
+after defining the handler functions and any preconditions functions.  To
+define custom constructs it needs to be explicitly called.
 
 One of the optional arguments to ``def_construct`` is ``precond_fun``, which
 can be passed a function taking two parameters, ``tok`` and ``lex``.  It should
@@ -107,131 +107,20 @@ the preconditions function is called, ``tok`` is the triggering token and
 some "virtual" tokens like null-space tokens and jop-tokens which are both
 discussed in later sections.)
 
-In generalizing to preconditioned dispatching the ``recursive_parse`` routine
-is slightly modified from the one in the previous section.  A simplified
-version is shown here:
+See the documentation for the ``def_construct`` method at
+:py:meth:`typped.pratt_parser.PrattParser.def_construct`.  The basic
+specification is::
 
-.. code-block:: python
+   def def_construct(head_or_tail, handler_fun, trigger_token_label,
+                     prec=0, construct_label=None,
+                     precond_fun=None, precond_priority=0,
+                     val_type=None, arg_types=None,
+                     eval_fun=None, ast_data=None,
+                     token_value_key=None, dummy_handler=False):
 
-   def recursive_parse(lex, subexp_prec):
-       curr_token = lex.next()
-       head_handler = curr_token.dispatch_handler(HEAD, lex)
-       processed_left = head_handler()
-
-       while lex.peek().prec() > subexp_prec:
-           curr_token = lex.next()
-           tail_handler = curr_token.dispatch_handler(TAIL, lex, processed_left)
-           processed_left = tail_handler()
-
-Instead of directly calling a fixed head or tail handler for a token, the
-``recursive_parse`` function instead calls a function ``dispatch_handler``.
-This function takes an argument which specifies whether to fetch a head or a
-tail handler.  This function selects a construct, as described above, and
-returns the handler function (which is actually a wrapper function that first
-runs the handler and then does type checking on the returned subtree).  For
-convenience the arguments to the handler are bound, since they are already
-known.
-
-.. note::
-
-   Preconditioned dispatching is only a slight generalization of the usual
-   Pratt parser.  A similar thing could be accomplished with ordinary head and
-   tail functions via a case statement inside each one, performing different
-   actions based on the conditions at the time and ordered in the case
-   statement by priority. An advantage of using function dispatching instead
-   is that it allows for modularity in defining the head and tail handlers for
-   a particular kind of token.
-   
-   With dispatching, what would otherwise be a case statement in a handler
-   function is essentially split up into many separate functions, one for each
-   case.  So each case in such a case statement can be defined in the place
-   where that syntactic construct is generally being defined, rather than
-   having to be placed in one centralized and separate location.  This makes it
-   easier to create essentially independent functional interfaces for different
-   syntactical constructs.  For example, the `PrattParser` class comes with
-   methods predefined to easily perform common syntax-related tasks such as
-   defining an infix operator, define a grouping operator, define a standard
-   function, etc.  If one big case statement were being used in a single head
-   or tail handler then that case statement would have to be modified for each
-   such method.
-
-.. topic:: Two ways to parse identifiers
-
-   The Typped parser and lexer are both dynamic and can be updated on-the-fly.
-   This flexibility allows for a different style of defining identifiers than
-   is traditionally used.  Consider an example where function name
-   identifiers are being parsed.  Assume that the language being parsed has
-   some sort of definition mechanism where function names must be defined
-   before they are used.  (The principle is more general, including cases
-   where, say, functions and variables share the same namespace or for
-   kinds of token other than identifiers.)
-   
-   In the traditional parser design a generic function-name identifier is
-   defined for the lexer and any further processing is done by the parser, based
-   on the actual string value found in the program text.  This allows a
-   fixed lexer to be used.  When the lexer is dynamic, though, it is possible
-   to define a new token for each definition of an identifier.
-   
-   Suppose we have functions ``add`` and ``exp``.  In the traditional approach
-   the lexer would identify each as a function name identifier, and return that
-   information along with the actual text string.  In the dynamic-lexer
-   approach you would define a new token for ``add`` at the time it is defined.
-   Similarly for the ``exp`` function.  The lexer would then return a unique
-   token for each function, pushing some of the parsing down to the lexer
-   level.
-
-   An advantage of the dynamic approach is that it can help to avoid
-   ambiguities in parsing complex languages.  The disadvantages are that it may
-   take slightly more space to define the new tokens, it may be slower to scan
-   with so many possible tokens, and the function names (and hence their
-   tokens) must be defined before being used.
-
-   A disadvantage of using a common identifier token for all function names is
-   evaluation functions then cannot be automatically associated with the
-   tokens.  To get around this the `def_construct` method takes a keyword
-   argument `value_key` can be passed strings like `add` and `exp`.  The
-   evaluation functions are then keyed on those values, too.  During lookup
-   the actual text string for the token is used to look back up the evaluation
-   function.
-
-   As far as the efficiency of defining many tokens, the Typped lexer is
-   designed to very efficiently scan large numbers of tokens provided they have
-   a simple pattern.  The `Matcher` used by the lexer can use one of several
-   hybrid approaches.  For example, simple patterns (currently restricted to
-   fixed strings for this speedup) can be automatically stored in a trie data
-   structure and essentially all scanned in parallel by walking down the trie.
-   Their insert and delete time is linear in the pattern length.  So, while the
-   Typped parser can be used in either way, the use of dynamic token
-   definitions is worth considering.
-
-Uniqueness of constructs
-------------------------
-
-Equality or non-equality of two constructs in the sense of being triggered by
-identical conditions is determined by equality of triples of the form::
-
-   (head_or_tail, trigger_token_label, precond_fun)
-
-The preconditions priority is not included because it determines the
-interaction between different constructs match.  If two constructs match in the
-above tuple but have different ``precond_priority`` values then one will always
-shadow the other.  The shadowed construct will never run.
-
-Unfortunately it is impractical to determine in general when two preconditions
-functions are identical in the sense that they compute the same thing.
-
-Recall that function overloading based on argument types is used for
-syntactical constructs which parse the same (i.e., with the same preconditions
-and using the same handler function) but which are then resolved into different
-semantic objects based on the actual types of the arguments which are processed
-at parse-time.  Overloading can also involve the type of the function's return
-value.
-
-Overloading must be explicitly specified, via a call to the ``overload`` method
-of a previously-defined construct instance.  Because of the difficulty of
-determining equivalence of preconditions functions, described above,
-overloading cannot be done by simply calling ``def_construct`` again with the
-same arguments and a different type.  
+For a simple example of defining a construct, see :ref:`basic_usage:Example:
+Parsing a simple expression without using builtins`.  A more general example is
+given in the next section.
 
 Example: Defining standard functions with lookahead
 ---------------------------------------------------
@@ -266,7 +155,8 @@ are defined.  Both handlers are registered for the identifier token, and the
 rest is handled automatically.
 
 The code for this example can be found in a runnable form in the file
-``example_stdfun_lookahead.py``.
+`example_stdfun_lookahead.py
+<https://github.com/abarker/typped/blob/master/examples/example_stdfun_lookahead.py>`_.
 
 In this example the ``PrattParser`` class is extended by creating a subclass
 with additional methods.  In particular, a general method is added which parses
@@ -411,6 +301,135 @@ that this function does not allow whitespace (ignored tokens) to occur between
 the function name and the left parenthesis.  The preconditions function is
 defined as a nested function, but it could alternately be passed in as another
 argument to ``def_stdfun`` (along with its label). 
+
+
+.. topic:: Two ways to parse identifiers
+
+   The Typped parser and lexer are both dynamic and can be updated on-the-fly.
+   This flexibility allows for a different style of defining identifiers than
+   is traditionally used.  Consider an example where function name
+   identifiers are being parsed.  Assume that the language being parsed has
+   some sort of definition mechanism where function names must be defined
+   before they are used.  (The principle is more general, including cases
+   where, say, functions and variables share the same namespace or for
+   kinds of token other than identifiers.)
+   
+   In the traditional parser design a generic function-name identifier is
+   defined for the lexer and any further processing is done by the parser, based
+   on the actual string value found in the program text.  This allows a
+   fixed lexer to be used.  When the lexer is dynamic, though, it is possible
+   to define a new token for each definition of an identifier.
+   
+   Suppose we have functions ``add`` and ``exp``.  In the traditional approach
+   the lexer would identify each as a function name identifier, and return that
+   information along with the actual text string.  In the dynamic-lexer
+   approach you would define a new token for ``add`` at the time it is defined.
+   Similarly for the ``exp`` function.  The lexer would then return a unique
+   token for each function, pushing some of the parsing down to the lexer
+   level.
+
+   An advantage of the dynamic approach is that it can help to avoid
+   ambiguities in parsing complex languages.  The disadvantages are that it may
+   take slightly more space to define the new tokens, it may be slower to scan
+   with so many possible tokens, and the function names (and hence their
+   tokens) must be defined before being used.
+
+   A disadvantage of using a common identifier token for all function names is
+   evaluation functions then cannot be automatically associated with the
+   tokens.  To get around this the `def_construct` method takes a keyword
+   argument `value_key` can be passed strings like `add` and `exp`.  The
+   evaluation functions are then keyed on those values, too.  During lookup
+   the actual text string for the token is used to look back up the evaluation
+   function.
+
+   As far as the efficiency of defining many tokens, the Typped lexer is
+   designed to very efficiently scan large numbers of tokens provided they have
+   a simple pattern.  The `Matcher` used by the lexer can use one of several
+   hybrid approaches.  For example, simple patterns (currently restricted to
+   fixed strings for this speedup) can be automatically stored in a trie data
+   structure and essentially all scanned in parallel by walking down the trie.
+   Their insert and delete time is linear in the pattern length.  So, while the
+   Typped parser can be used in either way, the use of dynamic token
+   definitions is worth considering.
+
+Modifications to ``recursive_parse``
+------------------------------------
+In generalizing to preconditioned dispatching the ``recursive_parse`` routine
+is slightly modified from the one in the previous section.  A simplified
+version is shown here:
+
+.. code-block:: python
+
+   def recursive_parse(lex, subexp_prec):
+       curr_token = lex.next()
+       head_handler = curr_token.dispatch_handler(HEAD, lex)
+       processed_left = head_handler()
+
+       while lex.peek().prec() > subexp_prec:
+           curr_token = lex.next()
+           tail_handler = curr_token.dispatch_handler(TAIL, lex, processed_left)
+           processed_left = tail_handler()
+
+Instead of directly calling a fixed head or tail handler for a token, the
+``recursive_parse`` function instead calls a function ``dispatch_handler``.
+This function takes an argument which specifies whether to fetch a head or a
+tail handler.  This function selects a construct, as described above, and
+returns the handler function (which is actually a wrapper function that first
+runs the handler and then does type checking on the returned subtree).  For
+convenience the arguments to the handler are bound, since they are already
+known.
+
+.. note::
+
+   Preconditioned dispatching is only a slight generalization of the usual
+   Pratt parser.  A similar thing could be accomplished with ordinary head and
+   tail functions via a case statement inside each one, performing different
+   actions based on the conditions at the time and ordered in the case
+   statement by priority. An advantage of using function dispatching instead
+   is that it allows for modularity in defining the head and tail handlers for
+   a particular kind of token.
+   
+   With dispatching, what would otherwise be a case statement in a handler
+   function is essentially split up into many separate functions, one for each
+   case.  So each case in such a case statement can be defined in the place
+   where that syntactic construct is generally being defined, rather than
+   having to be placed in one centralized and separate location.  This makes it
+   easier to create essentially independent functional interfaces for different
+   syntactical constructs.  For example, the `PrattParser` class comes with
+   methods predefined to easily perform common syntax-related tasks such as
+   defining an infix operator, define a grouping operator, define a standard
+   function, etc.  If one big case statement were being used in a single head
+   or tail handler then that case statement would have to be modified for each
+   such method.
+
+Uniqueness of constructs
+------------------------
+
+Equality or non-equality of two constructs in the sense of being triggered by
+identical conditions is determined by equality of triples of the form::
+
+   (head_or_tail, trigger_token_label, precond_fun)
+
+The preconditions priority is not included because it determines the
+interaction between different constructs match.  If two constructs match in the
+above tuple but have different ``precond_priority`` values then one will always
+shadow the other.  The shadowed construct will never run.
+
+Unfortunately it is impractical to determine in general when two preconditions
+functions are identical in the sense that they compute the same thing.
+
+Recall that function overloading based on argument types is used for
+syntactical constructs which parse the same (i.e., with the same preconditions
+and using the same handler function) but which are then resolved into different
+semantic objects based on the actual types of the arguments which are processed
+at parse-time.  Overloading can also involve the type of the function's return
+value.
+
+Overloading must be explicitly specified, via a call to the ``overload`` method
+of a previously-defined construct instance.  Because of the difficulty of
+determining equivalence of preconditions functions, described above,
+overloading cannot be done by simply calling ``def_construct`` again with the
+same arguments and a different type.  
 
 .. topic:: Overloading versus preconditions functions
 
