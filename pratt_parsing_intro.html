@@ -55,7 +55,7 @@
   <div class="section" id="introduction-to-pratt-parsing-and-its-terminology">
 <h1>2. Introduction to Pratt parsing and its terminology<a class="headerlink" href="#introduction-to-pratt-parsing-and-its-terminology" title="Permalink to this headline">¶</a></h1>
 <p>This section provides an introduction to the general concept of Pratt
-parsing, as well as the terminology used in the Typped documentation and
+parsing as well as the terminology used in the Typped documentation and
 code.</p>
 <div class="section" id="what-is-a-pratt-parser">
 <h2>2.1. What is a Pratt parser?<a class="headerlink" href="#what-is-a-pratt-parser" title="Permalink to this headline">¶</a></h2>
@@ -116,29 +116,31 @@ arguments/parameters of the function are the ordered child nodes.  The leaves
 of an expression tree are the <strong>literal tokens</strong>, i.e., the tokens which act as
 single-node subtrees in the final expression tree.  The other tokens appear in
 the tree as interior nodes (e.g., tokens for infix operators like <code class="docutils literal"><span class="pre">*</span></code>).</p>
-<p>A <strong>parse tree</strong> or <strong>derivation tree</strong>, on the other hand, corresponds to a
-grammar.  The internal nodes all correspond to <strong>production rules</strong> in a
-grammar.  In a parse tree each non-ignored token returned by the lexer (literal
-and non-literal) ends up as a leaf node in the parse tree.  An <strong>abstract
-syntax tree (AST)</strong> is an abstract representation of the information in a parse
-tree or expression tree, in some format chosen to be convenient.  A Pratt
-parser can produce any of the above kinds of trees, depending on how the
-handler functions are defined, but naturally produces expression trees.  The
-term <strong>syntax tree</strong> can generally refer to any of the above types of trees.</p>
-<p>In common usage the <strong>parsing</strong> of text tends to refer to any kind of formal
+<p>A <strong>derivation tree</strong> or <strong>parse tree</strong>, on the other hand, corresponds to a
+grammar.  The internal nodes all correspond to <strong>production rules</strong>  for
+<strong>nonterminal symbols</strong> in a grammar.  In a derivation tree every non-ignored
+token returned by the lexer ends up as a leaf node in the tree.</p>
+<p>An <strong>abstract syntax tree (AST)</strong> is an abstract representation of the
+information in a derivation tree or expression tree, in some format chosen to
+be convenient.  The term <strong>syntax tree</strong> can generally refer to any of the
+above types of trees.</p>
+<p>A Pratt parser can produce any of the above kinds of trees, depending on how
+the handler functions are defined, but naturally produces expression trees.  In
+common usage the <strong>parsing</strong> of text tends to refer to any kind of formal
 decomposition into a predefined structure, particularly into a tree structure.
-This may include parsing text to a derivation tree, an expression tree, an
-AST, or the use of various ad hoc methods for breaking the text down into
-components.  Informally, expression trees are often referred to as parse trees.</p>
-<p>The <code class="docutils literal"><span class="pre">parse</span></code> function is assumed to return a syntax tree for the expression it
-parses.  In general, many parsers do not return a syntax tree but instead
-evaluate, interpret, or otherwise process the expressions as they go along.  We
-assume that any such evaluation or interpretation is applied at a later stage,
-based on the returned syntax tree.  Pratt parsers in general can easily
-interpret or evaluate languages on-the-fly, but for simplicity the builtin
-methods of the Typped package always form a syntax tree by default.  (If
-type-checking is disabled then arbitrary Pratt Parsers can still be defined
-using Typped.)</p>
+This may include parsing text to a derivation tree, an expression tree, or an
+AST.  It may also include the use of various ad hoc methods for breaking the
+text down into components.  Informally, expression trees are often referred to
+as parse trees.</p>
+<p>The parser’s <code class="docutils literal"><span class="pre">parse</span></code> function is assumed to return a syntax tree for the
+expression it parses.  In general, many parsers do not return a syntax tree but
+instead evaluate, interpret, or otherwise process the expressions as they go
+along.  We assume that any such evaluation or interpretation is applied at a
+later stage, based on the returned syntax tree.  Pratt parsers in general can
+easily interpret or evaluate languages on-the-fly, but for simplicity the
+builtin methods of the Typped package always form a syntax tree by default.
+(Note that if type-checking is disabled then arbitrary Pratt Parsers can still
+be defined using Typped.)</p>
 </div>
 <div class="section" id="operator-precedence">
 <span id="id1"></span><h2>2.3. Operator precedence<a class="headerlink" href="#operator-precedence" title="Permalink to this headline">¶</a></h2>

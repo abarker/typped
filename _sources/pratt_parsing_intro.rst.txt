@@ -3,7 +3,7 @@ Introduction to Pratt parsing and its terminology
 =================================================
 
 This section provides an introduction to the general concept of Pratt
-parsing, as well as the terminology used in the Typped documentation and
+parsing as well as the terminology used in the Typped documentation and
 code.
 
 What is a Pratt parser?
@@ -74,31 +74,34 @@ of an expression tree are the **literal tokens**, i.e., the tokens which act as
 single-node subtrees in the final expression tree.  The other tokens appear in
 the tree as interior nodes (e.g., tokens for infix operators like ``*``).
 
-A **parse tree** or **derivation tree**, on the other hand, corresponds to a
-grammar.  The internal nodes all correspond to **production rules** in a
-grammar.  In a parse tree each non-ignored token returned by the lexer (literal
-and non-literal) ends up as a leaf node in the parse tree.  An **abstract
-syntax tree (AST)** is an abstract representation of the information in a parse
-tree or expression tree, in some format chosen to be convenient.  A Pratt
-parser can produce any of the above kinds of trees, depending on how the
-handler functions are defined, but naturally produces expression trees.  The
-term **syntax tree** can generally refer to any of the above types of trees.
+A **derivation tree** or **parse tree**, on the other hand, corresponds to a
+grammar.  The internal nodes all correspond to **production rules**  for
+**nonterminal symbols** in a grammar.  In a derivation tree every non-ignored
+token returned by the lexer ends up as a leaf node in the tree.
 
-In common usage the **parsing** of text tends to refer to any kind of formal
+An **abstract syntax tree (AST)** is an abstract representation of the
+information in a derivation tree or expression tree, in some format chosen to
+be convenient.  The term **syntax tree** can generally refer to any of the
+above types of trees.
+
+A Pratt parser can produce any of the above kinds of trees, depending on how
+the handler functions are defined, but naturally produces expression trees.  In
+common usage the **parsing** of text tends to refer to any kind of formal
 decomposition into a predefined structure, particularly into a tree structure.
-This may include parsing text to a derivation tree, an expression tree, an
-AST, or the use of various ad hoc methods for breaking the text down into
-components.  Informally, expression trees are often referred to as parse trees.
+This may include parsing text to a derivation tree, an expression tree, or an
+AST.  It may also include the use of various ad hoc methods for breaking the
+text down into components.  Informally, expression trees are often referred to
+as parse trees.
 
-The ``parse`` function is assumed to return a syntax tree for the expression it
-parses.  In general, many parsers do not return a syntax tree but instead
-evaluate, interpret, or otherwise process the expressions as they go along.  We
-assume that any such evaluation or interpretation is applied at a later stage,
-based on the returned syntax tree.  Pratt parsers in general can easily
-interpret or evaluate languages on-the-fly, but for simplicity the builtin
-methods of the Typped package always form a syntax tree by default.  (If
-type-checking is disabled then arbitrary Pratt Parsers can still be defined
-using Typped.)
+The parser's ``parse`` function is assumed to return a syntax tree for the
+expression it parses.  In general, many parsers do not return a syntax tree but
+instead evaluate, interpret, or otherwise process the expressions as they go
+along.  We assume that any such evaluation or interpretation is applied at a
+later stage, based on the returned syntax tree.  Pratt parsers in general can
+easily interpret or evaluate languages on-the-fly, but for simplicity the
+builtin methods of the Typped package always form a syntax tree by default.
+(Note that if type-checking is disabled then arbitrary Pratt Parsers can still
+be defined using Typped.)
 
 .. _Operator precedence:
 

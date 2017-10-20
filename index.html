@@ -5,7 +5,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <title>Typped: A framework for typed Pratt parsers employing dispatching &#8212; Typped  documentation</title>
+    <title>Typped: Typed Pratt parsers employing dispatching &#8212; Typped  documentation</title>
     <link rel="stylesheet" href="_static/classic.css" type="text/css" />
     <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
     <script type="text/javascript">
@@ -48,8 +48,8 @@
         <div class="bodywrapper">
           <div class="body" role="main">
             
-  <div class="section" id="typped-a-framework-for-typed-pratt-parsers-employing-dispatching">
-<h1>Typped: A framework for typed Pratt parsers employing dispatching<a class="headerlink" href="#typped-a-framework-for-typed-pratt-parsers-employing-dispatching" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="typped-typed-pratt-parsers-employing-dispatching">
+<h1>Typped: Typed Pratt parsers employing dispatching<a class="headerlink" href="#typped-typed-pratt-parsers-employing-dispatching" title="Permalink to this headline">¶</a></h1>
 <p>The Typped package provides a general Python framework for defining and using
 Pratt parsers.  The parsed languages can optionally be typed, with basic types
 which are checked at parse-time.  Overloading on types is also allowed.</p>
@@ -61,12 +61,12 @@ be used to define and implement recursive descent parsing of a grammar within
 the Typped framework (integrated with Pratt parsing).</p>
 <p>Although the framework is general, the package was originally designed to parse
 logic languages and mathematical languages which use syntax approximating the
-often-ambiguous informal syntax which is used in practice.  Because it is based
-on Pratt parsing it is especially good at parsing expression languages which
-have various operators at different precedence levels.  Pratt parsing tends to
-be fairly efficient in this context, but the Typped package focuses more on
-ease-of-use than execution speed.  The parsers and lexers are modifiable
-on-the-fly, allowing the parsed languages to be fully dynamic.</p>
+syntax which is used in practice.  Because it is based on Pratt parsing it is
+especially good at parsing expression languages which have various operators at
+different precedence levels.  Pratt parsing tends to be fairly efficient in
+this context, but the Typped package focuses more on ease-of-use than execution
+speed.  The parsers and lexers are modifiable on-the-fly, allowing the parsed
+languages to be fully dynamic.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">This is alpha-level software.  The basic parts work but many features are
@@ -126,8 +126,9 @@ install Typped directly:</p>
 <li class="toctree-l1"><a class="reference internal" href="dispatching.html">3. Constructs and preconditioned dispatching</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="dispatching.html#what-is-preconditioned-dispatching">3.1. What is preconditioned dispatching?</a></li>
 <li class="toctree-l2"><a class="reference internal" href="dispatching.html#using-dispatching">3.2. Using dispatching</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#uniqueness-of-constructs">3.3. Uniqueness of constructs</a></li>
-<li class="toctree-l2"><a class="reference internal" href="dispatching.html#example-defining-standard-functions-with-lookahead">3.4. Example: Defining standard functions with lookahead</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#example-defining-standard-functions-with-lookahead">3.3. Example: Defining standard functions with lookahead</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#modifications-to-recursive-parse">3.4. Modifications to <code class="docutils literal"><span class="pre">recursive_parse</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="dispatching.html#uniqueness-of-constructs">3.5. Uniqueness of constructs</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="calculator_example.html">4. Example: Implementing a simple calculator</a><ul>
@@ -225,7 +226,7 @@ install Typped directly:</p>
         <div class="sphinxsidebarwrapper">
   <h3><a href="#">Table Of Contents</a></h3>
   <ul>
-<li><a class="reference internal" href="#">Typped: A framework for typed Pratt parsers employing dispatching</a><ul>
+<li><a class="reference internal" href="#">Typped: Typed Pratt parsers employing dispatching</a><ul>
 <li><a class="reference internal" href="#installation">Installation</a></li>
 <li><a class="reference internal" href="#content">Content</a></li>
 <li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>

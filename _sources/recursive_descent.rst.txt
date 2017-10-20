@@ -65,11 +65,11 @@ with lookahead to the upcoming tokens in the preconditions, gives the power to
 do recursive descent parsing of right regular grammars.
 
 These head-handler functions mimic the separate recursive functions for each
-production rule in recursive descent.  They are triggered by token literals
-when the preconditions match (or in general by first-set elements).  The
-``pstate`` stack keeps track of the recursion in the tree defined  by the
-grammar.  Either a single one can handle all the cases of the nonterminal, or
-separate ones can be triggered to handle the cases separately.
+production rule in recursive descent.  They are triggered by the corresponding
+literal tokens when the preconditions match (or in general by first-set
+elements).  The ``pstate`` stack keeps track of the recursion in the tree
+defined  by the grammar.  Either a single one can handle all the cases of the
+nonterminal, or separate ones can be triggered to handle the cases separately.
 
 In extending this approach to general recursive descent, a problem arises when
 a production starts with a nonterminal symbol.  Nonterminals do not correspond
@@ -204,7 +204,7 @@ in the examples directory for the code.
 
 This example uses several of the helper methods functions to quickly define
 tokens.  The tokens must all be defined, but they do not need to be explicitly
-made into token literals (at least not for grammar-based parsing alone).  They
+made into literal token (at least not for grammar-based parsing alone).  They
 are simply read in as tokens from the lexer because the grammar specifies what
 to look for.
 

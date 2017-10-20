@@ -6,8 +6,8 @@ Basic usage
    keep synced with file basic_usage_examples.py in examples dir
 
 This section gives an overview of the basic usage of the Typped package.  Later
-sections go into many more details.  Executable code for the examples on this
-page can be found in the file `examples/basic_usage_examples.py
+sections go into many more details.  Executable code for all the examples on
+this page can be found in the file `examples/basic_usage_examples.py
 <https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py>`_.
 
 The ``PrattParser`` class is the main class provided by the Typped package.  It
@@ -37,7 +37,8 @@ example.  Strings of the language are parsed to an expression tree.
    and a regex to recognize that kind of token.  If necessary, the appropriate
    ``on_ties`` values can be set to break ties in case of equal match lengths.
    The lexer will always take the longest match over all the defined tokens,
-   with ties broken by any `on_ties` values (which by default equal zero). ::
+   with ties broken by any `on_ties` values (which by default equal zero).  The
+   order in which definitions are made does not affect the lexical analysis.  ::
 
        parser.def_default_whitespace()
        tok = parser.def_token
@@ -61,10 +62,6 @@ example.  Strings of the language are parsed to an expression tree.
    ignored by the lexer.  The space and newline sequences are made into
    separate tokens; both are ignored by the lexer.  (Ignored tokens can be
    accessed via the ``ignored_before`` attribute of a token.)
-
-   It should be noted that the Typped lexer does not depend on the order in
-   which tokens are defined.  The longest matches are returned, with ties
-   broken by any ``on_ties`` values which are set in the ``def_token`` call.
 
 3. Define the syntactical elements of the language being parsed.  Any necessary
    token labels must have already been defined (as in the previous step).  The
@@ -137,7 +134,7 @@ the code for steps 1 and 2 has already been run.
 First we define the literal tokens, which are tokens that represent themselves
 in the final expression tree.  The head handler function for such a token
 simply returns the token itself.  Such a head-handler function is registered
-with the parser for each kind of token which should be a token literal:
+with the parser for each kind of token which should be a literal token:
 
 .. code-block:: python
 

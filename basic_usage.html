@@ -25,7 +25,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="2. Introduction to Pratt parsing and its terminology" href="pratt_parsing_intro.html" />
-    <link rel="prev" title="Typped: A framework for typed Pratt parsers employing dispatching" href="index.html" /> 
+    <link rel="prev" title="Typped: Typed Pratt parsers employing dispatching" href="index.html" /> 
   </head>
   <body>
     <div class="related" role="navigation" aria-label="related navigation">
@@ -41,7 +41,7 @@
           <a href="pratt_parsing_intro.html" title="2. Introduction to Pratt parsing and its terminology"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="index.html" title="Typped: A framework for typed Pratt parsers employing dispatching"
+          <a href="index.html" title="Typped: Typed Pratt parsers employing dispatching"
              accesskey="P">previous</a> |</li>
         <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
       </ul>
@@ -55,8 +55,8 @@
   <div class="section" id="basic-usage">
 <h1>1. Basic usage<a class="headerlink" href="#basic-usage" title="Permalink to this headline">¶</a></h1>
 <p>This section gives an overview of the basic usage of the Typped package.  Later
-sections go into many more details.  Executable code for the examples on this
-page can be found in the file <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">examples/basic_usage_examples.py</a>.</p>
+sections go into many more details.  Executable code for all the examples on
+this page can be found in the file <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">examples/basic_usage_examples.py</a>.</p>
 <p>The <code class="docutils literal"><span class="pre">PrattParser</span></code> class is the main class provided by the Typped package.  It
 is the only class that is needed for basic usage of the parser.</p>
 <div class="section" id="example-parsing-a-simple-expression">
@@ -82,7 +82,8 @@ example.  Strings of the language are parsed to an expression tree.</p>
 and a regex to recognize that kind of token.  If necessary, the appropriate
 <code class="docutils literal"><span class="pre">on_ties</span></code> values can be set to break ties in case of equal match lengths.
 The lexer will always take the longest match over all the defined tokens,
-with ties broken by any <code class="code docutils literal"><span class="pre">on_ties</span></code> values (which by default equal zero).</p>
+with ties broken by any <code class="code docutils literal"><span class="pre">on_ties</span></code> values (which by default equal zero).  The
+order in which definitions are made does not affect the lexical analysis.</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">parser</span><span class="o">.</span><span class="n">def_default_whitespace</span><span class="p">()</span>
 <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span>
 <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_number&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\d+&quot;</span><span class="p">)</span>
@@ -105,9 +106,6 @@ is equivalent to the following code:</p>
 ignored by the lexer.  The space and newline sequences are made into
 separate tokens; both are ignored by the lexer.  (Ignored tokens can be
 accessed via the <code class="docutils literal"><span class="pre">ignored_before</span></code> attribute of a token.)</p>
-<p>It should be noted that the Typped lexer does not depend on the order in
-which tokens are defined.  The longest matches are returned, with ties
-broken by any <code class="docutils literal"><span class="pre">on_ties</span></code> values which are set in the <code class="docutils literal"><span class="pre">def_token</span></code> call.</p>
 </li>
 <li><p class="first">Define the syntactical elements of the language being parsed.  Any necessary
 token labels must have already been defined (as in the previous step).  The
@@ -176,7 +174,7 @@ the code for steps 1 and 2 has already been run.</p>
 <p>First we define the literal tokens, which are tokens that represent themselves
 in the final expression tree.  The head handler function for such a token
 simply returns the token itself.  Such a head-handler function is registered
-with the parser for each kind of token which should be a token literal:</p>
+with the parser for each kind of token which should be a literal token:</p>
 <div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">literal_head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">tok</span>
 <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">literal_head_handler</span><span class="p">,</span> <span class="s2">&quot;k_number&quot;</span><span class="p">)</span>
@@ -405,7 +403,7 @@ lexer (such as with the <code class="docutils literal"><span class="pre">go_back
 
   <h4>Previous topic</h4>
   <p class="topless"><a href="index.html"
-                        title="previous chapter">Typped: A framework for typed Pratt parsers employing dispatching</a></p>
+                        title="previous chapter">Typped: Typed Pratt parsers employing dispatching</a></p>
   <h4>Next topic</h4>
   <p class="topless"><a href="pratt_parsing_intro.html"
                         title="next chapter">2. Introduction to Pratt parsing and its terminology</a></p>
@@ -443,7 +441,7 @@ lexer (such as with the <code class="docutils literal"><span class="pre">go_back
           <a href="pratt_parsing_intro.html" title="2. Introduction to Pratt parsing and its terminology"
              >next</a> |</li>
         <li class="right" >
-          <a href="index.html" title="Typped: A framework for typed Pratt parsers employing dispatching"
+          <a href="index.html" title="Typped: Typed Pratt parsers employing dispatching"
              >previous</a> |</li>
         <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li> 
       </ul>

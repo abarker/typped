@@ -134,9 +134,9 @@ and the preconditions functions always evaluate as true.</p>
 <div class="section" id="using-dispatching">
 <h2>3.2. Using dispatching<a class="headerlink" href="#using-dispatching" title="Permalink to this headline">¶</a></h2>
 <p>The <code class="docutils literal"><span class="pre">PrattParser</span></code> method which registers a construct with the parser is
-called <code class="docutils literal"><span class="pre">def_construct</span></code>.  It is used inside the builtin methods after
-defining the handler functions and any preconditions functions.  To define
-custom constructs it needs to be explicitly called.</p>
+called <code class="docutils literal"><span class="pre">def_construct</span></code>.  It is used, for example, inside the builtin methods
+after defining the handler functions and any preconditions functions.  To
+define custom constructs it needs to be explicitly called.</p>
 <p>One of the optional arguments to <code class="docutils literal"><span class="pre">def_construct</span></code> is <code class="docutils literal"><span class="pre">precond_fun</span></code>, which
 can be passed a function taking two parameters, <code class="docutils literal"><span class="pre">tok</span></code> and <code class="docutils literal"><span class="pre">lex</span></code>.  It should
 return <code class="docutils literal"><span class="pre">True</span></code> or <code class="docutils literal"><span class="pre">False</span></code> (or the equivalent).  When a token is read in
@@ -147,122 +147,22 @@ the preconditions function is called, <code class="docutils literal"><span class
 <code class="docutils literal"><span class="pre">lex</span></code> is the lexer.  (Usually <code class="docutils literal"><span class="pre">tok</span> <span class="pre">==</span> <span class="pre">lex.token</span></code>, except in the case of
 some “virtual” tokens like null-space tokens and jop-tokens which are both
 discussed in later sections.)</p>
-<p>In generalizing to preconditioned dispatching the <code class="docutils literal"><span class="pre">recursive_parse</span></code> routine
-is slightly modified from the one in the previous section.  A simplified
-version is shown here:</p>
-<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">subexp_prec</span><span class="p">):</span>
-    <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
-    <span class="n">head_handler</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">dispatch_handler</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">lex</span><span class="p">)</span>
-    <span class="n">processed_left</span> <span class="o">=</span> <span class="n">head_handler</span><span class="p">()</span>
-
-    <span class="k">while</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">prec</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">subexp_prec</span><span class="p">:</span>
-        <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
-        <span class="n">tail_handler</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">dispatch_handler</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">processed_left</span><span class="p">)</span>
-        <span class="n">processed_left</span> <span class="o">=</span> <span class="n">tail_handler</span><span class="p">()</span>
+<p>See the documentation for the <code class="docutils literal"><span class="pre">def_construct</span></code> method at
+<a class="reference internal" href="typped.pratt_parser.html#typped.pratt_parser.PrattParser.def_construct" title="typped.pratt_parser.PrattParser.def_construct"><code class="xref py py-meth docutils literal"><span class="pre">typped.pratt_parser.PrattParser.def_construct()</span></code></a>.  The basic
+specification is:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">def_construct</span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">handler_fun</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span>
+                  <span class="n">prec</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">construct_label</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">precond_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                  <span class="n">val_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">eval_fun</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ast_data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">token_value_key</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dummy_handler</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
 </pre></div>
 </div>
-<p>Instead of directly calling a fixed head or tail handler for a token, the
-<code class="docutils literal"><span class="pre">recursive_parse</span></code> function instead calls a function <code class="docutils literal"><span class="pre">dispatch_handler</span></code>.
-This function takes an argument which specifies whether to fetch a head or a
-tail handler.  This function selects a construct, as described above, and
-returns the handler function (which is actually a wrapper function that first
-runs the handler and then does type checking on the returned subtree).  For
-convenience the arguments to the handler are bound, since they are already
-known.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p>Preconditioned dispatching is only a slight generalization of the usual
-Pratt parser.  A similar thing could be accomplished with ordinary head and
-tail functions via a case statement inside each one, performing different
-actions based on the conditions at the time and ordered in the case
-statement by priority. An advantage of using function dispatching instead
-is that it allows for modularity in defining the head and tail handlers for
-a particular kind of token.</p>
-<p class="last">With dispatching, what would otherwise be a case statement in a handler
-function is essentially split up into many separate functions, one for each
-case.  So each case in such a case statement can be defined in the place
-where that syntactic construct is generally being defined, rather than
-having to be placed in one centralized and separate location.  This makes it
-easier to create essentially independent functional interfaces for different
-syntactical constructs.  For example, the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class comes with
-methods predefined to easily perform common syntax-related tasks such as
-defining an infix operator, define a grouping operator, define a standard
-function, etc.  If one big case statement were being used in a single head
-or tail handler then that case statement would have to be modified for each
-such method.</p>
-</div>
-<div class="topic">
-<p class="topic-title first">Two ways to parse identifiers</p>
-<p>The Typped parser and lexer are both dynamic and can be updated on-the-fly.
-This flexibility allows for a different style of defining identifiers than
-is traditionally used.  Consider an example where function name
-identifiers are being parsed.  Assume that the language being parsed has
-some sort of definition mechanism where function names must be defined
-before they are used.  (The principle is more general, including cases
-where, say, functions and variables share the same namespace or for
-kinds of token other than identifiers.)</p>
-<p>In the traditional parser design a generic function-name identifier is
-defined for the lexer and any further processing is done by the parser, based
-on the actual string value found in the program text.  This allows a
-fixed lexer to be used.  When the lexer is dynamic, though, it is possible
-to define a new token for each definition of an identifier.</p>
-<p>Suppose we have functions <code class="docutils literal"><span class="pre">add</span></code> and <code class="docutils literal"><span class="pre">exp</span></code>.  In the traditional approach
-the lexer would identify each as a function name identifier, and return that
-information along with the actual text string.  In the dynamic-lexer
-approach you would define a new token for <code class="docutils literal"><span class="pre">add</span></code> at the time it is defined.
-Similarly for the <code class="docutils literal"><span class="pre">exp</span></code> function.  The lexer would then return a unique
-token for each function, pushing some of the parsing down to the lexer
-level.</p>
-<p>An advantage of the dynamic approach is that it can help to avoid
-ambiguities in parsing complex languages.  The disadvantages are that it may
-take slightly more space to define the new tokens, it may be slower to scan
-with so many possible tokens, and the function names (and hence their
-tokens) must be defined before being used.</p>
-<p>A disadvantage of using a common identifier token for all function names is
-evaluation functions then cannot be automatically associated with the
-tokens.  To get around this the <code class="code docutils literal"><span class="pre">def_construct</span></code> method takes a keyword
-argument <code class="code docutils literal"><span class="pre">value_key</span></code> can be passed strings like <code class="code docutils literal"><span class="pre">add</span></code> and <code class="code docutils literal"><span class="pre">exp</span></code>.  The
-evaluation functions are then keyed on those values, too.  During lookup
-the actual text string for the token is used to look back up the evaluation
-function.</p>
-<p>As far as the efficiency of defining many tokens, the Typped lexer is
-designed to very efficiently scan large numbers of tokens provided they have
-a simple pattern.  The <code class="code docutils literal"><span class="pre">Matcher</span></code> used by the lexer can use one of several
-hybrid approaches.  For example, simple patterns (currently restricted to
-fixed strings for this speedup) can be automatically stored in a trie data
-structure and essentially all scanned in parallel by walking down the trie.
-Their insert and delete time is linear in the pattern length.  So, while the
-Typped parser can be used in either way, the use of dynamic token
-definitions is worth considering.</p>
-</div>
-</div>
-<div class="section" id="uniqueness-of-constructs">
-<h2>3.3. Uniqueness of constructs<a class="headerlink" href="#uniqueness-of-constructs" title="Permalink to this headline">¶</a></h2>
-<p>Equality or non-equality of two constructs in the sense of being triggered by
-identical conditions is determined by equality of triples of the form:</p>
-<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="p">)</span>
-</pre></div>
-</div>
-<p>The preconditions priority is not included because it determines the
-interaction between different constructs match.  If two constructs match in the
-above tuple but have different <code class="docutils literal"><span class="pre">precond_priority</span></code> values then one will always
-shadow the other.  The shadowed construct will never run.</p>
-<p>Unfortunately it is impractical to determine in general when two preconditions
-functions are identical in the sense that they compute the same thing.</p>
-<p>Recall that function overloading based on argument types is used for
-syntactical constructs which parse the same (i.e., with the same preconditions
-and using the same handler function) but which are then resolved into different
-semantic objects based on the actual types of the arguments which are processed
-at parse-time.  Overloading can also involve the type of the function’s return
-value.</p>
-<p>Overloading must be explicitly specified, via a call to the <code class="docutils literal"><span class="pre">overload</span></code> method
-of a previously-defined construct instance.  Because of the difficulty of
-determining equivalence of preconditions functions, described above,
-overloading cannot be done by simply calling <code class="docutils literal"><span class="pre">def_construct</span></code> again with the
-same arguments and a different type.</p>
+<p>For a simple example of defining a construct, see <a class="reference internal" href="basic_usage.html#example-parsing-a-simple-expression-without-using-builtins"><span class="std std-ref">Example: Parsing a simple expression without using builtins</span></a>.  A more general example is
+given in the next section.</p>
 </div>
 <div class="section" id="example-defining-standard-functions-with-lookahead">
-<h2>3.4. Example: Defining standard functions with lookahead<a class="headerlink" href="#example-defining-standard-functions-with-lookahead" title="Permalink to this headline">¶</a></h2>
+<h2>3.3. Example: Defining standard functions with lookahead<a class="headerlink" href="#example-defining-standard-functions-with-lookahead" title="Permalink to this headline">¶</a></h2>
 <p>As an example of dispatching, consider the parsing of function evaluations such
 as <code class="docutils literal"><span class="pre">f(x)</span></code> in a Pratt parser.   The “usual” way is to define a tail handler
 for the left-paren token.  Then that symbol acts like an infix operator with
@@ -290,7 +190,7 @@ They can occur in different sections of code, where the different constructs
 are defined.  Both handlers are registered for the identifier token, and the
 rest is handled automatically.</p>
 <p>The code for this example can be found in a runnable form in the file
-<code class="docutils literal"><span class="pre">example_stdfun_lookahead.py</span></code>.</p>
+<a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/example_stdfun_lookahead.py">example_stdfun_lookahead.py</a>.</p>
 <p>In this example the <code class="docutils literal"><span class="pre">PrattParser</span></code> class is extended by creating a subclass
 with additional methods.  In particular, a general method is added which parses
 standard functions.  If a general method is not required then the code could
@@ -420,6 +320,122 @@ the function name and the left parenthesis.  The preconditions function is
 defined as a nested function, but it could alternately be passed in as another
 argument to <code class="docutils literal"><span class="pre">def_stdfun</span></code> (along with its label).</p>
 <div class="topic">
+<p class="topic-title first">Two ways to parse identifiers</p>
+<p>The Typped parser and lexer are both dynamic and can be updated on-the-fly.
+This flexibility allows for a different style of defining identifiers than
+is traditionally used.  Consider an example where function name
+identifiers are being parsed.  Assume that the language being parsed has
+some sort of definition mechanism where function names must be defined
+before they are used.  (The principle is more general, including cases
+where, say, functions and variables share the same namespace or for
+kinds of token other than identifiers.)</p>
+<p>In the traditional parser design a generic function-name identifier is
+defined for the lexer and any further processing is done by the parser, based
+on the actual string value found in the program text.  This allows a
+fixed lexer to be used.  When the lexer is dynamic, though, it is possible
+to define a new token for each definition of an identifier.</p>
+<p>Suppose we have functions <code class="docutils literal"><span class="pre">add</span></code> and <code class="docutils literal"><span class="pre">exp</span></code>.  In the traditional approach
+the lexer would identify each as a function name identifier, and return that
+information along with the actual text string.  In the dynamic-lexer
+approach you would define a new token for <code class="docutils literal"><span class="pre">add</span></code> at the time it is defined.
+Similarly for the <code class="docutils literal"><span class="pre">exp</span></code> function.  The lexer would then return a unique
+token for each function, pushing some of the parsing down to the lexer
+level.</p>
+<p>An advantage of the dynamic approach is that it can help to avoid
+ambiguities in parsing complex languages.  The disadvantages are that it may
+take slightly more space to define the new tokens, it may be slower to scan
+with so many possible tokens, and the function names (and hence their
+tokens) must be defined before being used.</p>
+<p>A disadvantage of using a common identifier token for all function names is
+evaluation functions then cannot be automatically associated with the
+tokens.  To get around this the <code class="code docutils literal"><span class="pre">def_construct</span></code> method takes a keyword
+argument <code class="code docutils literal"><span class="pre">value_key</span></code> can be passed strings like <code class="code docutils literal"><span class="pre">add</span></code> and <code class="code docutils literal"><span class="pre">exp</span></code>.  The
+evaluation functions are then keyed on those values, too.  During lookup
+the actual text string for the token is used to look back up the evaluation
+function.</p>
+<p>As far as the efficiency of defining many tokens, the Typped lexer is
+designed to very efficiently scan large numbers of tokens provided they have
+a simple pattern.  The <code class="code docutils literal"><span class="pre">Matcher</span></code> used by the lexer can use one of several
+hybrid approaches.  For example, simple patterns (currently restricted to
+fixed strings for this speedup) can be automatically stored in a trie data
+structure and essentially all scanned in parallel by walking down the trie.
+Their insert and delete time is linear in the pattern length.  So, while the
+Typped parser can be used in either way, the use of dynamic token
+definitions is worth considering.</p>
+</div>
+</div>
+<div class="section" id="modifications-to-recursive-parse">
+<h2>3.4. Modifications to <code class="docutils literal"><span class="pre">recursive_parse</span></code><a class="headerlink" href="#modifications-to-recursive-parse" title="Permalink to this headline">¶</a></h2>
+<p>In generalizing to preconditioned dispatching the <code class="docutils literal"><span class="pre">recursive_parse</span></code> routine
+is slightly modified from the one in the previous section.  A simplified
+version is shown here:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="n">subexp_prec</span><span class="p">):</span>
+    <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+    <span class="n">head_handler</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">dispatch_handler</span><span class="p">(</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">lex</span><span class="p">)</span>
+    <span class="n">processed_left</span> <span class="o">=</span> <span class="n">head_handler</span><span class="p">()</span>
+
+    <span class="k">while</span> <span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">prec</span><span class="p">()</span> <span class="o">&gt;</span> <span class="n">subexp_prec</span><span class="p">:</span>
+        <span class="n">curr_token</span> <span class="o">=</span> <span class="n">lex</span><span class="o">.</span><span class="n">next</span><span class="p">()</span>
+        <span class="n">tail_handler</span> <span class="o">=</span> <span class="n">curr_token</span><span class="o">.</span><span class="n">dispatch_handler</span><span class="p">(</span><span class="n">TAIL</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">processed_left</span><span class="p">)</span>
+        <span class="n">processed_left</span> <span class="o">=</span> <span class="n">tail_handler</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Instead of directly calling a fixed head or tail handler for a token, the
+<code class="docutils literal"><span class="pre">recursive_parse</span></code> function instead calls a function <code class="docutils literal"><span class="pre">dispatch_handler</span></code>.
+This function takes an argument which specifies whether to fetch a head or a
+tail handler.  This function selects a construct, as described above, and
+returns the handler function (which is actually a wrapper function that first
+runs the handler and then does type checking on the returned subtree).  For
+convenience the arguments to the handler are bound, since they are already
+known.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Preconditioned dispatching is only a slight generalization of the usual
+Pratt parser.  A similar thing could be accomplished with ordinary head and
+tail functions via a case statement inside each one, performing different
+actions based on the conditions at the time and ordered in the case
+statement by priority. An advantage of using function dispatching instead
+is that it allows for modularity in defining the head and tail handlers for
+a particular kind of token.</p>
+<p class="last">With dispatching, what would otherwise be a case statement in a handler
+function is essentially split up into many separate functions, one for each
+case.  So each case in such a case statement can be defined in the place
+where that syntactic construct is generally being defined, rather than
+having to be placed in one centralized and separate location.  This makes it
+easier to create essentially independent functional interfaces for different
+syntactical constructs.  For example, the <code class="code docutils literal"><span class="pre">PrattParser</span></code> class comes with
+methods predefined to easily perform common syntax-related tasks such as
+defining an infix operator, define a grouping operator, define a standard
+function, etc.  If one big case statement were being used in a single head
+or tail handler then that case statement would have to be modified for each
+such method.</p>
+</div>
+</div>
+<div class="section" id="uniqueness-of-constructs">
+<h2>3.5. Uniqueness of constructs<a class="headerlink" href="#uniqueness-of-constructs" title="Permalink to this headline">¶</a></h2>
+<p>Equality or non-equality of two constructs in the sense of being triggered by
+identical conditions is determined by equality of triples of the form:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="p">(</span><span class="n">head_or_tail</span><span class="p">,</span> <span class="n">trigger_token_label</span><span class="p">,</span> <span class="n">precond_fun</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The preconditions priority is not included because it determines the
+interaction between different constructs match.  If two constructs match in the
+above tuple but have different <code class="docutils literal"><span class="pre">precond_priority</span></code> values then one will always
+shadow the other.  The shadowed construct will never run.</p>
+<p>Unfortunately it is impractical to determine in general when two preconditions
+functions are identical in the sense that they compute the same thing.</p>
+<p>Recall that function overloading based on argument types is used for
+syntactical constructs which parse the same (i.e., with the same preconditions
+and using the same handler function) but which are then resolved into different
+semantic objects based on the actual types of the arguments which are processed
+at parse-time.  Overloading can also involve the type of the function’s return
+value.</p>
+<p>Overloading must be explicitly specified, via a call to the <code class="docutils literal"><span class="pre">overload</span></code> method
+of a previously-defined construct instance.  Because of the difficulty of
+determining equivalence of preconditions functions, described above,
+overloading cannot be done by simply calling <code class="docutils literal"><span class="pre">def_construct</span></code> again with the
+same arguments and a different type.</p>
+<div class="topic">
 <p class="topic-title first">Overloading versus preconditions functions</p>
 <p>An alternative way that Typped could have implemented overloading would have
 been to always use a unique construct label for each overload — perhaps by
@@ -456,8 +472,9 @@ with a single construct.</p>
 <li><a class="reference internal" href="#">3. Constructs and preconditioned dispatching</a><ul>
 <li><a class="reference internal" href="#what-is-preconditioned-dispatching">3.1. What is preconditioned dispatching?</a></li>
 <li><a class="reference internal" href="#using-dispatching">3.2. Using dispatching</a></li>
-<li><a class="reference internal" href="#uniqueness-of-constructs">3.3. Uniqueness of constructs</a></li>
-<li><a class="reference internal" href="#example-defining-standard-functions-with-lookahead">3.4. Example: Defining standard functions with lookahead</a></li>
+<li><a class="reference internal" href="#example-defining-standard-functions-with-lookahead">3.3. Example: Defining standard functions with lookahead</a></li>
+<li><a class="reference internal" href="#modifications-to-recursive-parse">3.4. Modifications to <code class="docutils literal"><span class="pre">recursive_parse</span></code></a></li>
+<li><a class="reference internal" href="#uniqueness-of-constructs">3.5. Uniqueness of constructs</a></li>
 </ul>
 </li>
 </ul>
