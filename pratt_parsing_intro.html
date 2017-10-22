@@ -115,7 +115,9 @@ operator corresponds to an interior node of the tree, and the
 arguments/parameters of the function are the ordered child nodes.  The leaves
 of an expression tree are the <strong>literal tokens</strong>, i.e., the tokens which act as
 single-node subtrees in the final expression tree.  The other tokens appear in
-the tree as interior nodes (e.g., tokens for infix operators like <code class="docutils literal"><span class="pre">*</span></code>).</p>
+the tree as interior nodes (e.g., tokens for infix operators like <code class="docutils literal"><span class="pre">*</span></code>).  The
+syntactical construct corresponding to a literal token will be called a <strong>token
+literal</strong>.</p>
 <p>A <strong>derivation tree</strong> or <strong>parse tree</strong>, on the other hand, corresponds to a
 grammar.  The internal nodes all correspond to <strong>production rules</strong>  for
 <strong>nonterminal symbols</strong> in a grammar.  In a derivation tree every non-ignored
@@ -155,8 +157,8 @@ should produce this expression tree:</p>
 </pre></div>
 </div>
 <p>Here an indented column under a token represent its children/arguments.  Note
-that the leaves of the tree are always literal tokens such as <code class="docutils literal"><span class="pre">2</span></code> and <code class="docutils literal"><span class="pre">5</span></code>,
-which form their own subtrees.</p>
+that the leaves of the tree are always token literals corresponding to literal
+tokens such as <code class="docutils literal"><span class="pre">2</span></code> and <code class="docutils literal"><span class="pre">5</span></code>, which form their own subtrees.</p>
 <p>In producing the parse tree above it has been assumed that the usual operator
 precedence rules in mathematics hold: <code class="docutils literal"><span class="pre">*</span></code> has higher precedence than <code class="docutils literal"><span class="pre">+</span></code>.
 In most computer languages this is implemented by assigning a fixed
@@ -178,7 +180,7 @@ power</strong> or <strong>lbp</strong>.</p>
 token precedence values define the subexpression tree structure of
 subexpressions with infix operators.  In the simple example expression above
 the top-level expression is represented by the full tree, with root at the
-operator <code class="docutils literal"><span class="pre">+</span></code>.  Each literal token also defines a (trivial) subexpression.
+operator <code class="docutils literal"><span class="pre">+</span></code>.  Each token literal also defines a (trivial) subexpression.
 The subtree rooted at operator <code class="docutils literal"><span class="pre">*</span></code> defines a non-trivial subexpression which
 corresponds to the string <code class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></code> in the full expression.</p>
 <p>In Pratt parsing recursion is used to parse subexpressions (starting top-down,
@@ -382,15 +384,15 @@ evaluating parser they could evaluate the subexpression and return the result
 evaluation is to be done).  Below we describe what handler functions <em>usually</em>
 do, and give an example of processing the simple expression <code class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></code> which
 was previously discussed in the <a class="reference internal" href="#operator-precedence"><span class="std std-ref">Operator precedence</span></a> section.</p>
-<div class="section" id="literal-tokens">
-<h3>2.6.1. Literal tokens<a class="headerlink" href="#literal-tokens" title="Permalink to this headline">¶</a></h3>
-<p>The literal tokens in a grammar always have a head handler, since the tokens
+<div class="section" id="token-literals">
+<h3>2.6.1. Token literals<a class="headerlink" href="#token-literals" title="Permalink to this headline">¶</a></h3>
+<p>The token literals in a language always have a head handler, since the tokens
 themselves are subtrees for their own subexpressions (i.e., they are leaves in
-the expression tree).  The head handler for literal tokens is trivial: the head
-function simply returns the token itself as the subtree.  Note that any mutual
-recursion always ends with literal tokens because all the leaves of an
-expression tree are literal tokens.  Thus their head handlers do not make any
-further recursive calls.</p>
+the expression tree).  The head handler for token literals is trivial: the head
+function simply returns the token itself as the subtree.  Note that the mutual
+recursion of a Pratt parser always ends with token literals because all the
+leaves of an expression tree are literal tokens.  Their head handlers do not
+make any further recursive calls.</p>
 <p>Every token is represented by a unique subclass of the <code class="docutils literal"><span class="pre">TokenNode</span></code> class.
 The precedence value defined for a token is saved as an attribute of the
 corresponding subclass.  Instances of the subclass represent the actual scanned
@@ -407,13 +409,18 @@ instance <code class="docutils literal"><span class="pre">lex</span></code>:</p>
 <p>All other head and tail handlers are also made into methods for the
 subtoken that they are associated with (but see the note below).</p>
 </div>
-<div class="section" id="non-literal-tokens">
-<h3>2.6.2. Non-literal tokens<a class="headerlink" href="#non-literal-tokens" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="non-literal-syntatical-constructs">
+<h3>2.6.2. Non-literal syntatical constructs<a class="headerlink" href="#non-literal-syntatical-constructs" title="Permalink to this headline">¶</a></h3>
+<p>In Pratt parsing every syntatical construct is triggered by some token in
+either the head or tail position.  The corresponding head or tail handler for
+the token is called to parse the corresponding construct.  Unlike token
+literals, which have trivial handler functions, the handler functions for
+non-literal constructs can be more complicated.</p>
 <p>Generally, head and tail handlers do two things while constructing the result
-value to return: 1) they call <code class="docutils literal"><span class="pre">recursive_parse</span></code> to evaluate sub-subexpressions
-of their subexpression, and 2) they possibly peek at and/or consume additional
-tokens from the lexer.  This is the definition of the tail handler for the
-<code class="docutils literal"><span class="pre">+</span></code> operator:</p>
+value to return: 1) they call <code class="docutils literal"><span class="pre">recursive_parse</span></code> to evaluate
+sub-subexpressions of their subexpression, and 2) they possibly peek at and/or
+consume additional tokens from the lexer.  For example, this is the definition
+of the tail handler for the <code class="docutils literal"><span class="pre">+</span></code> operator:</p>
 <div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">tail_handler_plus</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lex</span><span class="p">,</span> <span class="n">left</span><span class="p">):</span>
     <span class="bp">self</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">recursive_parse</span><span class="p">(</span><span class="n">lex</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">prec</span><span class="p">))</span>
     <span class="k">return</span> <span class="bp">self</span>
@@ -660,8 +667,8 @@ Prototypal Inheritance, Global Variables, Virtual Dispatch, or Java</a>,” 2016
 <li><a class="reference internal" href="#subexpressions">2.4. Subexpressions</a></li>
 <li><a class="reference internal" href="#basic-parsing">2.5. Basic parsing</a></li>
 <li><a class="reference internal" href="#the-handler-functions-head-and-tail">2.6. The handler functions head and tail</a><ul>
-<li><a class="reference internal" href="#literal-tokens">2.6.1. Literal tokens</a></li>
-<li><a class="reference internal" href="#non-literal-tokens">2.6.2. Non-literal tokens</a></li>
+<li><a class="reference internal" href="#token-literals">2.6.1. Token literals</a></li>
+<li><a class="reference internal" href="#non-literal-syntatical-constructs">2.6.2. Non-literal syntatical constructs</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#an-example-parse">2.7. An example parse</a></li>

@@ -55,9 +55,9 @@
 <span class="sd">`PrattParser` class, implemented using precondition functions and null-string</span>
 <span class="sd">token handlers.</span>
 
-<span class="sd">.. note::</span>
+<span class="sd">.. topic:: Similar Python parsing packages.</span>
 
-<span class="sd">    Here are a few (but not all) similar Python parsing packages which parse</span>
+<span class="sd">    These are a few (but not all) similar Python parsing packages for parsing</span>
 <span class="sd">    from BNF- or EBNF-like grammars (though without the underlying Pratt</span>
 <span class="sd">    parsing framework).  Some use string representations of the grammar, while</span>
 <span class="sd">    others use overloaded Python operators.  Most do not automatically produce</span>
@@ -78,10 +78,13 @@
 <span class="sd">    * **Lark** -- Passed a string. Implements Earley &amp; LALR(1) and returns a</span>
 <span class="sd">      parse tree.  https://github.com/erezsh/Lark</span>
 
-<span class="sd">    For more information on other Python parsers, see</span>
-<span class="sd">    https://wiki.python.org/moin/LanguageParsing,</span>
-<span class="sd">    https://github.com/webmaven/python-parsing-tools, and</span>
-<span class="sd">    https://tomassetti.me/parsing-in-python/.</span>
+<span class="sd">    For more information on the various Python parsers, see these summaries:</span>
+
+<span class="sd">    * https://wiki.python.org/moin/LanguageParsing,</span>
+
+<span class="sd">    * https://github.com/webmaven/python-parsing-tools</span>
+
+<span class="sd">    * https://tomassetti.me/parsing-in-python/.</span>
 
 <span class="sd">Terminology and notation</span>
 <span class="sd">========================</span>
@@ -213,17 +216,22 @@
 <span class="sd">objects, and `CaseList` objects.  The latter two are just list-like objects</span>
 <span class="sd">with most of the list operations overloaded.  An `ItemList` only holds `Item`</span>
 <span class="sd">instances, and a `CaseList` only holds `ItemList` instances.  These objects do</span>
-<span class="sd">not nest, and so they have some important differences from ordinary Python</span>
-<span class="sd">lists.</span>
+<span class="sd">not nest, though, and so there are some important differences from ordinary</span>
+<span class="sd">Python lists.</span>
 
 <span class="sd">The `ItemList` and `CaseList` classes are basically designed for concatenation</span>
 <span class="sd">operations, since that is what is used to build up production rule expressions.</span>
-<span class="sd">In their constructors they they both take an arbitrary number of arguments.</span>
-<span class="sd">All the arguments are converted to elements of the single type that they hold.</span>
-<span class="sd">The new instance then initially contains all those converted arguments as</span>
-<span class="sd">elements.  When an `ItemList` is passed another `ItemList` in its initializer</span>
-<span class="sd">argument list it just takes the elements within that list and puts them on its</span>
-<span class="sd">list.  The `CaseList` class works similarly.</span>
+<span class="sd">They are &quot;flat&quot; in the sense that they only hold one kind of object and do</span>
+<span class="sd">everything they can to convert an object to that type before saving it on the</span>
+<span class="sd">list.  An `ItemList` instance holds `Item` instances and a `CaseList` instance</span>
+<span class="sd">holds `ItemList` instances.  Because of the latter property `Case` is defined</span>
+<span class="sd">as an alias for `ItemList`.  Both of the classes take an arbitrary number of</span>
+<span class="sd">arguments in their constructors.  All the arguments are converted to elements</span>
+<span class="sd">of the single type that they hold.  The new instance then initially contains</span>
+<span class="sd">all those converted arguments as its elements.  When an `ItemList` is passed</span>
+<span class="sd">another `ItemList` in its initializer argument list it just takes the elements</span>
+<span class="sd">within that list and extends its list with them.  The `CaseList` class works</span>
+<span class="sd">similarly.</span>
 
 <span class="sd">So the initializers basically form the concatenation of all the passed-in</span>
 <span class="sd">arguments, after converting each one to the type of object that the list-like</span>
@@ -291,67 +299,19 @@
 <span class="sd">Operator precedences expressed in grammar</span>
 <span class="sd">=========================================</span>
 
-<span class="sd">In order to use Pratt-parser style operator precedences in a grammar two things</span>
-<span class="sd">must be done.</span>
+<span class="sd">This is not yet implemented, but will mimic the way a Pratt parser works.</span>
 
-<span class="sd">1. The relevant items in a case of a production must be set to some nonzero</span>
-<span class="sd">value.</span>
+<span class="sd">In the EBNF-like grammar precedences are defined using index-style brackets::</span>
 
-<span class="sd">2. The item before the expression (before the first argument) must be wrapped</span>
-<span class="sd">in a special function.</span>
+<span class="sd">    Tok(&quot;k_plus&quot;)[30]</span>
 
-<span class="sd">To see how this works, consider these productions below, parsing the expressions</span>
-<span class="sd">`x + y * z` (compared with `x * y + z`).</span>
-
-<span class="sd">.. code-block:: python</span>
-
-<span class="sd">    term = Regex()</span>
-
-<span class="sd">    add = Head(Rule(&quot;term&quot;)) + Rule(&quot;operator&quot;)</span>
-
-<span class="sd">    operator = Tail( k_add[20] + Rule(&quot;term&quot;)</span>
-<span class="sd">                   | k_ast[40] + Rule(&quot;term&quot;)</span>
-<span class="sd">                   )</span>
-
-<span class="sd">1. The `add` production is somehow on the top of the `pstack` and</span>
-<span class="sd">`recursive_parse(0)` is called.  This invokes the head-handler for the `add`</span>
-<span class="sd">production (which is a handler for the null-string token with the precondition</span>
-<span class="sd">that &quot;add&quot; is on top of the stack).</span>
-
-<span class="sd">2. The head-handler for the `add` production then pushes `&quot;term&quot;` onto the</span>
-<span class="sd">`pstack` and calls `recursive_parse(0)` to get the first argument.</span>
-
-<span class="sd">3. The head-handler for the `term` rule is then invoked.  It fetches the</span>
-<span class="sd">first term, which is `x` and returns it as a subtree leaf.</span>
-
-<span class="sd">4. We are now back to the `add` handler, having gotten `x` as `processed_left`.</span>
-<span class="sd">It now pops the `term` state and pushes the `operator` state onto the `pstack`.</span>
-<span class="sd">It then calls `recursive_parse(0, processed_left)`, which runs as a</span>
-<span class="sd">tail-handler.  Notice how the recursive descent handler for the `add`</span>
-<span class="sd">production is essentially mimicking the `recursive_parse` routine but pushing</span>
-<span class="sd">and popping states.</span>
-
-<span class="sd">----&gt; Should the whole loop of recursive_parse run, or just one iteration</span>
-<span class="sd">      when passed the explicit argument?????  As it is here, just one iteration?</span>
-<span class="sd">      Could split up the head and tail parts as two functions... each loop</span>
-<span class="sd">      iteration could be a function (but would be less efficient).</span>
-
-<span class="sd">----&gt; Do we need any special wrappers like `Tail`?</span>
-
-<span class="sd">5. The tail-handler for `k_add` is now called, since the `+` token was returned</span>
-<span class="sd">by the lexer.  It pushes the state `term` and calls `recursive_parse(20,</span>
-<span class="sd">processed_left`.</span>
-
-<span class="sd">6. The head-handler for `term` calls `recursive_parse(0)`, which fetches the</span>
-<span class="sd">token `y`.</span>
-
-<span class="sd">7. HERE IS INTERESTING PART, iron out above and figure out how to make it</span>
-<span class="sd">work...</span>
-
-<span class="sd">So the expression `x + y * z` will be evalated as `x + (y*z)`.</span>
+<span class="sd">The above would give a precedence of 30 to the token.</span>
 
 <span class="sd">Optimizing the grammar</span>
 <span class="sd">======================</span>
+
+<span class="sd">This section discusses possible optimizations to the grammar.  Predictive</span>
+<span class="sd">parsing is close to being fully implemented, but is not fully set up yet.</span>
 
 <span class="sd">predictive parsing</span>
 <span class="sd">------------------</span>
@@ -363,19 +323,20 @@
 <span class="sd">(falling back to backtracking search only when necessary).</span>
 
 <span class="sd">To use a predicive parse you need to generate a **first set** for</span>
-<span class="sd">each non-terminal (i.e., recursive rule call) in the grammar.  Call</span>
-<span class="sd">this `first_set(nonterminal)`.</span>
+<span class="sd">each non-terminal (i.e., recursive rule call) in the grammar.</span>
 
 <span class="sd">When epsilon productions are allowed a **follow set** acts similarly to</span>
 <span class="sd">a first set.</span>
 
-<span class="sd">See:</span>
+<span class="sd">See, e.g.:</span>
 
-<span class="sd">http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html</span>
-<span class="sd">http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html</span>
+<span class="sd">* http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html</span>
+
+<span class="sd">* http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html</span>
 
 <span class="sd">Maybe also consider packrat parsing:</span>
-<span class="sd">https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars</span>
+
+<span class="sd">* https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars</span>
 
 <span class="sd">grammar transformations</span>
 <span class="sd">-----------------------</span>
@@ -387,13 +348,24 @@
 <span class="sd">ordering of any obvious left recursive cases.</span>
 
 <span class="sd">In a more complicated transformation you could do **left factoring** on the</span>
-<span class="sd">grammar to remove the left recursion.</span>
+<span class="sd">grammar to remove the left recursion, but that isn&#39;t likely to happen.</span>
 
 <span class="sd">Consider curtailment of left recursion, too.  If it is going to repeat will it</span>
 <span class="sd">repeat in n levels, where that is the number of rules?  What is the limit, etc.</span>
-<span class="sd">See some of those articles and maybe do a simple thing.</span>
+<span class="sd">See some of those articles and consider if not too much to do.</span>
+
+<span class="sd">Code</span>
+<span class="sd">====</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># TODO: Implement function calls for Items with keyword arguments.  Then</span>
+<span class="c1"># syntax like this can be used:</span>
+<span class="c1">#</span>
+<span class="c1">#    plus = Tok(&quot;k_plus&quot;)(val_type=t_int, arg_types=[t_int,t_int], eval_fun=addfun)</span>
+<span class="c1">#</span>
+<span class="c1"># In this case would be better to make a Python alias in a separate code line</span>
+<span class="c1"># and then plug into the grammar in other places.</span>
 
 <span class="c1"># Some simple example grammars for use in tests:</span>
 <span class="c1">#    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html</span>
@@ -856,6 +828,8 @@
 
     <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">return</span> <span class="s2">&quot;ItemList(</span><span class="si">{0}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="nb">str</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_list</span><span class="p">]))</span></div>
+
+<span class="n">Case</span> <span class="o">=</span> <span class="n">ItemList</span> <span class="c1"># Case is an alias for an ItemList; Items converted on init.</span>
 
 <div class="viewcode-block" id="CaseList"><a class="viewcode-back" href="../../typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.CaseList">[docs]</a><span class="k">class</span> <span class="nc">CaseList</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;A list of `Case` objects.  Note, though, that a single Item or ItemList can</span>

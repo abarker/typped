@@ -111,11 +111,11 @@ accessed via the <code class="docutils literal"><span class="pre">ignored_before
 token labels must have already been defined (as in the previous step).  The
 predefined syntax-definition methods of <code class="docutils literal"><span class="pre">PrattParser</span></code> take as arguments
 token labels, type information, etc.</p>
-<p>Note that literal tokens must still be defined as syntactical elements of
+<p>Note that token literals must still be defined as syntactical elements of
 the grammar being parsed, after being defined as tokens.  The token
 definition just creates a kind of token to be scanned and returned by the
 lexer.  If typing is being used then any type information should also be set
-for the literal tokens since they are the leaves of the expression trees.</p>
+for the token literals since they are the leaves of the expression trees.</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_number&quot;</span><span class="p">)</span>
 <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">)</span>
 </pre></div>
@@ -171,10 +171,10 @@ information on constructs.</p>
 same in this example as in the previous example, so that portion of the code
 above is not repeated.  The below discussion starts at Step 3 above, assuming
 the code for steps 1 and 2 has already been run.</p>
-<p>First we define the literal tokens, which are tokens that represent themselves
+<p>First we define the token literals, which are tokens that represent themselves
 in the final expression tree.  The head handler function for such a token
 simply returns the token itself.  Such a head-handler function is registered
-with the parser for each kind of token which should be a literal token:</p>
+with the parser for each kind of token which should be a token literal:</p>
 <div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">literal_head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
     <span class="k">return</span> <span class="n">tok</span>
 <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">literal_head_handler</span><span class="p">,</span> <span class="s2">&quot;k_number&quot;</span><span class="p">)</span>

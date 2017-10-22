@@ -68,11 +68,11 @@ example.  Strings of the language are parsed to an expression tree.
    predefined syntax-definition methods of ``PrattParser`` take as arguments
    token labels, type information, etc.
 
-   Note that literal tokens must still be defined as syntactical elements of
+   Note that token literals must still be defined as syntactical elements of
    the grammar being parsed, after being defined as tokens.  The token
    definition just creates a kind of token to be scanned and returned by the
    lexer.  If typing is being used then any type information should also be set
-   for the literal tokens since they are the leaves of the expression trees. ::
+   for the token literals since they are the leaves of the expression trees. ::
 
        parser.def_literal("k_number")
        parser.def_literal("k_identifier")
@@ -131,10 +131,10 @@ same in this example as in the previous example, so that portion of the code
 above is not repeated.  The below discussion starts at Step 3 above, assuming
 the code for steps 1 and 2 has already been run.
 
-First we define the literal tokens, which are tokens that represent themselves
+First we define the token literals, which are tokens that represent themselves
 in the final expression tree.  The head handler function for such a token
 simply returns the token itself.  Such a head-handler function is registered
-with the parser for each kind of token which should be a literal token:
+with the parser for each kind of token which should be a token literal:
 
 .. code-block:: python
 

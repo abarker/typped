@@ -51,7 +51,7 @@
 
 <span class="sd">This module contains the functions which handle the recursive descent parsing</span>
 <span class="sd">of the rules of a `Grammar` object instance. Grammar objects are defined in</span>
-<span class="sd">`ebnf_classes_and_operators` module.</span>
+<span class="sd">the :py:mod:`typped.ebnf_classes_and_operators` module.</span>
 
 <span class="sd">In ths module only the function `register_rule_handlers_with_parser` is</span>
 <span class="sd">formally exposed to be called externally (and it is only called from the</span>
@@ -67,37 +67,42 @@
 <span class="sd">either).</span>
 
 <span class="sd">Rules and guidelines</span>
-<span class="sd">--------------------</span>
+<span class="sd">====================</span>
 
 <span class="sd">* No left recursion.  Some token must be consumed before any recursive call.</span>
-<span class="sd">  This is not OK.  The left recursion will never stop::</span>
+<span class="sd">  The below example is NOT OK because the left recursion will never stop::</span>
 
-<span class="sd">      arglist = Rule(&quot;arglist&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;)</span>
+<span class="sd">      arglist = Rule(&quot;arglist&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;) # NOT OK</span>
 
-<span class="sd">  This is OK:</span>
+<span class="sd">  Right recursion is OK::</span>
 
-<span class="sd">      arglist = Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;) | Rule(&quot;arg&quot;)</span>
+<span class="sd">      arglist = Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;) | Rule(&quot;arg&quot;) # OK</span>
 
-<span class="sd">* Cases are evaluated in sequential order, so if cases have the same prefix</span>
-<span class="sd">  put the longer cases first.  This modified version of the OK rule above will</span>
-<span class="sd">  never select the second case.  It will always parse a single &quot;arg&quot; rule and be</span>
-<span class="sd">  satisfied::</span>
+<span class="sd">* Cases are evaluated in sequential order, so if cases have the same prefix the</span>
+<span class="sd">  longer-prefix cases should be put first.  This modified version of the OK</span>
+<span class="sd">  rule above will never select the second case.  It will always parse a single</span>
+<span class="sd">  &quot;arg&quot; rule and be satisfied::</span>
 
-<span class="sd">      arglist = Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;)</span>
+<span class="sd">      arglist = Rule(&quot;arg&quot;) | Rule(&quot;arg&quot;) + Tok(&quot;k_comma&quot;) + Rule(&quot;arglist&quot;) # NOT OK</span>
 
 <span class="sd">Precedences</span>
-<span class="sd">-----------</span>
+<span class="sd">===========</span>
 
-<span class="sd">Precedences not yet implemented.</span>
+<span class="sd">**Precedences not yet implemented.**</span>
 
-<span class="sd">Assume for now that precedences only apply to token literals.  Two possible</span>
-<span class="sd">ways to consider:</span>
+<span class="sd">Assume for now that precedences only apply to token literals.  Here are two</span>
+<span class="sd">possible ways to consider that they will be used::</span>
 
 <span class="sd">   num_expr      = k_number + Rule(&quot;operator&quot;) + num_expr | k_number</span>
 <span class="sd">   operator      = Tok(&quot;k_ast&quot;)[10] | Tok(&quot;k_plus&quot;)[20]</span>
 
 <span class="sd">   num_expr         = k_number + Rule(&quot;op_and_right_arg&quot;) | k_number</span>
 <span class="sd">   op_and_right_arg = Tok(&quot;k_ast&quot;)[10] + num_expr | Tok(&quot;k_plus&quot;)[20] + num_expr</span>
+
+<span class="sd">Note that in the second case the parsing for `num_expr` must recognize that the rule</span>
+<span class="sd">has a precedence which is defined in a *different* expression.  But, there is not</span>
+<span class="sd">a single, fixed precedence value that can be propagated backward.  The parsing</span>
+<span class="sd">needs to handle this in some way or else rule out this kind of case.</span>
 
 <span class="sd">Now consider `parse(&quot;5 + 3 * 2&quot;)`.</span>
 
@@ -117,12 +122,20 @@
 <span class="sd">the current `processed_left` as their left child and all in the rest of the</span>
 <span class="sd">case as their right child.</span>
 
-<span class="sd">Todo: Consider peekahead prec for nonterminals:  The precedence is the same</span>
-<span class="sd">as the peek token, i.e., the next non-virtual token that is actually in</span>
-<span class="sd">the lexer.  Easy to do, since prec() is a function (or can be a property).</span>
-<span class="sd">Then a grammar nonterminal could possibly fit into a Pratt context as</span>
-<span class="sd">an infix operator (actually, processing the right argument of an infix</span>
-<span class="sd">operator.</span>
+<span class="sd">TODO: Consider using some kind of peekahead precedence values for nonterminals:</span>
+<span class="sd">Its precedence is the same as that of its peek token, i.e., the next</span>
+<span class="sd">non-virtual token that is actually in the lexer.  This is easy to do for</span>
+<span class="sd">ordinary precedence, since `prec()` is a function (or can be a property).  This</span>
+<span class="sd">is to allow a single nonterminal for a whole group of operators (in different</span>
+<span class="sd">cases) with different precedences.  (Note that these would only process the</span>
+<span class="sd">right part of the operation, but should then make the previous result into the</span>
+<span class="sd">left operand.)  BUT: Grammar precedences are not the same as the ordinary Pratt</span>
+<span class="sd">precedences (as of now, anyway) and for future purposes we need to consider how</span>
+<span class="sd">this interacts with the lookahead peek supposing that precedences become</span>
+<span class="sd">construct attributes as planned.</span>
+
+<span class="sd">Code</span>
+<span class="sd">====</span>
 
 <span class="sd">&quot;&quot;&quot;</span>
 
@@ -180,19 +193,19 @@
 <span class="sd">    1. Look up the caselist for `nonterm_label` in the grammar object.</span>
 
 <span class="sd">    2. Loop over that caselist, making a sub-caselists for cases which start</span>
-<span class="sd">    with the same thing (i.e., which have the same first set).  Start with the</span>
-<span class="sd">    first case, and proceed until the initial caselist is fully processed and</span>
-<span class="sd">    converted to a collection of sub-caselists.  (All production rule starts</span>
-<span class="sd">    are currently considered the same, but when the first-set is computed then</span>
-<span class="sd">    they will be grouped with others having the same first-set.)</span>
+<span class="sd">       with the same thing (i.e., which have the same first set).  Start with the</span>
+<span class="sd">       first case, and proceed until the initial caselist is fully processed and</span>
+<span class="sd">       converted to a collection of sub-caselists.  (All production rule starts</span>
+<span class="sd">       are currently considered the same, but when the first-set is computed then</span>
+<span class="sd">       they will be grouped with others having the same first-set.)</span>
 
-<span class="sd">    These sub-caselists which start with a token are stored in a dict</span>
-<span class="sd">    `token_literal_start_cases`, keyed by the token label of the beginning token.</span>
-<span class="sd">    Those which start with a nonterminal are saved in a list</span>
-<span class="sd">    `nonterm_start_cases`.</span>
+<span class="sd">       These sub-caselists which start with a token are stored in a dict</span>
+<span class="sd">       `token_literal_start_cases`, keyed by the token label of the beginning token.</span>
+<span class="sd">       Those which start with a nonterminal are saved in a list</span>
+<span class="sd">       `nonterm_start_cases`.</span>
 
 <span class="sd">    3. For each sub-caselist created above, call</span>
-<span class="sd">    `def_handlers_for_first_case_of_nonterminal` with that caselist.</span>
+<span class="sd">       `def_handlers_for_first_case_of_nonterminal` with that caselist.</span>
 
 <span class="sd">    &quot;&quot;&quot;</span>
 

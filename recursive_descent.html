@@ -66,7 +66,7 @@ recursive descent is implemented in Typped.</p>
 <p>The Typped package provides a higher-level EBNF-like grammar specification
 language, implemented by operator overloading, which makes it easy to implement
 grammar-based languages or partial languages.  Readers who are only interested
-in using the EBNF-like language can skip to <a class="reference internal" href="#ebnf"><span class="std std-ref">Recursive descent with Typped’s EBNF-like grammar</span></a>.</p>
+in using the EBNF-like language can skip to “<a class="reference internal" href="#ebnf"><span class="std std-ref">Recursive descent with Typped’s EBNF-like grammar</span></a>.”</p>
 <p>It should be noted that recursive descent parsing is not all that difficult to
 implement by hand, especially with a good lexer.  It is possible to implement a
 traditional recursive descent parser using the same lexer as a <code class="docutils literal"><span class="pre">PrattParser</span></code>
@@ -87,19 +87,19 @@ are top-down recursive methods.  Pratt parsing, however, is token-based while
 recursive descent parsing is based on production rules in a grammar.  The
 ability to dispatch handlers based on preconditions makes the Typped Pratt
 parser even more similar to a recursive descent parser.  The terminal symbols
-in a grammar are essentially the literal tokens in a Pratt parser.  The
-discussion below assumes this correspondence, so terminals are essentially
-defined by regular expressions (like the literal tokens in Typped).</p>
+in a grammar are the token literals in a Pratt parser.  The discussion below
+assumes this correspondence, so terminals are defined by the regular
+expressions in the definition of the literal tokens.</p>
 <p>Suppose all the productions in a grammar begin with a terminal symbol
 (represented by the regular expression of some corresponding token).  This is
 called a <strong>right-regular grammar</strong>.  A Pratt parser with preconditioned
 dispatching can be used to directly implement recursive descent parsing on such
 a grammar.  Since each rule in such a grammar begins with a terminal symbol,
-corresponding to a literal token, the head-handler for each such literal token
-can be set up to process the rule.  In the Typped dispatching terminology, the
-literal token can be used to trigger a syntactic construct (containing the
-handler function, a preconditions function, and related data) which will
-then process the full production rule.</p>
+corresponding to a token literal, the head-handler triggered by each such
+literal token can be set up to process the rule.  In the Typped dispatching
+terminology, the literal token can be used to trigger a syntactic construct
+(containing the handler function, a preconditions function, and related data)
+which will then process the full production rule.</p>
 <p>In order to implement the recursive descent part you can keep a stack of
 production rule labels, updated to always have the current production rule on
 the top.  In a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance this stack is stored in a list
@@ -154,11 +154,11 @@ brackets are optional parts, and curly braces mean “zero or more.” The
 head construct would be registered for the null-string token with the
 precondition that the <code class="docutils literal"><span class="pre">expression</span></code> state be at the top of the <code class="docutils literal"><span class="pre">pstate</span></code>
 stack.  The head handler for the construct would first check whether the peek
-token is “+” or “-“.  If so, it would consume it.  Then the string <code class="docutils literal"><span class="pre">&quot;term&quot;</span></code>
-would be pushed onto the stack and <code class="docutils literal"><span class="pre">recursive_parse</span></code> would be called.  The
-call to <code class="docutils literal"><span class="pre">recursive_parse</span></code> returns a processed subtree, which is incorporated
-into the expression tree.  A loop would continue this way until the peek token
-is not <code class="docutils literal"><span class="pre">+</span></code> or <code class="docutils literal"><span class="pre">-</span></code>.</p>
+token is <code class="docutils literal"><span class="pre">+</span></code> or <code class="docutils literal"><span class="pre">-</span></code>.  If so, it would consume it.  Then the string
+<code class="docutils literal"><span class="pre">&quot;term&quot;</span></code> would be pushed onto the stack and <code class="docutils literal"><span class="pre">recursive_parse</span></code> would be
+called.  The call to <code class="docutils literal"><span class="pre">recursive_parse</span></code> returns a processed subtree, which is
+incorporated into the expression tree.  A loop would continue this way until
+the peek token is not <code class="docutils literal"><span class="pre">+</span></code> or <code class="docutils literal"><span class="pre">-</span></code>.</p>
 <p>Another head construct would be registered for the null-string token with the
 precondition that <code class="docutils literal"><span class="pre">&quot;term&quot;</span></code> be at the top of the stack.  Its head-handler
 function would be responsible for parsing terms.  It would work in the same
@@ -166,15 +166,16 @@ general way as described above for expressions.</p>
 <p>The <code class="docutils literal"><span class="pre">factor</span></code> production could be implemented either as a handler for the
 null-string token or by separate constructs for the identifier, number, and
 left-paren token types.</p>
-<p>An expression grammar without using the EBNF constructs is as follows:</p>
+<p>A similar expression grammar in plain BNF is as follows:</p>
 <pre>
 <strong id="id1">expression</strong> ::=  term &quot;+&quot; expression | term &quot;-&quot; expression | term;
 <strong id="id2">term      </strong> ::=  factor &quot;*&quot; term | factor &quot;/&quot; term | factor;
 <strong id="id3">factor    </strong> ::=  constant | variable | &quot;(&quot;  expression  &quot;)&quot;;
-<strong id="grammar-token-variable">variable  </strong> ::=  &quot;x&quot; | &quot;y&quot; | &quot;z&quot;;
-<strong id="grammar-token-constant">constant  </strong> ::=  digit  {digit};
-<strong id="grammar-token-digit">digit     </strong> ::=  &quot;0&quot; | &quot;1&quot; | &quot;2&quot; | &quot;3&quot; | &quot;4&quot; | &quot;5&quot; | &quot;6&quot; | &quot;7&quot; | &quot;8&quot; | &quot;9&quot;;
+<strong id="grammar-token-variable">variable  </strong> ::=  identifier | &quot;-&quot; identifier
+<strong id="grammar-token-constant">constant  </strong> ::=  number
 </pre>
+<p>In this case the <code class="docutils literal"><span class="pre">identifier</span></code> and <code class="docutils literal"><span class="pre">number</span></code> nonterminals would be token
+literals defined by the corresponding regex passed to the <code class="docutils literal"><span class="pre">def_token</span></code> call.</p>
 </div>
 <div class="section" id="recursive-descent-with-typped-s-ebnf-like-grammar">
 <span id="ebnf"></span><h2>7.3. Recursive descent with Typped’s EBNF-like grammar<a class="headerlink" href="#recursive-descent-with-typped-s-ebnf-like-grammar" title="Permalink to this headline">¶</a></h2>
@@ -215,7 +216,7 @@ in the examples directory for the code.</p>
 <span class="n">factor</span>     <span class="o">=</span> <span class="p">(</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;constant&quot;</span><span class="p">)</span>
              <span class="o">|</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;variable&quot;</span><span class="p">)</span>
              <span class="o">|</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_rpar&quot;</span><span class="p">))</span>
-<span class="n">variable</span>   <span class="o">=</span> <span class="n">Tok</span><span class="p">(</span><span class="n">k_identifier</span><span class="p">)</span>
+<span class="n">variable</span>   <span class="o">=</span> <span class="n">Tok</span><span class="p">(</span><span class="n">k_identifier</span><span class="p">)</span> <span class="o">|</span> <span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_minus&quot;</span><span class="p">)</span> <span class="o">+</span> <span class="n">k_identifier</span>
 <span class="n">constant</span>   <span class="o">=</span> <span class="n">k_int</span>
 
 <span class="n">g</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">Grammar</span><span class="p">(</span><span class="s2">&quot;expression&quot;</span><span class="p">,</span> <span class="n">parser</span><span class="p">,</span> <span class="nb">locals</span><span class="p">())</span>
@@ -225,12 +226,12 @@ in the examples directory for the code.</p>
 </div>
 <p>This example uses several of the helper methods functions to quickly define
 tokens.  The tokens must all be defined, but they do not need to be explicitly
-made into literal token (at least not for grammar-based parsing alone).  They
+made into token literals (at least not for grammar-based parsing alone).  They
 are simply read in as tokens from the lexer because the grammar specifies what
 to look for.</p>
 <p>Notice that token instances can appear directly in the grammar as token
 literals.  The token named by its token label appears as, for example,
-<code class="docutils literal"><span class="pre">Tok(&quot;k_plus&quot;)</span></code>.</p>
+<code class="docutils literal"><span class="pre">Tok(&quot;k_plus&quot;)</span></code>.  Token instances can also appear inside <code class="docutils literal"><span class="pre">Tok</span></code> calls.</p>
 <p>The output from the above code is as follows:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;expression&#39;</span><span class="o">&gt;</span>
     <span class="o">&lt;</span><span class="n">k_null</span><span class="o">-</span><span class="n">string</span><span class="p">,</span><span class="s1">&#39;term&#39;</span><span class="o">&gt;</span>

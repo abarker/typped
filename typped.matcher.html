@@ -1,0 +1,355 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>10.10. typped.matcher &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="11. Appendix A: Possible (but currently unimplemented) generalizations" href="other_possible_generalizations.html" />
+    <link rel="prev" title="10.9. typped.lexer" href="typped.lexer.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="other_possible_generalizations.html" title="11. Appendix A: Possible (but currently unimplemented) generalizations"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="typped.lexer.html" title="10.9. typped.lexer"
+             accesskey="P">previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" accesskey="U">10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="module-typped.matcher">
+<span id="typped-matcher"></span><h1>10.10. typped.matcher<a class="headerlink" href="#module-typped.matcher" title="Permalink to this headline">¶</a></h1>
+<p>A <code class="code docutils literal"><span class="pre">Matcher</span></code> object for a <code class="code docutils literal"><span class="pre">TokenTable</span></code>, which the <code class="code docutils literal"><span class="pre">Lexer</span></code> uses for looking up
+tokens.</p>
+<div class="section" id="using-the-matcher">
+<h2>10.10.1. Using the matcher<a class="headerlink" href="#using-the-matcher" title="Permalink to this headline">¶</a></h2>
+<p>The default matcher, simply called <code class="code docutils literal"><span class="pre">&quot;python&quot;</span></code> uses individual Python regexes
+for the tokens, stored in a list.  This is to implement the “longest not first”
+matching semantics.  There several alternative matchers which can be specified,
+or users can define their own as described in a later section.</p>
+<p>To select a different matcher to save a pattern in you can set the
+<code class="code docutils literal"><span class="pre">matcher_options</span></code> keyword argument in the call to <code class="code docutils literal"><span class="pre">def_token</span></code>.  That value is
+passed on to the matcher’s <code class="code docutils literal"><span class="pre">insert_pattern</span></code> method.   With the default matchers
+different save options can be chosen for different tokens.  Each matcher with
+defined entries will be checked when looking for matches.  The default matcher
+to use can be changed by setting the <code class="code docutils literal"><span class="pre">default_insert_options</span></code> attribute of the
+matcher instance.</p>
+<p>One alternative matcher uses Python regexes but with “first not longest”
+semantics.  This makes it more efficient on lookup, but causes order-dependence
+in the definition of tokens.  (Additions and deletions are more expensive
+because it builds one large regex.)  To select it use <code class="code docutils literal"><span class="pre">matcher_options=&quot;python_fnl&quot;</span></code>.</p>
+<p>There are also hybrid matchers, but those are still experimental.  They are an
+attempt to implement more-efficient longest-not-first matching.  They are
+hybrid matchers that store simple patterns in either a trie or a “python_fnl”
+matcher, reverting to the default “python” matcher for more-complex patterns.</p>
+<p>There is also an experimental matcher that uses only the
+<code class="code docutils literal"><span class="pre">RegexTrieDictScanner</span></code>.  The regex language it accepts is different from the
+Python regex language, though.</p>
+<p>The Python matcher has good insert and delete times, but can become inefficient
+for large numbers of patterns.  The trie is less efficient for small numbers of
+patterns, but can search many simple patterns quickly in parallel by just going
+down the trie.  Simple patterns are literal matches with no special characters
+or patterns containing only character-range wildcards.  More complex patterns
+in the trie matcher are still experimental.</p>
+</div>
+<div class="section" id="using-a-custom-matcher">
+<h2>10.10.2. Using a custom matcher<a class="headerlink" href="#using-a-custom-matcher" title="Permalink to this headline">¶</a></h2>
+<p>It is possible for users to define their own matchers.  For example, the
+current matcher always takes the longest match.  More-efficient matchers can be
+implemented which instead take the prefix which matches the first-defined
+pattern (so more-general patterns are usually defined first).  The Typped
+package tries to avoid this for semantic clarity and to avoid order-dependence,
+but there is no technical reason it cannot be done.</p>
+<p>A matcher class needs to have the following methods:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">insert_pattern</span></code> – insert a labeled regex pattern and priority into the matcher</li>
+<li><code class="code docutils literal"><span class="pre">remove_pattern</span></code> – remove an inserted pattern</li>
+<li><code class="code docutils literal"><span class="pre">get_next_token_label_and_value</span></code> – return the label and value of the next match</li>
+</ul>
+<p>And the following attributes:</p>
+<ul class="simple">
+<li><code class="code docutils literal"><span class="pre">ignore_tokens</span></code> – the set of token labels which are defined as ignored</li>
+</ul>
+<p>The classes need to have the signatures of their corresponding methods below.
+Note that the <code class="code docutils literal"><span class="pre">insert_pattern</span></code> method can take any options it wants in the
+<code class="code docutils literal"><span class="pre">options</span></code> argument, and can it do whatever it chooses based on the value.</p>
+<p>Currently to switch matchers completely you need to 1) define a new matcher
+class, 2) get an empty instance of that class, 3) create an empty <code class="code docutils literal"><span class="pre">TokenTable</span></code>
+class with that matcher passed to the initializer as the
+<code class="code docutils literal"><span class="pre">pattern_matcher_instance</span></code> argument, 4) pass that token table instance as the
+<code class="code docutils literal"><span class="pre">token_table`</span></code> paremeter of a new <code class="code docutils literal"><span class="pre">Lexer</span></code> instance, and the 5) pass that lexer
+instance as the <code class="code docutils literal"><span class="pre">lexer</span></code> argument to the initializer of a new <code class="code docutils literal"><span class="pre">PrattParser</span></code>
+class.  This could be automated by subclassing <code class="code docutils literal"><span class="pre">PrattParser</span></code> and doing it in
+the <code class="code docutils literal"><span class="pre">__init__</span></code> method.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">pattern_matcher</span> <span class="o">=</span> <span class="n">NewMatcher</span><span class="p">()</span>
+<span class="n">token_table</span> <span class="o">=</span> <span class="n">TokenTable</span><span class="p">(</span><span class="n">pattern_matcher</span><span class="o">=</span><span class="n">pattern_matcher</span><span class="p">)</span>
+<span class="n">lexer</span> <span class="o">=</span> <span class="n">Lexer</span><span class="p">(</span><span class="n">token_table</span><span class="o">=</span><span class="n">token_table</span><span class="p">)</span>
+<span class="n">parser</span> <span class="o">=</span> <span class="n">PrattParser</span><span class="p">(</span><span class="n">lexer</span><span class="o">=</span><span class="n">lexer</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="code">
+<h2>10.10.3. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
+<dl class="class">
+<dt id="typped.matcher.TokenPatternTuple">
+<em class="property">class </em><code class="descclassname">typped.matcher.</code><code class="descname">TokenPatternTuple</code><span class="sig-paren">(</span><em>regex_string</em>, <em>compiled_regex</em>, <em>on_ties</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.matcher.TokenPatternTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<dl class="attribute">
+<dt id="typped.matcher.TokenPatternTuple.compiled_regex">
+<code class="descname">compiled_regex</code><a class="headerlink" href="#typped.matcher.TokenPatternTuple.compiled_regex" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.matcher.TokenPatternTuple.on_ties">
+<code class="descname">on_ties</code><a class="headerlink" href="#typped.matcher.TokenPatternTuple.on_ties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.matcher.TokenPatternTuple.regex_string">
+<code class="descname">regex_string</code><a class="headerlink" href="#typped.matcher.TokenPatternTuple.regex_string" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.matcher.MatchedPrefixTuple">
+<em class="property">class </em><code class="descclassname">typped.matcher.</code><code class="descname">MatchedPrefixTuple</code><span class="sig-paren">(</span><em>length</em>, <em>on_ties</em>, <em>matched_string</em>, <em>token_label</em><span class="sig-paren">)</span><a class="headerlink" href="#typped.matcher.MatchedPrefixTuple" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">tuple</span></code></p>
+<dl class="attribute">
+<dt id="typped.matcher.MatchedPrefixTuple.length">
+<code class="descname">length</code><a class="headerlink" href="#typped.matcher.MatchedPrefixTuple.length" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.matcher.MatchedPrefixTuple.matched_string">
+<code class="descname">matched_string</code><a class="headerlink" href="#typped.matcher.MatchedPrefixTuple.matched_string" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.matcher.MatchedPrefixTuple.on_ties">
+<code class="descname">on_ties</code><a class="headerlink" href="#typped.matcher.MatchedPrefixTuple.on_ties" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.matcher.MatchedPrefixTuple.token_label">
+<code class="descname">token_label</code><a class="headerlink" href="#typped.matcher.MatchedPrefixTuple.token_label" title="Permalink to this definition">¶</a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="class">
+<dt id="typped.matcher.Matcher">
+<em class="property">class </em><code class="descclassname">typped.matcher.</code><code class="descname">Matcher</code><a class="reference internal" href="_modules/typped/matcher.html#Matcher"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.Matcher" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal"><span class="pre">object</span></code></p>
+<p>A matcher class that stores pattern data and matches it.</p>
+<dl class="method">
+<dt id="typped.matcher.Matcher.insert_pattern">
+<code class="descname">insert_pattern</code><span class="sig-paren">(</span><em>token_label</em>, <em>regex_string</em>, <em>on_ties=0</em>, <em>ignore=False</em>, <em>matcher_options=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#Matcher.insert_pattern"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.Matcher.insert_pattern" title="Permalink to this definition">¶</a></dt>
+<dd><p>Insert the pattern in the list of regex patterns.</p>
+<p>If <code class="code docutils literal"><span class="pre">ignore</span></code> is true then the pattern is treated as an ignored pattern.</p>
+<p>If <code class="code docutils literal"><span class="pre">matcher_options=&quot;python&quot;</span></code> then the patterns are saved as individual Python
+regexes.  Each item on the list is checked against pattern for prefix
+matches.  This is the default.</p>
+<p>If <code class="code docutils literal"><span class="pre">matcher_options=&quot;python_fnl&quot;</span></code> then the patterns are combined into a single
+regex whenever necessary.  This is faster, but gives “first not
+longest” (FNL) semantics.  That is, the first-defined patterns take
+precedence regardless of length.  In this case any <code class="code docutils literal"><span class="pre">on_ties</span></code> values are
+used to pre-sort the list instead of breaking equal-length ties.
+Unlike the <code class="code docutils literal"><span class="pre">python</span></code> and <code class="code docutils literal"><span class="pre">trie</span></code> options this method cannot detect
+multiple token matches without an <code class="code docutils literal"><span class="pre">on_ties</span></code> value to break the tie.
+The insertion ordering is implicitly used to break ties.</p>
+<p>TODO: Reconsider the <code class="code docutils literal"><span class="pre">on_ties</span></code> semantics… maybe just for comparing across
+methods?</p>
+<p>If <code class="code docutils literal"><span class="pre">matcher_options=&quot;trie&quot;</span></code> then the pattern is inserted in a <code class="code docutils literal"><span class="pre">RegexTrieDict</span></code>
+for matching (and must be in the correct format).</p>
+<p>Any of the above options can be set arbitrarily for each insertion.
+The default insert options for a <code class="code docutils literal"><span class="pre">MatcherPythonRegex</span></code> instance can be
+changed by setting the attribute <code class="code docutils literal"><span class="pre">default_insert_options</span></code> to the desired
+value.  The default can be changed between the above options at any time.</p>
+<p>Two combined options are <code class="code docutils literal"><span class="pre">python_but_trie_for_simple</span></code> and
+<code class="code docutils literal"><span class="pre">python_but_fnl_for_fixed_length</span></code>.  These use a hybrid approach to
+limit the number of patterns which need to be sequentially searched
+while still retaining longest-match behavior.  The latter option cannot
+be used in combination with the ordinary FNL method because it always
+sorts its regexes by length.  Like the ordinary FNL method this method
+cannot catch all multiple-matches (such as for “cat” and “ca[rt]”) but
+it catches more.  It cannot detect multiple matches for same-length
+patterns which are matched by the FNL matcher (vs. the Python matcher).</p>
+<p>Note that this method does not check for reinsertions of the same token
+label; the higher-level <code class="code docutils literal"><span class="pre">def_token</span></code> routine which calls it is
+responsible for that.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.matcher.Matcher.remove_pattern">
+<code class="descname">remove_pattern</code><span class="sig-paren">(</span><em>token_label</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#Matcher.remove_pattern"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.Matcher.remove_pattern" title="Permalink to this definition">¶</a></dt>
+<dd><p>Remove the pattern for the token corresponding to <code class="code docutils literal"><span class="pre">token_label</span></code>.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="typped.matcher.Matcher.get_next_token_label_and_value">
+<code class="descname">get_next_token_label_and_value</code><span class="sig-paren">(</span><em>program</em>, <em>slice_indices</em>, <em>error_msg_text_snippet_size=20</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#Matcher.get_next_token_label_and_value"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.Matcher.get_next_token_label_and_value" title="Permalink to this definition">¶</a></dt>
+<dd><p>Return the best prefix match as a tuple of the token label and the matched
+string.  The <code class="code docutils literal"><span class="pre">slice_indices</span></code> are an ordered pair of indices into the string
+<code class="code docutils literal"><span class="pre">program</span></code> which reference the relevant part.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="exception">
+<dt id="typped.matcher.MatcherException">
+<em class="property">exception </em><code class="descclassname">typped.matcher.</code><code class="descname">MatcherException</code><a class="reference internal" href="_modules/typped/matcher.html#MatcherException"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.MatcherException" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.LexerException" title="typped.shared_settings_and_exceptions.LexerException"><code class="xref py py-class docutils literal"><span class="pre">typped.shared_settings_and_exceptions.LexerException</span></code></a></p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.matcher.process_string_for_escapes">
+<code class="descclassname">typped.matcher.</code><code class="descname">process_string_for_escapes</code><span class="sig-paren">(</span><em>string_or_char_list</em>, <em>escape_char</em>, <em>open_group=None</em>, <em>close_group=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#process_string_for_escapes"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.process_string_for_escapes" title="Permalink to this definition">¶</a></dt>
+<dd><p>A utility routine which takes a string or character list with
+possibly-escaped elements as an argument and returns a list of two-tuples.</p>
+<p>The first element of a returned two-tuple is the actual character, and the
+second a boolean for whether or not it is escaped.</p>
+<p>If <code class="code docutils literal"><span class="pre">open_group</span></code> and/or <code class="code docutils literal"><span class="pre">close_group</span></code> is set to an opening or closing paren
+or bracket character the function returns a list of three-tuples, where the
+last element gives the level of parenthesis nesting, starting at zero and
+increasing.  An open and its corresponding close have the same level.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.matcher.is_fixed_length">
+<code class="descclassname">typped.matcher.</code><code class="descname">is_fixed_length</code><span class="sig-paren">(</span><em>regex</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#is_fixed_length"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.is_fixed_length" title="Permalink to this definition">¶</a></dt>
+<dd><p>If the Python regex is fixed-length return its effective length (not its actual
+length).  Otherwise, return false.  Note that zero-length matches are not
+considered fixed-length.  Only a subset of fixed-length patterns are recognized,
+currently those consisting of regular characters and/or character sets.</p>
+</dd></dl>
+
+<dl class="function">
+<dt id="typped.matcher.convert_simple_python_regex_to_rtd_regex">
+<code class="descclassname">typped.matcher.</code><code class="descname">convert_simple_python_regex_to_rtd_regex</code><span class="sig-paren">(</span><em>regex</em>, <em>rtd_escape=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#convert_simple_python_regex_to_rtd_regex"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.convert_simple_python_regex_to_rtd_regex" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.matcher.test_fixed_length">
+<code class="descclassname">typped.matcher.</code><code class="descname">test_fixed_length</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#test_fixed_length"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.test_fixed_length" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="function">
+<dt id="typped.matcher.test_simple_regex_conversion_python_to_rtd">
+<code class="descclassname">typped.matcher.</code><code class="descname">test_simple_regex_conversion_python_to_rtd</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/matcher.html#test_simple_regex_conversion_python_to_rtd"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.matcher.test_simple_regex_conversion_python_to_rtd" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">10.10. typped.matcher</a><ul>
+<li><a class="reference internal" href="#using-the-matcher">10.10.1. Using the matcher</a></li>
+<li><a class="reference internal" href="#using-a-custom-matcher">10.10.2. Using a custom matcher</a></li>
+<li><a class="reference internal" href="#code">10.10.3. Code</a></li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="typped.lexer.html"
+                        title="previous chapter">10.9. typped.lexer</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="other_possible_generalizations.html"
+                        title="next chapter">11. Appendix A: Possible (but currently unimplemented) generalizations</a></p>
+  <div role="note" aria-label="source link">
+    <h3>This Page</h3>
+    <ul class="this-page-menu">
+      <li><a href="_sources/typped.matcher.rst.txt"
+            rel="nofollow">Show Source</a></li>
+    </ul>
+   </div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="other_possible_generalizations.html" title="11. Appendix A: Possible (but currently unimplemented) generalizations"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="typped.lexer.html" title="10.9. typped.lexer"
+             >previous</a> |</li>
+        <li class="nav-item nav-item-0"><a href="index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="typped.html" >10. APIs and code for the modules in the Typped package</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

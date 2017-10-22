@@ -15,7 +15,7 @@ recursive descent is implemented in Typped.
 The Typped package provides a higher-level EBNF-like grammar specification
 language, implemented by operator overloading, which makes it easy to implement
 grammar-based languages or partial languages.  Readers who are only interested
-in using the EBNF-like language can skip to :ref:`EBNF`.
+in using the EBNF-like language can skip to ":ref:`EBNF`."
 
 It should be noted that recursive descent parsing is not all that difficult to
 implement by hand, especially with a good lexer.  It is possible to implement a
@@ -39,20 +39,20 @@ are top-down recursive methods.  Pratt parsing, however, is token-based while
 recursive descent parsing is based on production rules in a grammar.  The
 ability to dispatch handlers based on preconditions makes the Typped Pratt
 parser even more similar to a recursive descent parser.  The terminal symbols
-in a grammar are essentially the literal tokens in a Pratt parser.  The
-discussion below assumes this correspondence, so terminals are essentially
-defined by regular expressions (like the literal tokens in Typped).
+in a grammar are the token literals in a Pratt parser.  The discussion below
+assumes this correspondence, so terminals are defined by the regular
+expressions in the definition of the literal tokens.
 
 Suppose all the productions in a grammar begin with a terminal symbol
 (represented by the regular expression of some corresponding token).  This is
 called a **right-regular grammar**.  A Pratt parser with preconditioned
 dispatching can be used to directly implement recursive descent parsing on such
 a grammar.  Since each rule in such a grammar begins with a terminal symbol,
-corresponding to a literal token, the head-handler for each such literal token
-can be set up to process the rule.  In the Typped dispatching terminology, the
-literal token can be used to trigger a syntactic construct (containing the
-handler function, a preconditions function, and related data) which will
-then process the full production rule.
+corresponding to a token literal, the head-handler triggered by each such
+literal token can be set up to process the rule.  In the Typped dispatching
+terminology, the literal token can be used to trigger a syntactic construct
+(containing the handler function, a preconditions function, and related data)
+which will then process the full production rule.
 
 In order to implement the recursive descent part you can keep a stack of
 production rule labels, updated to always have the current production rule on
@@ -118,11 +118,11 @@ Initially the ``pstate`` stack would only hold the string ``"expression"``.  A
 head construct would be registered for the null-string token with the
 precondition that the ``expression`` state be at the top of the ``pstate``
 stack.  The head handler for the construct would first check whether the peek
-token is "+" or "-".  If so, it would consume it.  Then the string ``"term"``
-would be pushed onto the stack and ``recursive_parse`` would be called.  The
-call to ``recursive_parse`` returns a processed subtree, which is incorporated
-into the expression tree.  A loop would continue this way until the peek token
-is not ``+`` or ``-``.
+token is ``+`` or ``-``.  If so, it would consume it.  Then the string
+``"term"`` would be pushed onto the stack and ``recursive_parse`` would be
+called.  The call to ``recursive_parse`` returns a processed subtree, which is
+incorporated into the expression tree.  A loop would continue this way until
+the peek token is not ``+`` or ``-``.
 
 Another head construct would be registered for the null-string token with the
 precondition that ``"term"`` be at the top of the stack.  Its head-handler
@@ -133,15 +133,17 @@ The ``factor`` production could be implemented either as a handler for the
 null-string token or by separate constructs for the identifier, number, and
 left-paren token types.
 
-An expression grammar without using the EBNF constructs is as follows:
+A similar expression grammar in plain BNF is as follows:
 
 .. productionlist::
       expression : term "+" expression | term "-" expression | term;
       term       : factor "*" term | factor "/" term | factor;
       factor     : constant | variable | "("  expression  ")";
-      variable   : "x" | "y" | "z"; 
-      constant   : digit  {digit};
-      digit      : "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+      variable   : identifier | "-" identifier
+      constant   : number
+
+In this case the ``identifier`` and ``number`` nonterminals would be token
+literals defined by the corresponding regex passed to the ``def_token`` call.
 
 .. _EBNF:
 
@@ -195,7 +197,7 @@ in the examples directory for the code.
     factor     = ( Rule("constant")
                  | Rule("variable")
                  | Tok("k_lpar") + Rule("expression") + Tok("k_rpar"))
-    variable   = Tok(k_identifier)
+    variable   = Tok(k_identifier) | Tok("k_minus") + k_identifier
     constant   = k_int
 
     g = pp.Grammar("expression", parser, locals())
@@ -204,13 +206,13 @@ in the examples directory for the code.
 
 This example uses several of the helper methods functions to quickly define
 tokens.  The tokens must all be defined, but they do not need to be explicitly
-made into literal token (at least not for grammar-based parsing alone).  They
+made into token literals (at least not for grammar-based parsing alone).  They
 are simply read in as tokens from the lexer because the grammar specifies what
 to look for.
 
 Notice that token instances can appear directly in the grammar as token
 literals.  The token named by its token label appears as, for example,
-``Tok("k_plus")``.
+``Tok("k_plus")``.  Token instances can also appear inside ``Tok`` calls.
 
 The output from the above code is as follows::
 

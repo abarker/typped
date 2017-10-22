@@ -1,0 +1,805 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>typped.matcher &#8212; Typped  documentation</title>
+    <link rel="stylesheet" href="../../_static/classic.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+  </head>
+  <body>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" accesskey="U">Module code</a> &#187;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for typped.matcher</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="sd">A `Matcher` object for a `TokenTable`, which the `Lexer` uses for looking up</span>
+<span class="sd">tokens.</span>
+
+<span class="sd">Using the matcher</span>
+<span class="sd">=================</span>
+
+<span class="sd">The default matcher, simply called `&quot;python&quot;` uses individual Python regexes</span>
+<span class="sd">for the tokens, stored in a list.  This is to implement the &quot;longest not first&quot;</span>
+<span class="sd">matching semantics.  There several alternative matchers which can be specified,</span>
+<span class="sd">or users can define their own as described in a later section.</span>
+
+<span class="sd">To select a different matcher to save a pattern in you can set the</span>
+<span class="sd">`matcher_options` keyword argument in the call to `def_token`.  That value is</span>
+<span class="sd">passed on to the matcher&#39;s `insert_pattern` method.   With the default matchers</span>
+<span class="sd">different save options can be chosen for different tokens.  Each matcher with</span>
+<span class="sd">defined entries will be checked when looking for matches.  The default matcher</span>
+<span class="sd">to use can be changed by setting the `default_insert_options` attribute of the</span>
+<span class="sd">matcher instance.</span>
+
+<span class="sd">One alternative matcher uses Python regexes but with &quot;first not longest&quot;</span>
+<span class="sd">semantics.  This makes it more efficient on lookup, but causes order-dependence</span>
+<span class="sd">in the definition of tokens.  (Additions and deletions are more expensive</span>
+<span class="sd">because it builds one large regex.)  To select it use `matcher_options=&quot;python_fnl&quot;`.</span>
+
+<span class="sd">There are also hybrid matchers, but those are still experimental.  They are an</span>
+<span class="sd">attempt to implement more-efficient longest-not-first matching.  They are</span>
+<span class="sd">hybrid matchers that store simple patterns in either a trie or a &quot;python_fnl&quot;</span>
+<span class="sd">matcher, reverting to the default &quot;python&quot; matcher for more-complex patterns.</span>
+
+<span class="sd">There is also an experimental matcher that uses only the</span>
+<span class="sd">`RegexTrieDictScanner`.  The regex language it accepts is different from the</span>
+<span class="sd">Python regex language, though.</span>
+
+<span class="sd">The Python matcher has good insert and delete times, but can become inefficient</span>
+<span class="sd">for large numbers of patterns.  The trie is less efficient for small numbers of</span>
+<span class="sd">patterns, but can search many simple patterns quickly in parallel by just going</span>
+<span class="sd">down the trie.  Simple patterns are literal matches with no special characters</span>
+<span class="sd">or patterns containing only character-range wildcards.  More complex patterns</span>
+<span class="sd">in the trie matcher are still experimental.</span>
+
+<span class="sd">Using a custom matcher</span>
+<span class="sd">======================</span>
+
+<span class="sd">It is possible for users to define their own matchers.  For example, the</span>
+<span class="sd">current matcher always takes the longest match.  More-efficient matchers can be</span>
+<span class="sd">implemented which instead take the prefix which matches the first-defined</span>
+<span class="sd">pattern (so more-general patterns are usually defined first).  The Typped</span>
+<span class="sd">package tries to avoid this for semantic clarity and to avoid order-dependence,</span>
+<span class="sd">but there is no technical reason it cannot be done.</span>
+
+<span class="sd">A matcher class needs to have the following methods:</span>
+
+<span class="sd">* `insert_pattern` -- insert a labeled regex pattern and priority into the matcher</span>
+<span class="sd">* `remove_pattern` -- remove an inserted pattern</span>
+<span class="sd">* `get_next_token_label_and_value` -- return the label and value of the next match</span>
+
+<span class="sd">And the following attributes:</span>
+
+<span class="sd">* `ignore_tokens` -- the set of token labels which are defined as ignored</span>
+
+<span class="sd">The classes need to have the signatures of their corresponding methods below.</span>
+<span class="sd">Note that the `insert_pattern` method can take any options it wants in the</span>
+<span class="sd">`options` argument, and can it do whatever it chooses based on the value.</span>
+
+<span class="sd">Currently to switch matchers completely you need to 1) define a new matcher</span>
+<span class="sd">class, 2) get an empty instance of that class, 3) create an empty `TokenTable`</span>
+<span class="sd">class with that matcher passed to the initializer as the</span>
+<span class="sd">`pattern_matcher_instance` argument, 4) pass that token table instance as the</span>
+<span class="sd">`token_table`` paremeter of a new `Lexer` instance, and the 5) pass that lexer</span>
+<span class="sd">instance as the `lexer` argument to the initializer of a new `PrattParser`</span>
+<span class="sd">class.  This could be automated by subclassing `PrattParser` and doing it in</span>
+<span class="sd">the `__init__` method. ::</span>
+
+<span class="sd">    pattern_matcher = NewMatcher()</span>
+<span class="sd">    token_table = TokenTable(pattern_matcher=pattern_matcher)</span>
+<span class="sd">    lexer = Lexer(token_table=token_table)</span>
+<span class="sd">    parser = PrattParser(lexer=lexer)</span>
+
+<span class="sd">Code</span>
+<span class="sd">====</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1">#TODO: Note that a &quot;first not longest&quot; matcher can work for the subset of fixed-length</span>
+<span class="c1">#patterns, aka, simple patterns.  Just order entry by length and on-ties.  Then</span>
+<span class="c1">#do the &quot;compilation&quot; step on-demand when the &quot;get&quot; fun is actually called.</span>
+
+<span class="c1"># New options to consider: &quot;fnl_for_fixed_length&quot; &quot;trie_for_simple&quot; The first</span>
+<span class="c1"># is fairly easy: you just test first thing in the insert method and set the</span>
+<span class="c1"># option to &quot;python&quot; if not fixed length, otherwise to the fnl method.  Only</span>
+<span class="c1"># problem is that you no longer catch ties on fixed-length, so on_ties doesn&#39;t</span>
+<span class="c1"># do anything in that case.  That case still reverts to first-not-longest.  The</span>
+<span class="c1"># trie version would not have that limitation, but has more overhead.</span>
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1"># Note that this regex plugin replacement has an additional &quot;partial&quot; feature</span>
+<span class="c1"># which detects partial matches:</span>
+<span class="c1">#    https://pypi.python.org/pypi/regex/</span>
+<span class="c1"># Might be useful for the realtime, online stuff.  The docs say: &quot;A partial</span>
+<span class="c1"># match is one that matches up to the end of string, but that string has been</span>
+<span class="c1"># truncated and you want to know whether a complete match could be possible if</span>
+<span class="c1"># the string had not been truncated.&quot;  Could even go overboard and wrap the C</span>
+<span class="c1"># code.  Just look at that project&#39;s setup.py and do similar in Cython.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">pytest_helper</span>
+    <span class="n">pytest_helper</span><span class="o">.</span><span class="n">script_run</span><span class="p">([</span><span class="s2">&quot;../../test/test_matcher.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_lexer.py&quot;</span><span class="p">,</span>
+                              <span class="s2">&quot;../../test/test_pratt_parser.py&quot;</span>
+                              <span class="p">],</span>
+                              <span class="n">pytest_args</span><span class="o">=</span><span class="s2">&quot;-v&quot;</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">.shared_settings_and_exceptions</span> <span class="k">import</span> <span class="n">LexerException</span>
+
+<span class="n">has_regex_trie_dict</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">regex_trie_dict.regex_trie_dict_scanner</span> <span class="k">import</span> <span class="n">RegexTrieDictScanner</span><span class="p">,</span> <span class="n">RegexTrieDict</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">has_regex_trie_dict</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="c1"># Saved Python patterns are TokenPatternTuple instances.</span>
+<span class="n">TokenPatternTuple</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;TokenPatternTuple&quot;</span><span class="p">,</span> <span class="p">[</span>
+                           <span class="s2">&quot;regex_string&quot;</span><span class="p">,</span>
+                           <span class="s2">&quot;compiled_regex&quot;</span><span class="p">,</span>
+                           <span class="s2">&quot;on_ties&quot;</span><span class="p">,</span>
+                           <span class="p">])</span>
+
+<span class="c1"># These tuples are temporarily generated during the match-finding process.</span>
+<span class="n">MatchedPrefixTuple</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;MatchedPrefixTuple&quot;</span><span class="p">,</span> <span class="p">[</span>
+                           <span class="s2">&quot;length&quot;</span><span class="p">,</span> <span class="c1"># Order matters: must be first component.</span>
+                           <span class="s2">&quot;on_ties&quot;</span><span class="p">,</span> <span class="c1"># Order matters: must be second component.</span>
+                           <span class="s2">&quot;matched_string&quot;</span><span class="p">,</span>
+                           <span class="s2">&quot;token_label&quot;</span><span class="p">,</span>
+                           <span class="p">])</span>
+
+<span class="n">INFINITY</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Matcher"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.Matcher">[docs]</a><span class="k">class</span> <span class="nc">Matcher</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A matcher class that stores pattern data and matches it.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tokens</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span> <span class="c1"># The set of tokens to ignore.</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># Python method regex data.</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">()</span> <span class="c1"># FNL regex data.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex_is_stale</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># When to recompile big regex.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex</span> <span class="o">=</span> <span class="kc">True</span> <span class="c1"># When to recompile big regex.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sort_python_fnl</span> <span class="o">=</span> <span class="kc">False</span> <span class="c1"># Whether to sort or use insertion ordering in FNL.</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span> <span class="o">=</span> <span class="p">{}</span> <span class="c1"># Data for the regexes stored in the trie.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rtd_scanner</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span> <span class="o">=</span> <span class="kc">None</span> <span class="c1"># Trie patterns stored here; only instantiated if needed.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rtd_escape_char</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_insert_options</span> <span class="o">=</span> <span class="s2">&quot;python&quot;</span>
+        <span class="c1">#self.default_insert_options = &quot;python_fnl&quot;</span>
+        <span class="c1">#self.default_insert_options = &quot;python_but_trie_for_simple&quot;</span>
+        <span class="c1">#self.default_insert_options = &quot;python_but_fnl_for_fixed_length&quot;</span>
+
+<div class="viewcode-block" id="Matcher.insert_pattern"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.Matcher.insert_pattern">[docs]</a>    <span class="k">def</span> <span class="nf">insert_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token_label</span><span class="p">,</span> <span class="n">regex_string</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">ignore</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                       <span class="n">matcher_options</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Insert the pattern in the list of regex patterns.</span>
+
+<span class="sd">        If `ignore` is true then the pattern is treated as an ignored pattern.</span>
+
+<span class="sd">        If `matcher_options=&quot;python&quot;` then the patterns are saved as individual Python</span>
+<span class="sd">        regexes.  Each item on the list is checked against pattern for prefix</span>
+<span class="sd">        matches.  This is the default.</span>
+
+<span class="sd">        If `matcher_options=&quot;python_fnl&quot;` then the patterns are combined into a single</span>
+<span class="sd">        regex whenever necessary.  This is faster, but gives &quot;first not</span>
+<span class="sd">        longest&quot; (FNL) semantics.  That is, the first-defined patterns take</span>
+<span class="sd">        precedence regardless of length.  In this case any `on_ties` values are</span>
+<span class="sd">        used to pre-sort the list instead of breaking equal-length ties.</span>
+<span class="sd">        Unlike the `python` and `trie` options this method cannot detect</span>
+<span class="sd">        multiple token matches without an `on_ties` value to break the tie.</span>
+<span class="sd">        The insertion ordering is implicitly used to break ties.</span>
+
+<span class="sd">        TODO: Reconsider the `on_ties` semantics... maybe just for comparing across</span>
+<span class="sd">        methods?</span>
+
+<span class="sd">        If `matcher_options=&quot;trie&quot;` then the pattern is inserted in a `RegexTrieDict`</span>
+<span class="sd">        for matching (and must be in the correct format).</span>
+
+<span class="sd">        Any of the above options can be set arbitrarily for each insertion.</span>
+<span class="sd">        The default insert options for a `MatcherPythonRegex` instance can be</span>
+<span class="sd">        changed by setting the attribute `default_insert_options` to the desired</span>
+<span class="sd">        value.  The default can be changed between the above options at any time.</span>
+
+<span class="sd">        Two combined options are `python_but_trie_for_simple` and</span>
+<span class="sd">        `python_but_fnl_for_fixed_length`.  These use a hybrid approach to</span>
+<span class="sd">        limit the number of patterns which need to be sequentially searched</span>
+<span class="sd">        while still retaining longest-match behavior.  The latter option cannot</span>
+<span class="sd">        be used in combination with the ordinary FNL method because it always</span>
+<span class="sd">        sorts its regexes by length.  Like the ordinary FNL method this method</span>
+<span class="sd">        cannot catch all multiple-matches (such as for &quot;cat&quot; and &quot;ca[rt]&quot;) but</span>
+<span class="sd">        it catches more.  It cannot detect multiple matches for same-length</span>
+<span class="sd">        patterns which are matched by the FNL matcher (vs. the Python matcher).</span>
+
+<span class="sd">        Note that this method does not check for reinsertions of the same token</span>
+<span class="sd">        label; the higher-level `def_token` routine which calls it is</span>
+<span class="sd">        responsible for that.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">ignore</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tokens</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">token_label</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">matcher_options</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">matcher_options</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_insert_options</span>
+
+        <span class="k">if</span> <span class="n">matcher_options</span> <span class="o">==</span> <span class="s2">&quot;python_but_trie_for_simple&quot;</span><span class="p">:</span>
+            <span class="n">converted</span> <span class="o">=</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="n">regex_string</span><span class="p">,</span>
+                                                                 <span class="bp">self</span><span class="o">.</span><span class="n">rtd_escape_char</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">converted</span><span class="p">:</span>
+                <span class="n">regex_string</span> <span class="o">=</span> <span class="n">converted</span>
+                <span class="n">matcher_options</span> <span class="o">=</span> <span class="s2">&quot;trie&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">matcher_options</span> <span class="o">=</span> <span class="s2">&quot;python&quot;</span>
+        <span class="k">elif</span> <span class="n">matcher_options</span> <span class="o">==</span> <span class="s2">&quot;python_but_fnl_for_fixed_length&quot;</span><span class="p">:</span>
+            <span class="n">length</span> <span class="o">=</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="n">regex_string</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">length</span><span class="p">:</span>
+                <span class="n">matcher_options</span> <span class="o">=</span> <span class="s2">&quot;python_fnl&quot;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">sort_python_fnl</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">matcher_options</span> <span class="o">=</span> <span class="s2">&quot;python&quot;</span>
+
+        <span class="k">if</span> <span class="n">matcher_options</span> <span class="o">==</span> <span class="s2">&quot;python&quot;</span><span class="p">:</span>
+            <span class="n">compiled_regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">regex_string</span><span class="p">,</span>
+                                        <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="o">|</span><span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span><span class="o">|</span><span class="n">re</span><span class="o">.</span><span class="n">UNICODE</span><span class="p">)</span>
+            <span class="n">regex_data</span> <span class="o">=</span> <span class="n">TokenPatternTuple</span><span class="p">(</span><span class="n">regex_string</span><span class="p">,</span> <span class="n">compiled_regex</span><span class="p">,</span> <span class="n">on_ties</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">regex_data</span>
+        <span class="k">elif</span> <span class="n">matcher_options</span> <span class="o">==</span> <span class="s2">&quot;python_fnl&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex_is_stale</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">regex_data</span> <span class="o">=</span> <span class="p">(</span><span class="n">on_ties</span><span class="p">,</span> <span class="n">regex_string</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">regex_data</span>
+        <span class="k">elif</span> <span class="n">matcher_options</span> <span class="o">==</span> <span class="s2">&quot;trie&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_regex_trie_dict</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;The regex-trie-dict package is required to use&quot;</span>
+                        <span class="s2">&quot; the &#39;trie&#39; option with a Matcher.  Package not found.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span> <span class="o">=</span> <span class="n">RegexTrieDict</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span><span class="o">.</span><span class="n">define_meta_elems</span><span class="p">(</span><span class="n">escape</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">rtd_escape_char</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">on_ties</span><span class="p">,</span> <span class="n">regex_string</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span><span class="p">[</span><span class="n">regex_string</span><span class="p">]</span> <span class="o">=</span> <span class="n">token_label</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;Bad option &#39;</span><span class="si">{0}</span><span class="s2">&#39; passed to the insert_pattern &quot;</span>
+                                   <span class="s2">&quot;method of the MatcherPythonRegex instance.&quot;</span>
+                                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">matcher_options</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Matcher.remove_pattern"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.Matcher.remove_pattern">[docs]</a>    <span class="k">def</span> <span class="nf">remove_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">token_label</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove the pattern for the token corresponding to `token_label`.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore_tokens</span><span class="o">.</span><span class="n">discard</span><span class="p">(</span><span class="n">token_label</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">token_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">token_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex_is_stale</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="n">token_label</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">:</span>
+            <span class="n">regex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtd</span><span class="p">[</span><span class="n">regex</span><span class="p">]</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;Attempt to remove pattern for a token that&quot;</span>
+                                   <span class="s2">&quot; was never defined.&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="Matcher.get_next_token_label_and_value"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.Matcher.get_next_token_label_and_value">[docs]</a>    <span class="k">def</span> <span class="nf">get_next_token_label_and_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">program</span><span class="p">,</span> <span class="n">slice_indices</span><span class="p">,</span>
+                                       <span class="n">error_msg_text_snippet_size</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return the best prefix match as a tuple of the token label and the matched</span>
+<span class="sd">        string.  The `slice_indices` are an ordered pair of indices into the string</span>
+<span class="sd">        `program` which reference the relevant part.&quot;&quot;&quot;</span>
+        <span class="c1"># TODO: Python uses pos and endpos kwargs for the slice indices... consider</span>
+        <span class="c1"># using that convention.</span>
+
+        <span class="c1"># Regular python matches.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span><span class="p">:</span>
+            <span class="n">best_matches</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_python_get_raw_matches</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">slice_indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">best_matches</span><span class="p">:</span>
+            <span class="n">best_matches_len</span> <span class="o">=</span> <span class="p">(</span><span class="n">best_matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">length</span><span class="p">,</span> <span class="n">best_matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_ties</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches_len</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">INFINITY</span><span class="p">)</span>
+
+        <span class="c1"># Trie matches.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">:</span>
+            <span class="n">best_matches_trie</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_trie_get_raw_matches</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">slice_indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches_trie</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">best_matches_trie</span><span class="p">:</span>
+            <span class="n">best_matches_trie_len</span> <span class="o">=</span> <span class="p">(</span><span class="n">best_matches_trie</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">length</span><span class="p">,</span> <span class="n">best_matches_trie</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_ties</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches_trie_len</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">INFINITY</span><span class="p">)</span>
+
+        <span class="c1"># Python first-not-longest matches.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="p">:</span>
+            <span class="n">best_matches_fnl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_python_first_not_longest</span><span class="p">(</span><span class="n">program</span><span class="p">,</span> <span class="n">slice_indices</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches_fnl</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">best_matches_fnl</span><span class="p">:</span>
+            <span class="n">best_matches_fnl_len</span> <span class="o">=</span> <span class="p">(</span><span class="n">best_matches_fnl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">length</span><span class="p">,</span> <span class="n">best_matches_fnl</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">on_ties</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">best_matches_fnl_len</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">INFINITY</span><span class="p">)</span>
+
+        <span class="c1">#</span>
+        <span class="c1"># Pick the longest match and return it.</span>
+        <span class="c1">#</span>
+
+        <span class="n">combo_best_matches</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">max_len</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">best_matches_len</span><span class="p">,</span> <span class="n">best_matches_fnl_len</span><span class="p">,</span> <span class="n">best_matches_trie_len</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">best_matches_len</span> <span class="o">==</span> <span class="n">max_len</span><span class="p">:</span>
+            <span class="n">combo_best_matches</span> <span class="o">+=</span> <span class="n">best_matches</span>
+        <span class="k">if</span> <span class="n">best_matches_trie_len</span> <span class="o">==</span> <span class="n">max_len</span><span class="p">:</span>
+            <span class="n">combo_best_matches</span> <span class="o">+=</span> <span class="n">best_matches_trie</span>
+        <span class="k">if</span> <span class="n">best_matches_fnl_len</span> <span class="o">==</span> <span class="n">max_len</span><span class="p">:</span>
+            <span class="n">combo_best_matches</span> <span class="o">+=</span> <span class="n">best_matches_fnl</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">combo_best_matches</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;No matches in Lexer, unknown token at &quot;</span>
+                    <span class="s2">&quot;the start of this unprocessed text:</span><span class="se">\n</span><span class="s2">&#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">program</span><span class="p">[</span><span class="n">slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                            <span class="p">:</span><span class="n">slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span>
+                                <span class="n">error_msg_text_snippet_size</span><span class="p">]))</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">combo_best_matches</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span> <span class="c1"># An unresolved tie, raise an exception.</span>
+            <span class="n">matched_text</span> <span class="o">=</span> <span class="n">combo_best_matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">matched_string</span>
+            <span class="c1">#assert all(m.matched_string == matched_text for m in combo_best_matches)</span>
+            <span class="n">winning_tokens</span> <span class="o">=</span> <span class="p">[(</span><span class="n">m</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">on_ties</span><span class="p">)</span> <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">combo_best_matches</span><span class="p">]</span>
+            <span class="c1">#for t in combo_best_matches:</span>
+            <span class="c1">#    print(&quot;t is:&quot;, t)</span>
+            <span class="c1">#winning_tuples_as_dicts = [list(t._asdict().items()) for t in combo_best_matches]</span>
+            <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;Multiple token patterns matched in the lexer, with&quot;</span>
+                    <span class="s2">&quot; equal (length, on_ties) tuples.  Maybe use the on_ties keyword&quot;</span>
+                    <span class="s2">&quot; argument to def_token to break ties.  The matching&quot;</span>
+                    <span class="s2">&quot; (token_label, on_ties) pairs are: </span><span class="si">{0}</span><span class="se">\n</span><span class="s2">The ambiguity occurred&quot;</span>
+                    <span class="s2">&quot; at the start of this&quot;</span> <span class="s2">&quot; unprocessed text:</span><span class="se">\n</span><span class="si">{1}</span><span class="s2">&quot;</span>
+                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">winning_tokens</span><span class="p">,</span> <span class="n">program</span><span class="p">[</span>
+                            <span class="n">slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                            <span class="n">slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span> <span class="n">error_msg_text_snippet_size</span><span class="p">]))</span>
+        <span class="n">final_best</span> <span class="o">=</span> <span class="n">combo_best_matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">final_best</span><span class="o">.</span><span class="n">token_label</span><span class="p">,</span> <span class="n">final_best</span><span class="o">.</span><span class="n">matched_string</span></div>
+
+    <span class="k">def</span> <span class="nf">_trie_get_raw_matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">program</span><span class="p">,</span> <span class="n">unprocessed_slice_indices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A utility routine that does the actual string match on the prefix of</span>
+<span class="sd">        `self.program` using the `RegexTrieDictScanner`.  Returns a list of</span>
+<span class="sd">        `MatchedPrefixTuple` instances for all the best matches, including ties.</span>
+<span class="sd">        (In non-error conditions the match must be unique, but for unresolved ties</span>
+<span class="sd">        we want the diagnostic data, too.)&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtd_scanner</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rtd_scanner</span> <span class="o">=</span> <span class="n">RegexTrieDictScanner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rtd</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">rtd_scanner</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+        <span class="n">scanner</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">rtd_scanner</span>
+
+        <span class="c1"># TODO option not to get full text but pass slice indices...</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">program</span><span class="p">[</span><span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>
+        <span class="n">scanner</span><span class="o">.</span><span class="n">append_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">scanner</span><span class="o">.</span><span class="n">assert_end_of_text</span><span class="p">()</span> <span class="c1"># TODO: different for online, realtime</span>
+        <span class="n">match_list</span> <span class="o">=</span> <span class="n">scanner</span><span class="o">.</span><span class="n">get_prefix_matches</span><span class="p">(</span><span class="n">only_first</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">match_list</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[]</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">match_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">token_label_list</span> <span class="o">=</span> <span class="n">scanner</span><span class="o">.</span><span class="n">last_values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">longest_tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">INFINITY</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">token_label</span> <span class="ow">in</span> <span class="n">token_label_list</span><span class="p">:</span>
+            <span class="n">match_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+            <span class="n">on_ties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">trie_regex_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">match_len_tuple</span> <span class="o">=</span> <span class="p">(</span><span class="n">match_length</span><span class="p">,</span> <span class="n">on_ties</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">match_len_tuple</span> <span class="o">&lt;</span> <span class="n">longest_tuple</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">match_len_tuple</span> <span class="o">!=</span> <span class="n">longest_tuple</span><span class="p">:</span>
+                <span class="c1"># final_match_list.clear() # Only in Python 3.</span>
+                <span class="n">final_match_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">longest_tuple</span> <span class="o">=</span> <span class="n">match_len_tuple</span>
+            <span class="n">final_match_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">MatchedPrefixTuple</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="n">match_length</span><span class="p">,</span>
+                                                 <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">,</span>
+                                                 <span class="n">matched_string</span><span class="o">=</span><span class="n">match</span><span class="p">,</span>
+                                                 <span class="n">token_label</span><span class="o">=</span><span class="n">token_label</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">final_match_list</span>
+
+    <span class="k">def</span> <span class="nf">_python_get_raw_matches</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">program</span><span class="p">,</span> <span class="n">unprocessed_slice_indices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A utility routine that does the actual string match on the prefix of</span>
+<span class="sd">        `self.program` using the stored Python regexes.  Returns a list of</span>
+<span class="sd">        `MatchedPrefixTuple` instances for all the best matches.  (In non-error</span>
+<span class="sd">        conditions the match must be unique, but for unresolved ties we want the</span>
+<span class="sd">        diagnostic data, too.)&quot;&quot;&quot;</span>
+        <span class="c1"># Note that Python&#39;s finditer finds the *first* match group and stops.</span>
+        <span class="c1"># They are ordered by the order they occur in the regex.  It finds the</span>
+        <span class="c1"># longest match of any particular group, but stops when it finds a</span>
+        <span class="c1"># match of some group.  Instead of using that, this code loops over all</span>
+        <span class="c1"># the separate patterns to find the overall longest, breaking ties with</span>
+        <span class="c1"># on_ties values.</span>
+        <span class="n">match_list</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Dict of MatchedPrefixTuple instances keyed by token labels.</span>
+        <span class="n">longest_tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">INFINITY</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">token_label</span><span class="p">,</span> <span class="p">(</span><span class="n">regex_str</span><span class="p">,</span> <span class="n">compiled_regex</span><span class="p">,</span> <span class="n">on_ties</span>
+                                           <span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_data_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">match_object</span> <span class="o">=</span> <span class="n">compiled_regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">program</span><span class="p">,</span>
+                                                <span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                                <span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">match_object</span><span class="p">:</span>
+                <span class="n">matched_string</span> <span class="o">=</span> <span class="n">program</span><span class="p">[</span><span class="n">match_object</span><span class="o">.</span><span class="n">start</span><span class="p">():</span><span class="n">match_object</span><span class="o">.</span><span class="n">end</span><span class="p">()]</span>
+                <span class="n">match_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">matched_string</span><span class="p">)</span>
+                <span class="n">match_len_tuple</span> <span class="o">=</span> <span class="p">(</span><span class="n">match_length</span><span class="p">,</span> <span class="n">on_ties</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match_len_tuple</span> <span class="o">&lt;</span> <span class="n">longest_tuple</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">match_len_tuple</span> <span class="o">!=</span> <span class="n">longest_tuple</span><span class="p">:</span>
+                    <span class="c1"># match_list.clear() # Only in Python 3.</span>
+                    <span class="n">match_list</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">longest_tuple</span> <span class="o">=</span> <span class="n">match_len_tuple</span>
+                <span class="n">match_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">MatchedPrefixTuple</span><span class="p">(</span>
+                                                <span class="n">length</span><span class="o">=</span><span class="n">match_length</span><span class="p">,</span>
+                                                <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">,</span>
+                                                <span class="n">matched_string</span><span class="o">=</span><span class="n">matched_string</span><span class="p">,</span>
+                                                <span class="n">token_label</span><span class="o">=</span><span class="n">token_label</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">match_list</span>
+
+
+    <span class="k">def</span> <span class="nf">_python_first_not_longest</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">program</span><span class="p">,</span> <span class="n">unprocessed_slice_indices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A low-level scanner that combines the regexes and has &quot;first-defined</span>
+<span class="sd">        not longest&quot; (FNL) matching behavior for unresolved ties.  This method</span>
+<span class="sd">        of scanning is more efficient in recognizing the patterns, but its</span>
+<span class="sd">        semantics depend on definition ordering and it has slow insert and</span>
+<span class="sd">        delete time (since it builds one large regex and compiles it).  This</span>
+<span class="sd">        implementation only assembles and compiles the combined patterns</span>
+<span class="sd">        when it is actually called to scan text, if the current compiled</span>
+<span class="sd">        regex is stale.</span>
+
+<span class="sd">        The `on_ties` values have different semantics with this kind of scanner</span>
+<span class="sd">        than with the others.  All the patterns are first sorted on any</span>
+<span class="sd">        `on_ties` values provided.  Since the sort is stable the ordering</span>
+<span class="sd">        within equal `on_ties` values remains by insertion order.</span>
+<span class="sd">        The other matchers use `on_ties` to break ties between the longest matching</span>
+<span class="sd">        patterns.  In this case, though, the first matching pattern in the</span>
+<span class="sd">        sorted list is chosen.  So `on_ties` essentially becomes a way to</span>
+<span class="sd">        override the effect of definition ordering *except* that if multiple</span>
+<span class="sd">        low-level matchers are used the `on_ties` values are also used to</span>
+<span class="sd">        break ties among the different ones used.</span>
+
+<span class="sd">        This scanner simply returns the first match, so it does not catch</span>
+<span class="sd">        errors due to unresolved ties!  This only applies to patterns stored in</span>
+<span class="sd">        this matcher, however.  If a combination of matchers is used then</span>
+<span class="sd">        some ties will still be caught.</span>
+
+<span class="sd">        If the attribute `sort_python_fnl` is true the sorting is modified.</span>
+<span class="sd">        Items in the dict are ordered by the tuples `(length, on_ties,</span>
+<span class="sd">        regex_string)`.  This is used in the hybrid Python-FNL matcher.</span>
+
+<span class="sd">        This code is based on the tokenizer in the Python 3 documentation at</span>
+<span class="sd">        https://docs.python.org/3.6/library/re.html#writing-a-tokenizer</span>
+
+<span class="sd">        There is also an undocumented scanner in Python (see</span>
+<span class="sd">        http://lucumr.pocoo.org/2015/11/18/pythons-hidden-re-gems/</span>
+<span class="sd">        but it is not used here.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex_is_stale</span><span class="p">:</span>
+            <span class="c1"># If the hybrid python-fnl method is being used, sort patterns by the tuples:</span>
+            <span class="c1">#    (length, on_ties, regex_string)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">sort_python_fnl</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(</span>
+                        <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span>
+                            <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="p">(</span><span class="n">is_fixed_length</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]),</span>
+                               <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+            <span class="c1"># Otherwise, re-sort the ordered dict by their on_ties values.</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(</span>
+                        <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">i</span><span class="p">:</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+                               <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+            <span class="c1"># Build the big regex and compile it.</span>
+            <span class="n">regex_pieces</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;(?P&lt;</span><span class="si">{0}</span><span class="s2">&gt;</span><span class="si">{1}</span><span class="s2">)&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+                                         <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+            <span class="n">combo_regex</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">regex_pieces</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">combo_regex</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex_is_stale</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="n">match_object</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_combo_regex</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">program</span><span class="p">,</span>
+                                            <span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                            <span class="n">unprocessed_slice_indices</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">match_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">match_object</span><span class="p">:</span>
+            <span class="n">token_label</span> <span class="o">=</span> <span class="n">match_object</span><span class="o">.</span><span class="n">lastgroup</span>
+            <span class="n">matched_string</span> <span class="o">=</span> <span class="n">program</span><span class="p">[</span><span class="n">match_object</span><span class="o">.</span><span class="n">start</span><span class="p">():</span><span class="n">match_object</span><span class="o">.</span><span class="n">end</span><span class="p">()]</span>
+            <span class="n">match_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">matched_string</span><span class="p">)</span>
+            <span class="n">on_ties</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">python_fnl_data_dict</span><span class="p">[</span><span class="n">token_label</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">match_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">MatchedPrefixTuple</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="n">match_length</span><span class="p">,</span>
+                                                 <span class="n">on_ties</span><span class="o">=</span><span class="n">on_ties</span><span class="p">,</span>
+                                                 <span class="n">matched_string</span><span class="o">=</span><span class="n">matched_string</span><span class="p">,</span>
+                                                 <span class="n">token_label</span><span class="o">=</span><span class="n">token_label</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">match_list</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Exceptions.</span>
+<span class="c1">#</span>
+
+<div class="viewcode-block" id="MatcherException"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.MatcherException">[docs]</a><span class="k">class</span> <span class="nc">MatcherException</span><span class="p">(</span><span class="n">LexerException</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+<span class="c1">#</span>
+<span class="c1"># Experimental below.</span>
+<span class="c1">#</span>
+
+<span class="c1"># https://stackoverflow.com/questions/11819059/regex-match-character-which-is-not-escaped</span>
+<span class="n">match_unescaped_prefix</span> <span class="o">=</span> <span class="s2">&quot;(?&lt;!</span><span class="se">\\</span><span class="s2">)(?:</span><span class="se">\\\\</span><span class="s2">)*&quot;</span> <span class="c1"># Prefix for finding unescaped character.</span>
+
+<span class="n">regex_special_chars</span> <span class="o">=</span> <span class="s2">&quot;.^$*+?</span><span class="si">{}</span><span class="s2">|()[]&quot;</span>
+<span class="n">regex_special_sequences</span> <span class="o">=</span> <span class="s2">&quot;0123456789AbBdDsSwWZ&quot;</span>
+<span class="c1">#regex_char_ranges =</span>
+<span class="n">standard_python_escapes</span> <span class="o">=</span> <span class="s2">&quot;abfnrtvx</span><span class="se">\\</span><span class="s2">&quot;</span>
+
+<span class="n">match_unescaped_special</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">match_unescaped_prefix</span> <span class="o">+</span> <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">regex_special_chars</span><span class="p">)</span>
+
+<div class="viewcode-block" id="process_string_for_escapes"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.process_string_for_escapes">[docs]</a><span class="k">def</span> <span class="nf">process_string_for_escapes</span><span class="p">(</span><span class="n">string_or_char_list</span><span class="p">,</span> <span class="n">escape_char</span><span class="p">,</span>
+                               <span class="n">open_group</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">close_group</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A utility routine which takes a string or character list with</span>
+<span class="sd">    possibly-escaped elements as an argument and returns a list of two-tuples.</span>
+
+<span class="sd">    The first element of a returned two-tuple is the actual character, and the</span>
+<span class="sd">    second a boolean for whether or not it is escaped.</span>
+
+<span class="sd">    If `open_group` and/or `close_group` is set to an opening or closing paren</span>
+<span class="sd">    or bracket character the function returns a list of three-tuples, where the</span>
+<span class="sd">    last element gives the level of parenthesis nesting, starting at zero and</span>
+<span class="sd">    increasing.  An open and its corresponding close have the same level.&quot;&quot;&quot;</span>
+    <span class="n">escaped</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">tuple_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">p_count</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">string_or_char_list</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">elem</span> <span class="o">==</span> <span class="n">escape_char</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">escaped</span><span class="p">:</span>
+            <span class="n">escaped</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">escaped</span><span class="p">:</span>
+            <span class="n">bool_val</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="n">open_group</span> <span class="ow">and</span> <span class="n">elem</span> <span class="o">==</span> <span class="n">open_group</span><span class="p">:</span>
+                <span class="n">p_count</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bool_val</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">open_group</span> <span class="ow">or</span> <span class="n">close_group</span><span class="p">:</span>
+            <span class="n">tuple_list</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">elem</span><span class="p">,</span> <span class="n">bool_val</span><span class="p">,</span> <span class="n">p_count</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tuple_list</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">elem</span><span class="p">,</span> <span class="n">bool_val</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">escaped</span><span class="p">:</span>
+            <span class="n">escaped</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">close_group</span> <span class="ow">and</span> <span class="n">elem</span> <span class="o">==</span> <span class="n">close_group</span><span class="p">:</span>
+                <span class="n">p_count</span> <span class="o">-=</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">tuple_list</span></div>
+
+<div class="viewcode-block" id="is_fixed_length"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.is_fixed_length">[docs]</a><span class="k">def</span> <span class="nf">is_fixed_length</span><span class="p">(</span><span class="n">regex</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;If the Python regex is fixed-length return its effective length (not its actual</span>
+<span class="sd">    length).  Otherwise, return false.  Note that zero-length matches are not</span>
+<span class="sd">    considered fixed-length.  Only a subset of fixed-length patterns are recognized,</span>
+<span class="sd">    currently those consisting of regular characters and/or character sets.&quot;&quot;&quot;</span>
+    <span class="c1"># TODO: Needs to be more precise... can \b be use in char ranges, for example???</span>
+    <span class="c1"># Note that fixed-length can be used with longest-matching, but it still</span>
+    <span class="c1"># cannot catch matches that tie, i.e., those ties are still broken by</span>
+    <span class="c1"># insertion order.</span>
+    <span class="c1">#</span>
+    <span class="c1"># Alternative algorithm: If you get a longest match, you then go to a</span>
+    <span class="c1"># secondary list of regexes of that fixed length which have been inserted</span>
+    <span class="c1"># and check them one-by-one like in the regular default algorithm.</span>
+    <span class="c1">#</span>
+    <span class="c1"># This can be combined with the default algorithm as follows.  Any</span>
+    <span class="c1"># non-fixed-length patterns are stored as usual in the default algorithm.</span>
+    <span class="c1"># Fixed-length patterns are all stored in ONE big regex, sorted by</span>
+    <span class="c1"># effective length, and for each length you also save a list of all the</span>
+    <span class="c1"># patterns of that length.  Then to match you match the non-fixed pattern</span>
+    <span class="c1"># regexes separately and also match the single big fixed-length regex.  If</span>
+    <span class="c1"># the former wins, return that.  If the latter wins, do a secondary</span>
+    <span class="c1"># sequential search on the patterns of that length.</span>
+    <span class="n">effective_length</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">is_escaped</span> <span class="ow">in</span> <span class="n">process_string_for_escapes</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;]&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">inside_charset</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;Closing character set range &#39;]&#39; with no `[`.&quot;</span><span class="p">)</span>
+            <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">inside_charset</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;[&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">effective_length</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+        <span class="n">effective_length</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">regex_special_chars</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="n">effective_length</span></div>
+
+<div class="viewcode-block" id="convert_simple_python_regex_to_rtd_regex"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.convert_simple_python_regex_to_rtd_regex">[docs]</a><span class="k">def</span> <span class="nf">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">rtd_escape</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return the conversion to the `RegexTrieDict` version of the regex.</span>
+<span class="sd">    Currently regexes consisting of regular characters and/or character sets are</span>
+<span class="sd">    handled.</span>
+
+<span class="sd">    The `rtd_escape` argument, if present, should be the escape character</span>
+<span class="sd">    set as the `escape` attribute of the `RegexTrieDict` instance (defaulting to</span>
+<span class="sd">    the Python escape character).</span>
+
+<span class="sd">    Any Python regex special characters must be escaped to be treated as literals.</span>
+<span class="sd">    All but matches brackets cause `False` to be returned.  The special characters</span>
+<span class="sd">    are &#39;{}&#39;.&quot;&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">regex_special_chars</span><span class="p">)</span>
+    <span class="c1"># TODO This needs to be more precise in handling special sequences, escapes, etc.</span>
+    <span class="c1"># See Python regex docs...</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;regex to convert is&quot;</span><span class="p">,</span> <span class="n">regex</span><span class="p">)</span>
+    <span class="n">python_escape</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">rtd_escape</span><span class="p">:</span>
+        <span class="n">rtd_escape</span> <span class="o">=</span> <span class="n">python_escape</span>
+    <span class="n">same_escape</span> <span class="o">=</span> <span class="p">(</span><span class="n">python_escape</span> <span class="o">==</span> <span class="n">rtd_escape</span><span class="p">)</span>
+
+    <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">converted_char_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">char</span><span class="p">,</span> <span class="n">is_escaped</span> <span class="ow">in</span> <span class="n">process_string_for_escapes</span><span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">python_escape</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;char is&quot;</span><span class="p">,</span> <span class="n">char</span><span class="p">,</span> <span class="s2">&quot;is_escaped is&quot;</span><span class="p">,</span> <span class="n">is_escaped</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;]&quot;</span> <span class="ow">and</span> <span class="n">inside_charset</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">inside_charset</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">MatcherException</span><span class="p">(</span><span class="s2">&quot;Closing character set range &#39;]&#39; with no `[`.&quot;</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;]&quot;</span><span class="p">)</span>
+            <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;[&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;[&quot;</span><span class="p">)</span>
+            <span class="n">inside_charset</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="n">char</span> <span class="o">==</span> <span class="s2">&quot;-&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span> <span class="ow">and</span> <span class="n">inside_charset</span><span class="p">:</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;-&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">char</span> <span class="o">==</span> <span class="n">python_escape</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;got a python escape&quot;</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">is_escaped</span> <span class="ow">and</span> <span class="n">same_escape</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;python escape is escaped&quot;</span><span class="p">)</span>
+                <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">char</span> <span class="o">==</span> <span class="n">rtd_escape</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">same_escape</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_escaped</span><span class="p">:</span>
+                <span class="c1"># Python escaped RTD escapes are not allowed in</span>
+                <span class="c1"># simple patterns when the chars differ.</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rtd_escape</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">rtd_escape</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">char</span> <span class="ow">in</span> <span class="n">regex_special_chars</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_escaped</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_escaped</span> <span class="ow">and</span> <span class="n">inside_charset</span><span class="p">:</span>
+                <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">python_escape</span><span class="p">)</span>
+            <span class="n">converted_char_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">char</span><span class="p">)</span>
+    <span class="n">converted_string</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">converted_char_list</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">converted_string</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">converted_string</span></div>
+
+<div class="viewcode-block" id="test_fixed_length"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.test_fixed_length">[docs]</a><span class="k">def</span> <span class="nf">test_fixed_length</span><span class="p">():</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xyz&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xy[a-z]z&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xy[a-z]*z&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xy[a-z]\*z&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xy[a-z]</span><span class="se">\\</span><span class="s2">*z&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">is_fixed_length</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;xy[a-z]</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="mi">4</span></div>
+<span class="c1">#test_fixed_length()</span>
+
+<div class="viewcode-block" id="test_simple_regex_conversion_python_to_rtd"><a class="viewcode-back" href="../../typped.matcher.html#typped.matcher.test_simple_regex_conversion_python_to_rtd">[docs]</a><span class="k">def</span> <span class="nf">test_simple_regex_conversion_python_to_rtd</span><span class="p">():</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;water[abc]salad&quot;</span><span class="p">))</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;water[abc]salad&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;water</span><span class="se">\\</span><span class="s2">[abc</span><span class="se">\\</span><span class="s2">]salad&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;water[a-c]salad&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;water</span><span class="se">\\</span><span class="s2">[a</span><span class="se">\\</span><span class="s2">-c</span><span class="se">\\</span><span class="s2">]salad&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;xyz&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;xyz&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;x\yz&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="sa">r</span><span class="s2">&quot;xyz&quot;</span> <span class="c1"># Note \y to y alone!</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;x\[yz\]&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="sa">r</span><span class="s2">&quot;x[yz]&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;x</span><span class="se">\\\\</span><span class="s2">z&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;x</span><span class="se">\\\\</span><span class="s2">z&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;[\s]&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="sa">r</span><span class="s2">&quot;\[\s\]&quot;</span>
+
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;w[a-c]~s&quot;</span><span class="p">,</span> <span class="s2">&quot;~&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;w</span><span class="se">\\</span><span class="s2">[a</span><span class="se">\\</span><span class="s2">-c</span><span class="se">\\</span><span class="s2">]~~s&quot;</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;w(x|y)&quot;</span><span class="p">,</span> <span class="s2">&quot;~&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span>
+    <span class="k">assert</span> <span class="n">convert_simple_python_regex_to_rtd_regex</span><span class="p">(</span><span class="s2">&quot;w~*&quot;</span><span class="p">,</span> <span class="s2">&quot;~&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="kc">False</span></div>
+
+<span class="k">def</span> <span class="nf">_convert_simple_pattern</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">regex_string</span><span class="p">):</span> <span class="c1"># EXPERIMENTAL</span>
+    <span class="sd">&quot;&quot;&quot;This is EXPERIMENTAL: Consider option to recognize &quot;simple&quot; patterns and</span>
+<span class="sd">    automatically put them in the trie, otherwise use Python matcher.</span>
+
+<span class="sd">    Convet a simple pattern to a form that can be inserted into a</span>
+<span class="sd">    `RegexTrieDict`, if possible.  Returns `None` if the pattern is too</span>
+<span class="sd">    complicated.  Simple pattern is essentially defined by what this routine</span>
+<span class="sd">    is implemented to do (and a `RegexTrieDict` can/should do)&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="kc">None</span>
+    <span class="c1"># TODO the immediate below seems to work for some very simple patterns.</span>
+
+    <span class="n">simple_regex_patt</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;^[a-zA-Z0-9_\-]+$&quot;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="o">|</span><span class="n">re</span><span class="o">.</span><span class="n">UNICODE</span><span class="p">)</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">simple_regex_patt</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">regex_string</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">regex_string</span> <span class="c1"># No processing needed for very simple.</span>
+
+    <span class="c1"># SCRATCH BELOW</span>
+
+    <span class="c1"># Note negative lookbehind assertion (?&lt;!\\) for escape before</span>
+    <span class="c1"># the strings which start Python regex special chars.</span>
+    <span class="n">non_simple_regex_contains</span> <span class="o">=</span> \
+            <span class="sa">r</span><span class="sd">&quot;&quot;&quot;(</span>
+<span class="sd">                    ( (?&lt;!\\)[.^$*+?{[|(] )+ # Start of special char.</span>
+<span class="sd">                |   ( [\\][ABdDsSwWZ] )+     # Python regex escape.</span>
+<span class="sd">                ))&quot;&quot;&quot;</span>
+    <span class="n">compiled_non_simple_regex_contains</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+                              <span class="n">non_simple_regex_contains</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="o">|</span><span class="n">re</span><span class="o">.</span><span class="n">UNICODE</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">is_simple_pattern</span><span class="p">(</span><span class="n">regex_string</span><span class="p">):</span>
+        <span class="c1"># Could be single-char in brackets!</span>
+        <span class="c1"># https://docs.python.org/2.0/ref/strings.html</span>
+        <span class="n">match_object</span> <span class="o">=</span> <span class="n">compiled_non_simple_regex_contains</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">regex_string</span><span class="p">)</span>
+        <span class="c1">#matched_string = regex_string[match_object.start():match_object.end()]</span>
+        <span class="c1">#print(&quot; substring&quot;, matched_string)</span>
+        <span class="k">return</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">match_object</span><span class="p">)</span>
+    <span class="c1">#if is_simple_pattern(regex_string):</span>
+    <span class="c1">#    print(&quot;simple pattern&quot;, regex_string)</span>
+    <span class="c1">#else:</span>
+    <span class="c1">#    print(&quot;non-simple pattern&quot;, regex_string)</span>
+
+
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related" role="navigation" aria-label="related navigation">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="nav-item nav-item-0"><a href="../../index.html">Typped  documentation</a> &#187;</li>
+          <li class="nav-item nav-item-1"><a href="../index.html" >Module code</a> &#187;</li> 
+      </ul>
+    </div>
+    <div class="footer" role="contentinfo">
+        &#169; Copyright 2016, Allen Barker.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.6.3.
+    </div>
+  </body>
+</html>

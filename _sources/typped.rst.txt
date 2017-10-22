@@ -15,6 +15,7 @@ APIs and code for the modules in the Typped package
    typped.ebnf_classes_and_operators
    typped.register_grammar_with_parser
    typped.lexer
+   typped.matcher
    .. typped.text_stream
 
 .. Module contents

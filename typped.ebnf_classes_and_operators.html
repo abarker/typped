@@ -59,9 +59,9 @@
 expressions.  The backend is the recursive-descent parsing capabilities of the
 <code class="code docutils literal"><span class="pre">PrattParser</span></code> class, implemented using precondition functions and null-string
 token handlers.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p>Here are a few (but not all) similar Python parsing packages which parse
+<div class="topic">
+<p class="topic-title first">Similar Python parsing packages.</p>
+<p>These are a few (but not all) similar Python parsing packages for parsing
 from BNF- or EBNF-like grammars (though without the underlying Pratt
 parsing framework).  Some use string representations of the grammar, while
 others use overloaded Python operators.  Most do not automatically produce
@@ -78,10 +78,12 @@ returns a parse tree.  <a class="reference external" href="https://github.com/er
 <li><strong>Lark</strong> – Passed a string. Implements Earley &amp; LALR(1) and returns a
 parse tree.  <a class="reference external" href="https://github.com/erezsh/Lark">https://github.com/erezsh/Lark</a></li>
 </ul>
-<p class="last">For more information on other Python parsers, see
-<a class="reference external" href="https://wiki.python.org/moin/LanguageParsing">https://wiki.python.org/moin/LanguageParsing</a>,
-<a class="reference external" href="https://github.com/webmaven/python-parsing-tools">https://github.com/webmaven/python-parsing-tools</a>, and
-<a class="reference external" href="https://tomassetti.me/parsing-in-python/">https://tomassetti.me/parsing-in-python/</a>.</p>
+<p>For more information on the various Python parsers, see these summaries:</p>
+<ul class="simple">
+<li><a class="reference external" href="https://wiki.python.org/moin/LanguageParsing">https://wiki.python.org/moin/LanguageParsing</a>,</li>
+<li><a class="reference external" href="https://github.com/webmaven/python-parsing-tools">https://github.com/webmaven/python-parsing-tools</a></li>
+<li><a class="reference external" href="https://tomassetti.me/parsing-in-python/">https://tomassetti.me/parsing-in-python/</a>.</li>
+</ul>
 </div>
 <div class="section" id="terminology-and-notation">
 <h2>10.7.1. Terminology and notation<a class="headerlink" href="#terminology-and-notation" title="Permalink to this headline">¶</a></h2>
@@ -277,16 +279,21 @@ syntax looks clearer.</p>
 objects, and <code class="code docutils literal"><span class="pre">CaseList</span></code> objects.  The latter two are just list-like objects
 with most of the list operations overloaded.  An <code class="code docutils literal"><span class="pre">ItemList</span></code> only holds <code class="code docutils literal"><span class="pre">Item</span></code>
 instances, and a <code class="code docutils literal"><span class="pre">CaseList</span></code> only holds <code class="code docutils literal"><span class="pre">ItemList</span></code> instances.  These objects do
-not nest, and so they have some important differences from ordinary Python
-lists.</p>
+not nest, though, and so there are some important differences from ordinary
+Python lists.</p>
 <p>The <code class="code docutils literal"><span class="pre">ItemList</span></code> and <code class="code docutils literal"><span class="pre">CaseList</span></code> classes are basically designed for concatenation
 operations, since that is what is used to build up production rule expressions.
-In their constructors they they both take an arbitrary number of arguments.
-All the arguments are converted to elements of the single type that they hold.
-The new instance then initially contains all those converted arguments as
-elements.  When an <code class="code docutils literal"><span class="pre">ItemList</span></code> is passed another <code class="code docutils literal"><span class="pre">ItemList</span></code> in its initializer
-argument list it just takes the elements within that list and puts them on its
-list.  The <code class="code docutils literal"><span class="pre">CaseList</span></code> class works similarly.</p>
+They are “flat” in the sense that they only hold one kind of object and do
+everything they can to convert an object to that type before saving it on the
+list.  An <code class="code docutils literal"><span class="pre">ItemList</span></code> instance holds <code class="code docutils literal"><span class="pre">Item</span></code> instances and a <code class="code docutils literal"><span class="pre">CaseList</span></code> instance
+holds <code class="code docutils literal"><span class="pre">ItemList</span></code> instances.  Because of the latter property <code class="code docutils literal"><span class="pre">Case</span></code> is defined
+as an alias for <code class="code docutils literal"><span class="pre">ItemList</span></code>.  Both of the classes take an arbitrary number of
+arguments in their constructors.  All the arguments are converted to elements
+of the single type that they hold.  The new instance then initially contains
+all those converted arguments as its elements.  When an <code class="code docutils literal"><span class="pre">ItemList</span></code> is passed
+another <code class="code docutils literal"><span class="pre">ItemList</span></code> in its initializer argument list it just takes the elements
+within that list and extends its list with them.  The <code class="code docutils literal"><span class="pre">CaseList</span></code> class works
+similarly.</p>
 <p>So the initializers basically form the concatenation of all the passed-in
 arguments, after converting each one to the type of object that the list-like
 object holds (each holds only one type of object).  The addition and “or”
@@ -348,55 +355,17 @@ Item or ItemList):</p>
 </div>
 <div class="section" id="operator-precedences-expressed-in-grammar">
 <h2>10.7.6. Operator precedences expressed in grammar<a class="headerlink" href="#operator-precedences-expressed-in-grammar" title="Permalink to this headline">¶</a></h2>
-<p>In order to use Pratt-parser style operator precedences in a grammar two things
-must be done.</p>
-<p>1. The relevant items in a case of a production must be set to some nonzero
-value.</p>
-<p>2. The item before the expression (before the first argument) must be wrapped
-in a special function.</p>
-<p>To see how this works, consider these productions below, parsing the expressions
-<code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">y</span> <span class="pre">*</span> <span class="pre">z</span></code> (compared with <code class="code docutils literal"><span class="pre">x</span> <span class="pre">*</span> <span class="pre">y</span> <span class="pre">+</span> <span class="pre">z</span></code>).</p>
-<div class="highlight-python"><div class="highlight"><pre><span></span><span class="n">term</span> <span class="o">=</span> <span class="n">Regex</span><span class="p">()</span>
-
-<span class="n">add</span> <span class="o">=</span> <span class="n">Head</span><span class="p">(</span><span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">))</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;operator&quot;</span><span class="p">)</span>
-
-<span class="n">operator</span> <span class="o">=</span> <span class="n">Tail</span><span class="p">(</span> <span class="n">k_add</span><span class="p">[</span><span class="mi">20</span><span class="p">]</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
-               <span class="o">|</span> <span class="n">k_ast</span><span class="p">[</span><span class="mi">40</span><span class="p">]</span> <span class="o">+</span> <span class="n">Rule</span><span class="p">(</span><span class="s2">&quot;term&quot;</span><span class="p">)</span>
-               <span class="p">)</span>
+<p>This is not yet implemented, but will mimic the way a Pratt parser works.</p>
+<p>In the EBNF-like grammar precedences are defined using index-style brackets:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">Tok</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">)[</span><span class="mi">30</span><span class="p">]</span>
 </pre></div>
 </div>
-<p>1. The <code class="code docutils literal"><span class="pre">add</span></code> production is somehow on the top of the <code class="code docutils literal"><span class="pre">pstack</span></code> and
-<code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code> is called.  This invokes the head-handler for the <code class="code docutils literal"><span class="pre">add</span></code>
-production (which is a handler for the null-string token with the precondition
-that “add” is on top of the stack).</p>
-<p>2. The head-handler for the <code class="code docutils literal"><span class="pre">add</span></code> production then pushes <code class="code docutils literal"><span class="pre">&quot;term&quot;</span></code> onto the
-<code class="code docutils literal"><span class="pre">pstack</span></code> and calls <code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code> to get the first argument.</p>
-<p>3. The head-handler for the <code class="code docutils literal"><span class="pre">term</span></code> rule is then invoked.  It fetches the
-first term, which is <code class="code docutils literal"><span class="pre">x</span></code> and returns it as a subtree leaf.</p>
-<p>4. We are now back to the <code class="code docutils literal"><span class="pre">add</span></code> handler, having gotten <code class="code docutils literal"><span class="pre">x</span></code> as <code class="code docutils literal"><span class="pre">processed_left</span></code>.
-It now pops the <code class="code docutils literal"><span class="pre">term</span></code> state and pushes the <code class="code docutils literal"><span class="pre">operator</span></code> state onto the <code class="code docutils literal"><span class="pre">pstack</span></code>.
-It then calls <code class="code docutils literal"><span class="pre">recursive_parse(0,</span> <span class="pre">processed_left)</span></code>, which runs as a
-tail-handler.  Notice how the recursive descent handler for the <code class="code docutils literal"><span class="pre">add</span></code>
-production is essentially mimicking the <code class="code docutils literal"><span class="pre">recursive_parse</span></code> routine but pushing
-and popping states.</p>
-<dl class="docutils">
-<dt>—-&gt; Should the whole loop of recursive_parse run, or just one iteration</dt>
-<dd>when passed the explicit argument?????  As it is here, just one iteration?
-Could split up the head and tail parts as two functions… each loop
-iteration could be a function (but would be less efficient).</dd>
-</dl>
-<p>—-&gt; Do we need any special wrappers like <code class="code docutils literal"><span class="pre">Tail</span></code>?</p>
-<p>5. The tail-handler for <code class="code docutils literal"><span class="pre">k_add</span></code> is now called, since the <code class="code docutils literal"><span class="pre">+</span></code> token was returned
-by the lexer.  It pushes the state <code class="code docutils literal"><span class="pre">term</span></code> and calls <code class="code docutils literal"><span class="pre">recursive_parse(20,</span>
-<span class="pre">processed_left</span></code>.</p>
-<p>6. The head-handler for <code class="code docutils literal"><span class="pre">term</span></code> calls <code class="code docutils literal"><span class="pre">recursive_parse(0)</span></code>, which fetches the
-token <code class="code docutils literal"><span class="pre">y</span></code>.</p>
-<p>7. HERE IS INTERESTING PART, iron out above and figure out how to make it
-work…</p>
-<p>So the expression <code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">y</span> <span class="pre">*</span> <span class="pre">z</span></code> will be evalated as <code class="code docutils literal"><span class="pre">x</span> <span class="pre">+</span> <span class="pre">(y*z)</span></code>.</p>
+<p>The above would give a precedence of 30 to the token.</p>
 </div>
 <div class="section" id="optimizing-the-grammar">
 <h2>10.7.7. Optimizing the grammar<a class="headerlink" href="#optimizing-the-grammar" title="Permalink to this headline">¶</a></h2>
+<p>This section discusses possible optimizations to the grammar.  Predictive
+parsing is close to being fully implemented, but is not fully set up yet.</p>
 <div class="section" id="predictive-parsing">
 <h3>10.7.7.1. predictive parsing<a class="headerlink" href="#predictive-parsing" title="Permalink to this headline">¶</a></h3>
 <p>In order to optimize the parsing of a recursive descent grammar, many
@@ -405,15 +374,18 @@ backtracking.  Even when predictive parsing is not possible, often
 partial predictive parsing can make the algorithm more efficient
 (falling back to backtracking search only when necessary).</p>
 <p>To use a predicive parse you need to generate a <strong>first set</strong> for
-each non-terminal (i.e., recursive rule call) in the grammar.  Call
-this <code class="code docutils literal"><span class="pre">first_set(nonterminal)</span></code>.</p>
+each non-terminal (i.e., recursive rule call) in the grammar.</p>
 <p>When epsilon productions are allowed a <strong>follow set</strong> acts similarly to
 a first set.</p>
-<p>See:</p>
-<p><a class="reference external" href="http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html">http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html</a>
-<a class="reference external" href="http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html">http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html</a></p>
-<p>Maybe also consider packrat parsing:
-<a class="reference external" href="https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars">https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars</a></p>
+<p>See, e.g.:</p>
+<ul class="simple">
+<li><a class="reference external" href="http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html">http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html</a></li>
+<li><a class="reference external" href="http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html">http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html</a></li>
+</ul>
+<p>Maybe also consider packrat parsing:</p>
+<ul class="simple">
+<li><a class="reference external" href="https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars">https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars</a></li>
+</ul>
 </div>
 <div class="section" id="grammar-transformations">
 <h3>10.7.7.2. grammar transformations<a class="headerlink" href="#grammar-transformations" title="Permalink to this headline">¶</a></h3>
@@ -422,10 +394,14 @@ grammar transformations on the rules of a <code class="code docutils literal"><s
 <p>One possibility is to remove at least trivial left recursion.  Just change the
 ordering of any obvious left recursive cases.</p>
 <p>In a more complicated transformation you could do <strong>left factoring</strong> on the
-grammar to remove the left recursion.</p>
+grammar to remove the left recursion, but that isn’t likely to happen.</p>
 <p>Consider curtailment of left recursion, too.  If it is going to repeat will it
 repeat in n levels, where that is the number of rules?  What is the limit, etc.
-See some of those articles and maybe do a simple thing.</p>
+See some of those articles and consider if not too much to do.</p>
+</div>
+</div>
+<div class="section" id="code">
+<h2>10.7.8. Code<a class="headerlink" href="#code" title="Permalink to this headline">¶</a></h2>
 <dl class="class">
 <dt id="typped.ebnf_classes_and_operators.Grammar">
 <em class="property">class </em><code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Grammar</code><span class="sig-paren">(</span><em>*args</em>, <em>**kwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/typped/ebnf_classes_and_operators.html#Grammar"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#typped.ebnf_classes_and_operators.Grammar" title="Permalink to this definition">¶</a></dt>
@@ -488,6 +464,12 @@ production rules.</p>
 <dd><p>Insert an item.</p>
 </dd></dl>
 
+</dd></dl>
+
+<dl class="attribute">
+<dt id="typped.ebnf_classes_and_operators.Case">
+<code class="descclassname">typped.ebnf_classes_and_operators.</code><code class="descname">Case</code><a class="headerlink" href="#typped.ebnf_classes_and_operators.Case" title="Permalink to this definition">¶</a></dt>
+<dd><p>alias of <a class="reference internal" href="#typped.ebnf_classes_and_operators.ItemList" title="typped.ebnf_classes_and_operators.ItemList"><code class="xref py py-class docutils literal"><span class="pre">ItemList</span></code></a></p>
 </dd></dl>
 
 <dl class="class">
@@ -650,7 +632,6 @@ then the message is for a method.</p>
 
 </div>
 </div>
-</div>
 
 
           </div>
@@ -672,6 +653,7 @@ then the message is for a method.</p>
 <li><a class="reference internal" href="#grammar-transformations">10.7.7.2. grammar transformations</a></li>
 </ul>
 </li>
+<li><a class="reference internal" href="#code">10.7.8. Code</a></li>
 </ul>
 </li>
 </ul>

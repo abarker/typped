@@ -16,9 +16,10 @@ also be set and used.
 
 This is a top-down description of the code, even though the actual file is in
 the reverse order.  The working code can be found in the file
-`example_calculator.py <http://www.df_TODO_dfdfdfd.com>`_.  Just run that
-file to start up the calculator.  A few the lines of that file have been left
-out for readability in the code blocks below.
+`example_calculator.py
+<https://github.com/abarker/typped/blob/master/examples/example_calculator.py>`_.
+Just run that file to start up the calculator.  A few the lines of that file
+have been left out of the code listed below for readability.
 
 The Python code has been broken up into various high-level functions for
 readability and to simplify the display and discussion of the code.  These

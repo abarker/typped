@@ -131,11 +131,15 @@
 </li>
       <li><a href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.CalledEndTokenHandler">CalledEndTokenHandler</a>
 </li>
+      <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Case">Case (in module typped.ebnf_classes_and_operators)</a>
+</li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.CaseList">CaseList (class in typped.ebnf_classes_and_operators)</a>
 </li>
       <li><a href="typped.text_stream.html#typped.text_stream.TextStream.clear">clear() (typped.text_stream.TextStream method)</a>
 </li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Grammar.compile">compile() (typped.ebnf_classes_and_operators.Grammar method)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.TokenPatternTuple.compiled_regex">compiled_regex (typped.matcher.TokenPatternTuple attribute)</a>
 </li>
       <li><a href="typped.pratt_constructs.html#typped.pratt_constructs.Construct">Construct (class in typped.pratt_constructs)</a>
 </li>
@@ -146,6 +150,8 @@
       <li><a href="typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable">ConstructTable (class in typped.pratt_constructs)</a>
 </li>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeSig.convert_arg_types_wildcards">convert_arg_types_wildcards() (typped.pratt_types.TypeSig method)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.convert_simple_python_regex_to_rtd_regex">convert_simple_python_regex_to_rtd_regex() (in module typped.matcher)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.convert_to_AST">convert_to_AST() (typped.lexer.TokenNode method)</a>
 </li>
@@ -394,7 +400,11 @@
       <li><a href="typped.pratt_constructs.html#typped.pratt_constructs.Construct.get_eval_fun">get_eval_fun() (typped.pratt_constructs.Construct method)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenTable.get_next_token_label_and_value">get_next_token_label_and_value() (typped.lexer.TokenTable method)</a>
+
+      <ul>
+        <li><a href="typped.matcher.html#typped.matcher.Matcher.get_next_token_label_and_value">(typped.matcher.Matcher method)</a>
 </li>
+      </ul></li>
       <li><a href="typped.text_stream.html#typped.text_stream.TextStream.get_pos_of_last_next">get_pos_of_last_next() (typped.text_stream.TextStream method)</a>
 </li>
   </ul></td>
@@ -455,6 +465,8 @@
         <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.ItemList.insert">(typped.ebnf_classes_and_operators.ItemList method)</a>
 </li>
       </ul></li>
+      <li><a href="typped.matcher.html#typped.matcher.Matcher.insert_pattern">insert_pattern() (typped.matcher.Matcher method)</a>
+</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.is_begin_or_end_token">is_begin_or_end_token() (typped.lexer.TokenNode method)</a>
@@ -468,6 +480,8 @@
       <li><a href="typped.pratt_constructs.html#typped.pratt_constructs.Construct.is_empty">is_empty (typped.pratt_constructs.Construct attribute)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.is_end_token">is_end_token() (typped.lexer.TokenNode method)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.is_fixed_length">is_fixed_length() (in module typped.matcher)</a>
 </li>
       <li><a href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.is_subclass_of">is_subclass_of() (in module typped.shared_settings_and_exceptions)</a>
 </li>
@@ -493,12 +507,14 @@
 </li>
       <li><a href="typped.lexer.html#typped.lexer.Lexer.last_n_tokens_original_text">last_n_tokens_original_text() (typped.lexer.Lexer method)</a>
 </li>
-      <li><a href="typped.lexer.html#typped.lexer.Lexer">Lexer (class in typped.lexer)</a>
+      <li><a href="typped.matcher.html#typped.matcher.MatchedPrefixTuple.length">length (typped.matcher.MatchedPrefixTuple attribute)</a>
 </li>
-      <li><a href="typped.pratt_parser.html#typped.pratt_parser.lexer_add_parser_instance_attribute">lexer_add_parser_instance_attribute() (in module typped.pratt_parser)</a>
+      <li><a href="typped.lexer.html#typped.lexer.Lexer">Lexer (class in typped.lexer)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="typped.pratt_parser.html#typped.pratt_parser.lexer_add_parser_instance_attribute">lexer_add_parser_instance_attribute() (in module typped.pratt_parser)</a>
+</li>
       <li><a href="typped.shared_settings_and_exceptions.html#typped.shared_settings_and_exceptions.LexerException">LexerException</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.LexerState">LexerState (class in typped.lexer)</a>
@@ -515,12 +531,20 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="typped.lexer.html#typped.lexer.Lexer.match_next">match_next() (typped.lexer.Lexer method)</a>
 </li>
+      <li><a href="typped.matcher.html#typped.matcher.MatchedPrefixTuple.matched_string">matched_string (typped.matcher.MatchedPrefixTuple attribute)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.MatchedPrefixTuple">MatchedPrefixTuple (class in typped.matcher)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.Matcher">Matcher (class in typped.matcher)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.MatcherException">MatcherException</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeSig.matches_formal_sig">matches_formal_sig() (typped.pratt_types.TypeSig method)</a>
 </li>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeObject.matches_formal_type">matches_formal_type() (typped.pratt_types.TypeObject method)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="typped.lexer.html#typped.lexer.Lexer.move_back">move_back() (typped.lexer.Lexer method)</a>
 
       <ul>
@@ -573,14 +597,20 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.old_repr">old_repr() (typped.lexer.TokenNode method)</a>
 </li>
+      <li><a href="typped.matcher.html#typped.matcher.MatchedPrefixTuple.on_ties">on_ties (typped.matcher.MatchedPrefixTuple attribute)</a>
+
+      <ul>
+        <li><a href="typped.matcher.html#typped.matcher.TokenPatternTuple.on_ties">(typped.matcher.TokenPatternTuple attribute)</a>
+</li>
+      </ul></li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.OneOf">OneOf() (in module typped.ebnf_classes_and_operators)</a>
 </li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.OneOrMore">OneOrMore() (in module typped.ebnf_classes_and_operators)</a>
 </li>
-      <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Opt">Opt() (in module typped.ebnf_classes_and_operators)</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Opt">Opt() (in module typped.ebnf_classes_and_operators)</a>
+</li>
       <li><a href="typped.lexer.html#typped.lexer.GenTokenState.ordinary">ordinary (typped.lexer.GenTokenState attribute)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.original_matched_string">original_matched_string (typped.lexer.TokenNode attribute)</a>
@@ -635,6 +665,8 @@
 </li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.print_indented_caselist">print_indented_caselist() (in module typped.ebnf_classes_and_operators)</a>
 </li>
+      <li><a href="typped.matcher.html#typped.matcher.process_string_for_escapes">process_string_for_escapes() (in module typped.matcher)</a>
+</li>
   </ul></td>
 </tr></table>
 
@@ -645,14 +677,18 @@
 </li>
       <li><a href="typped.text_stream.html#typped.text_stream.TextStream.refill_char_buffer_if_empty">refill_char_buffer_if_empty() (typped.text_stream.TextStream method)</a>
 </li>
+      <li><a href="typped.matcher.html#typped.matcher.TokenPatternTuple.regex_string">regex_string (typped.matcher.TokenPatternTuple attribute)</a>
+</li>
       <li><a href="typped.pratt_constructs.html#typped.pratt_constructs.ConstructTable.register_construct">register_construct() (typped.pratt_constructs.ConstructTable method)</a>
 </li>
       <li><a href="typped.register_grammar_with_parser.html#typped.register_grammar_with_parser.register_rule_handlers_with_parser">register_rule_handlers_with_parser() (in module typped.register_grammar_with_parser)</a>
 </li>
-      <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Repeat">Repeat() (in module typped.ebnf_classes_and_operators)</a>
+      <li><a href="typped.matcher.html#typped.matcher.Matcher.remove_pattern">remove_pattern() (typped.matcher.Matcher method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Repeat">Repeat() (in module typped.ebnf_classes_and_operators)</a>
+</li>
       <li><a href="typped.lexer.html#typped.lexer.Lexer.reset">reset() (typped.lexer.Lexer method)</a>
 
       <ul>
@@ -705,17 +741,27 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="typped.matcher.html#typped.matcher.test_fixed_length">test_fixed_length() (in module typped.matcher)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.test_simple_regex_conversion_python_to_rtd">test_simple_regex_conversion_python_to_rtd() (in module typped.matcher)</a>
+</li>
       <li><a href="typped.text_stream.html#typped.text_stream.TextStream">TextStream (class in typped.text_stream)</a>
 </li>
       <li><a href="typped.ebnf_classes_and_operators.html#typped.ebnf_classes_and_operators.Tok">Tok() (in module typped.ebnf_classes_and_operators)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode.token_label">token_label (typped.lexer.TokenNode attribute)</a>
+
+      <ul>
+        <li><a href="typped.matcher.html#typped.matcher.MatchedPrefixTuple.token_label">(typped.matcher.MatchedPrefixTuple attribute)</a>
 </li>
+      </ul></li>
       <li><a href="typped.pratt_parser.html#typped.pratt_parser.token_subclass_factory">token_subclass_factory() (in module typped.pratt_parser)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenBuffer">TokenBuffer (class in typped.lexer)</a>
 </li>
       <li><a href="typped.lexer.html#typped.lexer.TokenNode">TokenNode (class in typped.lexer)</a>
+</li>
+      <li><a href="typped.matcher.html#typped.matcher.TokenPatternTuple">TokenPatternTuple (class in typped.matcher)</a>
 </li>
       <li><a href="typped.pratt_parser.html#typped.pratt_parser.TokenSubclassMeta">TokenSubclassMeta (class in typped.pratt_parser)</a>
 </li>
@@ -731,10 +777,10 @@
 </li>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeErrorInParsedLanguage">TypeErrorInParsedLanguage</a>
 </li>
-      <li><a href="typped.pratt_types.html#typped.pratt_types.TypeModuleException">TypeModuleException</a>
-</li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="typped.pratt_types.html#typped.pratt_types.TypeModuleException">TypeModuleException</a>
+</li>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeObject">TypeObject (class in typped.pratt_types)</a>
 </li>
       <li><a href="typped.pratt_types.html#typped.pratt_types.TypeSig">TypeSig (class in typped.pratt_types)</a>
@@ -748,6 +794,8 @@
       <li><a href="typped.ebnf_classes_and_operators.html#module-typped.ebnf_classes_and_operators">typped.ebnf_classes_and_operators (module)</a>
 </li>
       <li><a href="typped.lexer.html#module-typped.lexer">typped.lexer (module)</a>
+</li>
+      <li><a href="typped.matcher.html#module-typped.matcher">typped.matcher (module)</a>
 </li>
       <li><a href="typped.pratt_constructs.html#module-typped.pratt_constructs">typped.pratt_constructs (module)</a>
 </li>

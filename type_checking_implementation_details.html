@@ -82,7 +82,6 @@ since we’re on the way back up the recursion.)  When a unique match is found
 the signature of a node is set as an attribute.  Going up the tree, the next
 node can now look at the return type of those signatures to check that the
 arguments of its node match its signature.</p>
-<p>TODO: rewrite below or delete</p>
 <div class="section" id="overloading-on-return-values">
 <h2>Overloading on return values<a class="headerlink" href="#overloading-on-return-values" title="Permalink to this headline">¶</a></h2>
 <p>Overloading on return values is more difficult.  Suppose there are two possible
@@ -128,8 +127,10 @@ for each argument it can match against all its possible signatures and resolve
 to one signature (or raise an error).  Going up on the first-pass recursion
 will propagage up all the possibilities.  Going down on the second pass will
 propagate down the final signature-binding choices.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
 <p>Previous explanation, combine best of both:</p>
-<p>Suppose we pass all the possible return values to the parent.  Each sibling
+<p class="last">Suppose we pass all the possible return values to the parent.  Each sibling
 does that.  Then, it can calculate all its possible return values and pass
 those to its parent.  At some point it reaches the top again, and a function
 knows whether or not some unique return value has matched.  If so, then we can
@@ -137,18 +138,22 @@ go back down the tree again and fix the return values, which fix the argument
 values, and so forth.  All this stuff can be pasted onto the token class
 instances as necessary.  This is more expensive, but it doesn’t seem
 exponential or anything.  Just another pass or two.</p>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
 <p>Update: for the gist see below and section in the code explaining basics.
 Also, move toward full-sig comparison model and explanations.  - On way up the
 tree, collect all the possible signature types, including <em>all possible</em>
 conversions which might give different return values, and save them with each
 node.  Include all possible because going up the tree we don’t know what might
 possibly be needed.</p>
-<ul class="simple">
+<ul class="last simple">
 <li>On way back down the tree (or down the subtree if done partially) resolve the
 possible types to a single type.</li>
 <li>Resolution is by removing impossible types, and running a ranking function on
 the remaining ones.  Remaining ties raise an exception.</li>
 </ul>
+</div>
 </div>
 </div>
 
