@@ -1,35 +1,48 @@
 # -*- coding: utf-8 -*-
 """
 
-TODO: The trie matcher is not currently fully implemented.
-TODO: Note that a "first not longest" matcher can work for the subset of fixed-length
-patterns, aka, simple patterns.  Just order entry by length and on-ties.  Then
-do the "compilation" step on-demand when the "get" fun is actually called.
-
-A matcher for a `TokenTable`.  It is a hybrid that stores patterns either in a
-list of compiled Python regexes or else in a `RegexTrieDict` instance.  The
-Python regex module is used to save each of saved Python regexes against the
-beginning of the text passed in.  The trie matcher does the same, and then the
-longest match is returned (taking `on_ties` values into account in case of
-ties).
+A `Matcher` object for a `TokenTable`, which the `Lexer` uses for looking up
+tokens.
 
 Using the matcher
------------------
+=================
 
-The trie method is still experimental, so the default is to use the Python
-regexes only.  Any patterns passed to the `get_next_token_label_and_value`
-with `matcher_options="trie"` will be stored instead in the trie.
+The default matcher, simply called `"python"` uses individual Python regexes
+for the tokens, stored in a list.  This is to implement the "longest not first"
+matching semantics.  There several alternative matchers which can be specified,
+or users can define their own as described in a later section.
+
+To select a different matcher to save a pattern in you can set the
+`matcher_options` keyword argument in the call to `def_token`.  That value is
+passed on to the matcher's `insert_pattern` method.   With the default matchers
+different save options can be chosen for different tokens.  Each matcher with
+defined entries will be checked when looking for matches.  The default matcher
+to use can be changed by setting the `default_insert_options` attribute of the
+matcher instance.
+
+One alternative matcher uses Python regexes but with "first not longest"
+semantics.  This makes it more efficient on lookup, but causes order-dependence
+in the definition of tokens.  (Additions and deletions are more expensive
+because it builds one large regex.)  To select it use `matcher_options="python_fnl"`.
+
+There are also hybrid matchers, but those are still experimental.  They are an
+attempt to implement more-efficient longest-not-first matching.  They are
+hybrid matchers that store simple patterns in either a trie or a "python_fnl"
+matcher, reverting to the default "python" matcher for more-complex patterns.
+
+There is also an experimental matcher that uses only the
+`RegexTrieDictScanner`.  The regex language it accepts is different from the
+Python regex language, though.
 
 The Python matcher has good insert and delete times, but can become inefficient
 for large numbers of patterns.  The trie is less efficient for small numbers of
 patterns, but can search many simple patterns quickly in parallel by just going
-down the trie.  Simple patterns are patterns literal matches with no special
-characters or patterns containing only character-range wildcards.  More complex
-patterns in the trie matcher are still experimental.  They are recommended only
-when the prefix matching needs to be done online, as soon as possible.
+down the trie.  Simple patterns are literal matches with no special characters
+or patterns containing only character-range wildcards.  More complex patterns
+in the trie matcher are still experimental.
 
 Using a custom matcher
-----------------------
+======================
 
 It is possible for users to define their own matchers.  For example, the
 current matcher always takes the longest match.  More-efficient matchers can be
@@ -66,7 +79,14 @@ the `__init__` method. ::
     lexer = Lexer(token_table=token_table)
     parser = PrattParser(lexer=lexer)
 
+Code
+====
+
 """
+
+#TODO: Note that a "first not longest" matcher can work for the subset of fixed-length
+#patterns, aka, simple patterns.  Just order entry by length and on-ties.  Then
+#do the "compilation" step on-demand when the "get" fun is actually called.
 
 # New options to consider: "fnl_for_fixed_length" "trie_for_simple" The first
 # is fairly easy: you just test first thing in the insert method and set the

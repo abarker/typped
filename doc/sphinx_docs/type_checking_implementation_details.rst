@@ -43,8 +43,6 @@ the signature of a node is set as an attribute.  Going up the tree, the next
 node can now look at the return type of those signatures to check that the
 arguments of its node match its signature.
 
-TODO: rewrite below or delete
-
 Overloading on return values
 ----------------------------
 
@@ -96,27 +94,31 @@ to one signature (or raise an error).  Going up on the first-pass recursion
 will propagage up all the possibilities.  Going down on the second pass will
 propagate down the final signature-binding choices.
 
-Previous explanation, combine best of both:
+.. note::
 
-Suppose we pass all the possible return values to the parent.  Each sibling
-does that.  Then, it can calculate all its possible return values and pass
-those to its parent.  At some point it reaches the top again, and a function
-knows whether or not some unique return value has matched.  If so, then we can
-go back down the tree again and fix the return values, which fix the argument
-values, and so forth.  All this stuff can be pasted onto the token class
-instances as necessary.  This is more expensive, but it doesn't seem
-exponential or anything.  Just another pass or two.
+   Previous explanation, combine best of both:
 
-Update: for the gist see below and section in the code explaining basics.
-Also, move toward full-sig comparison model and explanations.  - On way up the
-tree, collect all the possible signature types, including *all possible*
-conversions which might give different return values, and save them with each
-node.  Include all possible because going up the tree we don't know what might
-possibly be needed.
+   Suppose we pass all the possible return values to the parent.  Each sibling
+   does that.  Then, it can calculate all its possible return values and pass
+   those to its parent.  At some point it reaches the top again, and a function
+   knows whether or not some unique return value has matched.  If so, then we can
+   go back down the tree again and fix the return values, which fix the argument
+   values, and so forth.  All this stuff can be pasted onto the token class
+   instances as necessary.  This is more expensive, but it doesn't seem
+   exponential or anything.  Just another pass or two.
 
-- On way back down the tree (or down the subtree if done partially) resolve the
-  possible types to a single type.
+.. note::
 
-- Resolution is by removing impossible types, and running a ranking function on
-  the remaining ones.  Remaining ties raise an exception.
+   Update: for the gist see below and section in the code explaining basics.
+   Also, move toward full-sig comparison model and explanations.  - On way up the
+   tree, collect all the possible signature types, including *all possible*
+   conversions which might give different return values, and save them with each
+   node.  Include all possible because going up the tree we don't know what might
+   possibly be needed.
+
+   - On way back down the tree (or down the subtree if done partially) resolve the
+     possible types to a single type.
+
+   - Resolution is by removing impossible types, and running a ranking function on
+     the remaining ones.  Remaining ties raise an exception.
 

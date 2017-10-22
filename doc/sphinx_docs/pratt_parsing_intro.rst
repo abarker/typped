@@ -72,7 +72,9 @@ operator corresponds to an interior node of the tree, and the
 arguments/parameters of the function are the ordered child nodes.  The leaves
 of an expression tree are the **literal tokens**, i.e., the tokens which act as
 single-node subtrees in the final expression tree.  The other tokens appear in
-the tree as interior nodes (e.g., tokens for infix operators like ``*``).
+the tree as interior nodes (e.g., tokens for infix operators like ``*``).  The
+syntactical construct corresponding to a literal token will be called a **token
+literal**.
 
 A **derivation tree** or **parse tree**, on the other hand, corresponds to a
 grammar.  The internal nodes all correspond to **production rules**  for
@@ -119,8 +121,8 @@ should produce this expression tree::
          8
          
 Here an indented column under a token represent its children/arguments.  Note
-that the leaves of the tree are always literal tokens such as ``2`` and ``5``,
-which form their own subtrees.
+that the leaves of the tree are always token literals corresponding to literal
+tokens such as ``2`` and ``5``, which form their own subtrees.
 
 In producing the parse tree above it has been assumed that the usual operator
 precedence rules in mathematics hold: ``*`` has higher precedence than ``+``.
@@ -145,7 +147,7 @@ By definition, every subtree in a parse tree represents a subexpression.  The
 token precedence values define the subexpression tree structure of
 subexpressions with infix operators.  In the simple example expression above
 the top-level expression is represented by the full tree, with root at the
-operator ``+``.  Each literal token also defines a (trivial) subexpression.
+operator ``+``.  Each token literal also defines a (trivial) subexpression.
 The subtree rooted at operator ``*`` defines a non-trivial subexpression which
 corresponds to the string ``5 * 8`` in the full expression.
 
@@ -354,16 +356,16 @@ evaluation is to be done).  Below we describe what handler functions *usually*
 do, and give an example of processing the simple expression ``2 + 5 * 8`` which
 was previously discussed in the :ref:`Operator precedence` section.
 
-Literal tokens
+Token literals
 ~~~~~~~~~~~~~~
 
-The literal tokens in a grammar always have a head handler, since the tokens
+The token literals in a language always have a head handler, since the tokens
 themselves are subtrees for their own subexpressions (i.e., they are leaves in
-the expression tree).  The head handler for literal tokens is trivial: the head
-function simply returns the token itself as the subtree.  Note that any mutual
-recursion always ends with literal tokens because all the leaves of an
-expression tree are literal tokens.  Thus their head handlers do not make any
-further recursive calls.
+the expression tree).  The head handler for token literals is trivial: the head
+function simply returns the token itself as the subtree.  Note that the mutual
+recursion of a Pratt parser always ends with token literals because all the
+leaves of an expression tree are literal tokens.  Their head handlers do not
+make any further recursive calls.
 
 Every token is represented by a unique subclass of the ``TokenNode`` class.
 The precedence value defined for a token is saved as an attribute of the
@@ -384,14 +386,20 @@ instance ``lex``:
 All other head and tail handlers are also made into methods for the
 subtoken that they are associated with (but see the note below).
 
-Non-literal tokens
-~~~~~~~~~~~~~~~~~~
+Non-literal syntatical constructs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Pratt parsing every syntatical construct is triggered by some token in
+either the head or tail position.  The corresponding head or tail handler for
+the token is called to parse the corresponding construct.  Unlike token
+literals, which have trivial handler functions, the handler functions for
+non-literal constructs can be more complicated.
 
 Generally, head and tail handlers do two things while constructing the result
-value to return: 1) they call ``recursive_parse`` to evaluate sub-subexpressions
-of their subexpression, and 2) they possibly peek at and/or consume additional
-tokens from the lexer.  This is the definition of the tail handler for the
-``+`` operator:
+value to return: 1) they call ``recursive_parse`` to evaluate
+sub-subexpressions of their subexpression, and 2) they possibly peek at and/or
+consume additional tokens from the lexer.  For example, this is the definition
+of the tail handler for the ``+`` operator:
 
 .. code-block:: python
 

@@ -7,9 +7,9 @@ expressions.  The backend is the recursive-descent parsing capabilities of the
 `PrattParser` class, implemented using precondition functions and null-string
 token handlers.
 
-.. note::
+.. topic:: Similar Python parsing packages.
 
-    Here are a few (but not all) similar Python parsing packages which parse
+    These are a few (but not all) similar Python parsing packages for parsing
     from BNF- or EBNF-like grammars (though without the underlying Pratt
     parsing framework).  Some use string representations of the grammar, while
     others use overloaded Python operators.  Most do not automatically produce
@@ -30,10 +30,13 @@ token handlers.
     * **Lark** -- Passed a string. Implements Earley & LALR(1) and returns a
       parse tree.  https://github.com/erezsh/Lark
 
-    For more information on other Python parsers, see
-    https://wiki.python.org/moin/LanguageParsing,
-    https://github.com/webmaven/python-parsing-tools, and
-    https://tomassetti.me/parsing-in-python/.
+    For more information on the various Python parsers, see these summaries:
+
+    * https://wiki.python.org/moin/LanguageParsing,
+
+    * https://github.com/webmaven/python-parsing-tools
+
+    * https://tomassetti.me/parsing-in-python/.
 
 Terminology and notation
 ========================
@@ -165,17 +168,22 @@ The basic objects that make up rule definitions are `Item` objects, `ItemList`
 objects, and `CaseList` objects.  The latter two are just list-like objects
 with most of the list operations overloaded.  An `ItemList` only holds `Item`
 instances, and a `CaseList` only holds `ItemList` instances.  These objects do
-not nest, and so they have some important differences from ordinary Python
-lists.
+not nest, though, and so there are some important differences from ordinary
+Python lists.
 
 The `ItemList` and `CaseList` classes are basically designed for concatenation
 operations, since that is what is used to build up production rule expressions.
-In their constructors they they both take an arbitrary number of arguments.
-All the arguments are converted to elements of the single type that they hold.
-The new instance then initially contains all those converted arguments as
-elements.  When an `ItemList` is passed another `ItemList` in its initializer
-argument list it just takes the elements within that list and puts them on its
-list.  The `CaseList` class works similarly.
+They are "flat" in the sense that they only hold one kind of object and do
+everything they can to convert an object to that type before saving it on the
+list.  An `ItemList` instance holds `Item` instances and a `CaseList` instance
+holds `ItemList` instances.  Because of the latter property `Case` is defined
+as an alias for `ItemList`.  Both of the classes take an arbitrary number of
+arguments in their constructors.  All the arguments are converted to elements
+of the single type that they hold.  The new instance then initially contains
+all those converted arguments as its elements.  When an `ItemList` is passed
+another `ItemList` in its initializer argument list it just takes the elements
+within that list and extends its list with them.  The `CaseList` class works
+similarly.
 
 So the initializers basically form the concatenation of all the passed-in
 arguments, after converting each one to the type of object that the list-like
@@ -243,67 +251,19 @@ Item or ItemList):
 Operator precedences expressed in grammar
 =========================================
 
-In order to use Pratt-parser style operator precedences in a grammar two things
-must be done.
+This is not yet implemented, but will mimic the way a Pratt parser works.
 
-1. The relevant items in a case of a production must be set to some nonzero
-value.
+In the EBNF-like grammar precedences are defined using index-style brackets::
 
-2. The item before the expression (before the first argument) must be wrapped
-in a special function.
+    Tok("k_plus")[30]
 
-To see how this works, consider these productions below, parsing the expressions
-`x + y * z` (compared with `x * y + z`).
-
-.. code-block:: python
-
-    term = Regex()
-
-    add = Head(Rule("term")) + Rule("operator")
-
-    operator = Tail( k_add[20] + Rule("term")
-                   | k_ast[40] + Rule("term")
-                   )
-
-1. The `add` production is somehow on the top of the `pstack` and
-`recursive_parse(0)` is called.  This invokes the head-handler for the `add`
-production (which is a handler for the null-string token with the precondition
-that "add" is on top of the stack).
-
-2. The head-handler for the `add` production then pushes `"term"` onto the
-`pstack` and calls `recursive_parse(0)` to get the first argument.
-
-3. The head-handler for the `term` rule is then invoked.  It fetches the
-first term, which is `x` and returns it as a subtree leaf.
-
-4. We are now back to the `add` handler, having gotten `x` as `processed_left`.
-It now pops the `term` state and pushes the `operator` state onto the `pstack`.
-It then calls `recursive_parse(0, processed_left)`, which runs as a
-tail-handler.  Notice how the recursive descent handler for the `add`
-production is essentially mimicking the `recursive_parse` routine but pushing
-and popping states.
-
-----> Should the whole loop of recursive_parse run, or just one iteration
-      when passed the explicit argument?????  As it is here, just one iteration?
-      Could split up the head and tail parts as two functions... each loop
-      iteration could be a function (but would be less efficient).
-
-----> Do we need any special wrappers like `Tail`?
-
-5. The tail-handler for `k_add` is now called, since the `+` token was returned
-by the lexer.  It pushes the state `term` and calls `recursive_parse(20,
-processed_left`.
-
-6. The head-handler for `term` calls `recursive_parse(0)`, which fetches the
-token `y`.
-
-7. HERE IS INTERESTING PART, iron out above and figure out how to make it
-work...
-
-So the expression `x + y * z` will be evalated as `x + (y*z)`.
+The above would give a precedence of 30 to the token.
 
 Optimizing the grammar
 ======================
+
+This section discusses possible optimizations to the grammar.  Predictive
+parsing is close to being fully implemented, but is not fully set up yet.
 
 predictive parsing
 ------------------
@@ -315,19 +275,20 @@ partial predictive parsing can make the algorithm more efficient
 (falling back to backtracking search only when necessary).
 
 To use a predicive parse you need to generate a **first set** for
-each non-terminal (i.e., recursive rule call) in the grammar.  Call
-this `first_set(nonterminal)`.
+each non-terminal (i.e., recursive rule call) in the grammar.
 
 When epsilon productions are allowed a **follow set** acts similarly to
 a first set.
 
-See:
+See, e.g.:
 
-http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
-http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html
+* http://faculty.ycp.edu/~dhovemey/fall2010/cs340/lecture/lecture9.html
+
+* http://www.csd.uwo.ca/~moreno//CS447/Lectures/Syntax.html/node12.html
 
 Maybe also consider packrat parsing:
-https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars
+
+* https://en.wikipedia.org/wiki/Parsing_expression_grammar#Implementing_parsers_from_parsing_expression_grammars
 
 grammar transformations
 -----------------------
@@ -339,13 +300,24 @@ One possibility is to remove at least trivial left recursion.  Just change the
 ordering of any obvious left recursive cases.
 
 In a more complicated transformation you could do **left factoring** on the
-grammar to remove the left recursion.
+grammar to remove the left recursion, but that isn't likely to happen.
 
 Consider curtailment of left recursion, too.  If it is going to repeat will it
 repeat in n levels, where that is the number of rules?  What is the limit, etc.
-See some of those articles and maybe do a simple thing.
+See some of those articles and consider if not too much to do.
+
+Code
+====
 
 """
+
+# TODO: Implement function calls for Items with keyword arguments.  Then
+# syntax like this can be used:
+#
+#    plus = Tok("k_plus")(val_type=t_int, arg_types=[t_int,t_int], eval_fun=addfun)
+#
+# In this case would be better to make a Python alias in a separate code line
+# and then plug into the grammar in other places.
 
 # Some simple example grammars for use in tests:
 #    https://www.cs.rochester.edu/~nelson/courses/csc_173/grammars/cfg.html
@@ -808,6 +780,8 @@ class ItemList(object):
 
     def __repr__(self):
         return "ItemList({0})".format(", ".join([str(i) for i in self.data_list]))
+
+Case = ItemList # Case is an alias for an ItemList; Items converted on init.
 
 class CaseList(object):
     """A list of `Case` objects.  Note, though, that a single Item or ItemList can

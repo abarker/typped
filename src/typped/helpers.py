@@ -3,9 +3,9 @@
 
 Some helper routines.
 
-For builtin parsing methods see the `builtin_parse_methods` module.
+For builtin parsing methods see the :py:mod:`typped.builtin_parse_methods` module.
 
-For predefined token sets see the `predefined_token_sets` module.
+For predefined token sets see the :py:mod:`typped.predefined_token_sets` module.
 
 """
 

@@ -36,7 +36,7 @@ def example_from_Sphinx_recursive_descent_page():
     factor     = ( Rule("constant")
                  | Rule("variable")
                  | Tok("k_lpar") + Rule("expression") + Tok("k_rpar"))
-    variable   = k_identifier
+    variable   = k_identifier | Tok("k_minus") + k_identifier
     constant   = k_int
 
     g = pp.Grammar("expression", parser, locals())

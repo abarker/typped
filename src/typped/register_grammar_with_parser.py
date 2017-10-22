@@ -3,7 +3,7 @@
 
 This module contains the functions which handle the recursive descent parsing
 of the rules of a `Grammar` object instance. Grammar objects are defined in
-`ebnf_classes_and_operators` module.
+the :py:mod:`typped.ebnf_classes_and_operators` module.
 
 In ths module only the function `register_rule_handlers_with_parser` is
 formally exposed to be called externally (and it is only called from the
@@ -19,37 +19,42 @@ multiple parses on the same parser (but the parser in general probably is not,
 either).
 
 Rules and guidelines
---------------------
+====================
 
 * No left recursion.  Some token must be consumed before any recursive call.
-  This is not OK.  The left recursion will never stop::
+  The below example is NOT OK because the left recursion will never stop::
 
-      arglist = Rule("arglist") + Tok("k_comma") + Rule("arg") | Rule("arg")
+      arglist = Rule("arglist") + Tok("k_comma") + Rule("arg") | Rule("arg") # NOT OK
 
-  This is OK:
+  Right recursion is OK::
 
-      arglist = Rule("arg") + Tok("k_comma") + Rule("arglist") | Rule("arg")
+      arglist = Rule("arg") + Tok("k_comma") + Rule("arglist") | Rule("arg") # OK
 
-* Cases are evaluated in sequential order, so if cases have the same prefix
-  put the longer cases first.  This modified version of the OK rule above will
-  never select the second case.  It will always parse a single "arg" rule and be
-  satisfied::
+* Cases are evaluated in sequential order, so if cases have the same prefix the
+  longer-prefix cases should be put first.  This modified version of the OK
+  rule above will never select the second case.  It will always parse a single
+  "arg" rule and be satisfied::
 
-      arglist = Rule("arg") | Rule("arg") + Tok("k_comma") + Rule("arglist")
+      arglist = Rule("arg") | Rule("arg") + Tok("k_comma") + Rule("arglist") # NOT OK
 
 Precedences
------------
+===========
 
-Precedences not yet implemented.
+**Precedences not yet implemented.**
 
-Assume for now that precedences only apply to token literals.  Two possible
-ways to consider:
+Assume for now that precedences only apply to token literals.  Here are two
+possible ways to consider that they will be used::
 
    num_expr      = k_number + Rule("operator") + num_expr | k_number
    operator      = Tok("k_ast")[10] | Tok("k_plus")[20]
 
    num_expr         = k_number + Rule("op_and_right_arg") | k_number
    op_and_right_arg = Tok("k_ast")[10] + num_expr | Tok("k_plus")[20] + num_expr
+
+Note that in the second case the parsing for `num_expr` must recognize that the rule
+has a precedence which is defined in a *different* expression.  But, there is not
+a single, fixed precedence value that can be propagated backward.  The parsing
+needs to handle this in some way or else rule out this kind of case.
 
 Now consider `parse("5 + 3 * 2")`.
 
@@ -69,12 +74,20 @@ the end of the rule case being handled.  Nonzero precedence tokens also take
 the current `processed_left` as their left child and all in the rest of the
 case as their right child.
 
-Todo: Consider peekahead prec for nonterminals:  The precedence is the same
-as the peek token, i.e., the next non-virtual token that is actually in
-the lexer.  Easy to do, since prec() is a function (or can be a property).
-Then a grammar nonterminal could possibly fit into a Pratt context as
-an infix operator (actually, processing the right argument of an infix
-operator.
+TODO: Consider using some kind of peekahead precedence values for nonterminals:
+Its precedence is the same as that of its peek token, i.e., the next
+non-virtual token that is actually in the lexer.  This is easy to do for
+ordinary precedence, since `prec()` is a function (or can be a property).  This
+is to allow a single nonterminal for a whole group of operators (in different
+cases) with different precedences.  (Note that these would only process the
+right part of the operation, but should then make the previous result into the
+left operand.)  BUT: Grammar precedences are not the same as the ordinary Pratt
+precedences (as of now, anyway) and for future purposes we need to consider how
+this interacts with the lookahead peek supposing that precedences become
+construct attributes as planned.
+
+Code
+====
 
 """
 
@@ -132,19 +145,19 @@ def register_rule_handlers_with_parser(parser, nonterm_label, grammar):
     1. Look up the caselist for `nonterm_label` in the grammar object.
 
     2. Loop over that caselist, making a sub-caselists for cases which start
-    with the same thing (i.e., which have the same first set).  Start with the
-    first case, and proceed until the initial caselist is fully processed and
-    converted to a collection of sub-caselists.  (All production rule starts
-    are currently considered the same, but when the first-set is computed then
-    they will be grouped with others having the same first-set.)
+       with the same thing (i.e., which have the same first set).  Start with the
+       first case, and proceed until the initial caselist is fully processed and
+       converted to a collection of sub-caselists.  (All production rule starts
+       are currently considered the same, but when the first-set is computed then
+       they will be grouped with others having the same first-set.)
 
-    These sub-caselists which start with a token are stored in a dict
-    `token_literal_start_cases`, keyed by the token label of the beginning token.
-    Those which start with a nonterminal are saved in a list
-    `nonterm_start_cases`.
+       These sub-caselists which start with a token are stored in a dict
+       `token_literal_start_cases`, keyed by the token label of the beginning token.
+       Those which start with a nonterminal are saved in a list
+       `nonterm_start_cases`.
 
     3. For each sub-caselist created above, call
-    `def_handlers_for_first_case_of_nonterminal` with that caselist.
+       `def_handlers_for_first_case_of_nonterminal` with that caselist.
 
     """
 
