@@ -26,10 +26,10 @@ recursive descent functions to parse sub-grammars.
 
 .. note::
 
-   Some of these features are still experimental.  The some features are only
+   Some of these features are still experimental.  Some features are only
    partially implemented.  Only basic BNF currently works in the grammar
    parser.  Type-checking and Pratt-style precedences in the grammars are not
-   yet implemented.
+   yet implemented.  The implementation still needs to be optimized.
 
 Similarities and differences between the parsing methods
 --------------------------------------------------------

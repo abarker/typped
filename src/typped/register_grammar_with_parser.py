@@ -119,6 +119,10 @@ DEBUG = False
 
 HUGE_PRIORITY = 1000000000000 # Currently preconds for grammar-based stuff run first.
 
+# TODO: Rewrite the handlers to just call the handlers for the nonterminals
+# inside them directly; they are already known.  No need to push to stack and
+# then call recursive_parse.
+
 # TODO: Optimizations to speed runtime and memory.
 # 1) Implement first-sets in the recursion.  Code is set up for it when it
 #    is calculated in Grammar.  Just register nonterminal-starting caselists

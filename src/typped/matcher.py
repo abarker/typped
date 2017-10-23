@@ -9,8 +9,8 @@ Using the matcher
 
 The default matcher, simply called `"python"` uses individual Python regexes
 for the tokens, stored in a list.  This is to implement the "longest not first"
-matching semantics.  There several alternative matchers which can be specified,
-or users can define their own as described in a later section.
+matching semantics.  There are several alternative matchers which can be
+specified, or users can define their own as described in a later section.
 
 To select a different matcher to save a pattern in you can set the
 `matcher_options` keyword argument in the call to `def_token`.  That value is
@@ -27,12 +27,13 @@ because it builds one large regex.)  To select it use `matcher_options="python_f
 
 There are also hybrid matchers, but those are still experimental.  They are an
 attempt to implement more-efficient longest-not-first matching.  They are
-hybrid matchers that store simple patterns in either a trie or a "python_fnl"
+hybrid matchers that store simple patterns in either a trie or a `"python_fnl"`
 matcher, reverting to the default "python" matcher for more-complex patterns.
 
 There is also an experimental matcher that uses only the
 `RegexTrieDictScanner`.  The regex language it accepts is different from the
-Python regex language, though.
+Python regex language, though.  (The regex-trie-dict package is not currently
+up on GitHub.)
 
 The Python matcher has good insert and delete times, but can become inefficient
 for large numbers of patterns.  The trie is less efficient for small numbers of

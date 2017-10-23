@@ -16,7 +16,8 @@ APIs and code for the modules in the Typped package
    typped.register_grammar_with_parser
    typped.lexer
    typped.matcher
-   .. typped.text_stream
+
+.. typped.text_stream
 
 .. Module contents
    ---------------
