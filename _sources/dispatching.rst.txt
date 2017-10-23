@@ -395,12 +395,13 @@ known.
    where that syntactic construct is generally being defined, rather than
    having to be placed in one centralized and separate location.  This makes it
    easier to create essentially independent functional interfaces for different
-   syntactical constructs.  For example, the `PrattParser` class comes with
-   methods predefined to easily perform common syntax-related tasks such as
-   defining an infix operator, define a grouping operator, define a standard
-   function, etc.  If one big case statement were being used in a single head
-   or tail handler then that case statement would have to be modified for each
-   such method.
+   syntactical constructs.  The syntax of the language can be decomposed into
+   subunits, with separately-defined handlers to parse them.  For example, the
+   `PrattParser` class comes with methods predefined to easily perform common
+   syntax-related tasks such as defining an infix operator, defining a grouping
+   operator, defining a standard function, etc.  If one big case statement were
+   being used in a single head or tail handler for each token then one of those
+   case statement would have to be modified for each such method.
 
 Uniqueness of constructs
 ------------------------
