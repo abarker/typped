@@ -13,6 +13,8 @@ import cmd
 import readline # pylint: disable=unused-import
 import typped as pp
 
+# TODO: Don't use Python cmd REPL, use other version but wrapped to be general.
+
 #
 # Example 1.
 #
@@ -183,7 +185,7 @@ def run_string_language_parser_no_typing():
                 print(result.eval_subtree())
             except (ValueError, ZeroDivisionError) as e:
                 print(e)
-            except pp.TypeErrorInParsedLanguage as e:
+            except (pp.TyppedBaseException, TypeError) as e:
                 print(e)
             #except Exception as e:
             #    print(e)
@@ -370,11 +372,6 @@ def setup_string_language_parser_static_typing():
     literal = parser.def_literal
     literal("k_int", val_type=t_int, eval_fun=lambda t: t.value)
     literal("k_string", val_type=t_str, eval_fun=lambda t: t.value)
-
-    # TODO: Note that `raise_if_undefined` works, but we still have not made the
-    # distinction between *defined* types and *assigned* types.  So just `x`
-    # should be an error if it is defined but not assigned a value... the
-    # value is not necessarily known, though.  That or use default values...
 
     parser.def_literal_typed_from_dict("k_identifier",
                                        eval_fun=lambda t: t.value,

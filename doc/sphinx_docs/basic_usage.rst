@@ -13,8 +13,8 @@ this page can be found in the file `examples/basic_usage_examples.py
 The ``PrattParser`` class is the main class provided by the Typped package.  It
 is the only class that is needed for basic usage of the parser.
 
-Example: Parsing a simple expression
-------------------------------------
+Example 1: Parsing a simple expression
+--------------------------------------
 
 This example parses simple expressions such as ``x * 4 + 4`` using the builtin
 methods of the ``PrattParser`` class.  The builtin parsing methods that can be
@@ -108,8 +108,8 @@ See ":ref:`calculator_example:Example: Implementing a simple calculator`" for a
 similar example with many more features and which also evaluates the
 expressions.
 
-Example: Parsing a simple expression without using builtins
------------------------------------------------------------
+Example 2: Parsing a simple expression without using builtins
+-------------------------------------------------------------
 
 This example parses the same language as Example 1, but none of the builtin
 parsing routines of the ``PrattParser`` class are used.  Raw Pratt parsing is
@@ -224,26 +224,122 @@ functions it can be useful to look at the code for the builtin parse routines
 in the file ``builtin_parse_methods.py`` documented in
 :py:mod:`typped.builtin_parse_methods`.
 
-Example: A simple string and number language with evaluation and dynamic typing
--------------------------------------------------------------------------------
+Example 3 : A simple untyped string and number language
+-------------------------------------------------------
 
-This next example is a simple language that operates on both quoted strings and
-integers.  The only allowed operations are addition and multiplication.  The
-operations on integers give the usual results.  The operations on strings are
-like in Python: addition concatenates and multiplication of a string by an
-integer (on the left or right) repeats it that many times.  Addition of strings
-and integers is a syntax error.
+This three examples are of a simple language that operates on both quoted
+strings and integers.  The only allowed operations are addition and
+multiplication.  The operations on integers give the usual results.  The
+operations on strings are like in Python: addition concatenates and
+multiplication of a string by an integer (on the left or right) repeats it that
+many times.  Addition of strings and integers is a syntax error.
+Identifier variables can also be defined and assigned values.
 
-Identifier variables can also be defined and assigned values.  This example
-uses dynamic typing, like an interpreted language.  Type errors are reported at
-parse-time, based on the types implicitly defined by the previously-executed
-coded.  For example, assigning ``x = "house"`` implicitly defines ``x`` as a
-string.
+This example does not use typing at all.  The later two examples use dynamic
+typing and static typing, respectively.  These examples illustrate how to
+define evaluation functions to interpret the parsed expression trees.  They
+also show how to use the basic type mechanism.
 
-This example illustrates how to define evaluation functions to interpret the
-parsed expression trees.  It also shows how to use the basic type mechanism.
-The example code in the ``examples`` directory runs the language in a
-read-evaluate-print loop (REPL).
+The `example code in the examples directory
+<https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py>`_
+runs the language in a read-evaluate-print loop (REPL).
+
+.. code-block:: python
+
+   def setup_string_language_parser_no_typing():
+       """A simple, untyped language that uses `+` to add integers and
+       concatenate strings.  Multiplication of a number by a string repeats the
+       string.  Multiplication of a string by a string is not defined.  It also
+       has simple variables which can represent either numbers or strings.   Any
+       errors are caught during the Python evaluation.
+
+       Since type-checking is disabled the overloading must be implemented
+       by general handler functions that check the arguments themselves."""
+       parser = pp.PrattParser(skip_type_checking=True)
+
+       # Define the tokens.
+
+       parser.def_default_whitespace()
+       tok = parser.def_token
+       tok("k_int", r"-?\d+")
+       tok("k_lpar", r"\(")
+       tok("k_rpar", r"\)")
+       tok("k_ast", r"\*")
+       tok("k_plus", r"\+")
+       tok("k_equals", r"=")
+       tok("k_identifier", r"[a-zA-Z_](?:\w*)", on_ties=-1)
+       tok("k_string", r"(\"(.|[\r\n])*?\")")
+
+       # Define the syntax of the language, supplying evaluation functions.
+
+       parser.def_literal("k_int", eval_fun=lambda t: int(t.value))
+       parser.def_literal("k_string", eval_fun=lambda t: t.value)
+       parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
+
+       def plus_op(x, y):
+           """Generic addition operation that works on all the defined cases.  Note strings
+           are stored with quotes."""
+           if isinstance(x, int) or x[0] != "\"":
+               return int(x) + int(y)
+           return x[:-1] + y[1:]
+
+       def mult_op(x, y):
+           """Generic multiplication operation that works on all the defined cases.
+           Note strings are stored with quotes."""
+           print("eval: x, y:", x, y)
+           if isinstance(x, int) and isinstance(y, int):
+               return x * y
+           if isinstance(x, int) or x[0] != '"':
+               return '"' + int(x) * y[1:-1] + '"'
+           elif isinstance(y, int) or y[0] != '"':
+               return '"' + int(y) * x[1:-1] + '"'
+           return int(x) * int(y)
+
+       infix = parser.def_infix_op
+       infix("k_plus", 10, "left",
+             eval_fun=lambda t: plus_op(t[0].eval_subtree(), t[1].eval_subtree()))
+
+       infix("k_ast", 20, "left",
+             eval_fun=lambda t:mult_op(t[0].eval_subtree(), t[1].eval_subtree()))
+
+       # Define assignment as an infix equals operator.
+       parser.def_assignment_op_untyped("k_equals", 5, "right", "k_identifier",
+                                        create_eval_fun=True)
+
+       # Define identifier literals with a lookup if needed.  Parser attribute
+       # symbol_value_dict was initialized by the def_assignment_op_untyped call.
+       symbol_dict = parser.symbol_value_dict
+       default_identifier_eval_value = 0
+
+       def eval_literal_identifier(tok):
+           if tok.value in symbol_dict:
+               return symbol_dict[tok.value]
+           else:
+               return default_identifier_eval_value
+
+       parser.def_literal("k_identifier", eval_fun=eval_literal_identifier)
+       return parser
+
+Example 4 : A simple string and number language with evaluation and dynamic typing
+----------------------------------------------------------------------------------
+
+This next example is the same simple language that operates on both quoted
+strings and integers as in Example 3.  The only allowed operations are addition
+and multiplication.  The operations on integers give the usual results.  The
+operations on strings are like in Python: addition concatenates and
+multiplication of a string by an integer (on the left or right) repeats it that
+many times.  Addition of strings and integers is a syntax error.  Identifier
+variables can also be defined and assigned values.
+
+This example uses dynamic typing, like an interpreted language.  Type errors
+are reported at parse-time, based on the types implicitly defined by the
+previously-executed coded.  For example, assigning ``x = "house"`` implicitly
+defines ``x`` as a string.
+
+This example shows one way to use the Typped type mechanism.  The `example code
+in the examples directory
+<https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py>`_
+runs the language in a read-evaluate-print loop (REPL).
 
 ..
    Just replace this whole code block from the basic_usage_section_examples.py file
@@ -286,41 +382,43 @@ read-evaluate-print loop (REPL).
 
        parser.def_bracket_pair("k_lpar", "k_rpar", eval_fun=lambda t: t[0].eval_subtree())
 
+       # Overload the + operator twice.
        infix = parser.def_infix_op
-       infix("k_plus", 10, "left",
+       infix_plus_construct = infix("k_plus", 10, "left",
              val_type=t_int, arg_types=[t_int, t_int],
              eval_fun=lambda t: t[0].eval_subtree() + t[1].eval_subtree())
-       infix("k_plus", 10, "left",
+       infix_plus_construct.overload(
              val_type=t_str, arg_types=[t_str, t_str],
              eval_fun=lambda t: t[0].eval_subtree()[:-1] + t[1].eval_subtree()[1:])
 
-       infix("k_ast", 20, "left",
+       # Overload the * operator three times.
+       infix_mult_construct = infix("k_ast", 20, "left",
              val_type=t_int, arg_types=[t_int, t_int],
              eval_fun=lambda t: t[0].eval_subtree() * t[1].eval_subtree())
-       infix("k_ast", 20, "left",
+       infix_mult_construct.overload(
              val_type=t_str, arg_types=[t_str, t_int],
              eval_fun=lambda t: (
                       '"' + (t[0].eval_subtree()[1:-1] * t[1].eval_subtree()) + '"'))
-       infix("k_ast", 20, "left",
+       infix_mult_construct.overload(
              val_type=t_str, arg_types=[t_int, t_str],
              eval_fun=lambda t: (
                       '"' + (t[1].eval_subtree()[1:-1] * t[0].eval_subtree()) + '"'))
 
        # Define assignment as an infix equals operator.
-       parser.def_assignment_op_dynamic("k_equals", 5, "left", "k_identifier",
+       parser.def_assignment_op_dynamic("k_equals", 5, "right", "k_identifier",
                                         val_type=None, allowed_types=[t_int, t_str],
                                         create_eval_fun=True)
        return parser
 
-Example 4: A simple string and number language with evaluation and static typing
+Example 5: A simple string and number language with evaluation and static typing
 --------------------------------------------------------------------------------
 
 The language being parsed in this example is basically the same as the previous
-one except that the language is statically typed rather than dynamically typed.
+two except that the language is statically typed rather than dynamically typed.
 This is like parsing a statically-typed compiled language.  Type errors are
 caught at parse-time, before any interpretation or translation into machine
-code.  This language translates the simple string-number language to Python
-code, which is then executed
+code.  This language translates the simple string-number language into Python
+code, which is then evaluated.
 
 Static typing in a language requires some mechanism for declaring types (either
 implicitly or explicitly).  This language has a C-like type declaration syntax.
@@ -329,10 +427,12 @@ new construct is defined for type declarations.  Builtin methods are used for
 the rest of the parsing.
 
 This example illustrates how to use static typing and how to define custom
-parsing functions when the builtin methods are not sufficient.  The example
-code in the ``examples`` directory runs the language in a read-evaluate-print
-loop.  It prints out the parsed expression tree, the translation to Python,
-and the result of evaluating the Python code with Python's ``eval``.
+parsing functions when the builtin methods are not sufficient.  The `example
+code in the examples directory
+<https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py>`_
+runs the language in a read-evaluate-print loop (REPL).  It prints out the
+parsed expression tree, the translation to Python, and the result of evaluating
+the Python code with Python's ``eval``.
 
 The definitions of the parser instance, tokens, and types are basically the
 same as in Example 3.
@@ -347,7 +447,7 @@ language::
    str y
 
 Since the builtin parsing methods do not cover this, we need to define a new
-construct and register it with the parser.  Later sections will cover this
+construct and register it with the parser.  Later sections cover this
 in more detail, so readers can skim this subsection for now if necessary.
 
 There are several ways to do this parsing.  We could define new tokens for the
@@ -363,7 +463,116 @@ In this example we have used a precondition on a head-handler function instead
 of using a tail-handler function defined for identifiers.  A tail-handler could
 have been used, but in that case ``int x = 4`` would be more difficult to
 parse.  The ``recursive_parse`` routine would consume the ``x`` as an operator,
-left value of ``int``.  The expression ``x = 4`` could not then be evaluated in
-the usual way with ``recursive_parse`` without going back one token in the
-lexer (such as with the ``go_back`` method).
+with a left operand of ``int``.  The remaining part ``= 4`` could not then be
+evaluated in the usual way as an infix operation without going back one token
+in the lexer (such as with the ``go_back`` method).  The handler function would
+have to use peek and next calls.
+
+.. code-block:: python
+
+   def setup_string_language_parser_static_typing():
+       """A simple statically-typed language that uses `+` to add integers and
+       concatenate strings.  Multiplication of a number by a string repeats the
+       string.  Multiplication of a string by a string is not defined.  It also
+       has simple variables which can represent either numbers or strings."""
+       parser = pp.PrattParser()
+
+       # Define the tokens.
+
+       parser.def_default_whitespace()
+       tok = parser.def_token
+       tok("k_int", r"-?\d+")
+       tok("k_lpar", r"\(")
+       tok("k_rpar", r"\)")
+       tok("k_ast", r"\*")
+       tok("k_plus", r"\+")
+       tok("k_equals", r"=")
+       tok("k_identifier", r"[a-zA-Z_](?:\w*)")
+       tok("k_string", r"(\"(.|[\r\n])*?\")")
+
+       # Define the types.
+
+       t_int = parser.def_type("t_int") # Integer type.
+       t_str = parser.def_type("t_str") # String type.
+
+       # Define a new construct for type definitions in the language.  The
+       # `typped_type_dict` is used to map type names in the implemented language
+       # (the strings "int" and "str") to the corresponding Typped types
+       # (the `TypeObject` instances t_int and t_str).
+
+       parser.typped_type_dict = {"int": t_int,
+                                  "str": t_str}
+
+       def typedecl_precond_fun(tok, lex):
+           """This construct will only be triggered for identifiers stored as keys in
+           the dict `parser.typped_type_dict`."""
+           return (lex.token.token_label == "k_identifier" and
+                   lex.token.value in parser.typped_type_dict)
+
+       def typedecl_head_handler(tok, lex):
+           """Handler function for the construct that parses type declarations."""
+           if not lex.match_next("k_identifier", consume=False):
+               raise pp.ParserException("Type declaration not followed by an identifier.")
+           # Note the identifier is set as a key in symbol_type_dict before recursive_parse.
+           # Otherwise the definition-checking in def_literal_typed_from_dict would fail.
+           parser.symbol_type_dict[lex.peek().value] = parser.typped_type_dict[tok.value]
+           type_decl_expr = tok.recursive_parse(0)
+           if type_decl_expr.children and type_decl_expr.token_label != "k_equals":
+               raise pp.ParserException("Only identifiers or assignment expressions are"
+                                        " allowed in type declarations.")
+           tok.append_children(type_decl_expr)
+           return tok
+
+       def typedecl_eval_fun(tok):
+           """Evaluate a type declaration when interpreting the language."""
+           if tok[0].token_label == "k_equals":
+               return tok[0].eval_subtree() + "; " + tok[0][0].value
+           else:
+               return "None"
+
+       parser.def_construct(pp.HEAD, typedecl_head_handler, "k_identifier",
+                            construct_label="p_type_declaration",
+                            precond_fun=typedecl_precond_fun, precond_priority=10,
+                            val_type=t_int, eval_fun= typedecl_eval_fun)
+
+       # Now define the syntax of the language.
+
+       literal = parser.def_literal
+       literal("k_int", val_type=t_int, eval_fun=lambda t: t.value)
+       literal("k_string", val_type=t_str, eval_fun=lambda t: t.value)
+
+       parser.def_literal_typed_from_dict("k_identifier",
+                                          eval_fun=lambda t: t.value,
+                                          default_type=t_int, default_eval_value=0,
+                                          raise_if_undefined=True)
+
+       parser.def_bracket_pair("k_lpar", "k_rpar",
+                               eval_fun=lambda t: "(" + t[0].eval_subtree() + ")")
+
+       def operator_eval_fun(tok):
+           """A general eval fun for operators.  It just reconstructs a string."""
+           if tok.children:
+               return tok[0].eval_subtree() + " " + tok.value + " " + tok[1].eval_subtree()
+           else:
+               return tok.value
+
+       # Overload the + operator twice.
+       infix = parser.def_infix_op
+       infix_plus_construct = infix("k_plus", 10, "left", val_type=t_int,
+                                    arg_types=[t_int, t_int], eval_fun=operator_eval_fun)
+       infix_plus_construct.overload(val_type=t_str, arg_types=[t_str, t_str],
+                                     eval_fun=operator_eval_fun)
+
+       # Overload the * operator three times.
+       infix_mult_construct = infix("k_ast", 20, "left", val_type=t_int,
+                                    arg_types=[t_int, t_int], eval_fun=operator_eval_fun)
+       infix_mult_construct.overload(val_type=t_str, arg_types=[t_str, t_int],
+                                     eval_fun=operator_eval_fun)
+       infix_mult_construct.overload(val_type=t_str, arg_types=[t_int, t_str],
+                                     eval_fun=operator_eval_fun)
+
+       # Define assignment as an infix equals operator.
+       parser.def_assignment_op_static("k_equals", 5, "left", "k_identifier",
+                                        eval_fun=operator_eval_fun)
+       return parser
 
