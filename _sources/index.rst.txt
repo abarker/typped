@@ -95,7 +95,6 @@ Content
    juxtaposition_operators
    recursive_descent
    parsers_calling_other_parsers
-   .. templates
    lookbehind
    typped
    other_possible_generalizations

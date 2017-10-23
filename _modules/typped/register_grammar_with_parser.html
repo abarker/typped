@@ -167,6 +167,10 @@
 
 <span class="n">HUGE_PRIORITY</span> <span class="o">=</span> <span class="mi">1000000000000</span> <span class="c1"># Currently preconds for grammar-based stuff run first.</span>
 
+<span class="c1"># TODO: Rewrite the handlers to just call the handlers for the nonterminals</span>
+<span class="c1"># inside them directly; they are already known.  No need to push to stack and</span>
+<span class="c1"># then call recursive_parse.</span>
+
 <span class="c1"># TODO: Optimizations to speed runtime and memory.</span>
 <span class="c1"># 1) Implement first-sets in the recursion.  Code is set up for it when it</span>
 <span class="c1">#    is calculated in Grammar.  Just register nonterminal-starting caselists</span>

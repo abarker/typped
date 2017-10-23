@@ -21,7 +21,7 @@ juxtaposed.  When available, type information can also be used.
 The jop mechanism must also implement the correct precedence for any implied
 operator it represents.  The inferred operator should behave exactly as if the
 equivalent operator token had actually appeared in the expression.  It should
-also allow for operator overloading if the language itself allows for operator
+allow for operator overloading if the language itself allows for operator
 overloading.
 
 Assumptions for inferring jops
@@ -46,23 +46,24 @@ assumed for juxtaposition operators:
    if ``p``, ``i``, and ``pi`` were all defined identifiers then the string
    ``pi`` would would be recognized by the lexer as the single token for
    ``pi``, but the user may have intended ``p*i`` with default multiplication.
-   So, assuming that whitespace is ignored, ``p i`` would be required by
-   default in order to infer an operator.
+   So, assuming whitespace is ignored, ``p i`` would be required by default in
+   order to infer an operator.
 
-4. A jop must behave as an ordinary token when it is inferred, such as allowing
-   multiple tail handler functions based on preconditions (a head handler for a
-   jop would never be called, see below).  One exception to this rule is that
-   if no preconditions match for the jop token then, instead of raising an
-   exception, a jop which would otherwise be inferred is simply not inferred.
+4. A jop must behave as an ordinary token when it is inferred, such as
+   triggering multiple different tail constructs based on preconditions.  (A
+   head construct/handler for a jop would never be called, see below.) One
+   exception to this rule is that if no preconditions match for the jop token
+   then, instead of raising an exception, a jop which would otherwise be
+   inferred is simply not inferred.
 
 5. A jop can only occur to the left of a token with a head handler and no tail
    handler.  The head is needed since the jop will call it in order to get its
-   right operand.  A tail is ruled out since that implies that the token has
-   been defined as an infix or postfix operator.  This essentially means that a
-   jop will never be inferred to the immediate left of an explicit infix or
-   postfix operator.  This matches the common mathematical usage, where ``2 -
-   4`` never equals ``2 * (-4)``.  Some examples, where the space character
-   is a possible jop::
+   right operand.  A tail is ruled out since that implies that the following
+   token has been defined as an infix or postfix operator.  This essentially
+   means that a jop will never be inferred to the immediate left of an explicit
+   infix or postfix operator.  This matches the common mathematical usage,
+   where ``2 - 4`` never equals ``2 * (-4)``.  Some examples, where the space
+   character is a possible jop::
 
       4! x  # OK if '!' is only postfix and 'x' is never infix or prefix.
       4 x!  # OK if 'x' is never an infix or prefix operator.
@@ -73,9 +74,10 @@ assumed for juxtaposition operators:
    Consider how the final example above relates to the case when a function
    evaluation such as ``f(x)`` is used in conjunction with a jop, and when
    parens are also defined as a grouping operation.  The result can be
-   ambiguous unless spaces are required for jops and spaces are disallowed
-   in function calls.  If ``x`` is explicitly declared as a function name
-   token distinct from variables then the situation can also be disambiguated.
+   ambiguous unless spaces are required for jops and spaces are disallowed in
+   function calls.  If ``x`` is explicitly declared as a function name token in
+   a namespace distinct from variables then the situation can also be
+   disambiguated.
    
 6. A jop can only be inferred at what would otherwise be the end of a
    subexpression.  This actually follows from 5 above, since there would be no
@@ -90,13 +92,8 @@ As far as rule 4, in the Typped parser jops are represented by a special type
 of token that can be defined with the ``def_jop_token`` method.  It is returned
 whenever a jop is inferred.  The ``def_jop`` method then makes use of this
 token and functions in almost the same way as the ``PrattParser`` methods for
-actual infix operators.  All the jop handlers and their preconditions are
-registered with this jop token.
-
-.. note::
-
-  Using a jop might complicate some uses of lookbehind.  If using both the
-  possible interactions should be considered.
+defining regular infix operators.  The jop token triggers all the constructs
+for implied infix operators.  Preconditions can be set as usual.
 
 Disambiguating jops
 -------------------
@@ -125,7 +122,7 @@ Using type information from the left operand is easy because at the point when
 a jop is inferred you already know the type information for the left operand
 (or at least a list of possible types if overloading on return is being used).
 That subexpression has already been evaluated and stored in the token tree
-rooted at `left`.  So you just look at `left.type_sig` or a similar attribute.
+rooted at `left`.  So you just look at ``left.actual_sig`` or a similar attribute.
 This information can be incorporated into the preconditions for a jop (since by
 4 above no jop is inferred if its preconditions fail).
 
@@ -139,7 +136,7 @@ assume a jop and infer it.  Then inside the tail-handler of the jop you check
 the type of the right operand after the tail-handler calls ``recursive_parse``.
 If it does not match the requirement you can then raise the appropriate
 exception.  (At some point this functionality may be included as an option to
-the ``def_jop`` method.)
+the ``def_jop`` method, or formalized as a general "subexpression peek.")
 
 The juxtaposition operator can be overloaded just like ordinary infix
 operators.  But as far as overloading based on the types of the operands you
@@ -149,11 +146,12 @@ on the right operand.
 
 Note that when overloading by return type is being used you are not guaranteed
 to have unique, resolved type information for the parse subtrees
-(subexpressions) returned from the `recursive_parse` function because the types
-may not yet be resolved.  Overloading on return types cannot be resolved purely
-bottom-up and generally requires another pass back down the full parse tree.
-You can, however, make use of the list of *possible* types at the current state
-of type resolution.
+(subexpressions) returned from the ``recursive_parse`` function because the
+types may not yet be resolved.  Overloading on return types cannot be resolved
+purely bottom-up and in general requires another pass back down the full parse
+tree.  You can, however, make use of the list of all *possible* types at the
+current state of type resolution (which is a temporary token attribute until it
+is uniquely resolved).
 
 .. topic:: Ways to implement a juxtaposition operator
 

@@ -72,7 +72,7 @@ juxtaposed.  When available, type information can also be used.</p>
 <p>The jop mechanism must also implement the correct precedence for any implied
 operator it represents.  The inferred operator should behave exactly as if the
 equivalent operator token had actually appeared in the expression.  It should
-also allow for operator overloading if the language itself allows for operator
+allow for operator overloading if the language itself allows for operator
 overloading.</p>
 <div class="section" id="assumptions-for-inferring-jops">
 <h2>6.1. Assumptions for inferring jops<a class="headerlink" href="#assumptions-for-inferring-jops" title="Permalink to this headline">¶</a></h2>
@@ -95,23 +95,24 @@ otherwise multi-character variable names can easily collide.  For example,
 if <code class="docutils literal"><span class="pre">p</span></code>, <code class="docutils literal"><span class="pre">i</span></code>, and <code class="docutils literal"><span class="pre">pi</span></code> were all defined identifiers then the string
 <code class="docutils literal"><span class="pre">pi</span></code> would would be recognized by the lexer as the single token for
 <code class="docutils literal"><span class="pre">pi</span></code>, but the user may have intended <code class="docutils literal"><span class="pre">p*i</span></code> with default multiplication.
-So, assuming that whitespace is ignored, <code class="docutils literal"><span class="pre">p</span> <span class="pre">i</span></code> would be required by
-default in order to infer an operator.</p>
+So, assuming whitespace is ignored, <code class="docutils literal"><span class="pre">p</span> <span class="pre">i</span></code> would be required by default in
+order to infer an operator.</p>
 </li>
-<li><p class="first">A jop must behave as an ordinary token when it is inferred, such as allowing
-multiple tail handler functions based on preconditions (a head handler for a
-jop would never be called, see below).  One exception to this rule is that
-if no preconditions match for the jop token then, instead of raising an
-exception, a jop which would otherwise be inferred is simply not inferred.</p>
+<li><p class="first">A jop must behave as an ordinary token when it is inferred, such as
+triggering multiple different tail constructs based on preconditions.  (A
+head construct/handler for a jop would never be called, see below.) One
+exception to this rule is that if no preconditions match for the jop token
+then, instead of raising an exception, a jop which would otherwise be
+inferred is simply not inferred.</p>
 </li>
 <li><p class="first">A jop can only occur to the left of a token with a head handler and no tail
 handler.  The head is needed since the jop will call it in order to get its
-right operand.  A tail is ruled out since that implies that the token has
-been defined as an infix or postfix operator.  This essentially means that a
-jop will never be inferred to the immediate left of an explicit infix or
-postfix operator.  This matches the common mathematical usage, where <code class="docutils literal"><span class="pre">2</span> <span class="pre">-</span>
-<span class="pre">4</span></code> never equals <code class="docutils literal"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">(-4)</span></code>.  Some examples, where the space character
-is a possible jop:</p>
+right operand.  A tail is ruled out since that implies that the following
+token has been defined as an infix or postfix operator.  This essentially
+means that a jop will never be inferred to the immediate left of an explicit
+infix or postfix operator.  This matches the common mathematical usage,
+where <code class="docutils literal"><span class="pre">2</span> <span class="pre">-</span> <span class="pre">4</span></code> never equals <code class="docutils literal"><span class="pre">2</span> <span class="pre">*</span> <span class="pre">(-4)</span></code>.  Some examples, where the space
+character is a possible jop:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span>4! x  # OK if &#39;!&#39; is only postfix and &#39;x&#39; is never infix or prefix.
 4 x!  # OK if &#39;x&#39; is never an infix or prefix operator.
 4 -x  # Not OK (except if &#39;-&#39; is only postfix and whitespace is ignored).
@@ -122,9 +123,10 @@ x (y) # OK if &#39;(&#39; is not an infix or postfix operator in context.
 <p>Consider how the final example above relates to the case when a function
 evaluation such as <code class="docutils literal"><span class="pre">f(x)</span></code> is used in conjunction with a jop, and when
 parens are also defined as a grouping operation.  The result can be
-ambiguous unless spaces are required for jops and spaces are disallowed
-in function calls.  If <code class="docutils literal"><span class="pre">x</span></code> is explicitly declared as a function name
-token distinct from variables then the situation can also be disambiguated.</p>
+ambiguous unless spaces are required for jops and spaces are disallowed in
+function calls.  If <code class="docutils literal"><span class="pre">x</span></code> is explicitly declared as a function name token in
+a namespace distinct from variables then the situation can also be
+disambiguated.</p>
 </li>
 <li><p class="first">A jop can only be inferred at what would otherwise be the end of a
 subexpression.  This actually follows from 5 above, since there would be no
@@ -140,13 +142,8 @@ invalidating any previously-valid expressions.</p>
 of token that can be defined with the <code class="docutils literal"><span class="pre">def_jop_token</span></code> method.  It is returned
 whenever a jop is inferred.  The <code class="docutils literal"><span class="pre">def_jop</span></code> method then makes use of this
 token and functions in almost the same way as the <code class="docutils literal"><span class="pre">PrattParser</span></code> methods for
-actual infix operators.  All the jop handlers and their preconditions are
-registered with this jop token.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p class="last">Using a jop might complicate some uses of lookbehind.  If using both the
-possible interactions should be considered.</p>
-</div>
+defining regular infix operators.  The jop token triggers all the constructs
+for implied infix operators.  Preconditions can be set as usual.</p>
 </div>
 <div class="section" id="disambiguating-jops">
 <h2>6.2. Disambiguating jops<a class="headerlink" href="#disambiguating-jops" title="Permalink to this headline">¶</a></h2>
@@ -171,7 +168,7 @@ individual tokens.</p>
 a jop is inferred you already know the type information for the left operand
 (or at least a list of possible types if overloading on return is being used).
 That subexpression has already been evaluated and stored in the token tree
-rooted at <code class="code docutils literal"><span class="pre">left</span></code>.  So you just look at <code class="code docutils literal"><span class="pre">left.type_sig</span></code> or a similar attribute.
+rooted at <code class="code docutils literal"><span class="pre">left</span></code>.  So you just look at <code class="docutils literal"><span class="pre">left.actual_sig</span></code> or a similar attribute.
 This information can be incorporated into the preconditions for a jop (since by
 4 above no jop is inferred if its preconditions fail).</p>
 <p>Using the type information for the right operand is a little more involved.  At
@@ -184,7 +181,7 @@ assume a jop and infer it.  Then inside the tail-handler of the jop you check
 the type of the right operand after the tail-handler calls <code class="docutils literal"><span class="pre">recursive_parse</span></code>.
 If it does not match the requirement you can then raise the appropriate
 exception.  (At some point this functionality may be included as an option to
-the <code class="docutils literal"><span class="pre">def_jop</span></code> method.)</p>
+the <code class="docutils literal"><span class="pre">def_jop</span></code> method, or formalized as a general “subexpression peek.”)</p>
 <p>The juxtaposition operator can be overloaded just like ordinary infix
 operators.  But as far as overloading based on the types of the operands you
 can only overload the jop based on the type of the left operand.  The tail
@@ -192,11 +189,12 @@ handler for the jop must then implement any further desired overloading based
 on the right operand.</p>
 <p>Note that when overloading by return type is being used you are not guaranteed
 to have unique, resolved type information for the parse subtrees
-(subexpressions) returned from the <code class="code docutils literal"><span class="pre">recursive_parse</span></code> function because the types
-may not yet be resolved.  Overloading on return types cannot be resolved purely
-bottom-up and generally requires another pass back down the full parse tree.
-You can, however, make use of the list of <em>possible</em> types at the current state
-of type resolution.</p>
+(subexpressions) returned from the <code class="docutils literal"><span class="pre">recursive_parse</span></code> function because the
+types may not yet be resolved.  Overloading on return types cannot be resolved
+purely bottom-up and in general requires another pass back down the full parse
+tree.  You can, however, make use of the list of all <em>possible</em> types at the
+current state of type resolution (which is a temporary token attribute until it
+is uniquely resolved).</p>
 <div class="topic">
 <p class="topic-title first">Ways to implement a juxtaposition operator</p>
 <p>There are various ways that one might consider implementing a juxtaposition

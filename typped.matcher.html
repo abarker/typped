@@ -61,8 +61,8 @@ tokens.</p>
 <h2>10.10.1. Using the matcher<a class="headerlink" href="#using-the-matcher" title="Permalink to this headline">¶</a></h2>
 <p>The default matcher, simply called <code class="code docutils literal"><span class="pre">&quot;python&quot;</span></code> uses individual Python regexes
 for the tokens, stored in a list.  This is to implement the “longest not first”
-matching semantics.  There several alternative matchers which can be specified,
-or users can define their own as described in a later section.</p>
+matching semantics.  There are several alternative matchers which can be
+specified, or users can define their own as described in a later section.</p>
 <p>To select a different matcher to save a pattern in you can set the
 <code class="code docutils literal"><span class="pre">matcher_options</span></code> keyword argument in the call to <code class="code docutils literal"><span class="pre">def_token</span></code>.  That value is
 passed on to the matcher’s <code class="code docutils literal"><span class="pre">insert_pattern</span></code> method.   With the default matchers
@@ -76,11 +76,12 @@ in the definition of tokens.  (Additions and deletions are more expensive
 because it builds one large regex.)  To select it use <code class="code docutils literal"><span class="pre">matcher_options=&quot;python_fnl&quot;</span></code>.</p>
 <p>There are also hybrid matchers, but those are still experimental.  They are an
 attempt to implement more-efficient longest-not-first matching.  They are
-hybrid matchers that store simple patterns in either a trie or a “python_fnl”
+hybrid matchers that store simple patterns in either a trie or a <code class="code docutils literal"><span class="pre">&quot;python_fnl&quot;</span></code>
 matcher, reverting to the default “python” matcher for more-complex patterns.</p>
 <p>There is also an experimental matcher that uses only the
 <code class="code docutils literal"><span class="pre">RegexTrieDictScanner</span></code>.  The regex language it accepts is different from the
-Python regex language, though.</p>
+Python regex language, though.  (The regex-trie-dict package is not currently
+up on GitHub.)</p>
 <p>The Python matcher has good insert and delete times, but can become inefficient
 for large numbers of patterns.  The trie is less efficient for small numbers of
 patterns, but can search many simple patterns quickly in parallel by just going

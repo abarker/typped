@@ -57,8 +57,8 @@
 
 <span class="sd">The default matcher, simply called `&quot;python&quot;` uses individual Python regexes</span>
 <span class="sd">for the tokens, stored in a list.  This is to implement the &quot;longest not first&quot;</span>
-<span class="sd">matching semantics.  There several alternative matchers which can be specified,</span>
-<span class="sd">or users can define their own as described in a later section.</span>
+<span class="sd">matching semantics.  There are several alternative matchers which can be</span>
+<span class="sd">specified, or users can define their own as described in a later section.</span>
 
 <span class="sd">To select a different matcher to save a pattern in you can set the</span>
 <span class="sd">`matcher_options` keyword argument in the call to `def_token`.  That value is</span>
@@ -75,12 +75,13 @@
 
 <span class="sd">There are also hybrid matchers, but those are still experimental.  They are an</span>
 <span class="sd">attempt to implement more-efficient longest-not-first matching.  They are</span>
-<span class="sd">hybrid matchers that store simple patterns in either a trie or a &quot;python_fnl&quot;</span>
+<span class="sd">hybrid matchers that store simple patterns in either a trie or a `&quot;python_fnl&quot;`</span>
 <span class="sd">matcher, reverting to the default &quot;python&quot; matcher for more-complex patterns.</span>
 
 <span class="sd">There is also an experimental matcher that uses only the</span>
 <span class="sd">`RegexTrieDictScanner`.  The regex language it accepts is different from the</span>
-<span class="sd">Python regex language, though.</span>
+<span class="sd">Python regex language, though.  (The regex-trie-dict package is not currently</span>
+<span class="sd">up on GitHub.)</span>
 
 <span class="sd">The Python matcher has good insert and delete times, but can become inefficient</span>
 <span class="sd">for large numbers of patterns.  The trie is less efficient for small numbers of</span>
