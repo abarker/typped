@@ -59,8 +59,8 @@ sections go into many more details.  Executable code for all the examples on
 this page can be found in the file <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">examples/basic_usage_examples.py</a>.</p>
 <p>The <code class="docutils literal"><span class="pre">PrattParser</span></code> class is the main class provided by the Typped package.  It
 is the only class that is needed for basic usage of the parser.</p>
-<div class="section" id="example-parsing-a-simple-expression">
-<h2>1.1. Example: Parsing a simple expression<a class="headerlink" href="#example-parsing-a-simple-expression" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="example-1-parsing-a-simple-expression">
+<h2>1.1. Example 1: Parsing a simple expression<a class="headerlink" href="#example-1-parsing-a-simple-expression" title="Permalink to this headline">¶</a></h2>
 <p>This example parses simple expressions such as <code class="docutils literal"><span class="pre">x</span> <span class="pre">*</span> <span class="pre">4</span> <span class="pre">+</span> <span class="pre">4</span></code> using the builtin
 methods of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class.  The builtin parsing methods that can be
 called for a <code class="docutils literal"><span class="pre">PrattParser</span></code> instance are documented here:
@@ -153,8 +153,8 @@ expression tree.  The returned tree has token instances as its nodes.</p>
 similar example with many more features and which also evaluates the
 expressions.</p>
 </div>
-<div class="section" id="example-parsing-a-simple-expression-without-using-builtins">
-<h2>1.2. Example: Parsing a simple expression without using builtins<a class="headerlink" href="#example-parsing-a-simple-expression-without-using-builtins" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="example-2-parsing-a-simple-expression-without-using-builtins">
+<h2>1.2. Example 2: Parsing a simple expression without using builtins<a class="headerlink" href="#example-2-parsing-a-simple-expression-without-using-builtins" title="Permalink to this headline">¶</a></h2>
 <p>This example parses the same language as Example 1, but none of the builtin
 parsing routines of the <code class="docutils literal"><span class="pre">PrattParser</span></code> class are used.  Raw Pratt parsing is
 used, explicitly defining the head and tail handler functions and registering
@@ -251,23 +251,113 @@ functions it can be useful to look at the code for the builtin parse routines
 in the file <code class="docutils literal"><span class="pre">builtin_parse_methods.py</span></code> documented in
 <a class="reference internal" href="typped.builtin_parse_methods.html#module-typped.builtin_parse_methods" title="typped.builtin_parse_methods"><code class="xref py py-mod docutils literal"><span class="pre">typped.builtin_parse_methods</span></code></a>.</p>
 </div>
-<div class="section" id="example-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing">
-<h2>1.3. Example: A simple string and number language with evaluation and dynamic typing<a class="headerlink" href="#example-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing" title="Permalink to this headline">¶</a></h2>
-<p>This next example is a simple language that operates on both quoted strings and
-integers.  The only allowed operations are addition and multiplication.  The
-operations on integers give the usual results.  The operations on strings are
-like in Python: addition concatenates and multiplication of a string by an
-integer (on the left or right) repeats it that many times.  Addition of strings
-and integers is a syntax error.</p>
-<p>Identifier variables can also be defined and assigned values.  This example
-uses dynamic typing, like an interpreted language.  Type errors are reported at
-parse-time, based on the types implicitly defined by the previously-executed
-coded.  For example, assigning <code class="docutils literal"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">&quot;house&quot;</span></code> implicitly defines <code class="docutils literal"><span class="pre">x</span></code> as a
-string.</p>
-<p>This example illustrates how to define evaluation functions to interpret the
-parsed expression trees.  It also shows how to use the basic type mechanism.
-The example code in the <code class="docutils literal"><span class="pre">examples</span></code> directory runs the language in a
-read-evaluate-print loop (REPL).</p>
+<div class="section" id="example-3-a-simple-untyped-string-and-number-language">
+<h2>1.3. Example 3 : A simple untyped string and number language<a class="headerlink" href="#example-3-a-simple-untyped-string-and-number-language" title="Permalink to this headline">¶</a></h2>
+<p>This three examples are of a simple language that operates on both quoted
+strings and integers.  The only allowed operations are addition and
+multiplication.  The operations on integers give the usual results.  The
+operations on strings are like in Python: addition concatenates and
+multiplication of a string by an integer (on the left or right) repeats it that
+many times.  Addition of strings and integers is a syntax error.
+Identifier variables can also be defined and assigned values.</p>
+<p>This example does not use typing at all.  The later two examples use dynamic
+typing and static typing, respectively.  These examples illustrate how to
+define evaluation functions to interpret the parsed expression trees.  They
+also show how to use the basic type mechanism.</p>
+<p>The <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">example code in the examples directory</a>
+runs the language in a read-evaluate-print loop (REPL).</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">setup_string_language_parser_no_typing</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;A simple, untyped language that uses `+` to add integers and</span>
+<span class="sd">    concatenate strings.  Multiplication of a number by a string repeats the</span>
+<span class="sd">    string.  Multiplication of a string by a string is not defined.  It also</span>
+<span class="sd">    has simple variables which can represent either numbers or strings.   Any</span>
+<span class="sd">    errors are caught during the Python evaluation.</span>
+
+<span class="sd">    Since type-checking is disabled the overloading must be implemented</span>
+<span class="sd">    by general handler functions that check the arguments themselves.&quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">PrattParser</span><span class="p">(</span><span class="n">skip_type_checking</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="c1"># Define the tokens.</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_default_whitespace</span><span class="p">()</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_int&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;-?\d+&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\(&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\)&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\*&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\+&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_](?:\w*)&quot;</span><span class="p">,</span> <span class="n">on_ties</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_string&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(</span><span class="se">\&quot;</span><span class="s2">(.|[\r\n])*?</span><span class="se">\&quot;</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Define the syntax of the language, supplying evaluation functions.</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_int&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_string&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_bracket_pair</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">plus_op</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generic addition operation that works on all the defined cases.  Note strings</span>
+<span class="sd">        are stored with quotes.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;</span><span class="se">\&quot;</span><span class="s2">&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+    <span class="k">def</span> <span class="nf">mult_op</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generic multiplication operation that works on all the defined cases.</span>
+<span class="sd">        Note strings are stored with quotes.&quot;&quot;&quot;</span>
+        <span class="k">print</span><span class="p">(</span><span class="s2">&quot;eval: x, y:&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">x</span> <span class="o">*</span> <span class="n">y</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="n">y</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">or</span> <span class="n">y</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+    <span class="n">infix</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span>
+    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+          <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">plus_op</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+          <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span><span class="n">mult_op</span><span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">(),</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()))</span>
+
+    <span class="c1"># Define assignment as an infix equals operator.</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_assignment_op_untyped</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+                                     <span class="n">create_eval_fun</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="c1"># Define identifier literals with a lookup if needed.  Parser attribute</span>
+    <span class="c1"># symbol_value_dict was initialized by the def_assignment_op_untyped call.</span>
+    <span class="n">symbol_dict</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">symbol_value_dict</span>
+    <span class="n">default_identifier_eval_value</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">eval_literal_identifier</span><span class="p">(</span><span class="n">tok</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="n">symbol_dict</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">symbol_dict</span><span class="p">[</span><span class="n">tok</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">default_identifier_eval_value</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="n">eval_literal_identifier</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="example-4-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing">
+<h2>1.4. Example 4 : A simple string and number language with evaluation and dynamic typing<a class="headerlink" href="#example-4-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing" title="Permalink to this headline">¶</a></h2>
+<p>This next example is the same simple language that operates on both quoted
+strings and integers as in Example 3.  The only allowed operations are addition
+and multiplication.  The operations on integers give the usual results.  The
+operations on strings are like in Python: addition concatenates and
+multiplication of a string by an integer (on the left or right) repeats it that
+many times.  Addition of strings and integers is a syntax error.  Identifier
+variables can also be defined and assigned values.</p>
+<p>This example uses dynamic typing, like an interpreted language.  Type errors
+are reported at parse-time, based on the types implicitly defined by the
+previously-executed coded.  For example, assigning <code class="docutils literal"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">&quot;house&quot;</span></code> implicitly
+defines <code class="docutils literal"><span class="pre">x</span></code> as a string.</p>
+<p>This example shows one way to use the Typped type mechanism.  The <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">example code
+in the examples directory</a>
+runs the language in a read-evaluate-print loop (REPL).</p>
 <div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">setup_string_language_parser_dynamic_typing</span><span class="p">():</span>
     <span class="sd">&quot;&quot;&quot;A simple dynamically-typed language that uses `+` to add integers and</span>
 <span class="sd">    concatenate strings.  Multiplication of a number by a string repeats the</span>
@@ -303,56 +393,59 @@ read-evaluate-print loop (REPL).</p>
 
     <span class="n">parser</span><span class="o">.</span><span class="n">def_bracket_pair</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
 
+    <span class="c1"># Overload the + operator twice.</span>
     <span class="n">infix</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span>
-    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+    <span class="n">infix_plus_construct</span> <span class="o">=</span> <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
           <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span>
           <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span> <span class="o">+</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
-    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+    <span class="n">infix_plus_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span>
           <span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_str</span><span class="p">,</span> <span class="n">t_str</span><span class="p">],</span>
           <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()[</span><span class="mi">1</span><span class="p">:])</span>
 
-    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+    <span class="c1"># Overload the * operator three times.</span>
+    <span class="n">infix_mult_construct</span> <span class="o">=</span> <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
           <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span>
           <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span> <span class="o">*</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span>
-    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+    <span class="n">infix_mult_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span>
           <span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_str</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span>
           <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">(</span>
                    <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">))</span>
-    <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span>
+    <span class="n">infix_mult_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span>
           <span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_str</span><span class="p">],</span>
           <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="p">(</span>
                    <span class="s1">&#39;&quot;&#39;</span> <span class="o">+</span> <span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">())</span> <span class="o">+</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">))</span>
 
     <span class="c1"># Define assignment as an infix equals operator.</span>
-    <span class="n">parser</span><span class="o">.</span><span class="n">def_assignment_op_dynamic</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_assignment_op_dynamic</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;right&quot;</span><span class="p">,</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
                                      <span class="n">val_type</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">allowed_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_str</span><span class="p">],</span>
                                      <span class="n">create_eval_fun</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">parser</span>
 </pre></div>
 </div>
 </div>
-<div class="section" id="example-4-a-simple-string-and-number-language-with-evaluation-and-static-typing">
-<h2>1.4. Example 4: A simple string and number language with evaluation and static typing<a class="headerlink" href="#example-4-a-simple-string-and-number-language-with-evaluation-and-static-typing" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="example-5-a-simple-string-and-number-language-with-evaluation-and-static-typing">
+<h2>1.5. Example 5: A simple string and number language with evaluation and static typing<a class="headerlink" href="#example-5-a-simple-string-and-number-language-with-evaluation-and-static-typing" title="Permalink to this headline">¶</a></h2>
 <p>The language being parsed in this example is basically the same as the previous
-one except that the language is statically typed rather than dynamically typed.
+two except that the language is statically typed rather than dynamically typed.
 This is like parsing a statically-typed compiled language.  Type errors are
 caught at parse-time, before any interpretation or translation into machine
-code.  This language translates the simple string-number language to Python
-code, which is then executed</p>
+code.  This language translates the simple string-number language into Python
+code, which is then evaluated.</p>
 <p>Static typing in a language requires some mechanism for declaring types (either
 implicitly or explicitly).  This language has a C-like type declaration syntax.
 None of the builtin parse methods work for this special-purpose construct, so a
 new construct is defined for type declarations.  Builtin methods are used for
 the rest of the parsing.</p>
 <p>This example illustrates how to use static typing and how to define custom
-parsing functions when the builtin methods are not sufficient.  The example
-code in the <code class="docutils literal"><span class="pre">examples</span></code> directory runs the language in a read-evaluate-print
-loop.  It prints out the parsed expression tree, the translation to Python,
-and the result of evaluating the Python code with Python’s <code class="docutils literal"><span class="pre">eval</span></code>.</p>
+parsing functions when the builtin methods are not sufficient.  The <a class="reference external" href="https://github.com/abarker/typped/blob/master/examples/basic_usage_section_examples.py">example
+code in the examples directory</a>
+runs the language in a read-evaluate-print loop (REPL).  It prints out the
+parsed expression tree, the translation to Python, and the result of evaluating
+the Python code with Python’s <code class="docutils literal"><span class="pre">eval</span></code>.</p>
 <p>The definitions of the parser instance, tokens, and types are basically the
 same as in Example 3.</p>
 <div class="section" id="defining-a-new-construct-for-type-definitions">
-<h3>1.4.1. Defining a new construct for type definitions<a class="headerlink" href="#defining-a-new-construct-for-type-definitions" title="Permalink to this headline">¶</a></h3>
+<h3>1.5.1. Defining a new construct for type definitions<a class="headerlink" href="#defining-a-new-construct-for-type-definitions" title="Permalink to this headline">¶</a></h3>
 <p>We want to allow C-style typed variable declarations like the following in the
 language:</p>
 <div class="highlight-default"><div class="highlight"><pre><span></span><span class="nb">int</span> <span class="n">x</span>
@@ -360,7 +453,7 @@ language:</p>
 </pre></div>
 </div>
 <p>Since the builtin parsing methods do not cover this, we need to define a new
-construct and register it with the parser.  Later sections will cover this
+construct and register it with the parser.  Later sections cover this
 in more detail, so readers can skim this subsection for now if necessary.</p>
 <p>There are several ways to do this parsing.  We could define new tokens for the
 keywords <code class="docutils literal"><span class="pre">int</span></code> and <code class="docutils literal"><span class="pre">str</span></code> (or a token for all such keywords) with a higher
@@ -374,9 +467,117 @@ they are stored in a dict).</p>
 of using a tail-handler function defined for identifiers.  A tail-handler could
 have been used, but in that case <code class="docutils literal"><span class="pre">int</span> <span class="pre">x</span> <span class="pre">=</span> <span class="pre">4</span></code> would be more difficult to
 parse.  The <code class="docutils literal"><span class="pre">recursive_parse</span></code> routine would consume the <code class="docutils literal"><span class="pre">x</span></code> as an operator,
-left value of <code class="docutils literal"><span class="pre">int</span></code>.  The expression <code class="docutils literal"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">4</span></code> could not then be evaluated in
-the usual way with <code class="docutils literal"><span class="pre">recursive_parse</span></code> without going back one token in the
-lexer (such as with the <code class="docutils literal"><span class="pre">go_back</span></code> method).</p>
+with a left operand of <code class="docutils literal"><span class="pre">int</span></code>.  The remaining part <code class="docutils literal"><span class="pre">=</span> <span class="pre">4</span></code> could not then be
+evaluated in the usual way as an infix operation without going back one token
+in the lexer (such as with the <code class="docutils literal"><span class="pre">go_back</span></code> method).  The handler function would
+have to use peek and next calls.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">setup_string_language_parser_static_typing</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;A simple statically-typed language that uses `+` to add integers and</span>
+<span class="sd">    concatenate strings.  Multiplication of a number by a string repeats the</span>
+<span class="sd">    string.  Multiplication of a string by a string is not defined.  It also</span>
+<span class="sd">    has simple variables which can represent either numbers or strings.&quot;&quot;&quot;</span>
+    <span class="n">parser</span> <span class="o">=</span> <span class="n">pp</span><span class="o">.</span><span class="n">PrattParser</span><span class="p">()</span>
+
+    <span class="c1"># Define the tokens.</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_default_whitespace</span><span class="p">()</span>
+    <span class="n">tok</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_token</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_int&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;-?\d+&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\(&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\)&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\*&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;\+&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;=&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;[a-zA-Z_](?:\w*)&quot;</span><span class="p">)</span>
+    <span class="n">tok</span><span class="p">(</span><span class="s2">&quot;k_string&quot;</span><span class="p">,</span> <span class="sa">r</span><span class="s2">&quot;(</span><span class="se">\&quot;</span><span class="s2">(.|[\r\n])*?</span><span class="se">\&quot;</span><span class="s2">)&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Define the types.</span>
+
+    <span class="n">t_int</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_type</span><span class="p">(</span><span class="s2">&quot;t_int&quot;</span><span class="p">)</span> <span class="c1"># Integer type.</span>
+    <span class="n">t_str</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_type</span><span class="p">(</span><span class="s2">&quot;t_str&quot;</span><span class="p">)</span> <span class="c1"># String type.</span>
+
+    <span class="c1"># Define a new construct for type definitions in the language.  The</span>
+    <span class="c1"># `typped_type_dict` is used to map type names in the implemented language</span>
+    <span class="c1"># (the strings &quot;int&quot; and &quot;str&quot;) to the corresponding Typped types</span>
+    <span class="c1"># (the `TypeObject` instances t_int and t_str).</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">typped_type_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;int&quot;</span><span class="p">:</span> <span class="n">t_int</span><span class="p">,</span>
+                               <span class="s2">&quot;str&quot;</span><span class="p">:</span> <span class="n">t_str</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">typedecl_precond_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This construct will only be triggered for identifiers stored as keys in</span>
+<span class="sd">        the dict `parser.typped_type_dict`.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">lex</span><span class="o">.</span><span class="n">token</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="s2">&quot;k_identifier&quot;</span> <span class="ow">and</span>
+                <span class="n">lex</span><span class="o">.</span><span class="n">token</span><span class="o">.</span><span class="n">value</span> <span class="ow">in</span> <span class="n">parser</span><span class="o">.</span><span class="n">typped_type_dict</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">typedecl_head_handler</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span> <span class="n">lex</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Handler function for the construct that parses type declarations.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lex</span><span class="o">.</span><span class="n">match_next</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span> <span class="n">consume</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">pp</span><span class="o">.</span><span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Type declaration not followed by an identifier.&quot;</span><span class="p">)</span>
+        <span class="c1"># Note the identifier is set as a key in symbol_type_dict before recursive_parse.</span>
+        <span class="c1"># Otherwise the definition-checking in def_literal_typed_from_dict would fail.</span>
+        <span class="n">parser</span><span class="o">.</span><span class="n">symbol_type_dict</span><span class="p">[</span><span class="n">lex</span><span class="o">.</span><span class="n">peek</span><span class="p">()</span><span class="o">.</span><span class="n">value</span><span class="p">]</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">typped_type_dict</span><span class="p">[</span><span class="n">tok</span><span class="o">.</span><span class="n">value</span><span class="p">]</span>
+        <span class="n">type_decl_expr</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">recursive_parse</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">type_decl_expr</span><span class="o">.</span><span class="n">children</span> <span class="ow">and</span> <span class="n">type_decl_expr</span><span class="o">.</span><span class="n">token_label</span> <span class="o">!=</span> <span class="s2">&quot;k_equals&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">pp</span><span class="o">.</span><span class="n">ParserException</span><span class="p">(</span><span class="s2">&quot;Only identifiers or assignment expressions are&quot;</span>
+                                     <span class="s2">&quot; allowed in type declarations.&quot;</span><span class="p">)</span>
+        <span class="n">tok</span><span class="o">.</span><span class="n">append_children</span><span class="p">(</span><span class="n">type_decl_expr</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tok</span>
+
+    <span class="k">def</span> <span class="nf">typedecl_eval_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Evaluate a type declaration when interpreting the language.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">token_label</span> <span class="o">==</span> <span class="s2">&quot;k_equals&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;; &quot;</span> <span class="o">+</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;None&quot;</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_construct</span><span class="p">(</span><span class="n">pp</span><span class="o">.</span><span class="n">HEAD</span><span class="p">,</span> <span class="n">typedecl_head_handler</span><span class="p">,</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+                         <span class="n">construct_label</span><span class="o">=</span><span class="s2">&quot;p_type_declaration&quot;</span><span class="p">,</span>
+                         <span class="n">precond_fun</span><span class="o">=</span><span class="n">typedecl_precond_fun</span><span class="p">,</span> <span class="n">precond_priority</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+                         <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span> <span class="n">typedecl_eval_fun</span><span class="p">)</span>
+
+    <span class="c1"># Now define the syntax of the language.</span>
+
+    <span class="n">literal</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_literal</span>
+    <span class="n">literal</span><span class="p">(</span><span class="s2">&quot;k_int&quot;</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+    <span class="n">literal</span><span class="p">(</span><span class="s2">&quot;k_string&quot;</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_literal_typed_from_dict</span><span class="p">(</span><span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+                                       <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="n">t</span><span class="o">.</span><span class="n">value</span><span class="p">,</span>
+                                       <span class="n">default_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span> <span class="n">default_eval_value</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                                       <span class="n">raise_if_undefined</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_bracket_pair</span><span class="p">(</span><span class="s2">&quot;k_lpar&quot;</span><span class="p">,</span> <span class="s2">&quot;k_rpar&quot;</span><span class="p">,</span>
+                            <span class="n">eval_fun</span><span class="o">=</span><span class="k">lambda</span> <span class="n">t</span><span class="p">:</span> <span class="s2">&quot;(&quot;</span> <span class="o">+</span> <span class="n">t</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;)&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">operator_eval_fun</span><span class="p">(</span><span class="n">tok</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;A general eval fun for operators.  It just reconstructs a string.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">tok</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">tok</span><span class="o">.</span><span class="n">value</span> <span class="o">+</span> <span class="s2">&quot; &quot;</span> <span class="o">+</span> <span class="n">tok</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">eval_subtree</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">tok</span><span class="o">.</span><span class="n">value</span>
+
+    <span class="c1"># Overload the + operator twice.</span>
+    <span class="n">infix</span> <span class="o">=</span> <span class="n">parser</span><span class="o">.</span><span class="n">def_infix_op</span>
+    <span class="n">infix_plus_construct</span> <span class="o">=</span> <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_plus&quot;</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span>
+                                 <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span> <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+    <span class="n">infix_plus_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span><span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_str</span><span class="p">,</span> <span class="n">t_str</span><span class="p">],</span>
+                                  <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+
+    <span class="c1"># Overload the * operator three times.</span>
+    <span class="n">infix_mult_construct</span> <span class="o">=</span> <span class="n">infix</span><span class="p">(</span><span class="s2">&quot;k_ast&quot;</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">val_type</span><span class="o">=</span><span class="n">t_int</span><span class="p">,</span>
+                                 <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span> <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+    <span class="n">infix_mult_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span><span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_str</span><span class="p">,</span> <span class="n">t_int</span><span class="p">],</span>
+                                  <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+    <span class="n">infix_mult_construct</span><span class="o">.</span><span class="n">overload</span><span class="p">(</span><span class="n">val_type</span><span class="o">=</span><span class="n">t_str</span><span class="p">,</span> <span class="n">arg_types</span><span class="o">=</span><span class="p">[</span><span class="n">t_int</span><span class="p">,</span> <span class="n">t_str</span><span class="p">],</span>
+                                  <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+
+    <span class="c1"># Define assignment as an infix equals operator.</span>
+    <span class="n">parser</span><span class="o">.</span><span class="n">def_assignment_op_static</span><span class="p">(</span><span class="s2">&quot;k_equals&quot;</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="s2">&quot;k_identifier&quot;</span><span class="p">,</span>
+                                     <span class="n">eval_fun</span><span class="o">=</span><span class="n">operator_eval_fun</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">parser</span>
+</pre></div>
+</div>
 </div>
 </div>
 </div>
@@ -390,11 +591,12 @@ lexer (such as with the <code class="docutils literal"><span class="pre">go_back
   <h3><a href="index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">1. Basic usage</a><ul>
-<li><a class="reference internal" href="#example-parsing-a-simple-expression">1.1. Example: Parsing a simple expression</a></li>
-<li><a class="reference internal" href="#example-parsing-a-simple-expression-without-using-builtins">1.2. Example: Parsing a simple expression without using builtins</a></li>
-<li><a class="reference internal" href="#example-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing">1.3. Example: A simple string and number language with evaluation and dynamic typing</a></li>
-<li><a class="reference internal" href="#example-4-a-simple-string-and-number-language-with-evaluation-and-static-typing">1.4. Example 4: A simple string and number language with evaluation and static typing</a><ul>
-<li><a class="reference internal" href="#defining-a-new-construct-for-type-definitions">1.4.1. Defining a new construct for type definitions</a></li>
+<li><a class="reference internal" href="#example-1-parsing-a-simple-expression">1.1. Example 1: Parsing a simple expression</a></li>
+<li><a class="reference internal" href="#example-2-parsing-a-simple-expression-without-using-builtins">1.2. Example 2: Parsing a simple expression without using builtins</a></li>
+<li><a class="reference internal" href="#example-3-a-simple-untyped-string-and-number-language">1.3. Example 3 : A simple untyped string and number language</a></li>
+<li><a class="reference internal" href="#example-4-a-simple-string-and-number-language-with-evaluation-and-dynamic-typing">1.4. Example 4 : A simple string and number language with evaluation and dynamic typing</a></li>
+<li><a class="reference internal" href="#example-5-a-simple-string-and-number-language-with-evaluation-and-static-typing">1.5. Example 5: A simple string and number language with evaluation and static typing</a><ul>
+<li><a class="reference internal" href="#defining-a-new-construct-for-type-definitions">1.5.1. Defining a new construct for type definitions</a></li>
 </ul>
 </li>
 </ul>
