@@ -167,7 +167,8 @@ In most computer languages this is implemented by assigning a fixed
 it.  This is called its <strong>token precedence</strong>.  The default token precedence
 value is zero, which is also the minimum possible token precedence value.
 Infix operators <em>must</em> have a token precedence &gt; 0, as we will see.  When it is
-clear in the context the token precedence will simply be called the precedence.</p>
+clear in the context the token precedence will simply be called the
+<strong>precedence</strong>.</p>
 <div class="admonition note">
 <p class="first admonition-title">Note</p>
 <p class="last">In Pratt’s terminology a token’s precedence is called its <strong>left binding
@@ -176,20 +177,20 @@ power</strong> or <strong>lbp</strong>.</p>
 </div>
 <div class="section" id="subexpressions">
 <h2>2.4. Subexpressions<a class="headerlink" href="#subexpressions" title="Permalink to this headline">¶</a></h2>
-<p>By definition, every subtree in a parse tree represents a subexpression.  The
-token precedence values define the subexpression tree structure of
-subexpressions with infix operators.  In the simple example expression above
-the top-level expression is represented by the full tree, with root at the
+<p>By definition, every subtree in an expression tree represents a subexpression.
+The token precedence values determine the resulting tree structure of
+subexpressions for infix operators.  In the simple example expression <code class="docutils literal"><span class="pre">2</span> <span class="pre">+</span> <span class="pre">5</span> <span class="pre">*</span>
+<span class="pre">8</span></code> the top-level expression is represented by the full tree, with root at the
 operator <code class="docutils literal"><span class="pre">+</span></code>.  Each token literal also defines a (trivial) subexpression.
 The subtree rooted at operator <code class="docutils literal"><span class="pre">*</span></code> defines a non-trivial subexpression which
 corresponds to the string <code class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></code> in the full expression.</p>
-<p>In Pratt parsing recursion is used to parse subexpressions (starting top-down,
-from the full expression).  A crucial distinction in this parsing method is
-whether or not a token is the <em>first</em> token of the current subexpression or is
-a <em>later</em> one.  Every subexpression has a first token, and some have later
-tokens after the first one.  In the subexpression <code class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></code> the token for <code class="docutils literal"><span class="pre">5</span></code>
-is the first token, called the <strong>head</strong> token, and <code class="docutils literal"><span class="pre">*</span></code> and <code class="docutils literal"><span class="pre">8</span></code> are later
-tokens, called <strong>tail</strong> tokens.</p>
+<p>In Pratt parsing recursion is used to parse subexpressions — starting
+top-down, from the full expression.  A crucial distinction in this parsing
+method is whether or not a token is the <em>first</em> token of the current
+subexpression or is a <em>later</em> one.  Every subexpression has a first token, and
+some have later tokens after the first one.  In the subexpression <code class="docutils literal"><span class="pre">5</span> <span class="pre">*</span> <span class="pre">8</span></code> the
+token for <code class="docutils literal"><span class="pre">5</span></code> is the first token, called the <strong>head</strong> token, and <code class="docutils literal"><span class="pre">*</span></code> and
+<code class="docutils literal"><span class="pre">8</span></code> are later tokens, called <strong>tail</strong> tokens.</p>
 <p>It was mentioned earler that in Pratt parsing each token can have one or more
 <strong>handler functions</strong> defined for it.  The handler function for when the token
 is the first token in a subexpression is called the <strong>head handler</strong> function.
@@ -294,11 +295,11 @@ is the end token or the next token is a literal token, and the latter is an
 error condition.</p>
 <p>Generally, any token with only a head handler definition has a token precedence
 of 0 and any token with a tail handler definition has a precedence greater than 0.
-This can be seen in the while loop of <code class="docutils literal"><span class="pre">recursive_parse</span></code>: Since tail handlers
-are only called inside the while loop the precedence of a token with a tail
-<em>must</em> be greater than 0, or else it will always fail the test and thus can
-never be called.  A token with only a head handler that does pass the test will
-not have a tail handler to call.</p>
+This can be seen in the while loop of <code class="docutils literal"><span class="pre">recursive_parse</span></code>: Since tail
+handlers are only called inside the while loop the precedence of a token with a
+tail <em>must</em> be greater than 0, or else it will always fail the test and thus
+can never be called.  A token with only a head handler that does pass the test
+will not have a tail handler to call.</p>
 <p>This completes the discussion of the higher-level top-down recursion routines
 <code class="docutils literal"><span class="pre">parse</span></code> and <code class="docutils literal"><span class="pre">recursive_parse</span></code>.  The next section discusses head and tail
 handlers, to complete the mutual recursion.</p>
@@ -639,7 +640,7 @@ parsing and lexing with regexes</a>.</p>
 <p>Eli Bendersky, “<a class="reference external" href="http://eli.thegreenplace.net/2010/01/02/top-down-operator-precedence-parsing/">Top-Down operator precedence parsing</a>,”
 Jan. 2, 2010.  An article based on Lundh’s article above.  It also uses Python
 and has some useful discussion.</p>
-<p>Douglas Crockford, “<a class="reference external" href="http://javascript.crockford.com/tdop/tdop.html">Top Down Operator Precedence</a>,” Feb. 21, 2007.  Uses
+<p>Douglas Crockford, “<a class="reference external" href="http://crockford.com/javascript/tdop/tdop.html">Top Down Operator Precedence</a>,” Feb. 21, 2007.  Uses
 JavaScript.</p>
 <p>Bob Nystrom, “<a class="reference external" href="http://journal.stuffwithstuff.com/2011/03/19/pratt-parsers-expression-parsing-made-easy/">Pratt Parsers: Expression Parsing Made Easy</a>,”
 Mar. 19, 2011.  Uses Java.</p>
