@@ -133,7 +133,8 @@ Every kind of token has a fixed, non-changing precedence value associated with
 it.  This is called its **token precedence**.  The default token precedence
 value is zero, which is also the minimum possible token precedence value.
 Infix operators *must* have a token precedence > 0, as we will see.  When it is
-clear in the context the token precedence will simply be called the precedence.
+clear in the context the token precedence will simply be called the
+**precedence**.
 
 .. note::
 
@@ -143,21 +144,21 @@ clear in the context the token precedence will simply be called the precedence.
 Subexpressions
 --------------
 
-By definition, every subtree in a parse tree represents a subexpression.  The
-token precedence values define the subexpression tree structure of
-subexpressions with infix operators.  In the simple example expression above
-the top-level expression is represented by the full tree, with root at the
+By definition, every subtree in an expression tree represents a subexpression.
+The token precedence values determine the resulting tree structure of
+subexpressions for infix operators.  In the simple example expression ``2 + 5 *
+8`` the top-level expression is represented by the full tree, with root at the
 operator ``+``.  Each token literal also defines a (trivial) subexpression.
 The subtree rooted at operator ``*`` defines a non-trivial subexpression which
 corresponds to the string ``5 * 8`` in the full expression.
 
-In Pratt parsing recursion is used to parse subexpressions (starting top-down,
-from the full expression).  A crucial distinction in this parsing method is
-whether or not a token is the *first* token of the current subexpression or is
-a *later* one.  Every subexpression has a first token, and some have later
-tokens after the first one.  In the subexpression ``5 * 8`` the token for ``5``
-is the first token, called the **head** token, and ``*`` and ``8`` are later
-tokens, called **tail** tokens.
+In Pratt parsing recursion is used to parse subexpressions --- starting
+top-down, from the full expression.  A crucial distinction in this parsing
+method is whether or not a token is the *first* token of the current
+subexpression or is a *later* one.  Every subexpression has a first token, and
+some have later tokens after the first one.  In the subexpression ``5 * 8`` the
+token for ``5`` is the first token, called the **head** token, and ``*`` and
+``8`` are later tokens, called **tail** tokens.
 
 It was mentioned earler that in Pratt parsing each token can have one or more
 **handler functions** defined for it.  The handler function for when the token
@@ -274,11 +275,11 @@ error condition.
 
 Generally, any token with only a head handler definition has a token precedence
 of 0 and any token with a tail handler definition has a precedence greater than 0.
-This can be seen in the while loop of ``recursive_parse``: Since tail handlers
-are only called inside the while loop the precedence of a token with a tail
-*must* be greater than 0, or else it will always fail the test and thus can
-never be called.  A token with only a head handler that does pass the test will
-not have a tail handler to call.
+This can be seen in the while loop of ``recursive_parse``: Since tail
+handlers are only called inside the while loop the precedence of a token with a
+tail *must* be greater than 0, or else it will always fail the test and thus
+can never be called.  A token with only a head handler that does pass the test
+will not have a tail handler to call.
 
 This completes the discussion of the higher-level top-down recursion routines
 ``parse`` and ``recursive_parse``.  The next section discusses head and tail
@@ -603,7 +604,7 @@ Jan. 2, 2010.  An article based on Lundh's article above.  It also uses Python
 and has some useful discussion.
 
 Douglas Crockford, "`Top Down Operator Precedence
-<http://javascript.crockford.com/tdop/tdop.html>`_," Feb. 21, 2007.  Uses
+<http://crockford.com/javascript/tdop/tdop.html>`_," Feb. 21, 2007.  Uses
 JavaScript.
 
 Bob Nystrom, "`Pratt Parsers: Expression Parsing Made Easy
