@@ -333,14 +333,24 @@ argument to ``def_stdfun`` (along with its label).
    take slightly more space to define the new tokens, it may be slower to scan
    with so many possible tokens, and the function names (and hence their
    tokens) must be defined before being used.
+   
+   Another disadvantage of the dynamic approach is that the lexer will look for
+   all tokens defined at the time.  If two definitions match in the current
+   text then one must have a higher priority.  This is fine for things like
+   keywords in languages where keyword identifiers are always keywords (i.e., a
+   disjoint namespace), but some languages allow identifiers identical to
+   keywords in other contexts.  In that case the priority mechanism would need
+   to be used, but neither one can be given priority without causing the other
+   to fail.
 
-   A disadvantage of using a common identifier token for all function names is
-   evaluation functions then cannot be automatically associated with the
-   tokens.  To get around this the `def_construct` method takes a keyword
-   argument `value_key` can be passed strings like `add` and `exp`.  The
-   evaluation functions are then keyed on those values, too.  During lookup
-   the actual text string for the token is used to look back up the evaluation
-   function.
+   Using a single, common identifier token definition works even with
+   non-disjoint namespaces.  A disadvantage of using a common identifier token
+   for all function names is evaluation functions then cannot be automatically
+   associated with the tokens.  To get around this the `def_construct` method
+   takes a keyword argument `value_key` can be passed strings like `add` and
+   `exp`.  The evaluation functions are then keyed on those values, too.
+   During lookup the actual text string for the token is used to look back up
+   the evaluation function.
 
    As far as the efficiency of defining many tokens, the Typped lexer is
    designed to very efficiently scan large numbers of tokens provided they have
