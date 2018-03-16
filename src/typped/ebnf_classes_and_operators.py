@@ -720,8 +720,7 @@ class ItemList(object):
         self.data_list.insert(index, Item(item))
 
     def __getitem__(self, index):
-        """Index an element of the `ItemList`.  Negative indices are implemented,
-        but slices are not."""
+        """Index an element of the `ItemList`."""
         if isinstance(index, slice):
             return self.data_list[index.start:index.stop:index.step]
         if index < 0: # Handle negative indices.
@@ -729,8 +728,7 @@ class ItemList(object):
         return self.data_list[index]
 
     def __setitem__(self, index, value):
-        """Set an element of the `ItemList`.  Negative indices are implemented,
-        but slices are not."""
+        """Set an element of the `ItemList`."""
         if isinstance(index, slice):
             self.data_list[
                     index.start:index.stop:index.step] = [Item(v) for v in value]
@@ -815,8 +813,7 @@ class CaseList(object):
         self.data_list.insert(index, ItemList(item))
 
     def __getitem__(self, index):
-        """Index and element of the `ItemList`.  Negative indices are implemented,
-        but slices are not."""
+        """Index and element of the `ItemList`."""
         if isinstance(index, slice):
             return self.data_list[index.start:index.stop:index.step]
         if index < 0: # Handle negative indices.
@@ -824,8 +821,7 @@ class CaseList(object):
         return self.data_list[index]
 
     def __setitem__(self, index, value):
-        """Set an element of the `ItemList`.  Negative indices are implemented,
-        but slices are not."""
+        """Set an element of the `ItemList`."""
         if isinstance(index, slice):
             self.data_list[
                     index.start:index.stop:index.step] = [ItemList(v) for v in value]

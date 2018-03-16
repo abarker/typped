@@ -33,7 +33,8 @@ def test_simple_grammar():
     # "get get filter" is not ruled out.
     #
     # Problem has been noted in the docs, dispatching section.  Need a way to
-    # access the "value_key" part of def_construct from the grammar.
+    # access the "value_key" part of def_construct from the grammar.  Or maybe
+    # types could be used?
 
     tok = parser.def_token
     k_tablename = tok("k_tokentable", r"[A-Za-z]*")
