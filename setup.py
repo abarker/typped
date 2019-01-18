@@ -151,7 +151,7 @@ def use_cython():
         PYX = PY = ".c" # Compile existing C code.
 
     """
-    # Experimental...
+    # Experimental compile to standalone...
     STANDALONE = True
     if STANDALONE and cython_is_installed:
         global INCLUDE_DIRS
