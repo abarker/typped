@@ -342,7 +342,7 @@ class Construct(object):
                     del eval_or_data_dict[dict_keys[0]]
                 else:
                     values_dict = eval_or_data_dict[dict_keys[0]]
-                    if dict_key[1] in values_dict:
+                    if dict_keys[1] in values_dict:
                         del values_dict[token_value_key]
                     if not eval_or_data_dict.get(dict_keys[0]):
                         del eval_or_data_dict[dict_keys[0]]
@@ -550,7 +550,7 @@ class ConstructTable(object):
         if type_sig is None or not construct.original_sigs:
             construct_list[:] = [c for c in construct_list if c is not construct]
             if not construct_list:
-                del token_label_keyed_dict[trigger_token_label]
+                del token_label_keyed_dict[construct.trigger_token_label]
 
     def lookup_winning_construct(self, head_or_tail, trigger_token_instance,
                                  lex=None, extra_data=None):
