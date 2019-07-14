@@ -205,7 +205,6 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
 from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
-import .builtin_parse_methods
 from . import builtin_parse_methods, predefined_token_sets
 
 # TODO: Add an symbol=None option to def_token (maybe also to lexer and
