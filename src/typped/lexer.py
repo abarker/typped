@@ -564,6 +564,9 @@ class TokenBuffer(object):
     at `current_offset`, which is zero for the current token.  (The current
     offset is itself relative to a reference point, but users do not need to
     know that detail)."""
+    # Note that Python's deque has O(1) indexed access at the ends but O(n) in the
+    # middle.  Only __getitem__ runs into this here.  The uses of TokenBuffer in
+    # Lexer seem not to cause problems, but it's something to keep in mind.
 
     def __init__(self, token_getter_fun, max_peek=-1, max_deque_size=-1,):
         """Initialize the buffer.  If `max_deque_size` equals -1 then the

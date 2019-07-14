@@ -183,8 +183,7 @@ and Pratt's original naming conventions is given in this table:
 
 from __future__ import print_function, division, absolute_import
 
-# Run tests when invoked as a script.
-if __name__ == "__main__":
+if __name__ == "__main__": # Run tests when invoked as a script.
     import pytest_helper
     pytest_helper.script_run(["../../test/test_ebnf_classes_and_operators.py",
                               "../../test/test_example_expression_grammar.py",
@@ -194,7 +193,7 @@ if __name__ == "__main__":
                               "../../test/test_pratt_types.py",
                               "../../test/test_basic_usage_section_examples.py",
                               "../../test/test_pratt_parser.py",
-                              ], pytest_args="-v")
+                              ], pytest_args="-v", set_package=True)
 
 import sys
 import copy
@@ -206,6 +205,7 @@ from .shared_settings_and_exceptions import (HEAD, TAIL, ParserException,
 from .lexer import Lexer, TokenNode, TokenTable
 from .pratt_types import TypeTable, TypeSig, TypeErrorInParsedLanguage
 from .pratt_constructs import ConstructTable
+import .builtin_parse_methods
 from . import builtin_parse_methods, predefined_token_sets
 
 # TODO: Add an symbol=None option to def_token (maybe also to lexer and

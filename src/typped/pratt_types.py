@@ -40,6 +40,10 @@ a `TypeTable` class, defined in this module.
 # https://www.python.org/dev/peps/pep-0483/
 # https://docs.python.org/3/library/typing.html
 # Similarity to Python 3's type hinting would be good.
+#
+# TODO: Implement types as a finite set theory.  Just define union and intersection,
+# maybe complement.  Define None (or Any) as the universal set, which does not change
+# even when new types are added to the universe.
 
 from __future__ import print_function, division, absolute_import
 
